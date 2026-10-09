@@ -18,6 +18,13 @@ public final class BodyDamageBridge {
   var hits=data.getCompound(HITS);var key=core.creatureId().toString();if(hits.getBoolean(key)||hits.getAllKeys().size()>=64)return false;float before=core.health().current();if(!core.damageAt(hit.getBlockPos(),Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH)))return false;
   hits.putBoolean(key,true);data.put(HITS,hits);BodyCombat.feedback(level,hit,core,before-core.health().current(),source instanceof Projectile p&&p.getOwner() instanceof net.minecraft.world.entity.player.Player player?player:null,false);return true;
  }
+ public static boolean melee(net.minecraft.server.level.ServerPlayer player,HeartBlockEntity core,net.minecraft.core.BlockPos block,Vec3 point,float amount) {
+  var level=player.serverLevel();
+  if(player.isSpectator()||core.getLevel()!=level||core.isRemoved()||core.isControlCore()||!Float.isFinite(amount)||amount<=0
+      ||!core.creatureId().equals(dev.sablelife.ownership.BodyOwnership.get(level).owner(block)))return false;
+  float before=core.health().current();if(!core.damageAt(block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH)))return false;
+  BodyCombat.feedback(level,new BlockHitResult(point,net.minecraft.core.Direction.UP,block,false),core,before-core.health().current(),player,false);return true;
+ }
  private static final ClassValue<Optional<Method>> DAMAGE=new ClassValue<>(){protected Optional<Method> computeValue(Class<?> type){for(String key:List.of("getDamage","getBaseDamage"))for(Class<?>[] args:List.of(new Class<?>[]{Vec3.class},new Class<?>[]{}))try{var method=type.getMethod(key,args);if(Number.class.isAssignableFrom(box(method.getReturnType())))return Optional.of(method);}catch(NoSuchMethodException ignored){}return Optional.empty();}};
  private static Class<?> box(Class<?> type){return type==float.class?Float.class:type==double.class?Double.class:type==int.class?Integer.class:type;}
  public static float projectileDamage(Entity source,Vec3 point){try{var method=DAMAGE.get(source.getClass()).orElse(null);if(method==null)return 0;return ((Number)(method.getParameterCount()==0?method.invoke(source):method.invoke(source,point))).floatValue();}catch(ReflectiveOperationException e){return 0;}}

@@ -58,6 +58,7 @@ public final class BodyCombat {
                 || event.getAction() != PlayerInteractEvent.LeftClickBlock.Action.START) return;
 
         player.connection.send(new ClientboundBlockUpdatePacket(event.getPos(), event.getLevel().getBlockState(event.getPos())));
+        if(dev.sablelife.compat.epicfight.EpicFightCompatibility.combatMode(player))return; // Native animation phase owns the strike.
         if (heart.health().state() != HeartState.ALIVE) return;
         BlockHitResult hit = validateMeleeHit(player, event.getPos());
         if (hit == null) return;

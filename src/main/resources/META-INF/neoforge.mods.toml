@@ -45,3 +45,6 @@ type="optional"
 versionRange="[1.0.1,)"
 ordering="AFTER"
 side="BOTH"
+
+[[mixins]]
+config="sablelife.epicfight.mixins.json"
