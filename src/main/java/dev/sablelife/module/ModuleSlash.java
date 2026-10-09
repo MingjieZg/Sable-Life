@@ -46,7 +46,7 @@ public final class ModuleSlash {
      if(!intersects(from,end,b.frame,b.cast.value("slashLength"),b.cast.value("slashWidth"),victim.getBoundingBox())||!ModuleTargets.visible(server,heart.creatureId(),from,victim))continue;
      b.hits.add(victim.getUUID());if(b.cast.value("damage")==0||ModuleDamage.hurt(victim,ModuleDamage.named(ModuleDamage.physical(server),heart),(float)b.cast.value("damage")))ModuleEffects.apply(victim,b.cast.effects(),null);
     }
-    var visual=packet(b,from,end);for(var player:server.players())if(player.position().distanceToSqr(end)<256*256)net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,visual);
+    var visual=packet(b,from,end);for(var player:server.players())if(player.position().distanceToSqr(end)<256*256&&VisualBudget.allow(player,3*(Math.clamp((int)Math.ceil(b.cast.value("slashLength")/.12),12,64)+1)))net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,visual);
     b.distance=next;if(blocked||next>=b.cast.value("range"))iterator.remove();
    }
    var m=heart.modules().find(state.getKey());if(s.blades.isEmpty()){

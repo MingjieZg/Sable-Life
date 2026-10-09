@@ -34,9 +34,20 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     private void refresh() {
         if (heart == null) return;
         var tag = heart.modules().snapshot(heart, heart.canEdit(viewer)); tag.putBoolean("Ready", true); tag.putBoolean("CommandEditable", viewer.canUseGameMasterBlocks()); tag.putBoolean("CommandAllowed", heart.getLevel().getServer().isCommandBlockEnabled());
-        var selected = DashboardSelection.get(heart, viewer.getUUID()); if (selected != null) tag.putUUID("Selected", selected);
+        var selected = DashboardSelection.get(heart, viewer.getUUID());if(selected==null&&!heart.modules().all().isEmpty())selected=heart.modules().all().getFirst().id(); if (selected != null) tag.putUUID("Selected", selected);
+        // A large core still exposes its complete selected module, but does not resend every other module's deep config.
+        if(tag.sizeInBytes()>1_000_000){
+            var list=tag.getList("Modules",10);var detailed=selected;
+            for(var value:list){var module=(CompoundTag)value;if(detailed==null||!module.hasUUID("Id")||!module.getUUID("Id").equals(detailed))compactHeader(module);}
+            tag.putBoolean("PartialAuthoring",true);
+            if(tag.sizeInBytes()>1_000_000){for(var value:list)compactHeader((CompoundTag)value);tag.putBoolean("Editable",false);tag.putBoolean("AuthoringOversized",true);}
+        }
         var stack = new ItemStack(Items.PAPER); stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         snapshot.setItem(0, stack);
+    }
+    private static void compactHeader(CompoundTag module){
+        var keep=java.util.Set.of("Version","Id","Type","Name","Enabled","Invalidated","Detached","Trigger","Channel","Status","TriggerPowered","HurtRuntime","PhaseActive","PhaseRemaining","PhaseChannelStatus","PhaseRangeValid","MovementPhase","TurnState","FacingState","LaserPhase","QuakePhase","PullPhase","PullVictims","ArenaDistance","ArenaWarning","NavigationTarget","NavigationLeft","NavigationRight","NavigationUp","NavigationDown","ItemDisplayVisible");
+        for(var key:java.util.Set.copyOf(module.getAllKeys()))if(!keep.contains(key))module.remove(key);
     }
     @Override public void broadcastChanges() { if (heart != null && heart.getLevel().getGameTime() % 5 == 0) refresh(); super.broadcastChanges(); }
     @Override public boolean stillValid(Player player) {
@@ -110,11 +121,12 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         var module = heart.modules().find(id); boolean result;
         switch (operation) {
             case "add_preset" -> {
-                if(text.length()>ModulePreset.MAX_TEXT||!VirtualModule.AVAILABLE_TYPES.contains(key)||key.equals("command")&&!player.canUseGameMasterBlocks())return false;
+                if(!AuthoringLimits.presetText(text)||!VirtualModule.AVAILABLE_TYPES.contains(key)||key.equals("command")&&!player.canUseGameMasterBlocks())return false;
                 try {
-                    var tag=net.minecraft.nbt.TagParser.parseTag(text);if(!tag.getString("Type").equals(key)||tag.getInt("Version")>1)return false;
+                    var tag=net.minecraft.nbt.TagParser.parseTag(text);if(!AuthoringLimits.compound(tag,AuthoringLimits.MAX_PRESET_BYTES)||!tag.getString("Type").equals(key)||tag.getInt("Version")>1)return false;
                     if(heart.isControlCore()&&tag.getInt("Trigger")==5)tag.putInt("Trigger",0);
                     var added=heart.modules().addPreset(tag);result=added!=null;if(added!=null)DashboardSelection.set(heart,player.getUUID(),added.id());
+                    if (added != null && added.type().equals("command")) added.approveCommands();
                 }catch(com.mojang.brigadier.exceptions.CommandSyntaxException|IllegalArgumentException e){return false;}
             }
             case "add" -> {
@@ -124,16 +136,20 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             case "commands" -> {
                 if (!player.canUseGameMasterBlocks() || module == null || !module.type().equals("command")) return false;
                 try { int split=text.indexOf('|'); int index=Integer.parseInt(split<0?text:text.substring(0,split)); result=module.commands().edit(key,index,value,split<0?"":text.substring(split+1)); } catch (IllegalArgumentException e) { return false; }
-                if(result)heart.modules().changed();
+                if(result){module.approveCommands();heart.modules().changed();}
             }
             case "move_set" -> {
+                if (key.equals("action_add") && !player.canUseGameMasterBlocks()) {
+                    try { var target = heart.modules().find(UUID.fromString(text.split("\\|", 3)[1])); if (target != null && target.type().equals("command")) return false; }
+                    catch (IllegalArgumentException | IndexOutOfBoundsException e) { return false; }
+                }
                 result = module != null && module.type().equals("move_set") && module.moveSet().edit(key, value, text, heart.modules());
                 if (result) heart.modules().changed();
             }
             case "reorder" -> result=Double.isFinite(value)&&(value==-1||value==1)&&heart.modules().reorder(id,(int)value);
-            case "remove" -> result = heart.modules().remove(id);
+            case "remove" -> { if(module!=null&&module.type().equals("command")&&!player.canUseGameMasterBlocks())return false;result=heart.modules().remove(id); }
             case "mark" -> { return module != null && module.known() && MarkingSessions.start(player, heart, module); }
-            case "edit" -> { result = module != null && module.edit(key, value, text); if (result) { if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
+            case "edit" -> { if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
             default -> { return false; }
         }
         if (result) { heart.setChanged(); refresh(); broadcastChanges(); }

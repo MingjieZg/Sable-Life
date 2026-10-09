@@ -24,7 +24,7 @@ public final class BodyExplosionDamage {
   var calculator=((ExplosionDamageAccess)explosion).sablelife$calculator();if(calculator.getClass().getName().startsWith("dev.sablelife."))return;
   double range=BodyDamageBridge.explosionRange(explosion);var center=SableBodyProbe.toWorld(level,explosion.center());if(!Double.isFinite(range)||range<=0||!Double.isFinite(center.lengthSqr()))return;
   var seen=SEEN.computeIfAbsent(explosion,e->new HashSet<>());
-  for(var core:BodyOwnership.get(level).loadedHearts(level)){
+  for(var core:dev.sablelife.ownership.LoadedCoreIndex.query(level,new AABB(center,center).inflate(range))){
    if(core.isControlCore()||core.health().state()!=HeartState.ALIVE||seen.contains(core.creatureId()))continue;var hit=nearestVisible(level,core,center,range);if(hit==null)continue;seen.add(core.creatureId());float amount=BodyDamageBridge.explosionDamage(explosion,hit.distance,range);if(Float.isFinite(amount)&&amount>0)core.damageAt(hit.block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));
   }
  }

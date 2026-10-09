@@ -19,6 +19,16 @@ public final class BodyOwnership extends SavedData {
     public static final ThreadLocal<Integer> MOVING = ThreadLocal.withInitial(() -> 0);
     private final Map<Long, UUID> owners = new HashMap<>();
     private final Map<Long, UUID> parts = new HashMap<>();
+    private final Map<UUID, java.util.Set<Long>> byOwner = new HashMap<>(), byPart = new HashMap<>();
+    private static final class Cursor {
+        final java.util.ArrayDeque<Long> queue = new java.util.ArrayDeque<>();
+        final java.util.Set<Long> queued = new java.util.HashSet<>();
+        void add(long position) { if (queued.add(position)) queue.addLast(position); }
+        long next() { long position=queue.removeFirst();queued.remove(position);return position; }
+    }
+    private final Map<UUID,Cursor> ownerCursors=new HashMap<>(), partCursors=new HashMap<>();
+    private static void addIndex(Map<UUID,java.util.Set<Long>> index,UUID id,long position) { index.computeIfAbsent(id,k->new java.util.HashSet<>()).add(position); }
+    private static void removeIndex(Map<UUID,java.util.Set<Long>> index,UUID id,long position) { if(id==null)return;var positions=index.get(id);if(positions!=null&&positions.remove(position)&&positions.isEmpty())index.remove(id); }
     private final java.util.Set<Long> removedBlocks = new java.util.HashSet<>();
     /** Keep ownership through vanilla drop callbacks, then retire confirmed empty coordinates. */
     public void noteRemoved(BlockPos pos) {
@@ -33,20 +43,23 @@ public final class BodyOwnership extends SavedData {
         }
     }
     public UUID part(BlockPos pos) { return parts.get(pos.asLong()); }
-    public boolean hasPart(UUID id) { return parts.containsValue(id); }
+    public boolean hasPart(UUID id) { return byPart.containsKey(id); }
     public boolean hasOwnedWithin(ServerLevel level,UUID owner,java.util.Set<UUID> bodies){
-        for(var entry:owners.entrySet())if(owner.equals(entry.getValue())){var body=Sable.HELPER.getContaining(level,BlockPos.of(entry.getKey()));if(body!=null&&bodies.contains(body.getUniqueId()))return true;}return false;
+        for(var position:byOwner.getOrDefault(owner,java.util.Set.of())){var body=Sable.HELPER.getContaining(level,BlockPos.of(position));if(body!=null&&bodies.contains(body.getUniqueId()))return true;}return false;
     }
-    public void bindPart(BlockPos pos, UUID id) { if (id != null && owner(pos) != null) { parts.put(pos.asLong(), id); setDirty(); } }
+    public void bindPart(BlockPos pos, UUID id) {
+        if (id == null || owner(pos) == null) return;
+        long position=pos.asLong();var previous=parts.put(position,id);
+        if (!id.equals(previous)) { removeIndex(byPart,previous,position);addIndex(byPart,id,position);var cursor=partCursors.get(id);if(cursor!=null)cursor.add(position);setDirty(); }
+    }
     /** Preserve the creature identity; add a separate cleanup group for this disconnected fragment. */
     public boolean claimPart(ServerLevel level, BlockPos marker, UUID creature, UUID part) {
         var root = Sable.HELPER.getContaining(level, marker);
         if (root == null) return false;
-        var connected = SubLevelHelper.getConnectedChain(root);
-        var positions = owners.entrySet().stream().filter(e -> creature.equals(e.getValue())
-                && connected.contains(Sable.HELPER.getContaining(level, BlockPos.of(e.getKey())))).map(Map.Entry::getKey).toList();
+        var connected = java.util.Set.copyOf(SubLevelHelper.getConnectedChain(root));
+        var positions = byOwner.getOrDefault(creature,java.util.Set.of()).stream().filter(position -> connected.contains(Sable.HELPER.getContaining(level,BlockPos.of(position)))).toList();
         if (positions.isEmpty() || positions.stream().anyMatch(parts::containsKey)) return false;
-        positions.forEach(pos -> parts.put(pos, part)); setDirty(); return true;
+        positions.forEach(position -> bindPart(BlockPos.of(position),part)); return true;
     }
     public static BodyOwnership get(ServerLevel level) {
         return level.getDataStorage().computeIfAbsent(new Factory<>(BodyOwnership::new, BodyOwnership::load), "sablelife_bodies");
@@ -55,40 +68,31 @@ public final class BodyOwnership extends SavedData {
         return level instanceof ServerLevel server && get(server).owner(pos) != null;
     }
     public UUID owner(BlockPos pos) { return owners.get(pos.asLong()); }
-    public boolean hasOwned(UUID creature) { return owners.containsValue(creature); }
+    public boolean hasOwned(UUID creature) { return byOwner.containsKey(creature); }
     public java.util.List<HeartBlockEntity> loadedHearts(ServerLevel level) {
-        var result=new java.util.ArrayList<HeartBlockEntity>(); var seen=new java.util.HashSet<UUID>();
-        for(var entry:owners.entrySet()) {
-            var pos=BlockPos.of(entry.getKey());
-            if(level.hasChunkAt(pos) && level.getBlockEntity(pos) instanceof HeartBlockEntity heart && entry.getValue().equals(heart.creatureId()) && seen.add(heart.creatureId())) result.add(heart);
-        }
-        return result;
+        return LoadedCoreIndex.all(level).stream().filter(heart -> heart.creatureId().equals(owner(heart.getBlockPos()))).toList();
     }
+
     public boolean hasLoadedHeart(ServerLevel level, UUID creature) {
         return loadedHeart(level, creature) != null;
     }
     public HeartBlockEntity loadedHeart(ServerLevel level, UUID creature) {
-        for (var entry : owners.entrySet()) {
-            if (!creature.equals(entry.getValue())) continue;
-            var pos = BlockPos.of(entry.getKey());
-            if (level.hasChunkAt(pos) && level.getBlockEntity(pos) instanceof HeartBlockEntity heart
-                    && creature.equals(heart.creatureId())) return heart;
-        }
-        return null;
+        var heart = LoadedCoreIndex.find(level, creature);
+        return heart != null && creature.equals(owner(heart.getBlockPos())) ? heart : null;
     }
+
     public void bind(BlockPos pos, UUID creature) {
         if (removedBlocks.remove(pos.asLong())) setDirty();
-        if (owners.putIfAbsent(pos.asLong(), creature) == null) setDirty();
+        if (owners.putIfAbsent(pos.asLong(), creature) == null) { addIndex(byOwner,creature,pos.asLong());var cursor=ownerCursors.get(creature);if(cursor!=null)cursor.add(pos.asLong());setDirty(); }
     }
     public void forget(BlockPos pos) {
         if (removedBlocks.remove(pos.asLong())) setDirty();
-        if (parts.remove(pos.asLong()) != null) setDirty();
-        if (owners.remove(pos.asLong()) != null) setDirty();
+        var part=parts.remove(pos.asLong());if(part!=null){removeIndex(byPart,part,pos.asLong());setDirty();}
+        var owner=owners.remove(pos.asLong());if(owner!=null){removeIndex(byOwner,owner,pos.asLong());setDirty();}
     }
     public void release(UUID creature) {
-        removedBlocks.removeIf(pos -> creature.equals(owners.get(pos)));
-        parts.keySet().removeIf(pos -> creature.equals(owners.get(pos)));
-        if (owners.values().removeIf(creature::equals)) setDirty();
+        for(var position:java.util.List.copyOf(byOwner.getOrDefault(creature,java.util.Set.of())))forget(BlockPos.of(position));
+        ownerCursors.remove(creature);
     }
     public void cleanLoaded(ServerLevel level, UUID creature, int budget) {
         clean(level, creature, budget, false);
@@ -101,41 +105,44 @@ public final class BodyOwnership extends SavedData {
         clean(level,creature,budget,part,null);
     }
     private void clean(ServerLevel level, UUID creature, int budget, boolean part, dev.sablelife.heart.DeathPresentation effect) {
-        int smokeBudget = 16;
-        for (var entry : java.util.List.copyOf(owners.entrySet())) {
-            if (budget == 0) return;
-            if (!creature.equals(part ? parts.get(entry.getKey()) : entry.getValue())) continue;
-            var pos = BlockPos.of(entry.getKey());
-            if (!level.hasChunkAt(pos)) continue;
-            // Keep ownership present during onRemove so inventories cannot scatter ordinary materials.
-            if (level.getBlockState(pos).isAir()) { forget(pos); budget--; continue; }
-            var point = dev.sablelife.compat.sable.SableBodyProbe.toWorld(level, pos.getCenter());
-            boolean removed;
-            BodyProtection.CLEANING.set(BodyProtection.CLEANING.get() + 1);
-            try { removed = level.removeBlock(pos, false); }
-            finally { BodyProtection.CLEANING.set(BodyProtection.CLEANING.get() - 1); }
-            if (removed) {
-                if (smokeBudget-- > 0) {
-                    if(effect!=null)effect.emit(level,point);
-                    else dev.sablelife.module.ModuleParticles.send(level, net.minecraft.core.particles.ParticleTypes.POOF,
-                        point.x, point.y, point.z, 6, 0.35, 0.35, 0.35, 0.04);
-                }
-                forget(pos); budget--;
-            }
+        cleanBudgeted(level,creature,budget,Math.max(1024,budget),part,effect);
+    }
+    public record CleanupResult(int removed,int visited) {}
+    /** Queue only this owner's records. Unloaded positions rotate without scanning unrelated creatures. */
+    public CleanupResult cleanBudgeted(ServerLevel level,UUID id,int budget,int visits,boolean part,dev.sablelife.heart.DeathPresentation effect) {
+        var index=part?byPart:byOwner;var cursors=part?partCursors:ownerCursors;
+        var positions=index.get(id);if(positions==null){cursors.remove(id);return new CleanupResult(0,0);}
+        if(budget<=0||visits<=0)return new CleanupResult(0,0);
+        var cursor=cursors.computeIfAbsent(id,key->{var c=new Cursor();positions.forEach(c::add);return c;});
+        int examined=0,removed=0,smoke=16,limit=Math.min(visits,cursor.queue.size());
+        while(examined<limit&&removed<budget&&!cursor.queue.isEmpty()) {
+            long position=cursor.next();examined++;var pos=BlockPos.of(position);
+            if(!id.equals(part?parts.get(position):owners.get(position)))continue;
+            if(!level.hasChunkAt(pos)){cursor.add(position);continue;}
+            if(level.getBlockState(pos).isAir()){forget(pos);removed++;continue;}
+            var point=dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,pos.getCenter());boolean erased;
+            BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()+1);
+            try{erased=level.removeBlock(pos,false);}finally{BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);}
+            if(erased){
+                if(smoke-->0){if(effect!=null)effect.emit(level,point);else dev.sablelife.module.ModuleParticles.send(level,net.minecraft.core.particles.ParticleTypes.POOF,point.x,point.y,point.z,6,.35,.35,.35,.04);}
+                forget(pos);removed++;
+            }else if(id.equals(part?parts.get(position):owners.get(position)))cursor.add(position);
         }
+        if(!index.containsKey(id))cursors.remove(id);
+        return new CleanupResult(removed,examined);
     }
     /** Release only the selected orphan fragment, never the distant active parent. */
     public boolean releaseFragment(ServerLevel level, BlockPos clicked) {
         UUID creature = owner(clicked);
         if (creature == null) return false;
-        var affectedParts = new java.util.HashSet<>(parts.values());
+        var affectedParts = new java.util.HashSet<UUID>();
         var root = Sable.HELPER.getContaining(level, clicked);
-        if (root == null) { forget(clicked); cancelReleasedParts(level, affectedParts); return true; }
-        var connected = SubLevelHelper.getConnectedChain(root);
-        boolean changed = owners.entrySet().removeIf(entry -> creature.equals(entry.getValue())
-                && connected.contains(Sable.HELPER.getContaining(level, BlockPos.of(entry.getKey()))));
-        if (changed) setDirty();
-        parts.keySet().removeIf(pos -> !owners.containsKey(pos));
+        if (root == null) { if(part(clicked)!=null)affectedParts.add(part(clicked));forget(clicked);cancelReleasedParts(level,affectedParts);return true; }
+        var connected = java.util.Set.copyOf(SubLevelHelper.getConnectedChain(root));
+        var positions=byOwner.getOrDefault(creature,java.util.Set.of()).stream()
+                .filter(position->connected.contains(Sable.HELPER.getContaining(level,BlockPos.of(position)))).toList();
+        for(var position:positions){var pos=BlockPos.of(position);if(part(pos)!=null)affectedParts.add(part(pos));forget(pos);}
+        boolean changed=!positions.isEmpty();
         cancelReleasedParts(level, affectedParts);
         return changed;
     }
@@ -147,6 +154,7 @@ public final class BodyOwnership extends SavedData {
         }
     }
     public void capture(HeartBlockEntity heart) {
+        LoadedCoreIndex.observe(heart);
         var level = (ServerLevel) heart.getLevel();
         var root = Sable.HELPER.getContaining(level, heart.getBlockPos());
         if (root == null) { bind(heart.getBlockPos(), heart.creatureId()); return; }
@@ -172,8 +180,8 @@ public final class BodyOwnership extends SavedData {
         for (int i = 0; i < entries.size(); i++) {
             var entry = entries.getCompound(i);
             if (entry.hasUUID("Owner")) {
-                data.owners.put(entry.getLong("Pos"), entry.getUUID("Owner"));
-                if (entry.hasUUID("Part")) data.parts.put(entry.getLong("Pos"), entry.getUUID("Part"));
+                long position=entry.getLong("Pos");var owner=entry.getUUID("Owner");data.owners.put(position,owner);addIndex(data.byOwner,owner,position);
+                if (entry.hasUUID("Part")) { var part=entry.getUUID("Part");data.parts.put(position,part);addIndex(data.byPart,part,position); }
                 if (entry.getBoolean("Removed")) data.removedBlocks.add(entry.getLong("Pos"));
             }
         }

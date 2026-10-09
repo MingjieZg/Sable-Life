@@ -40,5 +40,7 @@ public abstract class BodyAssemblyMixin {
             if (level.getBlockState(pos).isAir()) source.forget(pos);
         });
         anchors.finish(transform);
+        dev.sablelife.compat.sable.SableBodyProbe.invalidate(level);
+        dev.sablelife.compat.sable.SableBodyProbe.invalidate(transform.getLevel());
     }
 }

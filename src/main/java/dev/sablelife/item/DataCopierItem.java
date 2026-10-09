@@ -29,6 +29,7 @@ public final class DataCopierItem extends Item {
             return InteractionResult.FAIL;
         }
         if (level.isClientSide) return InteractionResult.SUCCESS;
+        if (!dev.sablelife.module.AuthoringRateLimit.allow(player,20)) return InteractionResult.FAIL;
         var stack = context.getItemInHand(); var data = payload(stack);
         if (data.isEmpty() || player.isShiftKeyDown()) {
             var copied = heart.copyConfiguration(); copied.putString("SourceName", heart.displayName().getString());

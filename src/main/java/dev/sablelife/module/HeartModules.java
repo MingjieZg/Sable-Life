@@ -41,7 +41,7 @@ public final class HeartModules {
     private void audioLifecycle(HeartBlockEntity heart){
         if(!(heart.getLevel() instanceof net.minecraft.server.level.ServerLevel level))return;audioLevel=level;
         var active=new java.util.HashSet<UUID>();
-        if(heart.operational()&&(!heart.isControlCore()||heart.wireless().master()))for(var m:modules)if(m.enabled()&&status(m,heart).equals("valid"))active.add(m.id());
+        if(heart.operational()&&(!heart.isControlCore()||heart.wireless().master()))for(var m:modules)if(m.enabled()&&ModuleFields.forType(m.type()).stream().anyMatch(f->f.choices().equals(List.of("library")))&&status(m,heart).equals("valid"))active.add(m.id());
         for(var id:audioModules)if(!active.contains(id))ModuleAudio.stop(level,id);audioModules.clear();audioModules.addAll(active);
     }
     public void tick(HeartBlockEntity heart) { if(heart.isControlCore()){audioLifecycle(heart);moveSets.tick(heart);sequence.tick(heart);boolean manualBusy=signalTurn.tick(heart,false);autoFacing.tick(heart,manualBusy);events.tick(heart);itemDisplays.tick(heart);return;}audioLifecycle(heart); hurtTriggers.tick(heart); healthPhase.tick(heart); moveSets.tick(heart); sequence.tick(heart); commands.tick(heart); linearMovement.tick(heart); boolean manualBusy=signalTurn.tick(heart,linearMovement.busy());autoFacing.tick(heart,linearMovement.busy()||manualBusy); ModuleLoot.tick(heart); events.tick(heart); combat.tick(heart); arena.tick(heart); groundStrike.tick(heart); sphereBlast.tick(heart); slash.tick(heart); laser.tick(heart); pull.tick(heart); quake.tick(heart); homing.tick(heart);itemDisplays.tick(heart); }
@@ -121,6 +121,7 @@ public final class HeartModules {
     public static String status(VirtualModule module, HeartBlockEntity heart) {
         if(heart.isControlCore()&&!dev.sablelife.heart.RedstoneCorePolicy.allowed(module))return "unknown";
         if (!module.known()) return "unknown";
+        if (module.commandApprovalRequired()) return "command_locked";
         if(TargetCastOrigin.targeted(module))return module.enabled()?"valid":"disabled";
         if (module.invalidated()) return "destroyed";
         if (module.detached()) return "disconnected";

@@ -23,7 +23,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import java.util.List;
 
-@GameTestHolder("sablelife_tests")
+@GameTestHolder("sablelife_control_tests")
 @PrefixGameTestTemplate(false)
 public final class HeartWirelessGameTests {
     @GameTest(template = "combat", timeoutTicks = 100, batch="audit_heartwirelessgametests_externalreceivermatchescreatelinkandneverrunsownwaveform")
@@ -100,7 +100,7 @@ public final class HeartWirelessGameTests {
         var receiver = receiver(h, new BlockPos(4, 6, 7), Items.DIAMOND, Items.EMERALD);
         var channel = heart.wireless().channel(0);
         channel.frequency(false, new ItemStack(Items.DIAMOND)); channel.frequency(true, new ItemStack(Items.EMERALD));
-        channel.set(0, 1); channel.set(2, 100); channel.set(4, 9);
+        channel.set(0, 1);channel.set(6,2); channel.set(2, 100); channel.set(4, 9);
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(level));
         h.runAfterDelay(5, () -> {
             h.assertTrue(receiver.getReceivedSignal() == 9 && heart.wireless().output(0) == 9,
@@ -124,7 +124,7 @@ public final class HeartWirelessGameTests {
         var receiver = receiver(h, new BlockPos(5, 6, 7), Items.GOLD_INGOT, Items.IRON_INGOT);
         for (var heart : List.of(a, b)) {
             var c = heart.wireless().channel(0); c.frequency(false, new ItemStack(Items.GOLD_INGOT));
-            c.frequency(true, new ItemStack(Items.IRON_INGOT)); c.set(0, 1); c.set(2, 100);
+            c.frequency(true, new ItemStack(Items.IRON_INGOT)); c.set(0, 1);c.set(6,2); c.set(2, 100);
             c.set(4, heart == a ? 12 : 6); heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel()));
         }
         h.runAfterDelay(5, () -> {
@@ -156,6 +156,8 @@ public final class HeartWirelessGameTests {
         level.setBlockAndUpdate(origin.east(), Blocks.IRON_BLOCK.defaultBlockState());
         var body = SubLevelAssemblyHelper.assembleBlocks(level, origin, List.of(origin, origin.east()),
                 new BoundingBox3i(origin.getX(), origin.getY(), origin.getZ(), origin.getX() + 1, origin.getY(), origin.getZ()));
-        return (HeartBlockEntity) level.getBlockEntity(body.getPlot().getCenterBlock());
+        var heart=(HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());
+        for(int i=0;i<16;i++)heart.wireless().add();
+        return heart;
     }
 }

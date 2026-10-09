@@ -43,11 +43,12 @@ public final class ModuleSignalTurn {
                     var candidate=new Quaterniond(step).mul(turn);
                     if(AutoFacingGeometry.clearTurn(level,bodies,pivot,candidate,radius))turn=candidate;
                 }
-                if(2*Math.acos(Math.min(1,Math.abs(turn.w)))<1e-6){states.put(module.id(),"blocked");continue;}
+                if(2*Math.acos(Math.min(1,Math.abs(turn.w)))<1e-6){states.put(module.id(),CollisionWorkBudget.exhausted(level)?"budget":"blocked");continue;}
             }
             for(var body:AutoFacingGeometry.rotated(bodies,pivot,turn)){
                 var velocity=new Vector3d(body.body().latestLinearVelocity);physics.getPipeline().resetVelocity(body.body());physics.getPipeline().teleport(body.body(),body.position(),body.rotation());physics.getPipeline().addLinearAndAngularVelocity(body.body(),velocity,new Vector3d());
             }
+            dev.sablelife.ownership.LoadedCoreIndex.geometryChanged(level);
             states.put(module.id(),partial?"partial":"turning");
         }
         states.keySet().retainAll(keep);return controlled;

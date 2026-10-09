@@ -23,7 +23,7 @@ public final class ModuleTargets {
     public static List<LivingEntity> query(ServerLevel level,UUID owner,AABB box) { return query(level,owner,box,e -> true); }
     public static List<LivingEntity> query(ServerLevel level,UUID owner,AABB box,Predicate<LivingEntity> filter) {
         var result=new ArrayList<>(level.getEntitiesOfClass(LivingEntity.class,box,filter));
-        for(var heart:BodyOwnership.get(level).loadedHearts(level)) {
+        for(var heart:dev.sablelife.ownership.LoadedCoreIndex.query(level,box)) {
             if(heart.creatureId().equals(owner) || heart.health().state()!=HeartState.ALIVE) continue;
             var target=new LifeTarget(level,heart,owner); if(box.intersects(target.getBoundingBox()) && filter.test(target)) result.add(target);
         }
@@ -51,16 +51,7 @@ public final class ModuleTargets {
         private void refresh() {
             var center=SableBodyProbe.toWorld(heart.getLevel(),heart.getBlockPos().getCenter());
             setPos(center.x,center.y-.5,center.z);
-            var box=new AABB(center,center).inflate(.5);
-            var root=dev.ryanhcode.sable.Sable.HELPER.getContaining(heart.getLevel(),heart.getBlockPos());
-            if(root!=null) for(var body:dev.ryanhcode.sable.api.SubLevelHelper.getConnectedChain(root)) {
-                if(body.isRemoved()) continue;
-                var bounds=body.getPlot().getBoundingBox(); if(bounds==null) continue;
-                for(int x=0;x<2;x++) for(int y=0;y<2;y++) for(int z=0;z<2;z++) {
-                    var corner=body.logicalPose().transformPosition(new Vec3(x==0?bounds.minX():bounds.maxX()+1.,y==0?bounds.minY():bounds.maxY()+1.,z==0?bounds.minZ():bounds.maxZ()+1.));
-                    box=box.minmax(new AABB(corner,corner));
-                }
-            }
+            var box=dev.sablelife.ownership.LoadedCoreIndex.bounds(heart);
             setPos(center.x,box.minY,center.z); setBoundingBox(box); setCustomName(heart.displayName());
         }
         @Override public Vec3 getDeltaMovement() {

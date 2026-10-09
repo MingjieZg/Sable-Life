@@ -33,14 +33,14 @@ public final class ModuleParticles {
         if (entry.ticks() == 0 && entry.size() == 1F) { send(level, particle, x, y, z, count, dx, dy, dz, speed); return; }
         var packet = new ModuleNetworking.ParticleVisual(entry.id(), new net.minecraft.world.phys.Vec3(x,y,z), Math.clamp(count, 0, 256),
                 new net.minecraft.world.phys.Vec3(dx,dy,dz), speed, entry.ticks(), entry.size());
-        for (var player : level.players()) if (player.position().distanceToSqr(x,y,z) <= 512 * 512)
+        for (var player : level.players()) if (player.position().distanceToSqr(x,y,z) <= 512 * 512 && VisualBudget.allow(player,Math.max(1,count)))
             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, packet);
     }
     /** Bypass client particle reduction and use Minecraft's extended particle viewing distance. */
     public static <T extends net.minecraft.core.particles.ParticleOptions> void send(
             net.minecraft.server.level.ServerLevel level, T particle,
             double x, double y, double z, int count, double dx, double dy, double dz, double speed) {
-        for (var player : level.players())
+        for (var player : level.players()) if(player.position().distanceToSqr(x,y,z)<=512*512&&VisualBudget.allow(player,Math.max(1,count)))
             level.sendParticles(player, particle, true, x, y, z, count, dx, dy, dz, speed);
     }
     public static SimpleParticleType type(String id) {

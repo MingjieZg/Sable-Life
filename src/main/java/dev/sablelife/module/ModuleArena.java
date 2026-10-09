@@ -51,6 +51,7 @@ public final class ModuleArena {
             system.getPipeline().resetVelocity(move.body());
             system.getPipeline().teleport(move.body(), move.position(), move.orientation());
         }
+        dev.sablelife.ownership.LoadedCoreIndex.geometryChanged(level);
         return true;
     }
     public void tick(HeartBlockEntity heart) {

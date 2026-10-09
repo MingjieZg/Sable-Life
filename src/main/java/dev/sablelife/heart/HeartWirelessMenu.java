@@ -16,7 +16,7 @@ import net.minecraft.world.item.ItemStack;
 public final class HeartWirelessMenu extends AbstractContainerMenu {
     public static final int PAGE_SIZE = 7, OUTPUT = 7, INPUT = 14, ENABLED_ROWS = 21, RECEIVE = 28,
             MASTER = 35, CLOCK_LOW = 36, CLOCK_HIGH = 37, SELECTED = 38, EDITABLE = 39, ALIVE = 40,
-            COUNT = 41, PAGE = 42, SELECTED_INPUT = 43, DATA_COUNT = 44;
+            COUNT = 41, PAGE = 42, SELECTED_INPUT = 43, CHANNEL_LIMIT = 44, DATA_COUNT = 45;
     private final HeartBlockEntity heart;
     private final Player viewer;
     private int selected, page;
@@ -38,6 +38,7 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
                 if (index < MASTER) return heart.wireless().channel(page * PAGE_SIZE + index - RECEIVE).value(6);
                 return switch (index) {
                     case COUNT -> heart.wireless().size();
+                    case CHANNEL_LIMIT -> heart.wireless().limit();
                     case SELECTED_INPUT -> heart.wireless().input(selected);
                     case PAGE -> page;
                     case MASTER -> heart.wireless().master() ? 1 : 0;
@@ -108,6 +109,7 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
             refresh(); sendAllDataToRemote(); return true;
         }
         if (field == 10) {
+            if (!dev.sablelife.module.AuthoringRateLimit.allow(player, 5)) return false;
             int added = heart.wireless().add(); if (added < 0) return false;
             selected = added; page = selected / PAGE_SIZE; refresh(); sendAllDataToRemote(); return true;
         }

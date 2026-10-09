@@ -58,7 +58,8 @@ public final class ModuleLinearMovement {
                 if(s.goal!=null){if(module.value("moveTargetVertical")==0)s.goal=new Vec3(s.goal.x,point(heart,module).y,s.goal.z);var remaining=s.goal.subtract(point(heart,module));s.distance=remaining.length();s.direction=remaining.normalize();if(s.distance<.0001){finish(heart,module,s,"arrived");continue;}}
                 var end=s.direction.scale(s.distance);boolean teleport=module.value("linearMode")==0;boolean force=module.value("moveForce")==1;
                 s.forceStart=s.bodies;s.forceOrigin=point(heart,module);
-                if(force?!LinearMovementGeometry.loadedDestination(level,LinearMovementGeometry.forcedDestination(s.bodies,s.bodies,teleport?end:Vec3.ZERO)):!LinearMovementGeometry.clear(level,s.bodies,Vec3.ZERO,teleport?end:Vec3.ZERO,teleport&&module.value("moveObstruction")==0)){finish(heart,module,s,"blocked");continue;}
+                boolean clear=force?LinearMovementGeometry.loadedDestination(level,LinearMovementGeometry.forcedDestination(s.bodies,s.bodies,teleport?end:Vec3.ZERO)):LinearMovementGeometry.clear(level,s.bodies,Vec3.ZERO,teleport?end:Vec3.ZERO,teleport&&module.value("moveObstruction")==0);
+                if(!clear){if(!force&&CollisionWorkBudget.exhausted(level)){s.status="budget";continue;}finish(heart,module,s,"blocked");continue;}
                 var depart=point(heart,module);
                 if(teleport){
                     if(!LinearMovementGeometry.move(level,s.bodies,end)){finish(heart,module,s,"blocked");continue;}
@@ -83,7 +84,9 @@ public final class ModuleLinearMovement {
                 if(s.goal!=null){if(module.value("moveTargetVertical")==0)s.goal=new Vec3(s.goal.x,departure.y,s.goal.z);var remaining=s.goal.subtract(departure);double distance=remaining.length();if(distance<.0001){finish(heart,module,s,"arrived");continue;}s.direction=remaining.normalize();next=Math.min(distance,module.value("travelSpeed")/20);step=s.direction.scale(next);delta=s.offset.add(step);}
                 else {next=Math.min(s.distance,s.offset.length()+module.value("travelSpeed")/20);delta=s.direction.scale(next);step=delta.subtract(s.offset);}
                 if(!LinearMovementGeometry.clear(level,s.bodies,Vec3.ZERO,step,true)){
+                    if(CollisionWorkBudget.exhausted(level)){s.status="budget";continue;}
                     double low=0,high=step.length();for(int i=0;i<10;i++){double mid=(low+high)/2;if(LinearMovementGeometry.clear(level,s.bodies,Vec3.ZERO,s.direction.scale(mid),true))low=mid;else high=mid;}
+                    if(CollisionWorkBudget.exhausted(level)){s.status="budget";continue;}
                     var safe=s.direction.scale(low);if(low>.001)movedThisTick=LinearMovementGeometry.move(level,s.bodies,safe)||movedThisTick;
                     effect(level,module,"Arrival",departure.add(safe),true);finish(heart,module,s,"blocked");continue;
                 }

@@ -19,7 +19,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import java.util.List;
 
 @Mod("sablelife_tests")
-@GameTestHolder("sablelife_tests")
+@GameTestHolder("sablelife_core_ui_tests")
 @PrefixGameTestTemplate(false)
 public final class HeartGameTests {
     public HeartGameTests() {}

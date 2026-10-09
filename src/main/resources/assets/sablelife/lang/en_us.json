@@ -1441,5 +1441,15 @@
   "manual.sablelife.density": "UI density: %s",
   "manual.sablelife.module_management.manual_controls": "The manual header provides Language, UI density and Back. Language switches the game resources without restarting; returning preserves the chapter, tab and search. UI density uses the same saved preference as the dashboard and adjusts text wrapping and row spacing. Right-click density to cycle backward.",
   "core.sablelife.regenPercent": "Regen (% max HP/s)",
-  "dashboard.sablelife.moveForce": "Force movement"
+  "dashboard.sablelife.moveForce": "Force movement",
+  "dashboard.sablelife.status_command_locked": "Administrator approval required",
+  "dashboard.sablelife.facing_state_budget": "Waiting for server collision budget",
+  "dashboard.sablelife.turn_state_budget": "Waiting for server collision budget",
+  "dashboard.sablelife.move_phase_budget": "Waiting for server collision budget",
+  "dashboard.sablelife.move_runtime_budget": "Waiting for server collision budget",
+  "manual.sablelife.chapter.server_limits": "Server resource limits",
+  "manual.sablelife.server_limits.usage": "These limits bound unusually large configurations. They do not change ordinary attack damage, signed part modifiers or action timing. Use the server-owned configuration when hosting multiplayer worlds.",
+  "manual.sablelife.server_limits.settings": "The world serverconfig/sablelife-server.toml controls newly authored wireless channels (default 256), particle points per player/tick (8192), loaded Sable Life projectiles per dimension (8192) and per creature (2048), shared death cleanup blocks per server tick (256), and collision checks per dimension/tick (8,388,608). Existing saved channels and their numbers are retained. Saved or already flying projectiles are not deleted to enforce a new-spawn limit.\n\nAt a collision budget limit, movement waits and reports its state; terrain blocking still stops it normally. Cosmetic emission can be reduced at the particle limit. Death cleanup is shared and rotated between pending jobs; unloaded blocks remain protected until they can be cleared.",
+  "manual.sablelife.server_limits.example": "Use a modest test machine before increasing limits. Monitor server tick time and observer traffic with the actual mods and player count. Limits are not a promise of a particular TPS or supported creature count.",
+  "manual.sablelife.server_limits.troubleshooting": "Only administrators can author or import command modules. A blueprint placement API has no player identity, so imported command modules require administrator approval through the command editor before they run. Opening and saving an ordinary module preset does not grant command permission. Editing requests and complex imports are rate-limited; retry after a short pause if a burst is rejected."
 }

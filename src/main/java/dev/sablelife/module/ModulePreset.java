@@ -14,7 +14,8 @@ public final class ModulePreset {
         return tag;
     }
     public static VirtualModule create(CompoundTag source){
-        var tag=portable(source);tag.putUUID("Id",UUID.randomUUID());return VirtualModule.load(tag);
+        if (!AuthoringLimits.compound(source, AuthoringLimits.MAX_PRESET_BYTES)) throw new IllegalArgumentException("Preset exceeds authoring limits");
+        var tag=portable(source);tag.putUUID("Id",UUID.randomUUID());var module=VirtualModule.load(tag);module.sanitizeImportedAuthoring();return module;
     }
     private ModulePreset(){}
 }

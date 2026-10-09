@@ -22,7 +22,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import java.util.List;
 
-@GameTestHolder("sablelife_tests")
+@GameTestHolder("sablelife_core_ui_tests")
 @PrefixGameTestTemplate(false)
 public final class HeartSettingsGameTests {
     @GameTest(template = "combat", batch="audit_heartsettingsgametests_nameandbossbarpersistandremaincreativeonly")
@@ -33,8 +33,8 @@ public final class HeartSettingsGameTests {
         var menu = new HeartSettingsMenu(1, player.getInventory(), heart);
         var tag = new ItemStack(Items.NAME_TAG);
         tag.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("空中守卫"));
-        menu.setCarried(tag); menu.clicked(16, 0, ClickType.PICKUP, player);
-        menu.clicked(15, 0, ClickType.PICKUP, player);
+        menu.setCarried(tag); menu.action(player,"name",0,tag.getHoverName().getString());
+        menu.action(player,"bossbar",1,"");
         helper.assertTrue(heart.creatureName().equals("空中守卫") && heart.showBossBar() && ItemStack.matches(menu.getCarried(), tag),
                 "Naming or Boss Bar toggle failed, or consumed the Name Tag");
         var saved = heart.saveWithFullMetadata(level.registryAccess());
@@ -42,12 +42,12 @@ public final class HeartSettingsGameTests {
                 heart.getBlockPos(), heart.getBlockState(), saved, level.registryAccess());
         helper.assertTrue(restored.creatureName().equals("空中守卫") && restored.showBossBar(), "Name or Boss Bar did not persist");
         heart.tryActivate(player);
-        menu.setCarried(ItemStack.EMPTY); menu.clicked(16, 1, ClickType.PICKUP, player);
-        menu.clicked(15, 0, ClickType.PICKUP, player);
+        menu.setCarried(ItemStack.EMPTY);menu.action(player,"name",0,"");
+        menu.action(player,"bossbar",0,"");
         helper.assertTrue(heart.creatureName().isEmpty() && !heart.showBossBar(), "Active Heart controls did not update");
         player.setGameMode(GameType.SURVIVAL);
-        menu.setCarried(tag); menu.clicked(16, 0, ClickType.PICKUP, player);
-        menu.clicked(15, 0, ClickType.PICKUP, player);
+        menu.setCarried(tag);menu.action(player,"name",0,tag.getHoverName().getString());
+        menu.action(player,"bossbar",1,"");
         helper.assertTrue(heart.creatureName().isEmpty() && !heart.showBossBar(), "Survival edited Heart controls");
         helper.succeed();
     }
@@ -58,10 +58,8 @@ public final class HeartSettingsGameTests {
         var player = FakePlayerFactory.getMinecraft(level); player.setGameMode(GameType.CREATIVE);
         player.setPos(SableBodyProbe.toWorld(level, heart.getBlockPos().getCenter()));
         var menu = new HeartSettingsMenu(1, player.getInventory(), heart);
-        menu.clicked(10, 0, ClickType.PICKUP, player);
-        menu.clicked(11, 0, ClickType.PICKUP, player);
-        menu.clicked(12, 0, ClickType.PICKUP, player);
-        menu.clicked(14, 0, ClickType.PICKUP, player);
+        menu.action(player,"health",110,"");menu.action(player,"delay",4,"");
+        menu.action(player,"breaking",0,"");menu.action(player,"xp",1,"");
         helper.assertTrue(heart.health().maximum() == 110 && heart.health().deathDelay() == 80
                 && !heart.allowBreaking() && heart.deathExperience() == 1, "Core menu controls did not change defaults");
         var saved = heart.saveWithFullMetadata(level.registryAccess());
@@ -71,14 +69,13 @@ public final class HeartSettingsGameTests {
                 && !restored.allowBreaking() && restored.deathExperience() == 1, "Core menu settings did not persist");
         heart.tryActivate(player);
         helper.assertTrue(!LifeLifecycle.get(level.getServer()).breakable(heart.creatureId()), "Initial breaking switch did not bind to body");
-        menu.clicked(10, 0, ClickType.PICKUP, player);
-        menu.clicked(14, 0, ClickType.PICKUP, player);
+        menu.action(player,"health",120,"");menu.action(player,"xp",2,"");
         helper.assertTrue(heart.health().maximum() == 110 && heart.deathExperience() == 1, "Active core allowed locked settings");
-        menu.clicked(12, 0, ClickType.PICKUP, player);
+        menu.action(player,"breaking",1,"");
         helper.assertTrue(heart.allowBreaking() && LifeLifecycle.get(level.getServer()).breakable(heart.creatureId()),
                 "Active core breaking switch did not update world protection");
         player.setGameMode(GameType.SURVIVAL);
-        menu.clicked(12, 0, ClickType.PICKUP, player);
+        menu.action(player,"breaking",0,"");
         helper.assertTrue(heart.allowBreaking(), "Survival player changed breaking switch");
         var previous = player.containerMenu; heart.openSettings(player);
         helper.assertTrue(player.containerMenu == previous, "Survival player opened core settings");

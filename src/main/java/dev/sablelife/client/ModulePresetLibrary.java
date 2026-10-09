@@ -18,7 +18,7 @@ public final class ModulePresetLibrary {
             var list=new ArrayList<Entry>();
             for(var value:JsonParser.parseString(Files.readString(file())).getAsJsonArray()){
                 if(list.size()>=128)break;var row=value.getAsJsonObject();var text=row.get("module").getAsString();
-                if(text.length()>ModulePreset.MAX_TEXT)continue;
+                if(!dev.sablelife.module.AuthoringLimits.presetText(text))continue;
                 var module=ModulePreset.portable(TagParser.parseTag(text));
                 if(dev.sablelife.module.VirtualModule.load(module).known())list.add(new Entry(row.get("name").getAsString(),module));
             }return List.copyOf(list);
@@ -35,7 +35,7 @@ public final class ModulePresetLibrary {
         var entries=new ArrayList<>(read());if(entries.size()>=128)throw new java.io.IOException("Preset limit reached");
         String base=name.strip();if(base.isEmpty()||base.length()>40)throw new java.io.IOException("Invalid preset name");
         String unique=base;int suffix=2;var names=entries.stream().map(Entry::name).toList();while(names.contains(unique))unique=base+" ("+suffix+++")";
-        var portable=ModulePreset.portable(module);if(portable.toString().length()>ModulePreset.MAX_TEXT)throw new java.io.IOException("Preset too large");
+        var portable=ModulePreset.portable(module);if(!dev.sablelife.module.AuthoringLimits.compound(portable,dev.sablelife.module.AuthoringLimits.MAX_PRESET_BYTES)||portable.toString().length()>ModulePreset.MAX_TEXT)throw new java.io.IOException("Preset too large");
         entries.add(new Entry(unique,portable));write(entries);
     }
     private static void write(List<Entry> entries)throws java.io.IOException{

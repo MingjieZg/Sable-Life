@@ -58,9 +58,10 @@ public final class ModuleAutoFacing {
                 if(clear&&2*Math.acos(Math.min(1,Math.abs(turn.w)))<1e-5){states.put(module.id(),"vertical_blocked");continue;}
             }
             var physics=dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem.get(level);
-            if(!clear||physics==null){states.put(module.id(),"blocked");continue;}
+            if(!clear||physics==null){states.put(module.id(),CollisionWorkBudget.exhausted(level)?"budget":"blocked");continue;}
             var rotated=AutoFacingGeometry.rotated(bodies,pivot,turn);
             for(var body:rotated){var velocity=new Vector3d(body.body().latestLinearVelocity);physics.getPipeline().resetVelocity(body.body());physics.getPipeline().teleport(body.body(),body.position(),body.rotation());physics.getPipeline().addLinearAndAngularVelocity(body.body(),velocity,new Vector3d());}
+            dev.sablelife.ownership.LoadedCoreIndex.geometryChanged(level);
             states.put(module.id(),verticalBlocked?"vertical_blocked":"tracking");
         }states.keySet().retainAll(keep);
     }

@@ -24,6 +24,7 @@ public abstract class BodyReplacementMixin {
         var old = cir.getReturnValue();
         if (old != null && BodyOwnership.MOVING.get() == 0
                 && ((LevelChunk) (Object) this).getLevel() instanceof ServerLevel level) {
+            if (!old.is(state.getBlock())) dev.sablelife.compat.sable.SableBodyProbe.invalidate(level);
             if (!old.isAir() && !old.is(state.getBlock())) dev.sablelife.module.AnchorTransfers.replaced(level, pos);
             if (state.isAir() && !old.isAir()) BodyOwnership.get(level).noteRemoved(pos);
             else if (!state.isAir() && !old.is(state.getBlock())) BodyOwnership.get(level).forget(pos);

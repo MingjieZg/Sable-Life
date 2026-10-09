@@ -66,8 +66,8 @@ public final class ParticlePattern {
     public static void emit(net.minecraft.server.level.ServerLevel level,VirtualModule m,ModuleParticles.Entry particle,Vec3 center,Quaterniond rotation,Vec3 forward,int index,int count,RandomSource random,ServerPlayer only){
         if(travels(m)){
             var packet=travel(m,particle,center,rotation,forward,index,count,random);
-            if(only!=null)net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(only,packet);
-            else for(var player:level.players())if(player.position().distanceToSqr(packet.from())<=512*512)net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);
+            if(only!=null){if(VisualBudget.allow(only,1))net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(only,packet);}
+            else for(var player:level.players())if(player.position().distanceToSqr(packet.from())<=512*512&&VisualBudget.allow(player,1))net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);
             return;
         }
         var position=center.add(ContactBox.rotate(rotation,sample(m,Vec3.ZERO,forward,index,count,random)));

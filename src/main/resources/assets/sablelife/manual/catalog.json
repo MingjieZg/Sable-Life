@@ -1,5 +1,5 @@
 {
-  "revision": 50,
+  "revision": 51,
   "entries": [
     {
       "id": "getting_started",
@@ -145,6 +145,24 @@
         ],
         "troubleshooting": [
           "manual.sablelife.death_unloading.troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "server_limits",
+      "title": "manual.sablelife.chapter.server_limits",
+      "sections": {
+        "usage": [
+          "manual.sablelife.server_limits.usage"
+        ],
+        "settings": [
+          "manual.sablelife.server_limits.settings"
+        ],
+        "example": [
+          "manual.sablelife.server_limits.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.server_limits.troubleshooting"
         ]
       }
     },

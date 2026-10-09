@@ -137,7 +137,7 @@ public final class SequenceScreen extends AbstractContainerScreen<SequenceMenu> 
         if (!wirelessChannel.isFocused()) wirelessChannel.setValue(count == 0 ? "0" : Integer.toString(wireSelected + 1));
         wirelessChannel.active = count > 0; wirelessChannel.setEditable(count > 0);
         wireApply.active = count > 0; wirePrev.active = wireSelected > 0; wireNext.active = wireSelected + 1 < count;
-        wireAdd.active = editable && count < 65535; wireDelete.active = editable && count > 0;
+        wireAdd.active = editable && count < (data.contains("ChannelLimit")?data.getInt("ChannelLimit"):65535); wireDelete.active = editable && count > 0;
         wireEnabled.active = editable && count > 0; wireMaster.active = editable; wireMode.active = editable && count > 0;
         wireEnabled.setMessage(tr(data.getBoolean("WirelessEnabled") ? "wire_enabled" : "wire_disabled"));
         wireMaster.setMessage(Component.translatable("wireless.sablelife." + (data.getBoolean("WirelessMaster") ? "master_on" : "master_off")));

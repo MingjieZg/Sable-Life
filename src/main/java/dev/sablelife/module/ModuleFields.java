@@ -20,9 +20,13 @@ public final class ModuleFields {
         return List.copyOf(result);
     }
     /** Conditions and rhythm belong to Move set, not to a module or wireless channel. */
-    public static List<Field> moveRules(){return List.of(n("dispatchWeight",1,1000,10),t("dispatchCooldown",0,12000,100),t("dispatchBusy",1,12000,20),t("dispatchRest",1,12000,20),n("phaseUpper",0,100,100),n("phaseLower",0,100,0),target(2),n("dispatchNear",0,128,0),n("dispatchFar",.5,128,32),n("dispatchCone",0,360,360),c("dispatchFront","north","south","west","east"),c("lineOfSight","off","on"),c("dispatchRepeat","avoid_repeat","allow_repeat"));}
+    public static List<Field> moveRules(){return CACHE.computeIfAbsent("move_rules",ignored -> List.of(n("dispatchWeight",1,1000,10),t("dispatchCooldown",0,12000,100),t("dispatchBusy",1,12000,20),t("dispatchRest",1,12000,20),n("phaseUpper",0,100,100),n("phaseLower",0,100,0),target(2),n("dispatchNear",0,128,0),n("dispatchFar",.5,128,32),n("dispatchCone",0,360,360),c("dispatchFront","north","south","west","east"),c("lineOfSight","off","on"),c("dispatchRepeat","avoid_repeat","allow_repeat")));}
     /** Presentation order only: settings remain stored and addressed by their stable keys. */
     public static List<Field> forType(String type) {
+        return VirtualModule.TYPES.contains(type) ? CACHE.computeIfAbsent(type, ModuleFields::buildForType) : List.of();
+    }
+    private static final java.util.Map<String,List<Field>> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static List<Field> buildForType(String type) {
         List<String> order = switch (type) {
             case "damage_accumulation" -> List.of("accumThreshold","accumChannel","accumPower","accumPulse","accumInvert","redstoneFrequency","accumReset");
             case "health_phase" -> List.of("phaseUpper", "phaseLower", "phaseChannel", "phasePower", "phaseMode", "phasePulse");
@@ -152,5 +156,10 @@ public final class ModuleFields {
         default -> List.of();
     }; }
     public static final List<Field> HURT_FIELDS = List.of(c("hurtMode", "hurt_once", "hurt_timed", "hurt_stay"), t("hurtCooldown", 0, 12000, 0), t("hurtDuration", 1, 12000, 100));
-    public static Field find(String type, String key) { if (!type.equals("loot")) for (var f : HURT_FIELDS) if (f.key().equals(key)) return f; return forType(type).stream().filter(f -> f.key.equals(key)).findFirst().orElse(null); }
+    private static final java.util.Map<String,java.util.Map<String,Field>> LOOKUP=new java.util.concurrent.ConcurrentHashMap<>();
+    public static Field find(String type,String key){
+        if(!type.equals("loot"))for(var f:HURT_FIELDS)if(f.key().equals(key))return f;
+        if(!VirtualModule.TYPES.contains(type))return null;
+        return LOOKUP.computeIfAbsent(type,t->{var fields=new java.util.LinkedHashMap<String,Field>();for(var f:forType(t))fields.putIfAbsent(f.key(),f);return java.util.Map.copyOf(fields);}).get(key);
+    }
 }

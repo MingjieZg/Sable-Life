@@ -65,7 +65,7 @@ public final class CoreChunkLoading {
     private static void sources(Group group,Set<ServerSubLevel> desired){
         var container=SubLevelContainer.getContainer(group.owner.level);if(container==null)return;
         for(var body:group.sources)if(!desired.contains(body))container.removeForceLoadTicket(body,BODY_TICKET,group.owner.id);
-        for(var body:desired)container.addForceLoadTicket(body,BODY_TICKET,group.owner.id);
+        for(var body:desired)if(!group.sources.contains(body))container.addForceLoadTicket(body,BODY_TICKET,group.owner.id);
     }
     public static void release(HeartBlockEntity core){if(core.getLevel() instanceof ServerLevel level)release(level.getServer(),core.creatureId());}
     public static void release(MinecraftServer server,UUID id){
@@ -129,7 +129,7 @@ public final class CoreChunkLoading {
         }
         for(var entry:s.world.entrySet())for(var chunk:entry.getValue())if(!desiredWorld.getOrDefault(entry.getKey(),Set.of()).contains(chunk))
             entry.getKey().level.getChunkSource().removeRegionTicket(WORLD_TICKET,chunk,2,entry.getKey().id,true);
-        for(var entry:desiredWorld.entrySet())for(var chunk:entry.getValue())entry.getKey().level.getChunkSource().addRegionTicket(WORLD_TICKET,chunk,2,entry.getKey().id,true);
+        for(var entry:desiredWorld.entrySet())for(var chunk:entry.getValue())if(server.getTickCount()%10==0||!s.world.getOrDefault(entry.getKey(),Set.of()).contains(chunk))entry.getKey().level.getChunkSource().addRegionTicket(WORLD_TICKET,chunk,2,entry.getKey().id,true);
         s.world.clear();s.world.putAll(desiredWorld);
         s.counts.clear();desiredWorld.forEach((owner,chunks)->s.counts.merge(owner.id,chunks.size(),Integer::sum));
         var known=new HashSet<>(s.cores.keySet());groups.keySet().forEach(o->known.add(o.id));desiredWorld.keySet().forEach(o->known.add(o.id));s.status.keySet().retainAll(known);s.counts.keySet().retainAll(known);s.missing.keySet().retainAll(groups.keySet());

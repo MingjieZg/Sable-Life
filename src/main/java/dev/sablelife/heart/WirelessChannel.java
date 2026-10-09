@@ -7,6 +7,8 @@ import net.minecraft.world.item.ItemStack;
 /** One independent waveform, measured from the Heart's common activation clock. */
 public final class WirelessChannel {
     public static final int MAX_TIME = 12000;
+    private Runnable changed = () -> {};
+    public void onChange(Runnable callback) { changed = callback; }
     private ItemStack first = ItemStack.EMPTY, second = ItemStack.EMPTY;
     private boolean enabled, loop = true;
     private int mode;
@@ -31,11 +33,12 @@ public final class WirelessChannel {
             case 6 -> mode = Math.clamp(value, 0, 4);
             default -> { return false; }
         }
-        return true;
+        changed.run(); return true;
     }
     public void frequency(boolean blue, ItemStack sample) {
         ItemStack copy = sample.isEmpty() ? ItemStack.EMPTY : sample.copyWithCount(1);
         if (blue) second = copy; else first = copy;
+        changed.run();
     }
     public boolean configured() { return enabled && (mode == 0 || mode == 3 || !first.isEmpty() || !second.isEmpty()); }
     public int powerAt(long elapsed) {

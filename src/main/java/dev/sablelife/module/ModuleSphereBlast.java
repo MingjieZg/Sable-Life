@@ -34,7 +34,7 @@ public final class ModuleSphereBlast {
     }
     private static void charge(ServerLevel level,VirtualModule m,Vec3 point,long remaining,ServerPlayer viewer){sendTravel(level,chargeParticles(m,point,remaining),point,viewer);}
     private static void sendTravel(ServerLevel level,List<ParticleTravelPacket> packets,Vec3 point,ServerPlayer viewer){
-        for(var packet:packets)if(viewer!=null)net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(viewer,packet);else for(var player:level.players())if(dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,player.position()).distanceToSqr(point)<=512*512)net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);
+        for(var packet:packets)if(viewer!=null){if(VisualBudget.allow(viewer,1))net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(viewer,packet);}else for(var player:level.players())if(dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,player.position()).distanceToSqr(point)<=512*512&&VisualBudget.allow(player,1))net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);
     }
     public void tick(HeartBlockEntity heart){
         if(!(heart.getLevel() instanceof ServerLevel server))return;level=server;long now=server.getGameTime();var keep=new HashSet<UUID>();

@@ -29,6 +29,16 @@ import java.util.UUID;
 /** World-owned death jobs continue after the core is destroyed; completed IDs prevent duplicate settlement. */
 public final class LifeLifecycle extends SavedData {
     private final Map<UUID, Death> deaths = new HashMap<>();
+    private record Completion(UUID parent,String partName) {}
+    private final Map<UUID,Completion> completed = new HashMap<>();
+    private int cleanupTurn;
+    public int pendingCount(){return deaths.size();}
+    public int completedCount(){return completed.size();}
+    private boolean recorded(UUID id){return deaths.containsKey(id)||completed.containsKey(id);}
+    private void complete(UUID id,Death death){
+        completed.put(id,new Completion(death.parent,death.partName));deaths.remove(id);
+        unbreakable.remove(id);explosionProtected.remove(id);setDirty();
+    }
     private final Set<UUID> unbreakable = new HashSet<>();
     private final Set<UUID> explosionProtected = new HashSet<>();
     public static LifeLifecycle get(MinecraftServer server) {
@@ -42,17 +52,17 @@ public final class LifeLifecycle extends SavedData {
         if (enabled ? explosionProtected.remove(id) : explosionProtected.add(id)) setDirty();
     }
     public boolean explodable(UUID id) { return !explosionProtected.contains(id); }
-    public void cancel(UUID id) { deaths.entrySet().removeIf(e -> e.getKey().equals(id) || id.equals(e.getValue().parent)); unbreakable.remove(id); explosionProtected.remove(id); setDirty(); }
-    public boolean isDying(UUID id) { return deaths.containsKey(id); }
+    public void cancel(UUID id) { deaths.entrySet().removeIf(e -> e.getKey().equals(id) || id.equals(e.getValue().parent)); completed.entrySet().removeIf(e->e.getKey().equals(id)||id.equals(e.getValue().parent)); unbreakable.remove(id); explosionProtected.remove(id); setDirty(); }
+    public boolean isDying(UUID id) { return recorded(id); }
     public boolean deathDue(UUID id){var job=deaths.get(id);return job!=null&&!job.cleaned&&job.remaining==0;}
     public Vec3 rewardPoint(UUID id,ResourceLocation dimension){var job=deaths.get(id);return job!=null&&!job.rewarded&&job.dimension.equals(dimension)?job.point:null;}
     public void deathLoading(UUID id,boolean enabled){var job=deaths.get(id);if(job!=null&&job.forceLoading!=enabled){job.forceLoading=enabled;setDirty();}}
     public Map<UUID,Vec3> loadingRewards(ResourceLocation dimension){var result=new HashMap<UUID,Vec3>();deaths.forEach((id,job)->{if(job.forceLoading&&!job.rewarded&&job.dimension.equals(dimension))result.put(id,job.point);});return result;}
     public boolean lostPart(UUID parent, String name) {
-        return deaths.values().stream().anyMatch(d -> parent.equals(d.parent) && name.equals(d.partName));
+        return deaths.values().stream().anyMatch(d -> parent.equals(d.parent) && name.equals(d.partName)) || completed.values().stream().anyMatch(d->parent.equals(d.parent)&&name.equals(d.partName));
     }
     public String lostParts(UUID parent) {
-        return deaths.values().stream().filter(d -> parent.equals(d.parent)).map(d -> d.partName).distinct().sorted()
+        return java.util.stream.Stream.concat(deaths.values().stream().filter(d -> parent.equals(d.parent)).map(d -> d.partName),completed.values().stream().filter(d->parent.equals(d.parent)).map(Completion::partName)).distinct().sorted()
                 .collect(java.util.stream.Collectors.joining(", "));
     }
     public boolean schedulePart(ServerLevel level, UUID id, UUID parent, String name, Vec3 point, int delay, ResourceLocation loot, int experience) {
@@ -65,7 +75,7 @@ public final class LifeLifecycle extends SavedData {
     public boolean schedulePart(ServerLevel level, UUID id, UUID parent, String name, Vec3 point, int delay, ResourceLocation loot, int experience,
                                 java.util.List<net.minecraft.world.item.ItemStack> templates, int[] chances, int[] weights,
                                 boolean weighted, int rolls) {
-        if (deaths.containsKey(id) || deaths.containsKey(parent)) return false;
+        if (recorded(id) || recorded(parent)) return false;
         var death = new Death(level.dimension().location(), point, delay, loot, experience, false);
         death.parent = parent; death.partName = name;
         if (templates != null) death.templates = templates.stream().limit(27).map(net.minecraft.world.item.ItemStack::copy).toList();
@@ -77,7 +87,7 @@ public final class LifeLifecycle extends SavedData {
         deaths.put(id, death); setDirty(); return true;
     }
     public void schedule(HeartBlockEntity heart) {
-        if (deaths.containsKey(heart.creatureId())) return;
+        if (recorded(heart.creatureId())) return;
         var level = (ServerLevel) heart.getLevel();
         Vec3 point = SableBodyProbe.toWorld(level, Vec3.atCenterOf(heart.getBlockPos()));
         var death = new Death(level.dimension().location(), point,
@@ -98,11 +108,14 @@ public final class LifeLifecycle extends SavedData {
         get(event.getServer()).tickDeaths(event.getServer());
     }
     public void tickDeaths(MinecraftServer server) {
-        for (var entry : java.util.List.copyOf(deaths.entrySet())) {
+        int remainingBlocks=dev.sablelife.SableLifeServerConfig.deathCleanupBlocksPerTick(),remainingVisits=16384;
+        var jobs=new java.util.ArrayList<>(deaths.entrySet());
+        if(!jobs.isEmpty()){java.util.Collections.rotate(jobs,-Math.floorMod(cleanupTurn++,jobs.size()));}
+        for (var entry : jobs) {
             var death = entry.getValue();
-            if (death.cleaned && death.rewarded) continue;
+            if (death.cleaned && death.rewarded) {complete(entry.getKey(),death);continue;}
             if (death.remaining > 0) { death.remaining--; setDirty(); continue; }
-            var effect=new dev.sablelife.heart.DeathPresentation(true);effect.load(death.presentation);
+            var effect=death.effect;if(effect==null){effect=new dev.sablelife.heart.DeathPresentation(true);effect.load(death.presentation);death.effect=effect;}
             if(!death.presentationPlayed) {
                 var level=server.getLevel(ResourceKey.create(Registries.DIMENSION,death.dimension));
                 if(level!=null&&level.hasChunkAt(BlockPos.containing(death.point))) {
@@ -114,13 +127,15 @@ public final class LifeLifecycle extends SavedData {
                 boolean pending = false;
                 for (var level : server.getAllLevels()) {
                     var ownership = BodyOwnership.get(level);
-                    if (death.parent == null) ownership.cleanLoaded(level, entry.getKey(), 256,effect);
-                    else ownership.cleanPart(level, entry.getKey(), 256);
+                    if(remainingBlocks>0&&remainingVisits>0){
+                        var work=ownership.cleanBudgeted(level,entry.getKey(),remainingBlocks,remainingVisits,death.parent!=null,death.parent==null?effect:null);
+                        remainingBlocks-=work.removed();remainingVisits-=work.visited();
+                    }
                     pending |= death.parent == null ? ownership.hasOwned(entry.getKey()) : ownership.hasPart(entry.getKey());
                 }
                 if (!pending) { death.cleaned = true; setDirty(); }
             }
-            if (death.rewarded) continue;
+            if (death.rewarded) {if(death.cleaned)complete(entry.getKey(),death);continue;}
             var level = server.getLevel(ResourceKey.create(Registries.DIMENSION, death.dimension));
             if (level == null || !level.hasChunkAt(BlockPos.containing(death.point))) continue;
             death.rewarded = true;
@@ -136,6 +151,7 @@ public final class LifeLifecycle extends SavedData {
                 level.addFreshEntity(item);
             }
             if(death.experience>0){if(death.experienceLevels)dev.sablelife.heart.LevelRewardOrb.award(level,death.point,dev.sablelife.heart.ExperienceUnits.levels(death.experience));else ExperienceOrb.award(level,death.point,death.experience);}
+            if(death.cleaned)complete(entry.getKey(),death);
         }
     }
     private static final class Death {
@@ -148,6 +164,7 @@ public final class LifeLifecycle extends SavedData {
         boolean forceLoading;
         boolean experienceLevels;
         CompoundTag presentation=new CompoundTag();
+        dev.sablelife.heart.DeathPresentation effect;
         boolean presentationPlayed;
         UUID parent;
         String partName = "";
@@ -188,8 +205,13 @@ public final class LifeLifecycle extends SavedData {
                     death.weighted = job.getBoolean("WeightedLoot");
                     death.rolls = job.contains("LootRolls") ? Math.clamp(job.getInt("LootRolls"), 1, 27) : 1;
                 }
-                data.deaths.put(job.getUUID("Id"), death);
+                if(death.cleaned&&death.rewarded)data.completed.put(job.getUUID("Id"),new Completion(death.parent,death.partName));else data.deaths.put(job.getUUID("Id"), death);
             }
+        }
+        for(var value:tag.getList("CompletedDeaths",10)){
+            var job=(CompoundTag)value;if(!job.hasUUID("Id"))continue;
+            data.completed.put(job.getUUID("Id"),new Completion(job.hasUUID("Parent")?job.getUUID("Parent"):null,job.getString("PartName")));
+            data.deaths.remove(job.getUUID("Id"));
         }
         var locked = tag.getList("Unbreakable", 10);
         for (int i = 0; i < locked.size(); i++) if (locked.getCompound(i).hasUUID("Id")) data.unbreakable.add(locked.getCompound(i).getUUID("Id"));
@@ -217,6 +239,7 @@ public final class LifeLifecycle extends SavedData {
             jobs.add(job);
         });
         tag.put("Deaths", jobs);
+        var settled=new ListTag();completed.forEach((id,death)->{var job=new CompoundTag();job.putUUID("Id",id);if(death.parent!=null)job.putUUID("Parent",death.parent);if(!death.partName.isEmpty())job.putString("PartName",death.partName);settled.add(job);});tag.put("CompletedDeaths",settled);
         var locked = new ListTag();
         unbreakable.forEach(id -> { var value = new CompoundTag(); value.putUUID("Id", id); locked.add(value); });
         tag.put("Unbreakable", locked);

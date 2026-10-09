@@ -327,6 +327,9 @@ public final class MarkingSessions {
             }
         } else preview(player, heart, module.anchors());
     }
+    public static void stopped(net.neoforged.neoforge.event.server.ServerStoppedEvent event) {
+        sessions.clear();previews.clear();
+    }
     private static void particle(ServerLevel level, ServerPlayer player, Vec3 point) {
         level.sendParticles(player, ParticleTypes.ELECTRIC_SPARK, true, point.x, point.y, point.z, 1, 0, 0, 0, 0);
     }

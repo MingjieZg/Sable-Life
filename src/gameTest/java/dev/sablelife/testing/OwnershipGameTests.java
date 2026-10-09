@@ -21,7 +21,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import java.util.List;
 
-@GameTestHolder("sablelife_tests")
+@GameTestHolder("sablelife_cleanup_tests")
 @PrefixGameTestTemplate(false)
 public final class OwnershipGameTests {
     @GameTest(template = "combat", timeoutTicks = 180, batch="audit_ownershipgametests_naturalbreaksplitswithownershipintact")
@@ -30,7 +30,7 @@ public final class OwnershipGameTests {
         var level = helper.getLevel();
         var originalBody = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, heart.getBlockPos()).getUniqueId();
         var creature = heart.creatureId();
-        level.destroyBlock(heart.getBlockPos().east(), true);
+        helper.assertTrue(level.destroyBlock(heart.getBlockPos().east(), true),"Allowed split fixture was not destroyed");
         helper.runAfterDelay(40, () -> {
             var data = BodyOwnership.get(level);
             var entries = data.save(new CompoundTag(), level.registryAccess()).getList("Blocks", 10);
@@ -73,8 +73,7 @@ public final class OwnershipGameTests {
         ((ChestBlockEntity) level.getBlockEntity(chest)).setItem(0, new ItemStack(Items.DIAMOND, 12));
         long before = items(helper);
         helper.assertTrue(Block.getDrops(level.getBlockState(iron), level, iron, null).isEmpty(), "Body loot table still produces iron");
-        level.destroyBlock(iron, true);
-        level.destroyBlock(chest, true);
+        helper.assertTrue(level.destroyBlock(iron, true)&&level.destroyBlock(chest, true),"Mining test did not actually remove body blocks");
         helper.assertTrue(items(helper) == before, "Body mining or chest inventory dropped materials");
         var ordinary = helper.absolutePos(new BlockPos(2, 4, 2));
         level.setBlockAndUpdate(ordinary, Blocks.IRON_BLOCK.defaultBlockState());
@@ -140,7 +139,9 @@ public final class OwnershipGameTests {
         level.setBlockAndUpdate(origin.east(2), Blocks.CHEST.defaultBlockState());
         var body = SubLevelAssemblyHelper.assembleBlocks(level, origin, List.of(origin, origin.east(), origin.east(2)), bounds(origin, origin.east(2)));
         var heart = (HeartBlockEntity) level.getBlockEntity(body.getPlot().getCenterBlock());
-        heart.tryActivate(dev.sablelife.testing.TestActors.creative(level));
+        var author=dev.sablelife.testing.TestActors.creative(level);
+        heart.editCore(author,"breaking",1,"");heart.editCore(author,"explosion",1,"");
+        heart.tryActivate(author);
         helper.assertTrue(heart.creatureId().equals(BodyOwnership.get(level).owner(heart.getBlockPos().east())), "Activation did not capture correct body owner");
         return heart;
     }

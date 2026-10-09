@@ -168,6 +168,25 @@ public final class VirtualModule {
     public void detach() { detached = true; }
     public void invalidate() { invalidated = true; }
     public boolean known() { return unknown == null && TYPES.contains(type); }
+    private boolean commandApprovalRequired;
+    public boolean commandApprovalRequired() { return type.equals("command") && commandApprovalRequired; }
+    public void approveCommands() { commandApprovalRequired = false; }
+    public record StoredAnchor(String group, int index, ModuleAnchor anchor) {}
+    /** Both particle mark sets are persistent, even when only one set is currently selected. */
+    public List<StoredAnchor> storedAnchors() {
+        var result = new ArrayList<StoredAnchor>();
+        if (source != null) result.add(new StoredAnchor("ImportSource", 0, source));
+        for (int i = 0; i < anchors.size(); i++) result.add(new StoredAnchor("Anchors", i, anchors.get(i)));
+        if (type.equals("particles")) for (int i = 0; i < particlePointAnchors.size(); i++)
+            result.add(new StoredAnchor("ParticlePointAnchors", i, particlePointAnchors.get(i)));
+        return List.copyOf(result);
+    }
+    public boolean replaceStoredAnchor(String group, int index, ModuleAnchor anchor) {
+        if (group.equals("ImportSource")) { if (source == null) return false; source = anchor; return true; }
+        var values = group.equals("Anchors") ? anchors : group.equals("ParticlePointAnchors") && type.equals("particles") ? particlePointAnchors : null;
+        if (values == null || index < 0 || index >= values.size()) return false;
+        values.set(index, anchor); return true;
+    }
     private List<ModuleAnchor> activeAnchors() { return type.equals("particles") && !area() ? particlePointAnchors : anchors; }
     public List<ModuleAnchor> anchors() { return List.copyOf(activeAnchors()); }
     public void clearMarks() { anchors(List.of()); arenaCenter=null; arenaDimension=""; }
@@ -187,6 +206,19 @@ public final class VirtualModule {
     }
     public void soundTimeline(String key, dev.sablelife.sound.SoundTimeline timeline) { if(soundKey(key)) soundTimelines.put(key,timeline.save()); }
     public boolean hasSound(String key) { return soundTimeline(key).audible(); }
+    /** A known preset has a known schema; do not retain unrelated hidden payload groups. */
+    public void sanitizeImportedAuthoring() {
+        var sounds=new CompoundTag();
+        for(var field:ModuleFields.forType(type))if(field.choices().equals(List.of("library"))&&soundTimelines.contains(field.key()))
+            sounds.put(field.key(),dev.sablelife.sound.SoundTimeline.load(soundTimelines.getCompound(field.key())).save());
+        soundTimelines=sounds;
+        if(!List.of("arrow","gun","mortar","homing","ground_strike","item_display").contains(type))projectileItem=new CompoundTag();
+        if(!List.of("wireless_redstone","damage_accumulation").contains(type))redBlue=new CompoundTag();
+        else {var frequencies=new CompoundTag();for(var key:List.of("Red","Blue"))if(redBlue.contains(key))frequencies.put(key,redBlue.get(key).copy());redBlue=frequencies;}
+        if(!type.equals("loot"))lootSamples=new CompoundTag();
+        else {var samples=new CompoundTag();for(int i=0;i<27;i++)for(var prefix:List.of("Slot","Chance","Weight")){var key=prefix+i;if(lootSamples.contains(key))samples.put(key,lootSamples.get(key).copy());}lootSamples=samples;}
+        movementParticles.values().forEach(VirtualModule::sanitizeImportedAuthoring);
+    }
     public String text(String key) { return settings.getString(key); }
     /** Preserve the referenced signal when rows shift; a deleted reference stays unbound. */
     public boolean wirelessChannelDeleted(int index) {
@@ -266,6 +298,7 @@ public final class VirtualModule {
         }
         if (type.equals("move_set")) tag.put("Moves", moveSet.save());
         if (type.equals("command")) tag.put("Commands", commands.save());
+        if (commandApprovalRequired) tag.putBoolean("CommandApprovalRequired", true);
         if(type.equals("linear_movement")||type.equals("sphere_blast")){var stages=new CompoundTag();movementParticles.forEach((stage,selection)->stages.put(stage,selection.save()));tag.put("MovementParticles",stages);}
         if (type.equals("homing")) tag.putInt("HomingFormationVersion", 4);
         tag.putString("Name", name); tag.putBoolean("Enabled", enabled);
@@ -294,6 +327,7 @@ public final class VirtualModule {
         module.edit("name", 0, tag.getString("Name")); module.enabled = tag.getBoolean("Enabled");
         module.invalidated = tag.getBoolean("Invalidated");
         module.detached = tag.getBoolean("Detached");
+        module.commandApprovalRequired = tag.getBoolean("CommandApprovalRequired");
         module.rewardOwner = tag.hasUUID("RewardOwner") ? tag.getUUID("RewardOwner") : null;
         for (String key : List.of("damage", "knockback", "interval", "range")) {
             String nbt = Character.toUpperCase(key.charAt(0)) + key.substring(1);

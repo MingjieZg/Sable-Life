@@ -107,7 +107,7 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         if (selected != deleteChannel || menu.count() != deleteCount) deleteUntil = 0;
         remove.setMessage(tr(deleteUntil > tickCount ? "confirm_delete" : "delete"));
         previous.active = page > 0; next.active = (page + 1) * HeartWirelessMenu.PAGE_SIZE < menu.count();
-        add.active = editable && menu.count() < dev.sablelife.heart.HeartWireless.CHANNELS;
+        add.active = editable && menu.count() < ((menu.value(HeartWirelessMenu.CHANNEL_LIMIT)&0xffff)==0?dev.sablelife.heart.HeartWireless.CHANNELS:menu.value(HeartWirelessMenu.CHANNEL_LIMIT)&0xffff);
         for (int i = 0; i < HeartWirelessMenu.PAGE_SIZE; i++) {
             int channel = page * HeartWirelessMenu.PAGE_SIZE + i, output = menu.rowPower(i);
             channelButtons.get(i).visible = channel < menu.count();

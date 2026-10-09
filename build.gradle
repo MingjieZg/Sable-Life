@@ -209,7 +209,7 @@ neoForge {
             loadedMods = [mods.sablelife, mods.sablelife_tests]
             gameDirectory = file(providers.gradleProperty('gameTestDirectory').getOrElse('runs/gametest'))
             systemProperty 'sablelife.localGameTests', 'true'
-            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_tests')
+            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests')
         }
         configureEach { logLevel = org.slf4j.event.Level.INFO }
     }

@@ -26,12 +26,15 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
         var tag = defaultTag.copy();
         for (var entry : tag.getCompound("VirtualModules").getList("Modules", 10)) {
             var module = (CompoundTag) entry;
-            var marks = new ListTag();
-            for (var mark : module.getList("Anchors", 10)) {
-                var saved = saveMark(context, heart, (CompoundTag) mark);
-                if (saved != null) marks.add(saved);
+            for (String key : java.util.List.of("Anchors", "ParticleAreaAnchors", "ParticlePointAnchors")) {
+                if (!module.contains(key)) continue;
+                var marks = new ListTag();
+                for (var mark : module.getList(key, 10)) {
+                    var saved = saveMark(context, heart, (CompoundTag)mark);
+                    if (saved != null) marks.add(saved);
+                }
+                module.put(key, marks);
             }
-            module.put("Anchors", marks);
             if (module.contains("ImportSource")) {
                 var saved = saveMark(context, heart, module.getCompound("ImportSource"));
                 module.remove("ImportSource");
@@ -74,14 +77,28 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
         tag.putUUID("CreatureId", UUID.randomUUID());
         for (var entry : tag.getCompound("VirtualModules").getList("Modules", 10)) {
             var module = (CompoundTag) entry;
-            module.putUUID("Id", UUID.randomUUID());
-            module.remove("RewardOwner"); module.remove("Detached"); module.remove("Invalidated");
-            var marks = new ListTag();
-            for (var mark : module.getList("Anchors", 10)) {
-                var mapped = placeMark(context, (CompoundTag) mark);
-                if (mapped != null) marks.add(mapped);
+            if (module.hasUUID("Id")) module.putUUID("Id", context.allocateMappedUuid(module.getUUID("Id")));
+            else module.putUUID("Id", UUID.randomUUID());
+            if (module.getString("Type").equals("command")) module.putBoolean("CommandApprovalRequired", true);
+            for (var moveValue : module.getList("Moves", 10)) {
+                var move = (CompoundTag)moveValue;
+                var config = move.getCompound("Config");
+                if (config.hasUUID("Id")) config.putUUID("Id", context.allocateMappedUuid(config.getUUID("Id")));
+                for (var actionValue : move.getList("Actions", 10)) {
+                    var action = (CompoundTag)actionValue;
+                    if (action.hasUUID("Module")) action.putUUID("Module", context.allocateMappedUuid(action.getUUID("Module")));
+                }
             }
-            module.put("Anchors", marks);
+            module.remove("RewardOwner"); module.remove("Detached"); module.remove("Invalidated");
+            for (String key : java.util.List.of("Anchors", "ParticleAreaAnchors", "ParticlePointAnchors")) {
+                if (!module.contains(key)) continue;
+                var marks = new ListTag();
+                for (var mark : module.getList(key, 10)) {
+                    var mapped = placeMark(context, (CompoundTag)mark);
+                    if (mapped != null) marks.add(mapped);
+                }
+                module.put(key, marks);
+            }
             if (module.contains("ImportSource")) {
                 var mapped = placeMark(context, module.getCompound("ImportSource"));
                 module.remove("ImportSource");

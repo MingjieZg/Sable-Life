@@ -11,7 +11,7 @@ import java.util.*;
 
 /** Transfers exact marked blocks through Sable assembly, never guesses from nearby world positions. */
 public final class AnchorTransfers {
-    public record Entry(BlockPos heart, UUID module, int index, BlockPos source) {}
+    public record Entry(BlockPos heart, UUID module, String group, int index, BlockPos source) {}
     public record Batch(ServerLevel source, Set<BlockPos> blocks, List<Entry> entries) {
         public void finish(SubLevelAssemblyHelper.AssemblyTransform transform) {
             var destination = transform.getLevel();
@@ -21,21 +21,18 @@ public final class AnchorTransfers {
                 var heartPos = heartMoves ? transform.apply(entry.heart) : entry.heart;
                 if (!(heartLevel.getBlockEntity(heartPos) instanceof HeartBlockEntity heart)) continue;
                 var module = heart.modules().find(entry.module);
-                if (module == null || entry.index < 0 && module.source() == null || entry.index >= 0 && module.anchors().size() <= entry.index) continue;
+                if (module == null) continue;
+                var stored = module.storedAnchors().stream().filter(a -> a.group().equals(entry.group) && a.index() == entry.index).findFirst().orElse(null);
+                if (stored == null) continue;
                 var pos = transform.apply(entry.source); var body = Sable.HELPER.getContaining(destination, pos);
                 if (body == null || destination != heartLevel) {
                     module.invalidate(); heart.modules().changed(); heart.setChanged(); continue;
                 }
-                var anchors = new ArrayList<>(module.anchors()); var old = entry.index < 0 ? module.source() : anchors.get(entry.index);
-                var direction = transform.getRotation().rotate(old.face());
-                if (entry.index < 0) {
-                    module.source(new ModuleAnchor(body.getUniqueId(), pos.subtract(body.getPlot().getCenterBlock()), direction));
-                    heart.modules().changed(); heart.setChanged(); continue;
+                var direction = transform.getRotation().rotate(stored.anchor().face());
+                if (module.replaceStoredAnchor(entry.group, entry.index,
+                        new ModuleAnchor(body.getUniqueId(), pos.subtract(body.getPlot().getCenterBlock()), direction))) {
+                    heart.modules().changed(); heart.setChanged();
                 }
-                anchors.set(entry.index, new ModuleAnchor(body.getUniqueId(), pos.subtract(body.getPlot().getCenterBlock()), direction));
-                boolean invalidated = module.invalidated(), detached = module.detached(); module.anchors(anchors);
-                if (invalidated) module.invalidate(); if (detached) module.detach();
-                heart.modules().changed(); heart.setChanged();
             }
         }
     }
@@ -46,11 +43,11 @@ public final class AnchorTransfers {
             if (body == null || body.isRemoved()) continue;
             for (var chunk : body.getPlot().getLoadedChunks()) for (var be : chunk.getChunk().getBlockEntities().values()) {
                 if (!(be instanceof HeartBlockEntity heart) || heart.modules().all().isEmpty()) continue;
-                for (var module : heart.modules().all()) for (int i = -1; i < module.anchors().size(); i++) {
-                    var anchor = i < 0 ? module.source() : module.anchors().get(i); if (anchor == null) continue;
+                for (var module : heart.modules().all()) for (var stored : module.storedAnchors()) {
+                    var anchor = stored.anchor();
                     var owner = anchor.body(heart); if (owner == null) continue;
                     var pos = anchor.position(owner);
-                    if (moving.contains(pos)) entries.add(new Entry(heart.getBlockPos(), module.id(), i, pos));
+                    if (moving.contains(pos)) entries.add(new Entry(heart.getBlockPos(), module.id(), stored.group(), stored.index(), pos));
                 }
             }
         }

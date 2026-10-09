@@ -92,7 +92,8 @@ public final class SableLife {
                         output.accept(DATA_COPIER.get());
                     }).build());
 
-    public SableLife(IEventBus bus) {
+    public SableLife(IEventBus bus, net.neoforged.fml.ModContainer container) {
+        container.registerConfig(net.neoforged.fml.config.ModConfig.Type.SERVER, SableLifeServerConfig.SPEC);
         dev.sablelife.ownership.CoreChunkLoading.register();
         bus.addListener(dev.sablelife.compat.photomancy.PhotomancyCompat::setup);
         dev.sablelife.sound.SoundLibrary.prepare();
@@ -108,10 +109,13 @@ public final class SableLife {
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST,dev.sablelife.heart.CorePlacementRules::placed);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, dev.sablelife.module.MarkingSessions::attack);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.module.MarkingSessions::tick);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.module.MarkingSessions::stopped);
         NeoForge.EVENT_BUS.addListener(HeartCommands::register);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.LifeLifecycle::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.CoreChunkLoading::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.CoreChunkLoading::stopped);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.LoadedCoreIndex::stopped);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.compat.sable.SableBodyProbe::stopped);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, BodyProtection::breaking);
         NeoForge.EVENT_BUS.addListener(EventPriority.NORMAL, dev.sablelife.combat.BodyExplosionDamage::detonate);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, BodyProtection::explosion);
@@ -122,6 +126,10 @@ public final class SableLife {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, BodyCombat::onProjectileImpact);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, dev.sablelife.attack.ModuleBlast::impact);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.attack.ModuleBlast::tick);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.attack.ModuleBlast::stopped);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST,dev.sablelife.attack.ProjectileBudget::joined);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.attack.ProjectileBudget::left);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.attack.ProjectileBudget::stopped);
     }
 }
 

@@ -16,6 +16,7 @@ public final class ModuleBlast {
     private static final String KEY = "SableLifeBlast";
     private record Wave(ServerLevel world, Vec3 origin, float radius, long start) {}
     private static final java.util.List<Wave> waves = new java.util.ArrayList<>();
+    public static void stopped(net.neoforged.neoforge.event.server.ServerStoppedEvent event) { waves.removeIf(w->w.world.getServer()==event.getServer()); }
     public static CompoundTag settings(VirtualModule module) {
         var tag = new CompoundTag();
         tag.put("Effects", dev.sablelife.module.ModuleEffects.save(module.effects()));

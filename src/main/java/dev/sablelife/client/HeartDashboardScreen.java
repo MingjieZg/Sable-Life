@@ -58,6 +58,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private Button add, toggle, trigger, remove, mark, preview, channelApply, previousParameters, nextParameters;
     private EditBox name, channel;
     private CompoundTag snapshot = new CompoundTag();
+    private net.minecraft.world.item.component.CustomData decodedData;
     private final List<VirtualModule> modules = new ArrayList<>();
     private final List<String> statuses = new ArrayList<>();
     private List<ModuleFields.Field> parameters = List.of();
@@ -250,8 +251,11 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private int tickCount;
     @Override protected void containerTick() { super.containerTick(); tickCount++; sync(); }
     private void sync() {
-        snapshot = menu.snapshot(); modules.clear(); statuses.clear(); var list = snapshot.getList("Modules", 10);
-        for (int i = 0; i < list.size(); i++) { modules.add(VirtualModule.load(list.getCompound(i))); statuses.add(list.getCompound(i).getString("Status")); }
+        var data = menu.getSlot(0).getItem().getOrDefault(net.minecraft.core.component.DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.EMPTY);
+        if (data != decodedData) {
+            decodedData = data; snapshot = data.copyTag(); modules.clear(); statuses.clear(); var list = snapshot.getList("Modules", 10);
+            for (int i = 0; i < list.size(); i++) { modules.add(VirtualModule.load(list.getCompound(i))); statuses.add(list.getCompound(i).getString("Status")); }
+        }
         if (!selectionRestored && snapshot.getBoolean("Ready")) {
             if (snapshot.hasUUID("Selected")) selected = snapshot.getUUID("Selected");
             selectionRestored = true;
@@ -262,7 +266,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             selected = sidebarModules().isEmpty() ? NONE : sidebarModules().getFirst().id();
         page = Math.min(page, Math.max(0, (sidebarModules().size() - 1) / sidebarSlots));
         if(beforeAdd!=null){var added=modules.stream().filter(m->m.type().equals(addingType)&&!beforeAdd.contains(m.id())).findFirst();if(added.isPresent()){selected=added.get().id();page=modules.indexOf(added.get())/sidebarSlots;beforeAdd=null;}else if(tickCount>addExpires)beforeAdd=null;}
-        boolean editable = snapshot.getBoolean("Editable"); var m = selected(); boolean usable = m != null && m.known();
+        var m=selected();boolean editable=snapshot.getBoolean("Editable")&&!(m!=null&&m.type().equals("command")&&!snapshot.getBoolean("CommandEditable"));boolean usable=m!=null&&m.known();
         releaseLife.visible=!snapshot.getBoolean("ControlCore");releaseLife.active = snapshot.getBoolean("Ready");
         lootNav.visible=!snapshot.getBoolean("ControlCore");if(snapshot.getBoolean("ControlCore"))settingsNav.setMessage(Component.translatable("manual.sablelife.open"));
         boolean selectionChanged = !last.equals(selected);

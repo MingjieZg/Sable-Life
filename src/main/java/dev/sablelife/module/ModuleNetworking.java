@@ -13,8 +13,8 @@ public final class ModuleNetworking {
         public static final Type<Action> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(SableLife.MOD_ID, "module_action"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Action> CODEC = StreamCodec.of((buf, p) -> {
             buf.writeVarInt(p.container); buf.writeVarInt(p.revision); buf.writeUUID(p.module);
-            buf.writeUtf(p.operation, 16); buf.writeUtf(p.key, 64); buf.writeDouble(p.value); buf.writeUtf(p.text, p.operation.equals("add_preset") ? ModulePreset.MAX_TEXT : p.operation.equals("commands") ? CommandProgram.MAX_TEXT+8 : 80);
-        }, buf -> { int container=buf.readVarInt(),revision=buf.readVarInt();var module=buf.readUUID();var operation=buf.readUtf(16);var key=buf.readUtf(64);double value=buf.readDouble();return new Action(container,revision,module,operation,key,value,buf.readUtf(operation.equals("add_preset")?ModulePreset.MAX_TEXT:operation.equals("commands")?CommandProgram.MAX_TEXT+8:80)); });
+            buf.writeUtf(p.operation, 16); buf.writeUtf(p.key, 64); buf.writeDouble(p.value); buf.writeUtf(p.text, p.operation.equals("add_preset") ? ModulePreset.MAX_TEXT : p.operation.equals("commands") ? CommandProgram.MAX_TEXT+8 : p.operation.equals("sound_timeline") ? 256 : 80);
+        }, buf -> { int container=buf.readVarInt(),revision=buf.readVarInt();var module=buf.readUUID();var operation=buf.readUtf(16);var key=buf.readUtf(64);double value=buf.readDouble();return new Action(container,revision,module,operation,key,value,buf.readUtf(operation.equals("add_preset")?ModulePreset.MAX_TEXT:operation.equals("commands")?CommandProgram.MAX_TEXT+8:operation.equals("sound_timeline")?256:80)); });
         @Override public Type<Action> type() { return TYPE; }
     }
     public record MarkState(boolean active) implements CustomPacketPayload {
@@ -46,9 +46,10 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("4");
+        var registrar = event.registrar("5");
         registrar.playToServer(Action.TYPE, Action.CODEC, (p, ctx) -> {
             if (p.operation.equals("cancel")) { MarkingSessions.cancel(ctx.player()); return; }
+            if (!AuthoringRateLimit.allow(ctx.player(), p.operation.equals("add_preset") ? 20 : 1)) return;
             if (p.operation.equals("clear_mark")) { MarkingSessions.clearMarks(ctx.player()); return; }
             if (ctx.player().containerMenu instanceof HeartDashboardMenu menu && menu.containerId == p.container)
                 menu.action(ctx.player(), p.revision, p.module, p.operation, p.key, p.value, p.text);

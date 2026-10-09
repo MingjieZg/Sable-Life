@@ -20,6 +20,7 @@ public final class HeartWireless {
     private boolean master = true;
     private boolean legacyChannels;
     private long elapsed, lastTick = Long.MIN_VALUE;
+    private java.util.List<Integer> configuredChannels;
     private final dev.sablelife.module.ProgramSignals programSources = new dev.sablelife.module.ProgramSignals();
     private java.util.Map<Integer, Integer> programOutputs = java.util.Map.of();
     public record ModuleOutput(net.minecraft.world.item.ItemStack red, net.minecraft.world.item.ItemStack blue, int power) {}
@@ -75,10 +76,12 @@ public final class HeartWireless {
     }
     public int size() { return channels.size(); }
     public WirelessChannel channel(int index) { return index >= 0 && index < channels.size() ? channels.get(index) : new WirelessChannel(); }
-    public int add() { if (channels.size() >= CHANNELS) return -1; channels.add(new WirelessChannel()); heart.setChanged(); return channels.size() - 1; }
+    public int limit() { return dev.sablelife.SableLifeServerConfig.maximumWirelessChannels(); }
+    public int add() { if (channels.size() >= limit()) return -1; var channel=new WirelessChannel();channel.onChange(this::configurationChanged);channels.add(channel);configuredChannels=null; heart.setChanged(); return channels.size() - 1; }
     public boolean remove(int index) {
         if (index < 0 || index >= channels.size()) return false;
         stop(); channels.remove(index);
+        configuredChannels=null;
         boolean changed = false;
         for (var module : heart.modules().all()) changed |= module.wirelessChannelDeleted(index);
         if (changed) heart.modules().changed();
@@ -96,7 +99,7 @@ public final class HeartWireless {
         for (var module : heart.modules().all()) if (module.value("trigger") >= 2)
             keep = Math.max(keep, Math.min(channels.size(), (int) module.value("channel") + 1));
         while (channels.size() > keep) channels.removeLast();
-        legacyChannels = false;
+        configuredChannels=null;legacyChannels = false;
     }
     public boolean master() { return master; }
     public void master(boolean value) { master = value; if (!value) { stop(); heart.modules().hurtTriggers.clear(); } }
@@ -114,7 +117,9 @@ public final class HeartWireless {
         if (!heart.operational() || heart.isRemoved()) { stop(); return; }
         if (lastTick == level.getGameTime()) return;
         lastTick = level.getGameTime();
-        for (int i = 0; i < channels.size(); i++) {
+        if (configuredChannels == null) configuredChannels = java.util.stream.IntStream.range(0, channels.size())
+                .filter(i -> channels.get(i).configured()).boxed().toList();
+        for (int i : configuredChannels) {
             if (!master || !channels.get(i).configured()) continue;
             if (channels.get(i).receiving()) {
                 if (!receivers.containsKey(i)) {
@@ -139,26 +144,25 @@ public final class HeartWireless {
         if (elapsed < Long.MAX_VALUE - 1) elapsed++;
         heart.setChanged();
     }
-    public void configurationChanged() { stop(); }
+    public void configurationChanged() { configuredChannels=null; stop(); }
     public void stop() {
         programSources.clear();
         programOutputs = java.util.Map.of();
         moduleTransmitters.values().forEach(this::removeModuleTransmitter); moduleTransmitters.clear();
-        for (int i = 0; i < channels.size(); i++) if (receivers.get(i) != null) {
-            var receiver = receivers.get(i); receiver.power = 0;
+        for (var receiver : receivers.values()) {
+            receiver.power = 0;
             if (receiver.level.getServer().isRunning()) Create.REDSTONE_LINK_NETWORK_HANDLER.removeFromNetwork(receiver.level, receiver);
-            receivers.remove(i);
         }
-        for (int i = 0; i < channels.size(); i++) if (transmitters.get(i) != null) {
-            var transmitter = transmitters.get(i);
+        receivers.clear();
+        for (var transmitter : transmitters.values()) {
             transmitter.power = 0;
             // Create clears all world networks during shutdown before some block entities unload.
             if (transmitter.level.getServer().isRunning()) {
                 Create.REDSTONE_LINK_NETWORK_HANDLER.updateNetworkOf(transmitter.level, transmitter);
                 Create.REDSTONE_LINK_NETWORK_HANDLER.removeFromNetwork(transmitter.level, transmitter);
             }
-            transmitters.remove(i);
         }
+        transmitters.clear();
     }
     public CompoundTag save(HolderLookup.Provider registries) {
         var tag = new CompoundTag(); var list = new ListTag();
@@ -172,9 +176,10 @@ public final class HeartWireless {
         var list = tag.getList("Channels", 10);
         legacyChannels = !tag.getBoolean("DynamicChannels");
         channels.clear();
+        configuredChannels=null;
         // Old saves retain all 16 numbers, including disabled slots referenced by modules.
         int count = tag.getBoolean("DynamicChannels") ? list.size() : list.isEmpty() ? 0 : Math.max(16, list.size());
-        for (int i = 0; i < Math.min(CHANNELS, count); i++) channels.add(i < list.size() ? WirelessChannel.load(list.getCompound(i), registries) : new WirelessChannel());
+        for (int i = 0; i < Math.min(CHANNELS, count); i++) { var channel=i < list.size() ? WirelessChannel.load(list.getCompound(i), registries) : new WirelessChannel(); channel.onChange(this::configurationChanged);channels.add(channel); }
     }
     private final class Transmitter implements IRedstoneLinkable {
         private final ServerLevel level;

@@ -17,20 +17,43 @@ import java.util.UUID;
 /** Live connectivity queries. Detached fragments cannot forward damage without a connected Heart. */
 public final class SableBodyProbe {
     private SableBodyProbe() {}
+    private record Graph(List<UUID> bodies, java.util.Set<UUID> membership, List<HeartBlockEntity> hearts) {}
+    private static final class Cache { long tick=Long.MIN_VALUE; final java.util.Map<UUID,Graph> graphs=new java.util.HashMap<>(); }
+    private static final java.util.Map<net.minecraft.server.level.ServerLevel,Cache> caches=new java.util.WeakHashMap<>();
+    public static void invalidate(Level level) {
+        if (level instanceof net.minecraft.server.level.ServerLevel server) {
+            var cache=caches.get(server);if(cache!=null)cache.graphs.clear();
+            dev.sablelife.ownership.LoadedCoreIndex.geometryChanged(server);
+        }
+    }
+    public static void stopped(net.neoforged.neoforge.event.server.ServerStoppedEvent event) { caches.clear(); }
+    private static Graph graph(Level level, SubLevel root) {
+        Cache cache=null;
+        if(level instanceof net.minecraft.server.level.ServerLevel server) {
+            cache=caches.computeIfAbsent(server,ignored->new Cache());
+            if(cache.tick!=level.getGameTime()){cache.tick=level.getGameTime();cache.graphs.clear();}
+            var old=cache.graphs.get(root.getUniqueId());if(old!=null)return old;
+        }
+        var connected=SubLevelHelper.getConnectedChain(root);
+        var hearts=new LinkedHashSet<HeartBlockEntity>();
+        for(var body:connected)if(!body.isRemoved())for(var chunk:body.getPlot().getLoadedChunks())
+            for(var entity:chunk.getChunk().getBlockEntities().values())if(entity instanceof HeartBlockEntity heart&&!heart.isRemoved())hearts.add(heart);
+        var ids=connected.stream().filter(b->!b.isRemoved()).map(SubLevel::getUniqueId).toList();
+        var result=new Graph(ids,java.util.Set.copyOf(ids),List.copyOf(hearts));
+        if(cache!=null)for(var id:ids)cache.graphs.put(id,result);
+        return result;
+    }
+    public static boolean connected(Level level, BlockPos core, UUID body) {
+        var root=Sable.HELPER.getContaining(level,core);
+        return root!=null&&!root.isRemoved()&&graph(level,root).membership.contains(body);
+    }
 
     public static Snapshot inspect(Level level, BlockPos position) {
         SubLevel root = Sable.HELPER.getContaining(level, position);
-        if (root == null) return new Snapshot(null, List.of(), 0);
-        var connected = SubLevelHelper.getConnectedChain(root);
-        int otherHearts = 0;
-        for (SubLevel body : connected) {
-            for (var chunk : body.getPlot().getLoadedChunks()) {
-                for (var blockEntity : chunk.getChunk().getBlockEntities().values()) {
-                    if (blockEntity instanceof HeartBlockEntity && !blockEntity.getBlockPos().equals(position)) otherHearts++;
-                }
-            }
-        }
-        return new Snapshot(root.getUniqueId(), connected.stream().map(SubLevel::getUniqueId).toList(), otherHearts);
+        if (root == null || root.isRemoved()) return new Snapshot(null, List.of(), 0);
+        var graph=graph(level,root);
+        int otherHearts=(int)graph.hearts.stream().filter(h->!h.isRemoved()&&!h.getBlockPos().equals(position)).count();
+        return new Snapshot(root.getUniqueId(),graph.bodies,otherHearts);
     }
 
     public record Snapshot(UUID rootId, List<UUID> connectedBodies, int otherHearts) {
@@ -49,18 +72,7 @@ public final class SableBodyProbe {
     public static List<HeartBlockEntity> findConnectedHearts(Level level, BlockPos hitBlock) {
         SubLevel root = Sable.HELPER.getContaining(level, hitBlock);
         if (root == null || root.isRemoved()) return List.of();
-        var found = new LinkedHashSet<HeartBlockEntity>();
-        for (SubLevel body : SubLevelHelper.getConnectedChain(root)) {
-            if (body.isRemoved()) continue;
-            for (var chunk : body.getPlot().getLoadedChunks()) {
-                for (var blockEntity : chunk.getChunk().getBlockEntities().values()) {
-                    if (blockEntity instanceof HeartBlockEntity heart && !heart.isRemoved()) {
-                        found.add(heart);
-                    }
-                }
-            }
-        }
-        return List.copyOf(found);
+        return graph(level,root).hearts.stream().filter(h->!h.isRemoved()).toList();
     }
 
     public static Vec3 toWorld(Level level, Vec3 position) {

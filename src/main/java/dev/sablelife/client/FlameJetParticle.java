@@ -37,6 +37,9 @@ public final class FlameJetParticle extends FlameParticle {
     private static ClientLevel budgetLevel;
     private static long budgetTick=Long.MIN_VALUE;
     private static int births;
+    public static void resetBudget() {
+        budgetLevel=null;budgetTick=Long.MIN_VALUE;births=0;
+    }
 
     private FlameJetParticle(ClientLevel level,FlameJetGeometry.Birth birth,double speed,double range,int appearance,float size) {
         super(level,birth.origin().x,birth.origin().y,birth.origin().z,0,0,0);

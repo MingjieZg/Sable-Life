@@ -215,7 +215,7 @@ public final class ModuleCombat {
         }
         if(!ModuleHurt.once(module)||emitted){
             var packet=new ModuleNetworking.FlameJet(start,direction,speed,range,width,0,1F,module.id().getLeastSignificantBits()^world.getGameTime()*0x9E3779B97F4A7C15L,module.particleEntries());
-            for(var player:world.players())if(player.position().distanceToSqr(start)<=128*128)
+            for(var player:world.players())if(player.position().distanceToSqr(start)<=128*128&&VisualBudget.allow(player,1))
                 net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);
         }
         if(state.flames.isEmpty()) heart.modules().hurtTriggers.completed(module);

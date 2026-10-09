@@ -1441,5 +1441,15 @@
   "manual.sablelife.density": "界面密度：%s",
   "manual.sablelife.module_management.manual_controls": "手册右上角提供语言、界面密度及返回。语言切换无需重启，返回保留章节、页签与搜索；界面密度与面板共用保存的偏好，并调整正文换行及列表行距，右键密度可反向切换。",
   "core.sablelife.regenPercent": "每秒百分比回血 (%)",
-  "dashboard.sablelife.moveForce": "强制位移"
+  "dashboard.sablelife.moveForce": "强制位移",
+  "manual.sablelife.chapter.server_limits": "服务器资源限额",
+  "manual.sablelife.server_limits.usage": "这些限额用于约束异常庞大的配置，不改变正常攻击伤害、部位伤害修正或招式时间。多人世界由服务器管理员设置。",
+  "manual.sablelife.server_limits.settings": "世界目录中的serverconfig/sablelife-server.toml设置新建无线频道数量（默认256）、每位玩家每游戏刻粒子点数（8192）、每个维度已加载弹射物数量（8192）、每个生命体新弹射物数量（2048）、全服务器每游戏刻死亡清理方块数量（256）以及每个维度每游戏刻碰撞检查次数（8,388,608）。旧存档的频道和编号保留。达到新生成限额时不会删除已经飞行或从存档加载的弹射物。\n\n碰撞预算不足时位移等待并显示状态，实际地形阻挡仍正常停止。粒子限额可能减少视觉输出。死亡清理任务共享预算并轮流处理，未加载方块继续保持保护，直到能够清理。",
+  "manual.sablelife.server_limits.example": "提高限额前先用适量机器测试，并在实际模组和玩家人数下观察服务器游戏刻耗时及网络流量。限额不代表保证某个TPS或可运行的生命体数量。",
+  "manual.sablelife.server_limits.troubleshooting": "命令模块只允许管理员编写或导入。蓝图放置接口没有玩家身份，因此蓝图中的命令模块需要管理员通过命令编辑器确认后才能运行。保存或打开普通模块预设不会授予命令权限。编辑请求及复杂导入有频率限制；连续操作被拒绝时，稍等后再试。",
+  "dashboard.sablelife.status_command_locked": "需要管理员确认命令",
+  "dashboard.sablelife.facing_state_budget": "等待服务器碰撞预算恢复",
+  "dashboard.sablelife.turn_state_budget": "等待服务器碰撞预算恢复",
+  "dashboard.sablelife.move_phase_budget": "等待服务器碰撞预算恢复",
+  "dashboard.sablelife.move_runtime_budget": "等待服务器碰撞预算恢复"
 }

@@ -20,12 +20,12 @@ public record ModuleAnchor(UUID bodyId, BlockPos offset, Direction face) {
                 || level.getBlockState(pos).isAir()) return null;
         return new ModuleAnchor(body.getUniqueId(), pos.subtract(body.getPlot().getCenterBlock()), face);
     }
-    public SubLevel body(HeartBlockEntity heart) { return SubLevelContainer.getContainer(heart.getLevel()).getSubLevel(bodyId); }
+    public SubLevel body(HeartBlockEntity heart) { var container=SubLevelContainer.getContainer(heart.getLevel());return container==null?null:container.getSubLevel(bodyId); }
     public BlockPos position(SubLevel body) { return body.getPlot().getCenterBlock().offset(offset); }
     public String status(HeartBlockEntity heart) {
         var body = body(heart); if (body == null || body.isRemoved()) return "unloaded";
         var root = Sable.HELPER.getContaining(heart.getLevel(), heart.getBlockPos());
-        if (root == null || !SubLevelHelper.getConnectedChain(root).contains(body)) return "disconnected";
+        if (root == null || !dev.sablelife.compat.sable.SableBodyProbe.connected(heart.getLevel(),heart.getBlockPos(),bodyId)) return "disconnected";
         var pos = position(body);
         if (!heart.getLevel().hasChunkAt(pos)) return "unloaded";
         return heart.getLevel().getBlockState(pos).isAir() ? "destroyed" : "valid";

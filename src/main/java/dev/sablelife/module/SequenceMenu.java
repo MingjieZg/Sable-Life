@@ -60,6 +60,7 @@ public final class SequenceMenu extends AbstractContainerMenu {
         tag.putBoolean("WirelessEnabled", wireless.value(0) == 1); tag.putBoolean("WirelessMaster", heart.wireless().master());
         tag.putInt("WirelessPower", heart.wireless().output(wirelessSelected)); tag.put("Module", module.save()); tag.put("Runtime", heart.modules().sequenceSnapshot(module.id()));
         tag.putBoolean("Editable", heart.canEdit(viewer)); tag.putInt("Channels", heart.wireless().size());
+        tag.putInt("ChannelLimit", heart.wireless().limit());
         tag.putIntArray("ProgramChannels", java.util.stream.IntStream.range(0, heart.wireless().size())
                 .filter(i -> heart.wireless().channel(i).programmed() && heart.wireless().channel(i).configured()).map(i -> i + 1).toArray());
         var stack = new ItemStack(Items.PAPER); stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag)); data.setItem(0, stack);

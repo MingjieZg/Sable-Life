@@ -36,26 +36,42 @@ public final class LinearMovementGeometry {
             result.add(new Body(server,new Vector3d(limb.logicalPose().position()),new Quaterniond(limb.logicalPose().orientation()),contactBounds(new AABB(b.minX(),b.minY(),b.minZ(),b.maxX(),b.maxY(),b.maxZ()))));
         }return List.copyOf(result);
     }
-    public static boolean connected(HeartBlockEntity heart,List<Body> bodies){var current=capture(heart);return current.size()==bodies.size()&&current.stream().allMatch(b->bodies.stream().anyMatch(old->old.body()==b.body()));}
+    public static boolean connected(HeartBlockEntity heart,List<Body> bodies){var current=capture(heart);var own=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<ServerSubLevel,Boolean>());bodies.forEach(b->own.add(b.body()));return current.size()==bodies.size()&&current.stream().allMatch(b->own.contains(b.body()));}
     public static boolean clear(ServerLevel level,List<Body> bodies,Vec3 from,Vec3 to,boolean swept){
+        var budget=CollisionWorkBudget.begin(level);
         if(bodies.isEmpty())return false;
-        var container=SubLevelContainer.getContainer(level);
-        long checked=0;
+        var boxes=new ArrayList<AABB>();AABB total=null;long checked=0;
         for(var body:bodies){
             var box=swept?body.box().move(from).expandTowards(to.subtract(from)):body.box().move(to);
             if(box.minY<level.getMinBuildHeight()||box.maxY>level.getMaxBuildHeight()||!level.getWorldBorder().isWithinBounds(box))return false;
             int x0=(int)Math.floor(box.minX),x1=(int)Math.floor(box.maxX),y0=(int)Math.floor(box.minY),y1=(int)Math.floor(box.maxY),z0=(int)Math.floor(box.minZ),z1=(int)Math.floor(box.maxZ);
-            checked+=(long)(x1-x0+1)*(y1-y0+1)*(z1-z0+1);if(checked>262144)return false;
+            long dx=(long)x1-x0+1,dy=(long)y1-y0+1,dz=(long)z1-z0+1;
+            if(dx<=0||dy<=0||dz<=0||dx>262144||dy>262144||dz>262144||dx>262144/dy||dx*dy>262144/dz)return false;
+            checked+=dx*dy*dz;if(checked>262144)return false;
             for(int x=x0>>4;x<=x1>>4;x++)for(int z=z0>>4;z<=z1>>4;z++)if(!level.hasChunk(x,z))return false;
-            for(var pos:BlockPos.betweenClosed(x0,y0,z0,x1,y1,z1)){
-                var state=level.getBlockState(pos);if(state.isAir())continue;
-                for(var shape:state.getCollisionShape(level,pos).toAabbs())if(shape.move(pos).intersects(box))return false;
-            }
-            if(container!=null)for(var other:container.getAllSubLevels()){
-                if(other.isRemoved()||bodies.stream().anyMatch(own->own.body()==other))continue;
-                other.updateBoundingBox();var b=other.boundingBox();if(new AABB(b.minX(),b.minY(),b.minZ(),b.maxX(),b.maxY(),b.maxZ()).intersects(box))return false;
-            }
-        }return true;
+            boxes.add(box);total=total==null?box:total.minmax(box);
+        }
+        // Capture other bodies once per check, not once for every limb. Do not cache moving poses across ticks.
+        var own=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<ServerSubLevel,Boolean>());bodies.forEach(b->own.add(b.body()));
+        var blockers=new ArrayList<AABB>();var container=SubLevelContainer.getContainer(level);
+        if(container!=null)for(var other:container.getAllSubLevels()){
+            if(other.isRemoved()||own.contains(other))continue;if(!budget.spend(1))return false;
+            other.updateBoundingBox();var b=other.boundingBox();var box=new AABB(b.minX(),b.minY(),b.minZ(),b.maxX(),b.maxY(),b.maxZ());
+            if(box.intersects(total))blockers.add(box);
+        }
+        for(var box:boxes){
+            int x0=(int)Math.floor(box.minX),x1=(int)Math.floor(box.maxX),y0=(int)Math.floor(box.minY),y1=(int)Math.floor(box.maxY),z0=(int)Math.floor(box.minZ),z1=(int)Math.floor(box.maxZ);
+            int volume=(x1-x0+1)*(y1-y0+1)*(z1-z0+1),visited=0;
+            if(!budget.spend(volume))return false;
+            try{
+                for(var pos:BlockPos.betweenClosed(x0,y0,z0,x1,y1,z1)){
+                    visited++;var state=level.getBlockState(pos);if(state.isAir())continue;
+                    for(var shape:state.getCollisionShape(level,pos).toAabbs())if(shape.move(pos).intersects(box))return false;
+                }
+            }finally{budget.refund(volume-visited);}
+            for(var other:blockers)if(other.intersects(box))return false;
+        }
+        return true;
     }
     /** Force mode skips colliders but never loads chunks or moves outside the world's valid destination. */
     public static boolean loadedDestination(ServerLevel level,List<Body> bodies){
@@ -71,6 +87,6 @@ public final class LinearMovementGeometry {
     }
     public static boolean move(ServerLevel level,List<Body> bodies,Vec3 delta){
         var system=SubLevelPhysicsSystem.get(level);if(system==null||bodies.isEmpty()||bodies.stream().anyMatch(b->b.body().isRemoved()))return false;
-        for(var b:bodies){system.getPipeline().resetVelocity(b.body());system.getPipeline().teleport(b.body(),new Vector3d(b.position()).add(delta.x,delta.y,delta.z),new Quaterniond(b.rotation()));}return true;
+        for(var b:bodies){system.getPipeline().resetVelocity(b.body());system.getPipeline().teleport(b.body(),new Vector3d(b.position()).add(delta.x,delta.y,delta.z),new Quaterniond(b.rotation()));}dev.sablelife.ownership.LoadedCoreIndex.geometryChanged(level);return true;
     }
 }

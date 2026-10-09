@@ -163,20 +163,23 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         var list = new net.minecraft.nbt.ListTag();
         for (var module : modules.all()) if (module.known()) {
             var tag = module.save(); tag.putUUID("CopySourceId", module.id());
-            for (String key : java.util.List.of("Id", "Anchors", "ArenaCenter", "ImportSource", "RewardOwner", "Invalidated", "Detached")) tag.remove(key);
+            for (String key : java.util.List.of("Id", "Anchors", "ParticleAreaAnchors", "ParticlePointAnchors", "ArenaCenter", "ImportSource", "RewardOwner", "Invalidated", "Detached")) tag.remove(key);
             list.add(tag);
         }
         result.put("Modules", list); return result;
     }
     public boolean pasteConfiguration(Player player, CompoundTag data) {
         if (!canEdit(player) || data.getInt("Version") != 1) return false;
+        if (!dev.sablelife.module.AuthoringLimits.compound(data, 1024 * 1024)
+                || !player.canUseGameMasterBlocks() && dev.sablelife.module.AuthoringLimits.containsCommands(data)) return false;
         float maximum = data.getFloat("MaxHealth");
         if (!Float.isFinite(maximum) || maximum < 1 || maximum > HeartHealth.MAX_CONFIGURED_HEALTH) return false;
         // Decode first, then replace the target's authoring settings in one server operation.
         var copiedModules = new net.minecraft.nbt.ListTag(); var copiedIds = new java.util.HashMap<java.util.UUID, java.util.UUID>(); var incoming = data.getList("Modules", 10);
         for (int i = 0; i < Math.min(dev.sablelife.module.HeartModules.LIMIT, incoming.size()); i++) {
             var tag = incoming.getCompound(i).copy();
-            for (String key : java.util.List.of("Anchors", "ArenaCenter", "ImportSource", "RewardOwner", "Invalidated", "Detached")) tag.remove(key);
+            if (player.canUseGameMasterBlocks()) tag.remove("CommandApprovalRequired");
+            for (String key : java.util.List.of("Anchors", "ParticleAreaAnchors", "ParticlePointAnchors", "ArenaCenter", "ImportSource", "RewardOwner", "Invalidated", "Detached")) tag.remove(key);
             var newId = java.util.UUID.randomUUID();
             if (tag.hasUUID("CopySourceId")) copiedIds.put(tag.getUUID("CopySourceId"), newId);
             tag.remove("CopySourceId"); tag.putUUID("Id", newId);
@@ -358,6 +361,16 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         super(SableLife.HEART_ENTITY.get(), position, state);
     }
 
+    /** Core NBT can contain level-2 command programs; creative mode alone is not authorization. */
+    @Override public boolean onlyOpCanSetNbt() { return true; }
+
+    @Override public void onLoad() { super.onLoad();dev.sablelife.ownership.LoadedCoreIndex.observe(this); }
+    @Override public void setLevel(Level next) {
+        if(level!=null&&level!=next){dev.sablelife.ownership.LoadedCoreIndex.remove(this);dev.sablelife.compat.sable.SableBodyProbe.invalidate(level);}
+        super.setLevel(next);checkedCoreTick=Long.MIN_VALUE;
+        dev.sablelife.ownership.LoadedCoreIndex.observe(this);
+    }
+
     public HeartHealth health() { return health; }
     public int pulseSignal() { return pulseSignal; }
     public UUID creatureId() { return creatureId; }
@@ -384,6 +397,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         }
         boundBody = body.rootId();
         health.activate();adaptiveDefense.reset();
+        dev.sablelife.ownership.LoadedCoreIndex.geometryChanged((ServerLevel)level);
         wireless.start();
         BodyOwnership.get((ServerLevel) level).capture(this);
         LifeLifecycle.get(((ServerLevel) level).getServer()).setBreakable(creatureId, allowBreaking);
@@ -471,6 +485,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     }
 
     public static void serverTick(Level level, BlockPos position, BlockState state, HeartBlockEntity heart) {
+        dev.sablelife.ownership.LoadedCoreIndex.observe(heart);
         if(heart.isControlCore()){RedstoneCorePolicy.sanitize(heart);heart.wireless.tick((ServerLevel)level);heart.modules.tick(heart);return;}
         heart.checkVoidDeath();
         heart.tickRegeneration();
@@ -516,8 +531,8 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     private void clearBossBar() {
         if (bossBar != null) { bossBar.removeAllPlayers(); bossBar = null; }
     }
-    @Override public void invalidate() { wireless.stop(); modules.clearRuntime(); adaptiveDefense.reset(); clearBossBar(); super.invalidate(); }
-    @Override public void onChunkUnloaded() { wireless.stop(); modules.clearRuntime(); adaptiveDefense.reset(); super.onChunkUnloaded(); }
+    @Override public void invalidate() { dev.sablelife.ownership.LoadedCoreIndex.remove(this);wireless.stop(); modules.clearRuntime(); adaptiveDefense.reset(); clearBossBar(); super.invalidate();dev.sablelife.compat.sable.SableBodyProbe.invalidate(level); }
+    @Override public void onChunkUnloaded() { dev.sablelife.ownership.LoadedCoreIndex.remove(this);clearBossBar();wireless.stop(); modules.clearRuntime(); adaptiveDefense.reset(); super.onChunkUnloaded();dev.sablelife.compat.sable.SableBodyProbe.invalidate(level); }
 
     /** Restore an active creature after an Arena reset; never revive a dying core. */
     public void restoreFullHealth() {
@@ -538,6 +553,12 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     @Override
     protected void write(CompoundTag tag, HolderLookup.Provider registries, boolean clientPacket) {
         super.write(tag, registries, clientPacket);
+        if (clientPacket) {
+            tag.putUUID("CreatureId",creatureId);tag.putString("CreatureName",creatureName);
+            tag.putString("LifeState",health.state().name());tag.putFloat("MaxHealth",health.maximum());tag.putFloat("Health",health.current());
+            tag.putInt("DeathDelay",health.deathDelay());tag.putInt("RemainingDeathTicks",health.remainingDeathTicks());
+            return;
+        }
         tag.putInt("DataVersion", 1);
         tag.putLong("CombatMusicHits", combatMusicHits);
         tag.putUUID("CreatureId", creatureId);
@@ -571,6 +592,16 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     @Override
     protected void read(CompoundTag tag, HolderLookup.Provider registries, boolean clientPacket) {
         super.read(tag, registries, clientPacket);
+        if (clientPacket || level != null && level.isClientSide) {
+            if(tag.hasUUID("CreatureId"))creatureId=tag.getUUID("CreatureId");
+            creatureName=tag.getString("CreatureName");
+            if(creatureName.codePointCount(0,creatureName.length())>64||creatureName.codePoints().anyMatch(Character::isISOControl))creatureName="";
+            if(tag.contains("LifeState"))try {
+                int delay=Math.clamp(tag.getInt("DeathDelay"),0,HeartHealth.MAX_DEATH_DELAY);
+                health=HeartHealth.restore(tag.getFloat("MaxHealth"),tag.getFloat("Health"),delay,HeartState.valueOf(tag.getString("LifeState")),Math.clamp(tag.getInt("RemainingDeathTicks"),0,delay));
+            }catch(IllegalArgumentException error){health=HeartHealth.restore(100,0,60,HeartState.DEAD,0);}
+            return;
+        }
         combatMusicHits = Math.max(0, tag.getLong("CombatMusicHits"));
         loadRegen(tag); loadDefense(tag);
         wireless.load(tag.getCompound("Wireless"), registries);
@@ -611,9 +642,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     }
 
     @Override public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        var tag = saveWithoutMetadata(registries);
-        // Module authoring data is synchronized only to an open dashboard, not every heartbeat to all viewers.
-        tag.remove("VirtualModules"); return tag;
+        var tag=new CompoundTag();write(tag,registries,true);return tag;
     }
     @Override public ClientboundBlockEntityDataPacket getUpdatePacket() { return ClientboundBlockEntityDataPacket.create(this); }
 }

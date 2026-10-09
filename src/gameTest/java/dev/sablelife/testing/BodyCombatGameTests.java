@@ -42,7 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-@GameTestHolder("sablelife_tests")
+@GameTestHolder("sablelife_combat_tests")
 @PrefixGameTestTemplate(false)
 public final class BodyCombatGameTests {
     @GameTest(template = "combat", timeoutTicks = 160, batch="audit_bodycombatgametests_realtridentdamageslivingbody")
