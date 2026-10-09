@@ -32,6 +32,33 @@ public final class EpicFightTestScenarios {
     public static void LivingTargetsAndLifeBodiesShareTheNativeStrikeLimit(GameTestHelper h)throws Exception {
         nativeWeapon(h,Items.DIAMOND_SWORD,Animations.SWORD_AUTO1,true);
     }
+    public static void NativeChargingRulesMatchRealPostHitAndRespectGuards(GameTestHelper h) {
+        var player=TestActors.creative(h.getLevel());var item=new ItemStack(Items.DIAMOND_SWORD);
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,item);
+        var patch=EpicFightCapabilities.getServerPlayerPatch(player);patch.toEpicFightMode(false);
+        var skill=patch.getSkill(yesman.epicfight.skill.SkillSlots.WEAPON_INNATE);
+        var innate=EpicFightCapabilities.getItemStackCapability(item).getInnateSkill(patch,item);
+        h.assertTrue(innate!=null,"Native sword skill missing");skill.setSkill(innate,true);skill.setMaxResource(1000);
+        var source=patch.getDamageSource(Animations.SWORD_AUTO1,net.minecraft.world.InteractionHand.MAIN_HAND);source.setChargeWeapon(true);
+        var target=net.minecraft.world.entity.EntityType.PIG.create(h.getLevel());
+        skill.setResource(3);
+        yesman.epicfight.api.event.EpicFightEventHooks.Entity.DELIVER_DAMAGE_POST.postWithListener(
+            new yesman.epicfight.api.event.types.entity.DealDamageEvent.Post(patch,target,source,7),patch.getEventListener());
+        float nativeValue=skill.getResource();h.assertTrue(nativeValue==10,"Native reference event did not add damage");
+        skill.setResource(3);EpicFightBodyBridge.chargeWeapon(patch,source,7);
+        h.assertTrue(skill.getResource()==nativeValue,"Bridge differs from native post-hit resource");
+        source.setChargeWeapon(false);EpicFightBodyBridge.chargeWeapon(patch,source,7);
+        h.assertTrue(skill.getResource()==nativeValue,"Noncharging attack gained resource");source.setChargeWeapon(true);
+        EpicFightBodyBridge.chargeWeapon(patch,source,0);EpicFightBodyBridge.chargeWeapon(patch,source,Float.NaN);
+        h.assertTrue(skill.getResource()==nativeValue,"Invalid/zero damage gained resource");
+        skill.setDuration(1);h.assertTrue(skill.isActivated(),"Active skill fixture failed");EpicFightBodyBridge.chargeWeapon(patch,source,7);
+        h.assertTrue(skill.getResource()==nativeValue,"Activated skill charged");skill.deactivate();skill.setStack(Integer.MAX_VALUE);
+        h.assertTrue(skill.isFull(),"Full skill fixture failed");EpicFightBodyBridge.chargeWeapon(patch,source,7);
+        h.assertTrue(skill.getResource()==nativeValue,"Full skill charged");
+        skill.setStack(0);player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,new ItemStack(Items.DIAMOND_AXE));
+        EpicFightBodyBridge.chargeWeapon(patch,source,7);h.assertTrue(skill.getResource()==nativeValue,"Mismatched weapon skill charged");
+        h.succeed();
+    }
     private static void nativeWeapon(GameTestHelper h,Item weapon,Object rawAccessor)throws Exception {nativeWeapon(h,weapon,rawAccessor,false);}
     private static void nativeWeapon(GameTestHelper h,Item weapon,Object rawAccessor,boolean livingTarget)throws Exception {
         h.assertTrue(EpicFightCompatibility.supported(),"Verified Epic Fight release was not loaded");
@@ -40,6 +67,12 @@ public final class EpicFightTestScenarios {
         var accessor=(yesman.epicfight.api.animation.AnimationManager.AnimationAccessor<? extends AttackAnimation>)rawAccessor;
         patch.toEpicFightMode(false);patch.getAnimator().playAnimationInstantly(accessor);patch.preTick();
         var animation=accessor.get();var phase=animation.phases[0];
+        var innate=EpicFightCapabilities.getItemStackCapability(player.getMainHandItem()).getInnateSkill(patch,player.getMainHandItem());
+        var skill=patch.getSkill(yesman.epicfight.skill.SkillSlots.WEAPON_INNATE);
+        if(!livingTarget) {
+            h.assertTrue(innate!=null,"Native weapon has no innate skill");skill.setSkill(innate,true);
+            skill.setMaxResource(1000);skill.setResource(0);
+        }
         float from=phase.preDelay,to=phase.contact;
         var frame=EpicFightBodyBridge.begin(patch,animation,phase);List<AttackVolume> samples;
         try {
@@ -72,8 +105,11 @@ public final class EpicFightTestScenarios {
         }
         access.sablelife$hurtColliding(patch,from,to,animation.getState(patch,from),animation.getState(patch,to),phase);
         h.assertTrue(core.health().current()<before,"Native sword failed to hurt the owned body");var after=core.health().current();
+        h.assertTrue(Math.abs(skill.getResource()-(before-after))<.001,"Native animation hit failed to charge weapon by damage: "+skill.getResource());
+        float charged=skill.getResource();
         access.sablelife$hurtColliding(patch,from,to,animation.getState(patch,from),animation.getState(patch,to),phase);
         h.assertTrue(core.health().current()==after,"One phase hit multiple voxels/ticks repeatedly");
+        h.assertTrue(skill.getResource()==charged,"Repeated phase charged the weapon again");
         patch.removeHurtEntities();access.sablelife$hurtColliding(patch,from,to,animation.getState(patch,from),animation.getState(patch,to),phase);
         h.assertTrue(core.health().current()<after,"Native phase reset did not permit the next strike");
         var oldModifier=phase.getProperty(yesman.epicfight.api.animation.property.AnimationProperty.AttackPhaseProperty.DAMAGE_MODIFIER);
@@ -86,6 +122,13 @@ public final class EpicFightTestScenarios {
             phase.removeProperty(yesman.epicfight.api.animation.property.AnimationProperty.AttackPhaseProperty.DAMAGE_MODIFIER);
             oldModifier.ifPresent(v->phase.addProperty(yesman.epicfight.api.animation.property.AnimationProperty.AttackPhaseProperty.DAMAGE_MODIFIER,v));
         }
+        var armor=core.modules().add("armor");armor.anchors(List.of(dev.sablelife.module.ModuleAnchor.create(core,core.getBlockPos(),Direction.UP)));
+        armor.edit("damageModifier",-50,"");patch.removeHurtEntities();float hp=core.health().current(),resource=skill.getResource();
+        access.sablelife$hurtColliding(patch,from,to,animation.getState(patch,from),animation.getState(patch,to),phase);
+        h.assertTrue(Math.abs(hp-core.health().current()-5)<.001&&Math.abs(skill.getResource()-resource-5)<.001,"Reduced damage charged raw damage");
+        armor.edit("damageModifier",-100,"");patch.removeHurtEntities();hp=core.health().current();resource=skill.getResource();
+        access.sablelife$hurtColliding(patch,from,to,animation.getState(patch,from),animation.getState(patch,to),phase);
+        h.assertTrue(core.health().current()==hp&&skill.getResource()==resource,"Immune body charged weapon");
         h.assertTrue(java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(),false).count()==entityCount,"Bridge spawned proxy entities");
         h.succeed();
         });

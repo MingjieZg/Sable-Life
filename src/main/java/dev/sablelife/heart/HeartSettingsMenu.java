@@ -49,7 +49,7 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         tag.putString("State", heart.health().state().name());
         for (var key : java.util.List.of("deathParticle", "deathSound", "deathSoundLast")) tag.putString(key, heart.deathPresentation().text(key));
         tag.putInt("DeathParticleCount",heart.deathPresentation().particleSelection().particles().size());
-        for (var key : java.util.List.of("deathCount", "deathSpread", "deathDuration", "deathScale", "deathVolume", "deathPitch", "deathRadius", "deathPattern")) tag.putDouble(key, heart.deathPresentation().value(key));
+        for (var key : java.util.List.of("deathCount", "deathSpread", "deathDuration", "deathScale", "deathVolume", "deathPitch", "deathRadius", "deathEffectRadius", "deathPattern")) tag.putDouble(key, heart.deathPresentation().value(key));
         tag.putInt("VanishParticleCount",heart.removalPresentation().particleSelection().particles().size());
         for(var suffix:java.util.List.of("Sound","SoundLast"))tag.putString("vanish"+suffix,heart.removalPresentation().text("death"+suffix));
         for(var suffix:java.util.List.of("Count","Spread","Volume","Pitch","Radius","Pattern"))tag.putDouble("vanish"+suffix,heart.removalPresentation().value("death"+suffix));

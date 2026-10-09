@@ -1451,5 +1451,9 @@
   "dashboard.sablelife.facing_state_budget": "等待服务器碰撞预算恢复",
   "dashboard.sablelife.turn_state_budget": "等待服务器碰撞预算恢复",
   "dashboard.sablelife.move_phase_budget": "等待服务器碰撞预算恢复",
-  "dashboard.sablelife.move_runtime_budget": "等待服务器碰撞预算恢复"
+  "dashboard.sablelife.move_runtime_budget": "等待服务器碰撞预算恢复",
+  "core.sablelife.deathEffectRadius": "效果半径（格）",
+  "core.sablelife.deathEffectRadius_help": "死亡瞬间特效以整个连接结构的中心为原点。0 按结构外接球自动计算；正数则指定半径，最多 256 格。扩散值控制粒子的散布，闪光保留在中心。延迟结束后的残影仍在各组成方块上生成。",
+  "manual.sablelife.core.death_envelope": "死亡瞬间特效以整个连接结构的中心为原点，包含连接的部位。效果半径为 0 时按结构外接球自动计算，最多 256 格；正数则使用指定半径。扩散值控制粒子的散布。爆发和云状粒子从球面生成，圆环、星形和螺旋保留所选形状，闪光仍在中心播放一次。声音传播半径独立设置。\n\n死亡延迟结束后，残影特效仍在组成方块处生成，结构分批清除。战利品位置沿用原有规则。",
+  "manual.sablelife.core.protected_tools": "允许方块破坏关闭时，工具对准已激活的生命体会进行攻击，不进入挖掘；长按也不会持续产生裂纹或挖掘粒子。普通地形，以及允许破坏开启时的工具挖掘，保持原有行为。\n\n安装 Epic Fight 21.17.3.1 时，已适配的主手原生攻击会按实际扣除的生命值为对应武器的特殊技能充能，沿用原模组的上限、激活状态和同步方式。同一攻击阶段不会重复充能，免伤时不充能。这不代表已适配仅面向实体的技能事件或其他战斗模组。"
 }

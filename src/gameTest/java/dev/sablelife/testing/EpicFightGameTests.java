@@ -6,6 +6,8 @@ import net.neoforged.neoforge.gametest.*;
 /** Discovery must not load optional API types before the namespace/dependency check. */
 @GameTestHolder("sablelife_epicfight_tests") @PrefixGameTestTemplate(false)
 public final class EpicFightGameTests {
+    @GameTest(template="combat",batch="epic_charge_rules")
+    public static void NativeChargingRulesMatchRealPostHitAndRespectGuards(GameTestHelper h){EpicFightTestScenarios.NativeChargingRulesMatchRealPostHitAndRespectGuards(h);}
     @GameTest(template="combat",batch="epic_native_sword")
     public static void NativeSwordAnimationHitsBodyOnlyOnceAndNextPhaseCanHitAgain(GameTestHelper h)throws Exception {EpicFightTestScenarios.NativeSwordAnimationHitsBodyOnlyOnceAndNextPhaseCanHitAgain(h);}
     @GameTest(template="combat",batch="epic_native_axe")

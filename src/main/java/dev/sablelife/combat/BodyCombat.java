@@ -48,12 +48,13 @@ public final class BodyCombat {
             if (!event.getEntity().isShiftKeyDown()) event.setCanceled(true);
             return;
         }
-        if (isMiningTool(event.getItemStack())) return;
         var heart = SableBodyProbe.findActivatedHeart(event.getLevel(), event.getPos());
-        if (heart == null) return;
+        if (heart == null || isMiningTool(event.getItemStack()) && heart.allowBreaking()) return;
 
         // Cancel on both sides: a punch/sword hit should not instantly erase a body block in creative.
         event.setCanceled(true);
+        event.setUseBlock(TriState.FALSE);
+        event.setUseItem(TriState.FALSE);
         if (!(event.getEntity() instanceof ServerPlayer player)
                 || event.getAction() != PlayerInteractEvent.LeftClickBlock.Action.START) return;
 

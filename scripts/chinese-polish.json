@@ -132,5 +132,7 @@
   "dashboard.sablelife.facing_state_budget": "等待服务器碰撞预算恢复",
   "dashboard.sablelife.turn_state_budget": "等待服务器碰撞预算恢复",
   "dashboard.sablelife.move_phase_budget": "等待服务器碰撞预算恢复",
-  "dashboard.sablelife.move_runtime_budget": "等待服务器碰撞预算恢复"
+  "dashboard.sablelife.move_runtime_budget": "等待服务器碰撞预算恢复",
+  "core.sablelife.deathEffectRadius": "效果半径（格）",
+  "core.sablelife.deathEffectRadius_help": "死亡瞬间特效以整个连接结构的中心为原点。0 按结构外接球自动计算；正数则指定半径，最多 256 格。扩散值控制粒子的散布，闪光保留在中心。延迟结束后的残影仍在各组成方块上生成。"
 }

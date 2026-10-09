@@ -342,6 +342,30 @@ public final class BodyCombatGameTests {
         helper.succeed();
     }
 
+    @GameTest(template="combat",batch="protected_tool_attack")
+    public static void ProtectedToolsAttackButBreakingEnabledKeepsMining(GameTestHelper h) {
+        var creature=cube(h,true);h.runAfterDelay(3,()->{
+            var core=creature.heart();var target=core.getBlockPos().east();
+            var player=playerAtFace(h.getLevel(),creature,target,Direction.EAST);
+            player.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Items.DIAMOND_AXE));
+            var click=new net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.LeftClickBlock(player,target,Direction.EAST,
+                net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.LeftClickBlock.Action.START);
+            float before=core.health().current();dev.sablelife.combat.BodyCombat.onLeftClickBlock(click);
+            h.assertTrue(click.isCanceled()&&click.getUseItem()==net.neoforged.neoforge.common.util.TriState.FALSE
+                &&click.getUseBlock()==net.neoforged.neoforge.common.util.TriState.FALSE,"Protected tool entered mining");
+            h.assertTrue(core.health().current()<before,"Protected axe did not attack");
+            h.assertTrue(core.editCore(player,"breaking",1,""),"Breaking switch failed");
+            var allowed=new net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.LeftClickBlock(player,target,Direction.EAST,
+                net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.LeftClickBlock.Action.START);
+            before=core.health().current();dev.sablelife.combat.BodyCombat.onLeftClickBlock(allowed);
+            h.assertTrue(!allowed.isCanceled()&&core.health().current()==before,"Allowed mining became an attack");
+            var update=core.getUpdateTag(h.getLevel().registryAccess());h.assertTrue(update.getBoolean("AllowBreaking"),"Breaking mode not synchronized");
+            var client=new HeartBlockEntity(core.getBlockPos(),core.getBlockState());client.handleUpdateTag(update,h.getLevel().registryAccess());
+            h.assertTrue(client.allowBreaking(),"Client rejected synchronized mining mode");
+            core.editCore(player,"breaking",0,"");client.handleUpdateTag(core.getUpdateTag(h.getLevel().registryAccess()),h.getLevel().registryAccess());
+            h.assertTrue(!client.allowBreaking(),"Client retained stale mining mode");h.succeed();
+        });
+    }
     private static Creature cube(GameTestHelper helper, boolean activate) {
         var level = helper.getLevel();
         var center = helper.absolutePos(new BlockPos(6, 6, 6));

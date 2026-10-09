@@ -35,7 +35,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     @Override protected void init() {
         imageHeight=page==4||page==1?Math.min(246,height-12):246;
         super.init();inputs.clear();applies.clear();toggles.clear();sounds.clear();soundNones.clear();particle=pattern=preview=restore=experienceMode=null;
-        keys=page==4?new String[]{"defenseThreshold","defenseMaximum","defenseWindow"}:page==0?new String[]{"name","health","delay","xp","regen","regenPercent","regenDelay"}:page==1?new String[]{"voidDeathHeight"}:(page==2||page==3)?new String[]{prefix()+"Count",prefix()+"Spread"}:new String[]{};
+        keys=page==4?new String[]{"defenseThreshold","defenseMaximum","defenseWindow"}:page==0?new String[]{"name","health","delay","xp","regen","regenPercent","regenDelay"}:page==1?new String[]{"voidDeathHeight"}:page==2?new String[]{"deathCount","deathSpread","deathEffectRadius"}:page==3?new String[]{"vanishCount","vanishSpread"}:new String[]{};
         button(tr("modules"),10,9,70,()->navigation(0));button(tr("wireless"),85,9,70,()->navigation(1));button(tr("loot"),160,9,75,()->navigation(2));
         release=button(Component.translatable("dashboard.sablelife.release").withStyle(net.minecraft.ChatFormatting.RED),240,9,55,()->edit("release",0,""));release.setTooltip(Tooltip.create(Component.translatable("dashboard.sablelife.release_help")));
         button(Component.literal("x"),300,9,20,()->navigation(3));
@@ -43,7 +43,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
             final int n=i;int y=(page==4?69:page==1?141:51)+i*18;var input=new EditBox(font,leftPos+150,topPos+y,keys[i].equals("name")?135:85,16,tr(keys[i]));
             if(keys[i].equals("name"))input.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("name_help")));
             input.setMaxLength(keys[i].equals("name")?64:10);if(!keys[i].equals("name"))input.setFilter(s->s.matches(keys[n].equals("voidDeathHeight")?"-?[0-9]{0,4}":"[0-9]{0,7}(\\.[0-9]{0,2})?"));
-            if(page==1)input.setTooltip(Tooltip.create(tr("void_death_help")));else if(page==4)input.setTooltip(Tooltip.create(tr(keys[i]+"_help")));else if(page>=2)input.setTooltip(Tooltip.create(tr(page==3?"vanish_help":"death_help")));else if(i>=4)input.setTooltip(Tooltip.create(tr("regen_help")));
+            if(page==1)input.setTooltip(Tooltip.create(tr("void_death_help")));else if(page==4)input.setTooltip(Tooltip.create(tr(keys[i]+"_help")));else if(page>=2)input.setTooltip(Tooltip.create(tr(keys[i].equals("deathEffectRadius")?"deathEffectRadius_help":page==3?"vanish_help":"death_help")));else if(i>=4)input.setTooltip(Tooltip.create(tr("regen_help")));
             inputs.add(addRenderableWidget(input));applies.add(button(Component.literal("✓"),292,y,28,()->apply(n)));
             if(page==1){LifeUiStyle.reverse(applies.getLast(),()->{input.setFocused(false);edit("voidDeathDefault",0,"");});applies.getLast().setTooltip(Tooltip.create(tr("void_death_help")));}
         }
@@ -71,8 +71,8 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         var choice=button(Component.empty(),150,y,170,()->edit("soundEditor:"+key,0,""));sounds.put(key,choice);
         choice.setTooltip(Tooltip.create(Component.translatable("sound_timeline.sablelife.open_help")));
     }
-    private double maximum(int i) { return switch(keys[i].replace("vanish","death")) { case "health","regen","defenseThreshold"->1000000;case "regenPercent"->100;case "defenseMaximum"->100;case "defenseWindow"->10;case "xp"->menu.snapshot().getBoolean("xpLevels")?dev.sablelife.heart.ExperienceUnits.MAX_LEVELS:dev.sablelife.heart.ExperienceUnits.MAX_POINTS;case "voidDeathHeight"->2048;case "delay"->60;case "regenDelay"->600;case "deathCount","deathRadius"->256;case "deathSpread"->32;case "deathPitch"->2;case "deathVolume"->4;default->10000; }; }
-    private double minimum(int i) { return keys[i].equals("voidDeathHeight")?-2048:keys[i].equals("defenseThreshold")||keys[i].equals("defenseWindow")?.1:keys[i].equals("health")||keys[i].endsWith("Radius")?1:keys[i].endsWith("Pitch")?.5:0; }
+    private double maximum(int i) { return switch(keys[i].replace("vanish","death")) { case "health","regen","defenseThreshold"->1000000;case "regenPercent"->100;case "defenseMaximum"->100;case "defenseWindow"->10;case "xp"->menu.snapshot().getBoolean("xpLevels")?dev.sablelife.heart.ExperienceUnits.MAX_LEVELS:dev.sablelife.heart.ExperienceUnits.MAX_POINTS;case "voidDeathHeight"->2048;case "delay"->60;case "regenDelay"->600;case "deathCount","deathRadius","deathEffectRadius"->256;case "deathSpread"->32;case "deathPitch"->2;case "deathVolume"->4;default->10000; }; }
+    private double minimum(int i) { return keys[i].equals("deathEffectRadius")?0:keys[i].equals("voidDeathHeight")?-2048:keys[i].equals("defenseThreshold")||keys[i].equals("defenseWindow")?.1:keys[i].equals("health")||keys[i].endsWith("Radius")?1:keys[i].endsWith("Pitch")?.5:0; }
     private boolean valid(int i) {
         if(keys[i].equals("name"))return true;
         try { double value=Double.parseDouble(inputs.get(i).getValue());return Double.isFinite(value)&&value>=minimum(i)&&value<=maximum(i)&&(!keys[i].equals("voidDeathHeight")||value==Math.rint(value))&&(!keys[i].equals("xp")||!menu.snapshot().getBoolean("xpLevels")||value==Math.rint(value)); }catch(NumberFormatException ignored){return false;}

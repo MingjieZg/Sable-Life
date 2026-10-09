@@ -182,6 +182,14 @@ for locale in locales:
 text('module_management.presets', 'Save preset beside Delete opens a name box with Confirm and Cancel. Presets persist in the client config across worlds.\n\nThey keep applied module settings, sound layers, particles and effects; marks, arena positions and references to other modules must be assigned again.\n\nDuplicate names receive a numeric suffix. Custom audio files must still exist on listening clients.', '属性面板底部删除模块左侧的保存预设会打开收藏名称输入框，右边可确定或取消。预设保存在客户端配置中，可跨世界使用。\n\n预设保留已应用的模块属性、声音层、粒子及状态效果；标记、场地中心和其他模块引用需要重新设置。\n\n重复名称自动加数字后缀，自定义音频仍需在听觉客户端存在。')
 next(e for e in entries if e['id']=='module_management')['sections']['settings'].append('manual.sablelife.module_management.presets')
 
+text('core.death_envelope', 'Immediate death effects originate at the center of the connected body, including attached parts. Effect radius 0 automatically fits its enclosing sphere (up to 256 blocks); a positive value sets a fixed radius. Spread controls jitter. Burst/cloud particles start around that sphere; ring, star and spiral keep their selected shapes. Flash remains a single central flash. Sound radius is independent.\n\nAfter the death delay, removal effects still appear at constituent blocks while cleanup runs in batches. Rewards keep their existing location.', '死亡瞬间特效以整个连接结构的中心为原点，包含连接的部位。效果半径为 0 时按结构外接球自动计算，最多 256 格；正数则使用指定半径。扩散值控制粒子的散布。爆发和云状粒子从球面生成，圆环、星形和螺旋保留所选形状，闪光仍在中心播放一次。声音传播半径独立设置。\n\n死亡延迟结束后，残影特效仍在组成方块处生成，结构分批清除。战利品位置沿用原有规则。')
+for entry in entries:
+    if entry['id']=='core':entry['sections']['settings'].append('manual.sablelife.core.death_envelope')
+text('core.protected_tools', 'When Allow block breaking is Off, tools aimed at an activated body attack it instead of mining. Holding the button does not keep producing cracks or block-hit particles. Ordinary terrain and tool mining with Allow block breaking On keep their previous behavior.\n\nWith Epic Fight 21.17.3.1, supported native main-hand hits also charge the matching weapon innate skill by health damage actually dealt. The native skill cap, activation state and synchronization apply; the same phase cannot charge twice. Immunity yields no charge. This does not imply support for entity-only skill events or other combat mods.', '允许方块破坏关闭时，工具对准已激活的生命体会进行攻击，不进入挖掘；长按也不会持续产生裂纹或挖掘粒子。普通地形，以及允许破坏开启时的工具挖掘，保持原有行为。\n\n安装 Epic Fight 21.17.3.1 时，已适配的主手原生攻击会按实际扣除的生命值为对应武器的特殊技能充能，沿用原模组的上限、激活状态和同步方式。同一攻击阶段不会重复充能，免伤时不充能。这不代表已适配仅面向实体的技能事件或其他战斗模组。')
+for entry in entries:
+    if entry['id']=='core':entry['sections']['usage'].append('manual.sablelife.core.protected_tools')
+
+
 # Editorial boundaries are explicit, rather than splitting every sentence or fixed character counts.
 # Keep these outside the content definitions so regeneration preserves the reviewed layout.
 paragraphs = json.loads((root / 'scripts/manual-paragraphs.json').read_text(encoding='utf-8'))
@@ -205,7 +213,7 @@ for lang, locale in zip(('en_us', 'zh_cn'), locales):
                 locale[key] = re.sub(r'(?<!\n)\n(?=\d+\. )', '\n\n', locale[key])
 
 (base / 'manual').mkdir(exist_ok=True)
-(base / 'manual/catalog.json').write_text(json.dumps({'revision':51,'entries':entries}, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
+(base / 'manual/catalog.json').write_text(json.dumps({'revision':52,'entries':entries}, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
 locales[1] = localize(locales[1])
 for lang, locale in zip(('en_us','zh_cn'), locales):
     (base / f'lang/{lang}.json').write_text(json.dumps(locale, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')

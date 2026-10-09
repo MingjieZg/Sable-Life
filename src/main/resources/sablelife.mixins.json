@@ -27,6 +27,7 @@
     "TaczBlastProfileMixin"
   ],
   "client": [
+    "ProtectedBodyMiningMixin",
     "ParticleTravelMixin",
     "ParticleEngineTravelMixin"
   ],

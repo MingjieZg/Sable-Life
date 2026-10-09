@@ -555,6 +555,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     protected void write(CompoundTag tag, HolderLookup.Provider registries, boolean clientPacket) {
         super.write(tag, registries, clientPacket);
         if (clientPacket) {
+            tag.putBoolean("AllowBreaking",allowBreaking);
             tag.putUUID("CreatureId",creatureId);tag.putString("CreatureName",creatureName);
             tag.putString("LifeState",health.state().name());tag.putFloat("MaxHealth",health.maximum());tag.putFloat("Health",health.current());
             tag.putInt("DeathDelay",health.deathDelay());tag.putInt("RemainingDeathTicks",health.remainingDeathTicks());
@@ -594,6 +595,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     protected void read(CompoundTag tag, HolderLookup.Provider registries, boolean clientPacket) {
         super.read(tag, registries, clientPacket);
         if (clientPacket || level != null && level.isClientSide) {
+            allowBreaking=tag.getBoolean("AllowBreaking");
             if(tag.hasUUID("CreatureId"))creatureId=tag.getUUID("CreatureId");
             creatureName=tag.getString("CreatureName");
             if(creatureName.codePointCount(0,creatureName.length())>64||creatureName.codePoints().anyMatch(Character::isISOControl))creatureName="";

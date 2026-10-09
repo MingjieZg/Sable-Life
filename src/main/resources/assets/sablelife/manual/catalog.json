@@ -1,5 +1,5 @@
 {
-  "revision": 51,
+  "revision": 52,
   "entries": [
     {
       "id": "getting_started",
@@ -117,10 +117,12 @@
       "title": "manual.sablelife.chapter.core",
       "sections": {
         "usage": [
-          "manual.sablelife.core.usage"
+          "manual.sablelife.core.usage",
+          "manual.sablelife.core.protected_tools"
         ],
         "settings": [
-          "manual.sablelife.core.settings"
+          "manual.sablelife.core.settings",
+          "manual.sablelife.core.death_envelope"
         ],
         "example": [
           "manual.sablelife.core.example"

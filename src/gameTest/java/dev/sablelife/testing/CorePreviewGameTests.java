@@ -15,6 +15,8 @@ public final class CorePreviewGameTests {
         var pos=h.absolutePos(new BlockPos(2,5,2));var level=h.getLevel();
         for(var block:java.util.List.of(SableLife.HEART.get(),SableLife.REDSTONE_CORE.get()))for(boolean active:new boolean[]{false,true}){
             var state=block.defaultBlockState().setValue(dev.sablelife.heart.HeartBlock.ACTIVE,active);level.setBlockAndUpdate(pos,state);
+            // ACTIVE toggles retain the BE: clear the previous iteration's camouflage before testing the shell.
+            ((HeartBlockEntity)level.getBlockEntity(pos)).setMaterial(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
             h.assertTrue(!state.canOcclude(),"Transparent core still masks adjacent faces");
             h.assertTrue(state.getCollisionShape(level,pos).bounds().equals(new net.minecraft.world.phys.AABB(0,0,0,1,1,1)),"Transparency fix changed physical collision");
             for(var side:net.minecraft.core.Direction.values()){
@@ -36,6 +38,31 @@ public final class CorePreviewGameTests {
         var module=heart.modules().add("sound");DashboardSelection.set(heart,player.getUUID(),module.id());heart.openDeathLootMenu(player);var menu=(HeartLootMenu)player.containerMenu;
         menu.clicked(53,0,net.minecraft.world.inventory.ClickType.PICKUP,player);h.assertTrue(player.containerMenu instanceof HeartDashboardMenu,"Loot Back did not open Modules");h.assertTrue(((HeartDashboardMenu)player.containerMenu).snapshot().getUUID("Selected").equals(module.id()),"Loot Back lost module selection");
         heart.health().activate();h.assertTrue(!heart.canEdit(player),"Loot fixture is not read-only");heart.openDeathLootMenu(player);((HeartLootMenu)player.containerMenu).clicked(53,0,net.minecraft.world.inventory.ClickType.PICKUP,player);h.assertTrue(player.containerMenu instanceof HeartDashboardMenu,"Read-only loot Back failed");h.succeed();
+    }
+    @GameTest(template="combat",batch="death_body_envelope")
+    public static void DeathEffectsUseWholeBodyEnvelopeAndPersistIndependentRadius(GameTestHelper h) {
+        var level=h.getLevel();var pos=h.absolutePos(new BlockPos(2,40,2));var blocks=new java.util.ArrayList<BlockPos>();
+        for(int x=0;x<6;x++){var b=pos.east(x);blocks.add(b);level.setBlockAndUpdate(b,x==0?SableLife.HEART.get().defaultBlockState():net.minecraft.world.level.block.Blocks.IRON_BLOCK.defaultBlockState());}
+        var body=dev.ryanhcode.sable.api.SubLevelAssemblyHelper.assembleBlocks(level,pos,blocks,
+            new dev.ryanhcode.sable.companion.math.BoundingBox3i(pos.getX(),pos.getY(),pos.getZ(),pos.getX()+5,pos.getY(),pos.getZ()));
+        var core=(HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());
+        var death=core.deathPresentation();var geometry=death.geometry(core);
+        var origin=dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,core.getBlockPos().getCenter());
+        h.assertTrue(geometry.center().distanceTo(origin)>2,"Off-center core was used as death origin");
+        var bounds=dev.sablelife.ownership.LoadedCoreIndex.bounds(core);
+        for(int x=0;x<2;x++)for(int y=0;y<2;y++)for(int z=0;z<2;z++) {
+            var corner=new net.minecraft.world.phys.Vec3(x==0?bounds.minX:bounds.maxX,y==0?bounds.minY:bounds.maxY,z==0?bounds.minZ:bounds.maxZ);
+            h.assertTrue(corner.distanceTo(geometry.center())<=geometry.radius()+.001,"Automatic radius excludes body corner");
+        }
+        h.assertTrue(death.edit("deathEffectRadius",12,"")&&death.geometry(core).radius()==12,"Custom radius rejected");
+        h.assertTrue(death.value("deathRadius")==32&&core.removalPresentation().value("deathSpread")==.35,"Visual radius changed sound/removal effects");
+        h.assertTrue(!death.edit("deathEffectRadius",Double.NaN,"")&&!death.edit("deathEffectRadius",-1,"")&&!death.edit("deathEffectRadius",257,""),"Invalid radius accepted");
+        var loaded=new DeathPresentation();loaded.load(death.save());h.assertTrue(loaded.value("deathEffectRadius")==12,"Radius lost on reload");
+        var menu=new HeartSettingsMenu(1,new MenuPlayer(level).getInventory(),core);
+        h.assertTrue(menu.snapshot().getDouble("deathEffectRadius")==12,"Effect radius missing in UI snapshot");
+        loaded.restoreDefaults();h.assertTrue(loaded.value("deathEffectRadius")==0,"Restore did not select automatic radius");
+        core.tryActivate(new MenuPlayer(level));core.damage(100);h.assertTrue(core.health().state()==HeartState.DYING,"Lethal fixture failed");
+        h.assertTrue(death.geometry(core).center().distanceTo(geometry.center())<.001,"Death changed envelope origin");h.succeed();
     }
     /** Menu-capable fake actor avoids unrelated login events from third-party mods. */
     private static final class MenuPlayer extends net.neoforged.neoforge.common.util.FakePlayer {

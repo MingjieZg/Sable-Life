@@ -49,7 +49,7 @@ public final class EpicFightBodyBridge {
         int maximum=phase.getProperty(AttackPhaseProperty.MAX_STRIKES_MODIFIER).map(v->(int)ValueModifier.calculator().attach(v).getResult(patch.getMaxStrikes(hand))).orElse(patch.getMaxStrikes(hand));
         int left=Math.min(64,maximum)-patch.getCurrentlyActuallyHitEntities().size()-frame.swing.hits;if(left<=0)return;
         // Use the current weapon attributes and native phase multiplier, with full-strength EF cadence.
-        // Target-dependent extra damage, stun/knockback and entity-only skill events are deliberately outside this first bridge.
+        // Target-dependent extra damage, stun/knockback and entity-only events require a real LivingEntity target.
         if(hand!=net.minecraft.world.InteractionHand.MAIN_HAND)return;
         var source=patch.getDamageSource(frame.animation.getAccessor(),hand);
         phase.getProperty(AttackPhaseProperty.DAMAGE_MODIFIER).ifPresent(source::attachDamageModifier);
@@ -60,7 +60,25 @@ public final class EpicFightBodyBridge {
         for(var hit:BodyAttackVolumes.query(player.serverLevel(),dev.sablelife.compat.sable.SableBodyProbe.toWorld(player.level(),player.getEyePosition()),frame.samples)) {
             if(left<=0||frame.swing.attempted.size()>=64)break;
             if(!frame.swing.attempted.add(hit.heart().creatureId()))continue;
-            if(BodyDamageBridge.melee(player,hit.heart(),hit.block(),hit.point(),amount)){frame.swing.hits++;left--;patch.setLastAttackSuccess(true);}
+            float before=hit.heart().health().current();
+            if(BodyDamageBridge.melee(player,hit.heart(),hit.block(),hit.point(),amount)) {
+                frame.swing.hits++;left--;patch.setLastAttackSuccess(true);
+                chargeWeapon(patch,source,Math.max(0,before-hit.heart().health().current()));
+            }
+        }
+    }
+    /** Mirrors ServerPlayerPatch's DELIVER_DAMAGE_POST listener for the pinned API.
+     * A body is not a LivingEntity: publishing a fake/null target event breaks third-party listeners.
+     * Native skill consumption handles caps, stacks and the owner's client synchronization.
+     */
+    public static void chargeWeapon(ServerPlayerPatch patch,yesman.epicfight.world.damagesource.EpicFightDamageSource source,float damage) {
+        if(!source.shouldChargeWeapon()||!Float.isFinite(damage)||damage<=0)return;
+        var container=patch.getSkill(yesman.epicfight.skill.SkillSlots.WEAPON_INNATE);
+        var activeItem=patch.getOriginal().getItemInHand(patch.getPrimaryHand());
+        if(!container.isFull()&&!container.isActivated()
+                &&container.hasSkill(EpicFightCapabilities.getItemStackCapability(activeItem).getInnateSkill(patch,activeItem))) {
+            float value=container.getResource()+damage;
+            if(value>0)container.getSkill().setConsumptionSynchronize(container,value);
         }
     }
     private EpicFightBodyBridge() {}

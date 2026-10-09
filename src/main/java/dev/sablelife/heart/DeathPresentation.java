@@ -60,7 +60,7 @@ public final class DeathPresentation {
         }
         if (!Double.isFinite(value)) return false;
         double min = key.equals("deathScale") ? .1 : key.equals("deathPitch") ? .5 : key.equals("deathRadius") ? 1 : 0;
-        double max = switch (key) { case "deathCount", "deathRadius" -> 256; case "deathSpread" -> 32;
+        double max = switch (key) { case "deathCount", "deathRadius", "deathEffectRadius" -> 256; case "deathSpread" -> 32;
             case "deathPattern" -> 5; case "deathDuration" -> 60; case "deathPitch" -> 2; case "deathScale", "deathVolume" -> 4; default -> -1; };
         if (value < min || value > max) return false;
         settings.putDouble(key, key.equals("deathCount") || key.equals("deathPattern") ? Math.round(value) : value);
@@ -72,7 +72,7 @@ public final class DeathPresentation {
     public void load(CompoundTag data) {
         defaults();
         for (var key : java.util.List.of("deathParticle", "deathSound", "deathSoundLast")) if(data.contains(key))edit(key, 0, data.getString(key));
-        for (var key : java.util.List.of("deathCount", "deathSpread", "deathDuration", "deathScale", "deathVolume", "deathPitch", "deathRadius", "deathPattern"))
+        for (var key : java.util.List.of("deathCount", "deathSpread", "deathDuration", "deathScale", "deathVolume", "deathPitch", "deathRadius", "deathEffectRadius", "deathPattern"))
             if (data.contains(key)) edit(key, data.getDouble(key), "");
         if(data.contains("ParticleSelection",10)) {
             var particleData=data.getCompound("ParticleSelection").copy(); particleData.putString("Type","particles");
@@ -87,30 +87,52 @@ public final class DeathPresentation {
     }
     public void play(HeartBlockEntity heart) {
         if (!(heart.getLevel() instanceof ServerLevel level)) return;
-        var point = SableBodyProbe.toWorld(level, heart.getBlockPos().getCenter());
-        emit(level,point); playSound(level,point,heart.creatureId());
+        if(removal) {
+            var point=SableBodyProbe.toWorld(level,heart.getBlockPos().getCenter());
+            emit(level,point);playSound(level,point,heart.creatureId());
+        } else {
+            var geometry=geometry(heart);
+            emit(level,geometry.center(),geometry.radius());playSound(level,geometry.center(),heart.creatureId());
+        }
     }
-    public void emit(ServerLevel level, net.minecraft.world.phys.Vec3 point) {
+    public record Geometry(net.minecraft.world.phys.Vec3 center,double radius) {}
+    /** World-space envelope of connected parts; no block scan or remote chunk loading. */
+    public Geometry geometry(HeartBlockEntity heart) {
+        var bounds=dev.sablelife.ownership.LoadedCoreIndex.bounds(heart);
+        double configured=value("deathEffectRadius");
+        double radius=configured>0?configured:Math.min(256,Math.sqrt(bounds.getXsize()*bounds.getXsize()
+                +bounds.getYsize()*bounds.getYsize()+bounds.getZsize()*bounds.getZsize())*.5);
+        return new Geometry(bounds.getCenter(),radius);
+    }
+    public void emit(ServerLevel level, net.minecraft.world.phys.Vec3 point) {emit(level,point,0);}
+    private void emit(ServerLevel level, net.minecraft.world.phys.Vec3 point,double effectRadius) {
         int count=(int)value("deathCount"), pattern=(int)value("deathPattern"); double spread=value("deathSpread");
         if(count<=0||particles.particles().isEmpty())return;
         for(var entry:particles.particleEntries()) {
             if(pattern==0 || pattern==5) {
                 boolean flash=entry.id().equals("minecraft:flash");
                 double width=flash?0:pattern==0?spread*.1875:spread;
-                ModuleParticles.send(level,entry,point.x,point.y,point.z,flash?1:count,width,width,width,pattern==0&&!flash?.35:.04);
+                if(effectRadius>0&&!flash)for(int i=0;i<count;i++) {
+                    var p=point.add(sphereOffset(i,count).scale(effectRadius));
+                    ModuleParticles.send(level,entry,p.x,p.y,p.z,1,width,width,width,pattern==0?.35:.04);
+                } else ModuleParticles.send(level,entry,point.x,point.y,point.z,flash?1:count,width,width,width,pattern==0&&!flash?.35:.04);
             } else for(int i=0;i<count;i++) {
                 double angle=2*Math.PI*i/count; net.minecraft.world.phys.Vec3 offset;
-                if(pattern==1) { double y=1-2*(i+.5)/count, radius=Math.sqrt(1-y*y), az=i*Math.PI*(3-Math.sqrt(5));offset=new net.minecraft.world.phys.Vec3(radius*Math.cos(az),y,radius*Math.sin(az)); }
+                if(pattern==1) offset=sphereOffset(i,count);
                 else if(pattern==2) offset=new net.minecraft.world.phys.Vec3(Math.cos(angle),0,Math.sin(angle));
                 else if(pattern==3) {
                     double edge=10.*i/count;int corner=(int)edge;double t=edge-corner;
                     double a=corner*Math.PI/5-Math.PI/2,b=a+Math.PI/5,r1=corner%2==0?1:.4,r2=corner%2==0?.4:1;
                     offset=new net.minecraft.world.phys.Vec3((1-t)*r1*Math.cos(a)+t*r2*Math.cos(b),(1-t)*r1*Math.sin(a)+t*r2*Math.sin(b),0);
                 } else offset=new net.minecraft.world.phys.Vec3(Math.cos(angle*3),2.*i/count-1,Math.sin(angle*3));
-                var p=point.add(offset.scale(spread));ModuleParticles.send(level,entry,p.x,p.y,p.z,1,0,0,0,0);
+                var p=point.add(offset.scale(effectRadius>0?effectRadius:spread));ModuleParticles.send(level,entry,p.x,p.y,p.z,1,0,0,0,0);
             }
         }
-        if(pattern==0&&particles.particles().contains("minecraft:firework")) ModuleParticles.send(level,new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.65F,.25F,1F),1.4F),point.x,point.y,point.z,28,spread,spread,spread,0);
+        if(effectRadius==0&&pattern==0&&particles.particles().contains("minecraft:firework")) ModuleParticles.send(level,new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.65F,.25F,1F),1.4F),point.x,point.y,point.z,28,spread,spread,spread,0);
+    }
+    private static net.minecraft.world.phys.Vec3 sphereOffset(int i,int count) {
+        double y=1-2*(i+.5)/count,radius=Math.sqrt(Math.max(0,1-y*y)),az=i*Math.PI*(3-Math.sqrt(5));
+        return new net.minecraft.world.phys.Vec3(radius*Math.cos(az),y,radius*Math.sin(az));
     }
     public void playSound(ServerLevel level, net.minecraft.world.phys.Vec3 point, java.util.UUID creature) {
         String key="deathSound";

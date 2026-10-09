@@ -21,7 +21,7 @@ public final class NumericWheelSteps {
     }
     public static double core(String key){
         if(key.equals("health")||key.equals("defenseThreshold")||key.equals("regen")||key.equals("regenPercent"))return 5;
-        if(key.equals("voidDeathHeight")||key.equals("regenDelay"))return 1;
+        if(key.equals("voidDeathHeight")||key.equals("regenDelay")||key.equals("deathEffectRadius"))return 1;
         if(key.equals("xp")||key.equals("defenseMaximum")||key.endsWith("Count"))return 1;
         return .1;
     }
