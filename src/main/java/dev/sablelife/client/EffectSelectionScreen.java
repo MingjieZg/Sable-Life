@@ -29,8 +29,8 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
     private Button add, remove, durationApply, levelApply, leftPrev, leftNext, rightPrev, rightNext;
     public EffectSelectionScreen(EffectSelectionMenu menu, Inventory inventory, Component title) { super(menu, inventory, title); }
     @SubscribeEvent public static void register(RegisterMenuScreensEvent event) { event.register(SableLife.EFFECT_MENU.get(), EffectSelectionScreen::new); }
-    private boolean particlesMode;
-    private Component tr(String key) { return Component.translatable((particlesMode ? "particles.sablelife." : "effects.sablelife.") + key); }
+    private boolean particlesMode,arenaBuffMode;
+    private Component tr(String key) { if(arenaBuffMode&&(key.equals("title")||key.equals("selected")))return Component.translatable("arena_buffs.sablelife.effect_"+key);return Component.translatable((particlesMode ? "particles.sablelife." : "effects.sablelife.") + key); }
     private Component name(String id) {
         if (particlesMode) return Component.literal(ResourceLocation.parse(id).getPath().replace('_', ' '));
         var effect = BuiltInRegistries.MOB_EFFECT.get(ResourceLocation.parse(id));
@@ -38,7 +38,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
     }
     private List<String> filtered() {
         String query = search.getValue().toLowerCase(Locale.ROOT).trim();
-        return available.stream().filter(id -> id.toLowerCase(Locale.ROOT).contains(query) || name(id).getString().toLowerCase(Locale.ROOT).contains(query)).toList();
+        return available.stream().filter(id -> !arenaBuffMode||ArenaBuffs.persistent(id)).filter(id -> id.toLowerCase(Locale.ROOT).contains(query) || name(id).getString().toLowerCase(Locale.ROOT).contains(query)).toList();
     }
     private ModuleEffects.Entry current() { return selected.stream().filter(e -> e.id().equals(rightSelection)).findFirst().orElse(null); }
     private void send(String operation, double value, String id) {
@@ -88,7 +88,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         sync();
     }
     private void apply(boolean amplifier) {
-        if (current() == null) return;
+        if (current() == null || arenaBuffMode&&!amplifier) return;
         var box = amplifier ? level : duration;
         try {
             double value = Double.parseDouble(box.getValue());
@@ -100,6 +100,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         } catch (NumberFormatException ignored) { box.setTextColor(0xFF7777); }
     }
     private void sync() {
+        arenaBuffMode=menu.snapshot().getBoolean("ArenaBuffMode");
         var module = menu.snapshot().getCompound("Module");
         boolean particle = menu.snapshot().getBoolean("ParticleMode");
         if (particle != particlesMode) {
@@ -113,7 +114,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         particleModule = particlesMode ? VirtualModule.load(module) : null;
         selected = particlesMode ? ModuleParticles.load(module.getList("Particles", 8)).stream().map(id -> new ModuleEffects.Entry(id, 0, 1)).toList()
                 : ModuleEffects.load(module.getList("Effects", 10));
-        duration.visible = level.visible = durationApply.visible = levelApply.visible = true;
+        level.visible = levelApply.visible = true;duration.visible=durationApply.visible=!arenaBuffMode;
         var values = filtered(); leftPage = Math.clamp(leftPage, 0, Math.max(0, (values.size() - 1) / rows));
         rightPage = Math.clamp(rightPage, 0, Math.max(0, (selected.size() - 1) / rows));
         for (int i = 0; i < rows; i++) {
@@ -129,13 +130,13 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
             }
         }
         boolean editable = menu.snapshot().getBoolean("Editable");
-        add.active = editable && !leftSelection.isEmpty() && selected.size() < (particlesMode ? ModuleParticles.LIMIT : ModuleEffects.LIMIT) && selected.stream().noneMatch(e -> e.id().equals(leftSelection));
+        add.active = editable && !leftSelection.isEmpty() && selected.size() < (particlesMode ? ModuleParticles.LIMIT : arenaBuffMode?ArenaBuffs.EFFECT_LIMIT:ModuleEffects.LIMIT) && selected.stream().noneMatch(e -> e.id().equals(leftSelection));
         remove.active = editable && current() != null;
         leftPrev.active = leftPage > 0; leftNext.active = (leftPage + 1) * rows < values.size();
         rightPrev.active = rightPage > 0; rightNext.active = (rightPage + 1) * rows < selected.size();
         boolean active = editable && current() != null;
         for (var box : List.of(duration, level)) { box.active = active; box.setEditable(active); if (!active) box.setFocused(false); }
-        durationApply.active = levelApply.active = active;
+        durationApply.active=active&&!arenaBuffMode;duration.active=active&&!arenaBuffMode;duration.setEditable(duration.active);levelApply.active=active;
         var e = current(); boolean changed = !rightSelection.equals(lastRight);
         if (changed && e != null) rightPage = selected.indexOf(e) / rows;
         if (changed || !duration.isFocused()) duration.setValue(e == null ? "" : String.format(Locale.ROOT, "%.2f", (particlesMode ? particleModule.particleEntry(e.id()).ticks() : e.ticks()) / 20.));
@@ -195,7 +196,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         int pager = imageHeight - 68;
         g.drawCenteredString(font, (leftPage + 1) + " / " + Math.max(1, (filtered().size() + rows - 1) / rows), 10 + column / 2, pager, 0xBDA5D0);
         g.drawCenteredString(font, (rightPage + 1) + " / " + Math.max(1, (selected.size() + rows - 1) / rows), 20 + column + column / 2, pager, 0xBDA5D0);
-        g.drawString(font, particlesMode ? tr("duration_label") : Component.literal("s ≤60"), 20 + column, imageHeight - 35, 0xBDC5D4, false);
+        g.drawString(font, arenaBuffMode?Component.translatable("arena_buffs.sablelife.fixed_duration"):particlesMode ? tr("duration_label") : Component.literal("s ≤60"), 20 + column, imageHeight - 35, 0xBDC5D4, false);
         g.drawString(font, particlesMode ? tr("size_label") : Component.literal("Lv ≤5"), 20 + 2 * column - 60, imageHeight - 35, 0xBDC5D4, false);
         g.drawString(font, tr("editing_help"), 10, imageHeight - 22, 0xBDA5D0, false);
     }

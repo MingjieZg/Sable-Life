@@ -14,6 +14,7 @@ public final class ModuleArena {
     private static final class Warning { long deadline; int lastSeconds = -1; Warning(long deadline) { this.deadline = deadline; } }
     private final Map<UUID, Map<UUID, Warning>> warnings = new HashMap<>();
     private final Map<UUID, String> settings = new HashMap<>();
+    private final ArenaBuffRuntime buffs=new ArenaBuffRuntime();
     private HeartBlockEntity owner;
     private void cancel(UUID module) {
         var old = warnings.remove(module); settings.remove(module);
@@ -23,7 +24,7 @@ public final class ModuleArena {
             if (player != null && player.level() == level) player.connection.send(new ClientboundClearTitlesPacket(false));
         }
     }
-    public void clear() { for (UUID id : List.copyOf(warnings.keySet())) cancel(id); settings.clear(); owner = null; }
+    public void clear() { for (UUID id : List.copyOf(warnings.keySet())) cancel(id); settings.clear(); buffs.clear(); owner = null; }
     public boolean warning(UUID module) { return warnings.containsKey(module) && !warnings.get(module).isEmpty(); }
     public static double horizontalDistance(Vec3 a, Vec3 b) { return Math.hypot(a.x - b.x, a.z - b.z); }
     public static Vec3 corePosition(HeartBlockEntity heart) {
@@ -55,7 +56,7 @@ public final class ModuleArena {
         return true;
     }
     public void tick(HeartBlockEntity heart) {
-        owner = heart;
+        owner = heart;buffs.tick(heart);
         if (!(heart.getLevel() instanceof ServerLevel level)) return;
         var active = new HashSet<UUID>();
         for (var module : heart.modules().all()) {

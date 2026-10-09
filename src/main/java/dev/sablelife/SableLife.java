@@ -59,6 +59,8 @@ public final class SableLife {
             MENUS.register("projectile_item", () -> new MenuType<>(dev.sablelife.module.ProjectileItemMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.ModuleFrequencyMenu>> MODULE_FREQUENCY_MENU =
             MENUS.register("module_frequency", () -> new MenuType<>(dev.sablelife.module.ModuleFrequencyMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
+    public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.ArenaBuffMenu>> ARENA_BUFF_MENU =
+            MENUS.register("arena_buffs", () -> new MenuType<>(dev.sablelife.module.ArenaBuffMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.SequenceMenu>> SEQUENCE_MENU =
             MENUS.register("pulse_sequence", () -> new MenuType<>(dev.sablelife.module.SequenceMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.sound.SoundTimelineMenu>> SOUND_TIMELINE_MENU =

@@ -1,3 +1,7 @@
+# Current development: 0.1.201
+
+Arena now supports bounded range-buff groups controlled by module activation or internal/external channels. Effects refresh every second for 2 seconds and expire naturally. Protocol 7: update both client and server. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.201.md). Validated 57 unit tests, 287 default GameTests, 88 combined compatibility tests and GUI 1–4 pagination/effect-selector checks.
+
 # Sable Life — stable 0.1.200
 
 Minecraft 1.21.1, Java 21, minimum NeoForge 21.1.235, Create 6.0.10 and Sable 2.0.5. Optional Epic Fight compatibility is verified for 21.17.3.1 only. Client/server protocol 6.

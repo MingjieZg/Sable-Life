@@ -89,6 +89,8 @@ public final class VirtualModule {
         if (!operation.equals("add") || particles.contains(particle) || particles.size() >= ModuleParticles.LIMIT) return false;
         particles.add(particle); return true;
     }
+    private final ArenaBuffs arenaBuffs=new ArenaBuffs();
+    public ArenaBuffs arenaBuffs(){return arenaBuffs;}
     private final List<ModuleEffects.Entry> effects = new ArrayList<>();
     public List<ModuleEffects.Entry> effects() { return List.copyOf(effects); }
     public boolean editEffect(String operation, String id, double value) {
@@ -217,6 +219,7 @@ public final class VirtualModule {
         else {var frequencies=new CompoundTag();for(var key:List.of("Red","Blue"))if(redBlue.contains(key))frequencies.put(key,redBlue.get(key).copy());redBlue=frequencies;}
         if(!type.equals("loot"))lootSamples=new CompoundTag();
         else {var samples=new CompoundTag();for(int i=0;i<27;i++)for(var prefix:List.of("Slot","Chance","Weight")){var key=prefix+i;if(lootSamples.contains(key))samples.put(key,lootSamples.get(key).copy());}lootSamples=samples;}
+        arenaBuffs.unbind();
         movementParticles.values().forEach(VirtualModule::sanitizeImportedAuthoring);
     }
     public String text(String key) { return settings.getString(key); }
@@ -242,6 +245,7 @@ public final class VirtualModule {
             int reset = (int) value("resetChannel");
             if (reset > index) { settings.putDouble("resetChannel", reset == index + 1 ? 0 : reset - 1); changed = true; }
         }
+        changed|=arenaBuffs.channelDeleted(index);
         return changed;
     }
     public double value(String key) { if(type.equals("slash")&&List.of("slashRed","slashGreen","slashBlue").contains(key))key="slashColor"+key.substring(5);return switch (key) {
@@ -292,6 +296,7 @@ public final class VirtualModule {
     public CompoundTag save() {
         if (unknown != null) return unknown.copy();
         var tag = new CompoundTag(); tag.putInt("ColorControlsVersion",1);tag.putInt("Version", 1); tag.putUUID("Id", id); tag.putString("Type", type);
+        if(type.equals("arena"))tag.put("ArenaBuffGroups",arenaBuffs.save());
         if (arenaCenter != null) {
             var center = new CompoundTag(); center.putDouble("X", arenaCenter.x); center.putDouble("Y", arenaCenter.y); center.putDouble("Z", arenaCenter.z);
             center.putString("Dimension", arenaDimension); tag.put("ArenaCenter", center);
@@ -378,6 +383,7 @@ public final class VirtualModule {
             String particle=saved.getDouble("flameVisual")==1?"minecraft:soul_fire_flame":"minecraft:flame";
             module.particles.add(particle);module.particleProperties.put(particle,new ModuleParticles.Entry(particle,0,saved.contains("flameParticleSize")?(float)saved.getDouble("flameParticleSize"):1F));
         }
+        if(module.type.equals("arena"))module.arenaBuffs.load(tag.getList("ArenaBuffGroups",10));
         if (tag.contains("Effects")) module.effects.addAll(ModuleEffects.load(tag.getList("Effects", 10)));
         else if (module.type.equals("melee")) {
             var legacyChoices = List.of("none", "slowness", "weakness", "poison", "wither", "blindness", "mining_fatigue", "hunger", "glowing", "levitation");

@@ -195,6 +195,14 @@ neoForge {
             systemProperty 'sablelife.wirelessPickerPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
+        arenaBuffPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/arena-buffs-preview')
+            systemProperty 'sablelife.arenaBuffPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
         coreEffectsPreview {
             client()
             sourceSet = sourceSets.gameTest

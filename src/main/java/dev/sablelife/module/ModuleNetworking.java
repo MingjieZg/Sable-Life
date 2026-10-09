@@ -46,7 +46,7 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("6");
+        var registrar = event.registrar("7");
         registrar.playToServer(Action.TYPE, Action.CODEC, (p, ctx) -> {
             if (p.operation.equals("cancel")) { MarkingSessions.cancel(ctx.player()); return; }
             if (!AuthoringRateLimit.allow(ctx.player(), p.operation.equals("add_preset") ? 20 : 1)) return;
@@ -55,6 +55,8 @@ public final class ModuleNetworking {
                 menu.action(ctx.player(), p.revision, p.module, p.operation, p.key, p.value, p.text);
             else if (ctx.player().containerMenu instanceof EffectSelectionMenu menu && menu.containerId == p.container && p.operation.equals("effect"))
                 menu.action(ctx.player(), p.module, p.key, p.value, p.text);
+            else if(ctx.player().containerMenu instanceof ArenaBuffMenu menu&&menu.containerId==p.container&&p.operation.equals("arena_buff_edit"))
+                menu.action(ctx.player(),p.revision,p.module,p.key,p.value);
             else if (ctx.player().containerMenu instanceof SequenceMenu menu && menu.containerId == p.container && p.operation.equals("seq_edit"))
                 menu.action(ctx.player(), p.module, p.key, p.value, p.text);
             else if (ctx.player().containerMenu instanceof dev.sablelife.sound.SoundTimelineMenu menu && menu.containerId == p.container && p.operation.equals("sound_timeline"))

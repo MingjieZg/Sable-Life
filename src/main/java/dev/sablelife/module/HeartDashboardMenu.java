@@ -76,6 +76,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         if (operation.equals("settings")) { heart.openSettings(player); return true; }
         if (operation.equals("wireless")) { heart.openWireless(player); return true; }
         if (operation.equals("loot")) { heart.openDeathLootMenu(player); return true; }
+        if(operation.equals("arena_buffs")){var module=heart.modules().find(id);if(module==null||!module.type().equals("arena"))return false;ArenaBuffMenu.open(player,heart,module,null);return true;}
         if (operation.equals("sequence")) {
             var module = heart.modules().find(id); if (module == null || !module.type().equals("sequence")) return false;
             player.openMenu(new net.minecraft.world.SimpleMenuProvider((container, inventory, ignored) -> new SequenceMenu(container, inventory, heart, module),
