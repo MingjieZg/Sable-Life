@@ -71,6 +71,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     private int deathRolls = 1;
     { java.util.Arrays.fill(deathChances,100); java.util.Arrays.fill(deathWeights,100); }
     private boolean showBossBar;
+    private BossEvent.BossBarColor bossBarColor=BossEvent.BossBarColor.RED;
     private String creatureName = "";
     private ServerBossEvent bossBar;
     private final HeartWireless wireless = new HeartWireless(this);
@@ -139,6 +140,11 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         for(int i=0;i<27;i++) { deathChances[i]=i<chances.length?Math.clamp(chances[i],0,100):100; deathWeights[i]=i<weights.length?Math.clamp(weights[i],0,100):100; }
     }
     public boolean showBossBar() { return showBossBar; }
+    public BossEvent.BossBarColor bossBarColor(){return bossBarColor;}
+    private void loadBossBarColor(CompoundTag tag){
+        try{bossBarColor=BossEvent.BossBarColor.valueOf(tag.getString("BossBarColor"));}
+        catch(IllegalArgumentException invalid){bossBarColor=BossEvent.BossBarColor.RED;}
+    }
     public String creatureName() { return creatureName; }
     public Component displayName() { return creatureName.isBlank() ? Component.translatable("entity.sablelife.creature") : CreatureNames.formatted(creatureName); }
     public ResourceLocation deathLoot() { return deathLoot; }
@@ -156,7 +162,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     public CompoundTag copyConfiguration() {
         var saved = saveWithoutMetadata(level.registryAccess()); var result = new CompoundTag();
         result.putInt("Version", 1);
-        for (String key : java.util.List.of("MaxHealth", "DeathDelay", "RegenPerSecond", "RegenPercentPerSecond", "RegenDelay", "AdaptiveDefense", "VoidDeathHeight", "ForceChunkLoading", "AllowBreaking", "AllowExplosion", "AllowLifeAttacks", "DeathChances", "DeathWeights", "DeathWeighted", "DeathRolls", "ShowBossBar", "CreatureName", "DeathLoot", "DeathExperience", "DeathExperienceLevels", "DeathTemplateMode", "DeathTemplates", "Wireless"))
+        for (String key : java.util.List.of("MaxHealth", "DeathDelay", "RegenPerSecond", "RegenPercentPerSecond", "RegenDelay", "AdaptiveDefense", "VoidDeathHeight", "ForceChunkLoading", "AllowBreaking", "AllowExplosion", "AllowLifeAttacks", "DeathChances", "DeathWeights", "DeathWeighted", "DeathRolls", "ShowBossBar", "BossBarColor", "CreatureName", "DeathLoot", "DeathExperience", "DeathExperienceLevels", "DeathTemplateMode", "DeathTemplates", "Wireless"))
             if (saved.contains(key)) result.put(key, saved.get(key).copy());
         result.getCompound("Wireless").putLong("Elapsed", 0);
         result.put("DeathPresentation", deathPresentation.save());
@@ -200,7 +206,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         combatMusicHits = 0;
         loadRegen(data); loadDefense(data); regenWait=regenDelay; regenProgress=0;
         allowLifeAttacks = !data.contains("AllowLifeAttacks") || data.getBoolean("AllowLifeAttacks"); loadDeathRules(data);
-        creatureName = name; loadVoidDeathHeight(data); forceChunkLoading=data.getBoolean("ForceChunkLoading"); allowBreaking = data.getBoolean("AllowBreaking"); allowExplosion = data.getBoolean("AllowExplosion"); showBossBar = data.getBoolean("ShowBossBar");
+        creatureName = name; loadVoidDeathHeight(data); forceChunkLoading=data.getBoolean("ForceChunkLoading"); allowBreaking = data.getBoolean("AllowBreaking"); allowExplosion = data.getBoolean("AllowExplosion"); showBossBar = data.getBoolean("ShowBossBar");loadBossBarColor(data);
         deathLoot = loot == null ? ResourceLocation.withDefaultNamespace("empty") : loot;
         deathExperience = Math.clamp(data.getInt("DeathExperience"), 0, ExperienceUnits.MAX_POINTS);deathExperienceLevels=data.getBoolean("DeathExperienceLevels"); deathTemplateMode = data.getBoolean("DeathTemplateMode");
         deathPresentation.load(data.getCompound("DeathPresentation"));
@@ -258,6 +264,9 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             return true;
         } else if (key.startsWith("death")) {
             if (!canToggleBreaking(player) || !deathPresentation.edit(key, value, text)) return false;
+        } else if(key.equals("bossbarColor")) {
+            if(!canToggleBreaking(player)||!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>=BossEvent.BossBarColor.values().length)return false;
+            bossBarColor=BossEvent.BossBarColor.values()[(int)value];if(bossBar!=null)bossBar.setColor(bossBarColor);
         } else if (key.equals("breaking") || key.equals("explosion") || key.equals("bossbar") || key.equals("lifeAttacks")) {
             if (!canToggleBreaking(player)) return false;
             if (key.equals("breaking")) {
@@ -516,8 +525,8 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
 
     private void updateBossBar(ServerLevel server) {
         if (!showBossBar || health.state() != HeartState.ALIVE) { clearBossBar(); return; }
-        if (bossBar == null) bossBar = new ServerBossEvent(displayName(), BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.PROGRESS);
-        bossBar.setName(displayName());
+        if (bossBar == null) bossBar = new ServerBossEvent(displayName(), bossBarColor, BossEvent.BossBarOverlay.PROGRESS);
+        bossBar.setName(displayName());bossBar.setColor(bossBarColor);
         bossBar.setProgress(Math.clamp(health.current() / health.maximum(), 0, 1));
         var center = SableBodyProbe.toWorld(server, worldPosition.getCenter());
         var nearby = new HashSet<ServerPlayer>();
@@ -577,7 +586,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         if(customVoidDeathHeight!=null)tag.putInt("VoidDeathHeight",customVoidDeathHeight);
         tag.putBoolean("ForceChunkLoading",forceChunkLoading);
         tag.putBoolean("AllowBreaking", allowBreaking); tag.putBoolean("AllowExplosion", allowExplosion);
-        tag.putBoolean("ShowBossBar", showBossBar);
+        tag.putBoolean("ShowBossBar", showBossBar);tag.putString("BossBarColor",bossBarColor.name());
         tag.putString("CreatureName", creatureName);
         tag.putString("DeathLoot", deathLoot.toString());
         tag.putInt("DeathExperience", deathExperience);tag.putBoolean("DeathExperienceLevels",deathExperienceLevels);
@@ -617,7 +626,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         allowBreaking = tag.contains("AllowBreaking") && tag.getBoolean("AllowBreaking");
         allowExplosion = tag.getBoolean("AllowExplosion");
         allowLifeAttacks = !tag.contains("AllowLifeAttacks") || tag.getBoolean("AllowLifeAttacks"); loadDeathRules(tag);
-        showBossBar = tag.getBoolean("ShowBossBar");
+        showBossBar = tag.getBoolean("ShowBossBar");loadBossBarColor(tag);
         creatureName = tag.getString("CreatureName");
         if (creatureName.codePointCount(0, creatureName.length()) > 64 || creatureName.codePoints().anyMatch(Character::isISOControl)) creatureName = "";
         var loot = ResourceLocation.tryParse(tag.getString("DeathLoot"));

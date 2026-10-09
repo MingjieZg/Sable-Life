@@ -20,7 +20,9 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 public final class CoreEffectsClientPreview {
     private static int ticks,page=2;private static boolean levels;private static Preview screen;
     @SubscribeEvent public static void tick(ClientTickEvent.Post event)throws Exception{
-        if(!Boolean.getBoolean("sablelife.coreEffectsPreview"))return;var mc=Minecraft.getInstance();
+        if(!Boolean.getBoolean("sablelife.coreEffectsPreview"))return;
+        if(screen==null&&dev.sablelife.compat.epicfight.EpicFightCompatibility.supported())Class.forName("yesman.epicfight.client.world.capabilites.entitypatch.player.LocalPlayerPatch");
+        var mc=Minecraft.getInstance();
         if(screen==null){if(mc.screen==null||mc.getOverlay()!=null||mc.level!=null)return;mc.options.guiScale().set(2);mc.resizeDisplay();screen=new Preview();mc.setScreen(screen);return;}
         ticks++;
         if(ticks==40||ticks==110){page=3;screen.init(mc,screen.width,screen.height);}
@@ -39,7 +41,7 @@ public final class CoreEffectsClientPreview {
         HeartSettingsScreen panel;Preview(){super(Component.empty());}
         @Override protected void init(){
             var inv=new Inventory(null);var menu=new HeartSettingsMenu(1,inv);var tag=new CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("ReleaseAllowed",true);tag.putBoolean("Editable",true);tag.putBoolean("LiveControls",true);tag.putString("State","DORMANT");
-            tag.putBoolean("forceChunkLoading",true);tag.putBoolean("ChunkLoadingEditable",true);tag.putString("ChunkLoadingStatus","active");tag.putInt("ChunkLoadingCount",4);
+            tag.putInt("bossbarColor",net.minecraft.world.BossEvent.BossBarColor.RED.ordinal());tag.putBoolean("forceChunkLoading",true);tag.putBoolean("ChunkLoadingEditable",true);tag.putString("ChunkLoadingStatus","active");tag.putInt("ChunkLoadingCount",4);
             tag.putInt("voidDeathHeight",-64);tag.putBoolean("VoidDeathDefault",true);tag.putDouble("health",1000);tag.putDouble("delay",3);tag.putInt("xp",levels?100:30970);tag.putInt("xpPoints",30970);tag.putBoolean("xpLevels",levels);
             tag.putDouble("deathEffectRadius",0);tag.putDouble("deathCount",80);tag.putDouble("deathSpread",.8);tag.putDouble("deathPattern",0);tag.putDouble("vanishCount",6);tag.putDouble("vanishSpread",.35);tag.putDouble("vanishPattern",5);tag.putInt("DeathParticleCount",2);tag.putInt("VanishParticleCount",1);tag.putInt("deathSoundCount",1);
             var stack=new ItemStack(Items.PAPER);stack.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));menu.getSlot(0).set(stack);panel=new HeartSettingsScreen(menu,inv,title);
@@ -50,6 +52,7 @@ public final class CoreEffectsClientPreview {
                 if(page==2||page==3){var r=HeartSettingsScreen.class.getDeclaredField("restore");r.setAccessible(true);var v=HeartSettingsScreen.class.getDeclaredField("preview");v.setAccessible(true);var restore=(net.minecraft.client.gui.components.Button)r.get(panel);var preview=(net.minecraft.client.gui.components.Button)v.get(panel);if(restore.getX()+restore.getWidth()>=preview.getX())throw new AssertionError("Restore overlaps Preview");}
                 else if(page==0){var unit=HeartSettingsScreen.class.getDeclaredField("experienceMode");unit.setAccessible(true);var button=(net.minecraft.client.gui.components.Button)unit.get(panel);var inputs=HeartSettingsScreen.class.getDeclaredField("inputs");inputs.setAccessible(true);var xp=(net.minecraft.client.gui.components.EditBox)((java.util.List<?>)inputs.get(panel)).get(3);if(button.getX()+button.getWidth()>=xp.getX())throw new AssertionError("XP unit overlaps its input");}
 
+                if(page==1){var f=HeartSettingsScreen.class.getDeclaredField("bossColor");f.setAccessible(true);var color=(net.minecraft.client.gui.components.Button)f.get(panel);if(color==null||color.getWidth()!=85)throw new AssertionError("Boss color selector missing");}
                 if(page==1){var inputs=HeartSettingsScreen.class.getDeclaredField("inputs");inputs.setAccessible(true);var field=(net.minecraft.client.gui.components.EditBox)((java.util.List<?>)inputs.get(panel)).get(0);field.setValue("-123");if(!field.getValue().equals("-123"))throw new AssertionError("Negative height rejected");field.setValue("-63.5");if(!field.getValue().equals("-123"))throw new AssertionError("Fractional height accepted");field.setValue("-64");}
                 if(page==1)for(var widget:panel.children())if(widget instanceof net.minecraft.client.gui.components.Button button&&button.visible&&button.getY()+button.getHeight()>height)throw new AssertionError("Protection-page button clipped at current GUI scale");
             }catch(ReflectiveOperationException e){throw new IllegalStateException(e);}

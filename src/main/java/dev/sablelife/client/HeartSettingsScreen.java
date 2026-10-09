@@ -24,7 +24,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     private final List<EditBox> inputs=new ArrayList<>();
     private final List<Button> applies=new ArrayList<>();
     private final Map<String,Button> toggles=new LinkedHashMap<>(), sounds=new LinkedHashMap<>(), soundNones=new LinkedHashMap<>();
-    private Button particle,pattern,preview,restore,experienceMode,release;
+    private Button particle,pattern,preview,restore,experienceMode,release,bossColor;
     public HeartSettingsScreen(HeartSettingsMenu menu,Inventory inventory,Component title) { super(menu,inventory,title);imageWidth=330;imageHeight=246; }
     private Component tr(String key) { return Component.translatable("core.sablelife."+key); }
     private String prefix() { return page==3?"vanish":"death"; }
@@ -34,7 +34,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     private void showPage(int next){page=Math.clamp(next,0,4);rebuildWidgets();edit("viewPage",page,"");}
     @Override protected void init() {
         imageHeight=page==4||page==1?Math.min(246,height-12):246;
-        super.init();inputs.clear();applies.clear();toggles.clear();sounds.clear();soundNones.clear();particle=pattern=preview=restore=experienceMode=null;
+        super.init();inputs.clear();applies.clear();toggles.clear();sounds.clear();soundNones.clear();particle=pattern=preview=restore=experienceMode=bossColor=null;
         keys=page==4?new String[]{"defenseThreshold","defenseMaximum","defenseWindow"}:page==0?new String[]{"name","health","delay","xp","regen","regenPercent","regenDelay"}:page==1?new String[]{"voidDeathHeight"}:page==2?new String[]{"deathCount","deathSpread","deathEffectRadius"}:page==3?new String[]{"vanishCount","vanishSpread"}:new String[]{};
         button(tr("modules"),10,9,70,()->navigation(0));button(tr("wireless"),85,9,70,()->navigation(1));button(tr("loot"),160,9,75,()->navigation(2));
         release=button(Component.translatable("dashboard.sablelife.release").withStyle(net.minecraft.ChatFormatting.RED),240,9,55,()->edit("release",0,""));release.setTooltip(Tooltip.create(Component.translatable("dashboard.sablelife.release_help")));
@@ -51,6 +51,10 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         if(page==1) {
             String[] options={"breaking","explosion","bossbar","lifeAttacks","forceChunkLoading"};
             for(int i=0;i<options.length;i++) { String key=options[i];var b=button(Component.empty(),150,51+i*18,170,()->edit(key,menu.snapshot().getBoolean(key)?0:1,""));LifeUiStyle.reverse(b,b::onPress);toggles.put(key,b);
+                if(key.equals("bossbar")){
+                    b.setWidth(80);bossColor=button(Component.empty(),235,51+i*18,85,()->cycleBossColor(1));
+                    LifeUiStyle.reverse(bossColor,()->cycleBossColor(-1));bossColor.setTooltip(Tooltip.create(tr("bossbar_color_help")));
+                }
                 if(!key.equals("bossbar"))b.setTooltip(Tooltip.create(tr(key.equals("forceChunkLoading")?"force_chunk_help":key.equals("breaking")?"protection_help":key.equals("explosion")?"explosion_help":"lifeAttacks_help")));
             }
         }
@@ -67,6 +71,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         var previous=button(Component.literal("<"),10,footer,28,()->showPage(page-1));previous.active=page>0;
         var next=button(Component.literal(">"),292,footer,28,()->showPage(page+1));next.active=page<4;sync();
     }
+    private void cycleBossColor(int delta){edit("bossbarColor",Math.floorMod(menu.snapshot().getInt("bossbarColor")+delta,net.minecraft.world.BossEvent.BossBarColor.values().length),"");}
     private void soundRow(String key,int y) {
         var choice=button(Component.empty(),150,y,170,()->edit("soundEditor:"+key,0,""));sounds.put(key,choice);
         choice.setTooltip(Tooltip.create(Component.translatable("sound_timeline.sablelife.open_help")));
@@ -83,6 +88,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     private void cyclePattern(int direction) { edit(prefix()+"Pattern",Math.floorMod((int)menu.snapshot().getDouble(prefix()+"Pattern")+direction,6),""); }
     private void sync() {
         var data=menu.snapshot();boolean ready=data.getBoolean("Ready"),live=ready&&data.getBoolean("LiveControls");
+        if(bossColor!=null){bossColor.active=live;var color=net.minecraft.world.BossEvent.BossBarColor.values()[Math.clamp(data.getInt("bossbarColor"),0,6)];bossColor.setMessage(tr("bossbar_color_"+color.name().toLowerCase(Locale.ROOT)));}
         if(release!=null)release.active=ready&&data.getBoolean("ReleaseAllowed");
         if(preview!=null)preview.active=live;
         if(restore!=null)restore.active=live;

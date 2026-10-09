@@ -134,5 +134,14 @@
   "dashboard.sablelife.move_phase_budget": "等待服务器碰撞预算恢复",
   "dashboard.sablelife.move_runtime_budget": "等待服务器碰撞预算恢复",
   "core.sablelife.deathEffectRadius": "效果半径（格）",
-  "core.sablelife.deathEffectRadius_help": "死亡瞬间特效以整个连接结构的中心为原点。0 按结构外接球自动计算；正数则指定半径，最多 256 格。扩散值控制粒子的散布，闪光保留在中心。延迟结束后的残影仍在各组成方块上生成。"
+  "core.sablelife.deathEffectRadius_help": "死亡瞬间特效以整个连接结构的中心为原点。0 按结构外接球自动计算；正数则指定半径，最多 256 格。扩散值控制粒子的散布，闪光保留在中心。延迟结束后的残影仍在各组成方块上生成。",
+  "dashboard.sablelife.slashReleaseSound": "释放音效",
+  "core.sablelife.bossbar_color_help": "Boss 血条颜色：左键切换下一种，右键切换上一种。使用原版七种颜色。",
+  "core.sablelife.bossbar_color_pink": "粉色",
+  "core.sablelife.bossbar_color_blue": "蓝色",
+  "core.sablelife.bossbar_color_red": "红色",
+  "core.sablelife.bossbar_color_green": "绿色",
+  "core.sablelife.bossbar_color_yellow": "黄色",
+  "core.sablelife.bossbar_color_purple": "紫色",
+  "core.sablelife.bossbar_color_white": "白色"
 }

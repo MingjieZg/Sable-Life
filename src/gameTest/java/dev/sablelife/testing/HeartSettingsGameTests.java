@@ -121,6 +121,26 @@ public final class HeartSettingsGameTests {
         });
     }
 
+    @GameTest(template="combat",batch="boss_color_persistence")
+    public static void BossColorsValidatePersistCopyAndUpdateLive(GameTestHelper h)throws Exception {
+        var heart=fixture(h);var level=h.getLevel();var player=TestActors.creative(level);player.setPos(dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,heart.getBlockPos().getCenter()));
+        h.assertTrue(heart.bossBarColor()==net.minecraft.world.BossEvent.BossBarColor.RED,"Legacy default changed");
+        for(var color:net.minecraft.world.BossEvent.BossBarColor.values()){
+            h.assertTrue(heart.editCore(player,"bossbarColor",color.ordinal(),"")&&heart.bossBarColor()==color,"Color edit failed");
+            var copy=heart.copyConfiguration();h.assertTrue(copy.getString("BossBarColor").equals(color.name()),"Copy lost color");
+            var saved=heart.saveWithFullMetadata(level.registryAccess());var loaded=(HeartBlockEntity)net.minecraft.world.level.block.entity.BlockEntity.loadStatic(heart.getBlockPos(),heart.getBlockState(),saved,level.registryAccess());
+            h.assertTrue(loaded.bossBarColor()==color,"World reload lost color");
+        }
+        h.assertTrue(!heart.editCore(player,"bossbarColor",Double.NaN,"")&&!heart.editCore(player,"bossbarColor",7,"")&&!heart.editCore(player,"bossbarColor",-1,"")&&!heart.editCore(player,"bossbarColor",1.5,""),"Invalid color accepted");
+        heart.editCore(player,"bossbar",1,"");heart.tryActivate(player);
+        var update=HeartBlockEntity.class.getDeclaredMethod("updateBossBar",net.minecraft.server.level.ServerLevel.class);update.setAccessible(true);update.invoke(heart,level);
+        var field=HeartBlockEntity.class.getDeclaredField("bossBar");field.setAccessible(true);var bar=(net.minecraft.server.level.ServerBossEvent)field.get(heart);
+        heart.editCore(player,"bossbarColor",net.minecraft.world.BossEvent.BossBarColor.BLUE.ordinal(),"");
+        h.assertTrue(bar.getColor()==net.minecraft.world.BossEvent.BossBarColor.BLUE&&new HeartSettingsMenu(1,player.getInventory(),heart).snapshot().getInt("bossbarColor")==net.minecraft.world.BossEvent.BossBarColor.BLUE.ordinal(),"Live bar or UI color stale");
+        player.setGameMode(GameType.SURVIVAL);h.assertTrue(!heart.editCore(player,"bossbarColor",0,"")&&heart.bossBarColor()==net.minecraft.world.BossEvent.BossBarColor.BLUE,"Survival altered color");
+        var old=heart.saveWithFullMetadata(level.registryAccess());old.remove("BossBarColor");var legacy=(HeartBlockEntity)net.minecraft.world.level.block.entity.BlockEntity.loadStatic(heart.getBlockPos(),heart.getBlockState(),old,level.registryAccess());
+        h.assertTrue(legacy.bossBarColor()==net.minecraft.world.BossEvent.BossBarColor.RED,"Missing color did not default red");h.succeed();
+    }
     private static HeartBlockEntity fixture(GameTestHelper helper) {
         var level = helper.getLevel(); var origin = helper.absolutePos(new BlockPos(4, 6, 4));
         level.setBlockAndUpdate(origin, SableLife.HEART.get().defaultBlockState());

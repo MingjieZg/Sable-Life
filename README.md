@@ -1,3 +1,13 @@
+# Sable Life — stable 0.1.200
+
+Minecraft 1.21.1, Java 21, minimum NeoForge 21.1.235, Create 6.0.10 and Sable 2.0.5. Optional Epic Fight compatibility is verified for 21.17.3.1 only. Client/server protocol 6.
+
+See [release notes](docs/RELEASE_0.1.200.md), [stable metadata](docs/STABLE_VERSION.json) and [current status](docs/STATUS.md). The release adds protected-body tool combat animations, native Melee guard/parry support, release-sound naming for Slash and seven vanilla Boss bar colors. 57 unit tests, 282 default GameTests, 81 combined compatibility tests and a real Epic client UI check passed. Original-scene visual retesting remains distinct from automated validation.
+
+Old exports and repository history are retained. The following sections are historical development notes.
+
+---
+
 # Current development: 0.1.198
 
 Includes the optional Epic Fight 21.17.3.1 mainhand melee bridge and death-cleanup fixes using validated whole-plot removal and removed-source heatmap guards. Stable remains 0.1.193. See [0.1.198 release notes](docs/RELEASE_0.1.198.md) and [Epic Fight scope](docs/EPIC_FIGHT_COMPAT_0.1.197.md).

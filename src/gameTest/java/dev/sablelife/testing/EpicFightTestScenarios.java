@@ -32,6 +32,62 @@ public final class EpicFightTestScenarios {
     public static void LivingTargetsAndLifeBodiesShareTheNativeStrikeLimit(GameTestHelper h)throws Exception {
         nativeWeapon(h,Items.DIAMOND_SWORD,Animations.SWORD_AUTO1,true);
     }
+    private static final class GuardPlayer extends net.neoforged.neoforge.common.util.FakePlayer {
+        GuardPlayer(net.minecraft.server.level.ServerLevel level){super(level,new com.mojang.authlib.GameProfile(UUID.randomUUID(),"GuardTester"));
+            try{var f=ServerPlayer.class.getDeclaredField("spawnInvulnerableTime");f.setAccessible(true);f.setInt(this,0);}catch(ReflectiveOperationException e){throw new IllegalStateException(e);}}
+        @Override public boolean isInvulnerableTo(net.minecraft.world.damagesource.DamageSource source){return false;}
+    }
+    public static void ActualMeleeModuleBlocksWithoutEveryTickStaminaDrain(GameTestHelper h) {
+        var level=h.getLevel();var pos=h.absolutePos(new BlockPos(3,40,3));var blocks=new ArrayList<BlockPos>();
+        for(int i=0;i<4;i++){var p=pos.east(i);blocks.add(p);level.setBlockAndUpdate(p,i==0?SableLife.HEART.get().defaultBlockState():Blocks.IRON_BLOCK.defaultBlockState());}
+        var body=SubLevelAssemblyHelper.assembleBlocks(level,pos,blocks,new BoundingBox3i(pos.getX(),pos.getY(),pos.getZ(),pos.getX()+3,pos.getY(),pos.getZ()));
+        var core=(HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());var module=core.modules().add("melee");
+        module.anchors(List.of(dev.sablelife.module.ModuleAnchor.create(core,core.getBlockPos().east(),Direction.EAST),dev.sablelife.module.ModuleAnchor.create(core,core.getBlockPos().east(3),Direction.EAST)));
+        module.edit("interval",4,"");module.edit("knockback",0,"");core.tryActivate(TestActors.creative(level));
+        var victim=new GuardPlayer(level);victim.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);victim.tickCount=100;
+        var center=dev.sablelife.module.MeleeGeometry.frame(core,module).center();victim.setPos(center.add(0,-.4,0));victim.setYRot(90);victim.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,new ItemStack(Items.DIAMOND_SWORD));
+        level.addNewPlayer(victim);var patch=EpicFightCapabilities.getServerPlayerPatch(victim);patch.toEpicFightMode(false);
+        var cap=EpicFightCapabilities.getItemStackCapability(victim.getMainHandItem());patch.updateHeldItem(EpicFightCapabilities.getItemStackCapability(ItemStack.EMPTY),cap,ItemStack.EMPTY,victim.getMainHandItem(),net.minecraft.world.InteractionHand.MAIN_HAND);
+        var guard=yesman.epicfight.registry.entries.EpicFightSkills.GUARD.get();patch.getSkill(yesman.epicfight.skill.SkillSlots.GUARD).setSkill(guard,true);patch.setStamina(patch.getMaxStamina());patch.startSkillHolding(guard);
+        var runtime=new dev.sablelife.module.ModuleCombat();float before=patch.getStamina();runtime.tick(core);float after=patch.getStamina();
+        h.assertTrue(victim.getHealth()==20&&after<before,"Actual module failed to guard");runtime.tick(core);
+        h.assertTrue(patch.getStamina()==after,"Same tick drained stamina again");
+        h.runAfterDelay(1,()->{runtime.tick(core);h.assertTrue(patch.getStamina()==after&&victim.getHealth()==20,"Blocked contact ignored interval");
+            module.edit("enabled",0,"");patch.resetHolding();level.removePlayerImmediately(victim,net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);h.succeed();});
+    }
+    public static void PositionBasedMeleeUsesNativeGuardParryAndRearRules(GameTestHelper h) {
+        var player=new GuardPlayer(h.getLevel());player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        player.setPos(h.absolutePos(new BlockPos(5,40,5)).getCenter());player.setYRot(0);player.tickCount=100;
+        var item=new ItemStack(Items.DIAMOND_SWORD);player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,item);
+        var patch=EpicFightCapabilities.getServerPlayerPatch(player);patch.toEpicFightMode(false);
+        var cap=EpicFightCapabilities.getItemStackCapability(item);
+        patch.updateHeldItem(EpicFightCapabilities.getItemStackCapability(ItemStack.EMPTY),cap,ItemStack.EMPTY,item,net.minecraft.world.InteractionHand.MAIN_HAND);
+        var slot=patch.getSkill(yesman.epicfight.skill.SkillSlots.GUARD);
+        for(var guard:List.of(yesman.epicfight.registry.entries.EpicFightSkills.GUARD.get(),yesman.epicfight.registry.entries.EpicFightSkills.PARRYING.get(),yesman.epicfight.registry.entries.EpicFightSkills.IMPACT_GUARD.get())) {
+            patch.resetHolding();slot.setSkill(guard,true);patch.setStamina(patch.getMaxStamina());
+            h.assertTrue(patch.startSkillHolding(guard),"Failed to hold native guard");
+            if(guard instanceof yesman.epicfight.skill.guard.ParryingSkill)slot.getDataManager().setData(yesman.epicfight.registry.entries.EpicFightSkillDataKeys.LAST_ACTIVE,player.tickCount);
+            var origin=player.position().add(0,0,2);var source=new dev.sablelife.attack.BodyMeleeSource(h.getLevel(),origin,"Machine");
+            var event=new yesman.epicfight.api.event.types.entity.TakeDamageEvent.Income(patch,source,6);
+            float stamina=patch.getStamina();
+            yesman.epicfight.api.event.EpicFightEventHooks.Entity.TAKE_DAMAGE_INCOME.postWithListener(event,patch.getEventListener());
+            h.assertTrue(event.isCanceled()&&source.wasBlocked()&&event.getResult()==yesman.epicfight.api.utils.AttackResult.ResultType.BLOCKED,"Native guard failed against position-only melee: "+guard.getClass().getSimpleName());
+            h.assertTrue(patch.getStamina()<stamina,"Guard did not consume native stamina");
+            if(guard instanceof yesman.epicfight.skill.guard.ParryingSkill)h.assertTrue(event.isParried(),"Native parry window ignored");
+            var rear=new dev.sablelife.attack.BodyMeleeSource(h.getLevel(),player.position().add(0,0,-2),"Machine");
+            var rearEvent=new yesman.epicfight.api.event.types.entity.TakeDamageEvent.Income(patch,rear,6);
+            yesman.epicfight.api.event.EpicFightEventHooks.Entity.TAKE_DAMAGE_INCOME.postWithListener(rearEvent,patch.getEventListener());
+            h.assertTrue(!rearEvent.isCanceled()&&!rear.wasBlocked(),"Guard blocked a rear attack");
+            float hp=player.getHealth();var actual=new dev.sablelife.attack.BodyMeleeSource(h.getLevel(),origin,"Machine");
+            dev.sablelife.attack.ModuleDamage.hurt(player,actual,6);
+            h.assertTrue(player.getHealth()==hp&&actual.wasBlocked(),"Actual hurt pipeline bypassed guard: HP="+player.getHealth()+" original="+hp+" blocked="+actual.wasBlocked()+" holding="+patch.isHoldingAny());
+            patch.resetHolding();var off=new dev.sablelife.attack.BodyMeleeSource(h.getLevel(),origin,"Machine");
+            var offEvent=new yesman.epicfight.api.event.types.entity.TakeDamageEvent.Income(patch,off,6);
+            yesman.epicfight.api.event.EpicFightEventHooks.Entity.TAKE_DAMAGE_INCOME.postWithListener(offEvent,patch.getEventListener());
+            h.assertTrue(!offEvent.isCanceled(),"Released guard remained active");
+        }
+        h.succeed();
+    }
     public static void NativeChargingRulesMatchRealPostHitAndRespectGuards(GameTestHelper h) {
         var player=TestActors.creative(h.getLevel());var item=new ItemStack(Items.DIAMOND_SWORD);
         player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,item);

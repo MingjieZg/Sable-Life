@@ -1,5 +1,5 @@
 {
-  "revision": 52,
+  "revision": 53,
   "entries": [
     {
       "id": "getting_started",
@@ -122,7 +122,8 @@
         ],
         "settings": [
           "manual.sablelife.core.settings",
-          "manual.sablelife.core.death_envelope"
+          "manual.sablelife.core.death_envelope",
+          "manual.sablelife.core.boss_colors"
         ],
         "example": [
           "manual.sablelife.core.example"
@@ -137,7 +138,8 @@
       "title": "manual.sablelife.chapter.death_unloading",
       "sections": {
         "usage": [
-          "manual.sablelife.death_unloading.usage"
+          "manual.sablelife.death_unloading.usage",
+          "manual.sablelife.death_unloading.cleanup_resume"
         ],
         "settings": [
           "manual.sablelife.death_unloading.settings"
@@ -400,7 +402,8 @@
           "dashboard.sablelife.description_melee"
         ],
         "settings": [
-          "manual.sablelife.melee.settings"
+          "manual.sablelife.melee.settings",
+          "manual.sablelife.melee.epic_guard"
         ],
         "example": [
           "manual.sablelife.melee.example"

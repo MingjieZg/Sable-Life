@@ -1244,7 +1244,7 @@
   "manual.sablelife.sphere_blast.example": "标记发射面，先试初始释放位置0、距离8、半径4、蓄力2秒、间隔5秒。预览检查直线和球形。\n\n设置两阶段粒子/声音后激活。\n\n自定义动作抽选中的动作时长要足够完成蓄力。",
   "manual.sablelife.sphere_blast.troubleshooting": "必需标记丢失、禁用或触发结束会取消待爆蓄力。路径不造成伤害。\n\n仅在已加载目标执行，不强制加载远处地形。每次爆炸每个符合类型的目标只伤害一次，不叠加原版伤害。\n\n方块破坏使用原版TNT抗性，并非伤害半径内所有方块必毁。",
   "dashboard.sablelife.type_slash": "斩击",
-  "dashboard.sablelife.description_slash": "从标记面发射飞行弧形斩击。可设尺寸、速度、射程、扇形、角度偏移、颜色或粒子，以及飞行声音组合。",
+  "dashboard.sablelife.description_slash": "从标记面发射飞行弧形斩击。可设尺寸、速度、射程、扇形、角度偏移、颜色或粒子，以及释放音效组合。",
   "dashboard.sablelife.slashLength": "斩击长度（格）",
   "dashboard.sablelife.slashWidth": "斩击宽度（格）",
   "dashboard.sablelife.slashSpeed": "飞行速度（格/秒）",
@@ -1455,5 +1455,17 @@
   "core.sablelife.deathEffectRadius": "效果半径（格）",
   "core.sablelife.deathEffectRadius_help": "死亡瞬间特效以整个连接结构的中心为原点。0 按结构外接球自动计算；正数则指定半径，最多 256 格。扩散值控制粒子的散布，闪光保留在中心。延迟结束后的残影仍在各组成方块上生成。",
   "manual.sablelife.core.death_envelope": "死亡瞬间特效以整个连接结构的中心为原点，包含连接的部位。效果半径为 0 时按结构外接球自动计算，最多 256 格；正数则使用指定半径。扩散值控制粒子的散布。爆发和云状粒子从球面生成，圆环、星形和螺旋保留所选形状，闪光仍在中心播放一次。声音传播半径独立设置。\n\n死亡延迟结束后，残影特效仍在组成方块处生成，结构分批清除。战利品位置沿用原有规则。",
-  "manual.sablelife.core.protected_tools": "允许方块破坏关闭时，工具对准已激活的生命体会进行攻击，不进入挖掘；长按也不会持续产生裂纹或挖掘粒子。普通地形，以及允许破坏开启时的工具挖掘，保持原有行为。\n\n安装 Epic Fight 21.17.3.1 时，已适配的主手原生攻击会按实际扣除的生命值为对应武器的特殊技能充能，沿用原模组的上限、激活状态和同步方式。同一攻击阶段不会重复充能，免伤时不充能。这不代表已适配仅面向实体的技能事件或其他战斗模组。"
+  "manual.sablelife.core.protected_tools": "允许方块破坏关闭时，工具对准已激活的生命体会进行攻击，不进入挖掘；长按也不会持续产生裂纹或挖掘粒子。普通地形，以及允许破坏开启时的工具挖掘，保持原有行为。\n\n安装 Epic Fight 21.17.3.1 时，已适配的主手原生攻击会按实际扣除的生命值为对应武器的特殊技能充能，沿用原模组的上限、激活状态和同步方式。同一攻击阶段不会重复充能，免伤时不充能。这不代表已适配仅面向实体的技能事件或其他战斗模组。",
+  "dashboard.sablelife.slashReleaseSound": "释放音效",
+  "core.sablelife.bossbar_color_help": "Boss 血条颜色：左键切换下一种，右键切换上一种。使用原版七种颜色。",
+  "core.sablelife.bossbar_color_pink": "粉色",
+  "core.sablelife.bossbar_color_blue": "蓝色",
+  "core.sablelife.bossbar_color_red": "红色",
+  "core.sablelife.bossbar_color_green": "绿色",
+  "core.sablelife.bossbar_color_yellow": "黄色",
+  "core.sablelife.bossbar_color_purple": "紫色",
+  "core.sablelife.bossbar_color_white": "白色",
+  "manual.sablelife.core.boss_colors": "首领 血条开关旁可选择颜色。左键切换下一种，右键切换上一种，共有粉、蓝、红、绿、黄、紫、白七种原版颜色。旧存档默认仍为红色。颜色随存档与核心配置复制保存，生命体存活时也可切换，不会重置生命值。",
+  "manual.sablelife.death_unloading.cleanup_resume": "大型生命体分批清除时，清除进度会随世界保存。清除过程中退出游戏，再进入后会继续处理剩余结构，不会重新开始整次死亡，也不会因此重复发放战利品。未加载区域需要等到加载后才能清理，这与死亡延迟倒计时是两个阶段。残影特效仍在正在清除的方块上生成。",
+  "manual.sablelife.melee.epic_guard": "安装已适配的 Epic Fight 21.17.3.1 后，近战模块可按原模组的正面朝向、持握武器及技能规则进行格挡或招架，沿用体力消耗、惩罚、破防动作及招架时机。攻击来源为标记所在主体的世界位置，后方攻击不能格挡。\n\n挡住一次接触后，会等待模块设定的攻击间隔再尝试，不施加伤害、命中状态效果或模块击退，也不占用成功命中次数上限。不会生成代理攻击者。此次接入不改变箭矢、枪弹的格挡，也不代表所有模块攻击都可以格挡。"
 }

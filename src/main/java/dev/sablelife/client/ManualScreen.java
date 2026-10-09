@@ -127,7 +127,7 @@ public final class ManualScreen extends Screen {
             for(var f:fields) {
                 if(dev.sablelife.module.ModuleColors.parent(selected.module,f.key())!=null)continue;
                 if(audio.stream().anyMatch(k->f.key().equals(k+"Volume")||f.key().equals(k+"Radius")) || List.of("sound","trigger_sound").contains(selected.module)&&List.of("volume","pitch").contains(f.key()) || f.key().equals("bgmVolume"))continue;
-                String key="dashboard.sablelife."+f.key();
+                String key="dashboard.sablelife."+(selected.module.equals("slash")&&f.key().equals("flightSound")?"slashReleaseSound":f.key());
                 if(selected.module.equals("gun")&&f.key().equals("speed"))key="dashboard.sablelife.gun_speed";
                 Component label=localized(key);
                 if(!f.choice())result.add(tr("numeric",label,number(f.initial()/f.scale()),number(f.min()/f.scale()),number(f.max()/f.scale())));

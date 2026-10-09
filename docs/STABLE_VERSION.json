@@ -1,24 +1,29 @@
 {
-  "version": "0.1.193",
+  "version": "0.1.200",
   "status": "stable",
-  "accepted_at": "2026-10-08T22:55:41+08:00",
+  "accepted_at": "2026-10-10T06:45:35.073145+08:00",
   "timezone": "Asia/Singapore",
-  "acceptance": "User confirmed all tests completed and requested stable promotion, Google Drive backup and export.",
-  "jar": "sablelife-0.1.193.jar",
-  "bytes": 1139731,
-  "sha256": "fa925014a0f105d86b6593dcfba0f4869878e16b67f6b7c0ec720b79127c7af2",
+  "acceptance": "User authorized stable promotion after the requested fixes and automated verification. User confirmed prior large-body cleanup continues after reload and normal tool attacks work.",
+  "jar": "sablelife-0.1.200.jar",
+  "bytes": 1233185,
+  "sha256": "e0064c26238a2f1cbc45d4bbe926c5c93912e31e883b39de826f676bbdc590c5",
   "minecraft": "1.21.1",
   "loader": "NeoForge",
-  "tested_neoforge": "21.1.251",
+  "minimum_neoforge": "21.1.235",
+  "tested_neoforge": "21.1.235",
+  "protocol": 6,
   "required_mods": {
     "sable": "2.0.5",
     "create": "6.0.10"
   },
+  "optional_epic_fight": "21.17.3.1",
   "automated_validation": {
-    "0.1.192_full_regression": 211,
-    "0.1.192_optional_weapon_related": 30,
-    "0.1.193_release_regeneration_related": 119,
-    "core_settings_client_preview": "passed"
+    "unit": 57,
+    "default_gametest": 282,
+    "combined_compatibility_gametest": 81,
+    "real_epic_client_ui": "passed",
+    "manual_revision": 53
   },
-  "user_validation": "All features through 0.1.193 accepted."
+  "previous_stable": "0.1.193",
+  "user_validation": "0.1.199 core behavior accepted; the 0.1.200 changes have automated coverage and user authorization to release. Their original-scene visual feel has not yet been manually retested."
 }

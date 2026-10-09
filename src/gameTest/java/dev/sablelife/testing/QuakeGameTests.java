@@ -13,7 +13,6 @@ import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.*;
 import net.neoforged.neoforge.gametest.*;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import java.util.List;
 
 @GameTestHolder("sablelife_quake_tests")
@@ -68,7 +67,7 @@ public final class QuakeGameTests {
         var m = heart.modules().add("laser"); m.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos(), Direction.NORTH)));
         m.edit("laserAim", 1, ""); m.edit("target", 1, ""); m.edit("laserTracking", .1, "");
         m.edit("laserFollow", .1, ""); m.edit("chargeTime", 5, "");
-        heart.tryActivate(FakePlayerFactory.getMinecraft(h.getLevel()));
+        heart.tryActivate(TestActors.creative(h.getLevel()));
         var laser = new ModuleLaser(); laser.tick(heart); var advertised = laser.aimPoint(m.id());
         h.runAfterDelay(2, () -> { target.setPos(target.position().add(4, 0, 0)); laser.tick(heart); });
         h.runAfterDelay(5, () -> {
@@ -95,7 +94,7 @@ public final class QuakeGameTests {
         m.edit("quakeRange", 5, ""); m.edit("quakeSpeed", .1, "");
         h.runAfterDelay(5, () -> h.assertTrue(near.getHealth() == 10 && far.getHealth() == 10, "Area hit before warning finished"));
         h.runAfterDelay(10, () -> {
-            h.assertTrue(near.getHealth() == 4 && far.getHealth() == 4, "Whole area failed to strike near and far targets simultaneously");
+            h.assertTrue(near.getHealth() == 4 && far.getHealth() == 4, "Whole area failed to strike near and far targets simultaneously: HP="+near.getHealth()+"/"+far.getHealth()+" state="+heart.health().state());
             h.assertTrue(outside.getHealth() == 10, "Area crossed advertised radius");
             h.assertTrue(VirtualModule.load(m.save()).value("quakeMode") == 2, "Area mode lost after save");
             h.succeed();
@@ -112,7 +111,7 @@ public final class QuakeGameTests {
         h.assertTrue(ModuleLaser.acquireTargets(h.getLevel(), heart, m, start).size() == 1, "Default laser no longer single target");
         m.edit("targetMultiple", 1, "");
         h.assertTrue(ModuleLaser.acquireTargets(h.getLevel(), heart, m, start).size() == 2, "Multi laser target count=" + ModuleLaser.acquireTargets(h.getLevel(), heart, m, start).size());
-        heart.tryActivate(FakePlayerFactory.getMinecraft(h.getLevel()));
+        heart.tryActivate(TestActors.creative(h.getLevel()));
         var laser = new ModuleLaser(); laser.tick(heart);
         h.assertTrue(laser.beamCount(m.id()) == 2, "Multi laser did not create two beams");
         h.assertTrue(first.getHealth() == 8 && second.getHealth() == 8, "Crossing beams stacked damage or missed a target");
@@ -231,7 +230,7 @@ public final class QuakeGameTests {
     private static VirtualModule homing(HeartBlockEntity heart) {
         var m=heart.modules().add("homing"); m.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos(),Direction.NORTH)));
         m.edit("target",1,""); m.edit("targetRange",12,""); m.edit("chargeTime",6,""); m.edit("homingDeploy",0,""); m.edit("homingHeight",2,"");
-        heart.tryActivate(FakePlayerFactory.getMinecraft((net.minecraft.server.level.ServerLevel)heart.getLevel())); return m;
+        heart.tryActivate(TestActors.creative((net.minecraft.server.level.ServerLevel)heart.getLevel())); return m;
     }
     @GameTest(template="combat",batch="homing_formation",timeoutTicks=10)
     public static void HomingFormationCentersOneAndFansFiveWithBoundedCount(GameTestHelper h) {
@@ -383,7 +382,7 @@ public final class QuakeGameTests {
     }
     @GameTest(template="combat",batch="internal_empty_frequency",timeoutTicks=15)
     public static void InternalRepeatWorksWithoutFrequencyAndExternalModesStillRequireIt(GameTestHelper h) {
-        var heart=fixture(h); var player=FakePlayerFactory.getMinecraft(h.getLevel()); heart.tryActivate(player);
+        var heart=fixture(h); var player=TestActors.creative(h.getLevel()); heart.tryActivate(player);
         int index=heart.wireless().add(); var channel=heart.wireless().channel(index);
         channel.set(0,1); channel.set(6,0); channel.set(2,3); channel.set(3,2);
         h.assertTrue(channel.configured() && channel.powerAt(0)==15 && channel.powerAt(3)==0 && channel.powerAt(5)==15,"Empty-frequency internal waveform failed");
@@ -402,7 +401,7 @@ public final class QuakeGameTests {
     }
     @GameTest(template="combat",batch="core_regen",timeoutTicks=15)
     public static void CoreRegenerationWaitsResetsCapsAndSurvivesCopy(GameTestHelper h) {
-        var heart=fixture(h); var player=FakePlayerFactory.getMinecraft(h.getLevel()); player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+        var heart=fixture(h); var player=TestActors.creative(h.getLevel()); player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
         h.assertTrue(heart.editCore(player,"regen",5,"") && heart.editCore(player,"regenDelay",.2,""),"Regen authoring failed");
         heart.tryActivate(player); heart.damage(20);
         for(int i=0;i<23;i++) heart.tickRegeneration();
@@ -498,7 +497,7 @@ public final class QuakeGameTests {
     }
     @GameTest(template="combat",batch="core_loot_rules",timeoutTicks=15)
     public static void WholeBodyLootRulesAndLifeAttackToggleSurviveCopy(GameTestHelper h) {
-        var heart=fixture(h); var player=FakePlayerFactory.getMinecraft(h.getLevel()); player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+        var heart=fixture(h); var player=TestActors.creative(h.getLevel()); player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
         heart.setDeathTemplate(player,0,new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND));
         for(int i=0;i<20;i++) heart.adjustLootRule(player,0,-1,false);
         var drops=dev.sablelife.part.LootSelection.draw(heart.deathTemplates(),heart.chances(),heart.weights(),heart.weighted(),heart.rolls(),h.getLevel().random);
@@ -525,7 +524,7 @@ public final class QuakeGameTests {
     }
     @GameTest(template="combat",batch="target_categories",timeoutTicks=15)
     public static void LifeformCategoryIncludesActiveOthersAndKeepsMobAndOldIndices(GameTestHelper h) {
-        var heart=fixture(h); var other=otherHeart(h); var player=FakePlayerFactory.getMinecraft(h.getLevel()); player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+        var heart=fixture(h); var other=otherHeart(h); var player=TestActors.creative(h.getLevel()); player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
         heart.tryActivate(player); var center=origin(heart); var pig=pig(h,center.add(3,0,0),true); var box=new AABB(center,center).inflate(20);
         var empty=ModuleTargets.query(h.getLevel(),heart.creatureId(),box,e -> ModuleTargets.matches(e,3));
         h.assertTrue(empty.stream().noneMatch(e -> e.getUUID().equals(other.creatureId())),"Dormant core counted as a lifeform"); other.tryActivate(player);
@@ -542,7 +541,7 @@ public final class QuakeGameTests {
     }
     @GameTest(template="combat",batch="target_life_attacks",timeoutTicks=15)
     public static void LifeformTargetingFeedsHomingLaserMortarDispatchAndDamageGate(GameTestHelper h) {
-        var heart=fixture(h); var other=otherHeart(h); var player=FakePlayerFactory.getMinecraft(h.getLevel()); player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+        var heart=fixture(h); var other=otherHeart(h); var player=TestActors.creative(h.getLevel()); player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
         heart.tryActivate(player); other.tryActivate(player); var center=origin(heart);
         var m=heart.modules().add("homing"); m.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos(),Direction.NORTH))); m.edit("target",3,""); m.edit("lineOfSight",1,"");
         var targets=ModuleHoming.targets(h.getLevel(),heart,m,center);
@@ -580,7 +579,7 @@ public final class QuakeGameTests {
         module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos(), Direction.NORTH)));
         module.edit("target", 1, ""); module.edit("quakeMode", 1, ""); module.edit("quakeRange", 6, ""); module.edit("quakeSpeed", 1, "");
         module.edit("warningTime", 8, ""); module.edit("damage", 6, ""); module.edit("interval", 100, "");
-        heart.tryActivate(FakePlayerFactory.getMinecraft((net.minecraft.server.level.ServerLevel) heart.getLevel()));
+        heart.tryActivate(TestActors.creative((net.minecraft.server.level.ServerLevel) heart.getLevel()));
         return module;
     }
     @GameTest(template="combat", batch="quake_ground", timeoutTicks=80)
@@ -638,7 +637,7 @@ public final class QuakeGameTests {
         module.edit("quakeLaunch", 0, ""); module.edit("quakePush", 0, "");
         var target = pig(h, center.add(0, 0, 3), false);
         h.runAfterDelay(20, () -> {
-            h.assertTrue(target.getHealth() == 4, "Three wave fronts did not hit exactly once per wave");
+            h.assertTrue(target.getHealth() == 4, "Three wave fronts did not hit exactly once per wave: HP="+target.getHealth()+" state="+heart.health().state()+" triggered="+HeartModules.triggered(module,heart));
             var models = h.getLevel().getEntitiesOfClass(QuakeGroundBlock.class, new AABB(center, center).inflate(8));
             h.assertTrue(models.stream().allMatch(e -> !e.shouldBeSaved()), "Temporary terrain model can leak into a save");
             heart.damage(heart.health().maximum()); heart.modules().tick(heart);

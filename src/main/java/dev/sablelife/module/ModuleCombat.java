@@ -141,8 +141,10 @@ public final class ModuleCombat {
             for(int i=0;i<=steps;i++){
                 var sample=MeleeGeometry.sample(previous,frame,i/(double)steps);
                 if(!ContactBox.intersects(sample.center(),frame.half(),sample.rotation(),victim.getBoundingBox()))continue;
-                if(ModuleDamage.hurt(victim,ModuleDamage.named(ModuleDamage.physical(world),heart),(float)module.value("damage"))){
-                    state.hits.put(id,now+Math.max(1,(int)module.value("interval")));
+                var source=new dev.sablelife.attack.BodyMeleeSource(world,previous.position().lerp(frame.position(),i/(double)steps),heart.creatureName());
+                boolean hit=ModuleDamage.hurt(victim,source,(float)module.value("damage"));
+                if(hit||source.wasBlocked())state.hits.put(id,now+Math.max(1,(int)module.value("interval")));
+                if(hit){
                     if(limit>0)state.meleeHitCounts.merge(id,1,Integer::sum);
                     push(victim,sample.center(),module.value("knockback"));effect(victim,module);
                     ModuleParticles.send(world,ParticleTypes.CRIT,victim.getX(),victim.getY()+victim.getBbHeight()/2,victim.getZ(),5,.15,.15,.15,.1);
