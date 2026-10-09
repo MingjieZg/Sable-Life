@@ -1,0 +1,51 @@
+[
+  {
+    "project": "sable",
+    "version": "2.0.5+mc1.21.1",
+    "versionId": "U678xqle",
+    "filename": "sable-neoforge-1.21.1-2.0.5.jar",
+    "url": "https://cdn.modrinth.com/data/T9PomCSv/versions/U678xqle/sable-neoforge-1.21.1-2.0.5.jar",
+    "sha512": "bf3d8c87bcc5efb99afffd50305fc978086ed48a63e106816e3a8a3901f8052f4480ea527dbd7d4003f7775ed4d020529098034f4e307aefac9cc42df2b4c19a"
+  },
+  {
+    "project": "create-aeronautics",
+    "version": "1.3.2+mc1.21.1",
+    "versionId": "44pLdPGg",
+    "filename": "create-aeronautics-bundled-1.21.1-1.3.2.jar",
+    "url": "https://cdn.modrinth.com/data/oWaK0Q19/versions/44pLdPGg/create-aeronautics-bundled-1.21.1-1.3.2.jar",
+    "sha512": "dc7e8e1148fa442243889ba29412207137e1bb86206e6c92bc0a589f1374a466e93de22bdbf14f753984d86c29308fbbdc0f14a4b9618b14c0ac1666a36b46f5"
+  },
+  {
+    "project": "jade",
+    "version": "15.10.6+neoforge",
+    "versionId": "eYz2YBGT",
+    "filename": "Jade-1.21.1-NeoForge-15.10.6.jar",
+    "url": "https://cdn.modrinth.com/data/nvQzSEkH/versions/eYz2YBGT/Jade-1.21.1-NeoForge-15.10.6.jar",
+    "sha512": "dad9755dce8d85d914fc4df2baa0211f13e5839a71c1925fdd01f69081a95e30a2934e6273f8b01f0169adebe7a9dae57a8d904de0c4cb36dc17369bb474f0f2"
+  },
+  {
+    "project": "create",
+    "version": "6.0.10+mc1.21.1",
+    "versionId": "UjX6dr61",
+    "filename": "create-1.21.1-6.0.10.jar",
+    "url": "https://cdn.modrinth.com/data/LNytGWDc/versions/UjX6dr61/create-1.21.1-6.0.10.jar",
+    "sha512": "11cc8fc049d2f67f6548c7abfada6b82a3adb5c7ca410a742de04bbca76e03862c518721b88d806f6e6d768a4d68531fdb903a85859b25d1484d550cc7bafd4b"
+  },
+  {
+    "project": "sable-schematic-tool",
+    "version": "1.0.1",
+    "versionId": "hwxjOCxE",
+    "scope": "runtimeAndCompile",
+    "filename": "sable-photomancy-1.0.1.jar",
+    "url": "https://cdn.modrinth.com/data/hNGBYvQN/versions/hwxjOCxE/sable-photomancy-1.0.1.jar",
+    "sha512": "3a02e10c10d96a8fde75a5e625207f5452991d48ec4b4762dff3ea870952fdb922b93ad3d0b84c66bdb7875bcf96f3c6f61076c595a13652ddf86fd9a6dc9730"
+  },
+  {
+    "project": "ldlib",
+    "version": "mc1.21.1-2.2.17-neoforge",
+    "versionId": "eFcwlxhy",
+    "filename": "ldlib2-neoforge-1.21.1-2.2.17-all.jar",
+    "url": "https://cdn.modrinth.com/data/B1CBVXHX/versions/eFcwlxhy/ldlib2-neoforge-1.21.1-2.2.17-all.jar",
+    "sha512": "b49e7bfb4561d18c1a61d237adeed6c71ddc78eb7cff87b9c116b1e363e428d1b3c58bbe719cfe13a6f8aefc99996c573c27c25d7892c3192102d0b77e7c2ab2"
+  }
+]

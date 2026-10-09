@@ -1,0 +1,514 @@
+{
+  "schema_note": {
+    "en_us": [
+      "Color rows",
+      "Some fields"
+    ],
+    "zh_cn": [
+      "颜色行",
+      "部分属性"
+    ]
+  },
+  "getting_started.settings": {
+    "en_us": [
+      "Sneak +",
+      "Ordinary terrain",
+      "Release is"
+    ],
+    "zh_cn": [
+      "潜行+",
+      "普通地形",
+      "Release是"
+    ]
+  },
+  "getting_started.troubleshooting": {
+    "en_us": [
+      "Release does",
+      "Holding a block"
+    ],
+    "zh_cn": [
+      "Release不",
+      "手持方块"
+    ]
+  },
+  "simple_start.usage": {
+    "en_us": [
+      "Search localized"
+    ],
+    "zh_cn": [
+      "可搜索"
+    ]
+  },
+  "simple_start.settings": {
+    "en_us": [
+      "Life Core"
+    ],
+    "zh_cn": [
+      "生命核心"
+    ]
+  },
+  "simple_start.troubleshooting": {
+    "en_us": [
+      "Renaming preserves"
+    ],
+    "zh_cn": [
+      "改名保留"
+    ]
+  },
+  "module_management.settings": {
+    "en_us": [
+      "Search by",
+      "Use the arrows",
+      "Preset Delete",
+      "Enter a name",
+      "Enable/Disable",
+      "Language, left",
+      "Density adjusts",
+      "Mouse wheel"
+    ],
+    "zh_cn": [
+      "可按中文",
+      "添加模块旁",
+      "删除预设",
+      "输入名称",
+      "Enable/Disable",
+      "显示密度左侧",
+      "Density调整",
+      "数值框滚轮"
+    ]
+  },
+  "module_management.troubleshooting": {
+    "en_us": [
+      "A renamed module",
+      "Module enabled"
+    ],
+    "zh_cn": [
+      "改名不改变",
+      "模块启用"
+    ]
+  },
+  "marking_system.usage": {
+    "en_us": [
+      "Arena is"
+    ],
+    "zh_cn": [
+      "Arena例外"
+    ]
+  },
+  "marking_system.settings": {
+    "en_us": [
+      "Area:",
+      "Particle Area and",
+      "Navigation asks",
+      "Core modules"
+    ],
+    "zh_cn": [
+      "范围：",
+      "Particle范围",
+      "Navigation要求",
+      "核心模块"
+    ]
+  },
+  "marking_system.troubleshooting": {
+    "en_us": [
+      "A wrong body",
+      "Destroyed/disconnected",
+      "For particles"
+    ],
+    "zh_cn": [
+      "错误主体",
+      "标记部位",
+      "Particle清除"
+    ]
+  },
+  "preview_system.settings": {
+    "en_us": [
+      "Not marked",
+      "Some core/no-Mark"
+    ],
+    "zh_cn": [
+      "未标记",
+      "部分核心"
+    ]
+  },
+  "preview_system.troubleshooting": {
+    "en_us": [
+      "Linear movement",
+      "For area marks",
+      "Effect previews"
+    ],
+    "zh_cn": [
+      "直线移动",
+      "范围标记",
+      "特效预览"
+    ]
+  },
+  "core.usage": {
+    "en_us": [
+      "Death XP",
+      "Maximum health"
+    ],
+    "zh_cn": [
+      "死亡经验",
+      "最大生命滚轮每格5 HP"
+    ]
+  },
+  "core.settings": {
+    "en_us": [
+      "Set an integer",
+      "Death delay is",
+      "Force chunk loading",
+      "Each stage",
+      "Adaptive defense",
+      "At sustained"
+    ],
+    "zh_cn": [
+      "保护页",
+      "Death delay限制",
+      "强制区块加载",
+      "每阶段",
+      "自适应防御",
+      "持续200"
+    ]
+  },
+  "core.troubleshooting": {
+    "en_us": [
+      "See Death delay"
+    ],
+    "zh_cn": [
+      "离开范围"
+    ]
+  },
+  "death_unloading.settings": {
+    "en_us": [
+      "With Force",
+      "Exiting a single-player"
+    ],
+    "zh_cn": [
+      "强制加载Off",
+      "单人退出"
+    ]
+  },
+  "death_unloading.example": {
+    "en_us": [
+      "If you closed"
+    ],
+    "zh_cn": [
+      "若前20秒"
+    ]
+  },
+  "death_unloading.troubleshooting": {
+    "en_us": [
+      "An unloaded corpse",
+      "Loading applies",
+      "Loot/XP settlement"
+    ],
+    "zh_cn": [
+      "未加载尸体",
+      "加载按",
+      "掉落/经验结算"
+    ]
+  },
+  "triggers.settings": {
+    "en_us": [
+      "Move set actions",
+      "Attack Interval"
+    ],
+    "zh_cn": [
+      "Move set动作",
+      "攻击Interval"
+    ]
+  },
+  "triggers.troubleshooting": {
+    "en_us": [
+      "Do not treat"
+    ],
+    "zh_cn": [
+      "内部频道"
+    ]
+  },
+  "sound_timeline.settings": {
+    "en_us": [
+      "Dashed natural",
+      "Mouse wheel"
+    ],
+    "zh_cn": [
+      "虚线尾部",
+      "鼠标悬停"
+    ]
+  },
+  "sound_timeline.troubleshooting": {
+    "en_us": [
+      "Custom OGG"
+    ],
+    "zh_cn": [
+      "自定义OGG"
+    ]
+  },
+  "survival_core.settings": {
+    "en_us": [
+      "Master controls",
+      "No attacks",
+      "Sound names"
+    ],
+    "zh_cn": [
+      "总开关",
+      "不开放",
+      "声音名称"
+    ]
+  },
+  "survival_core.troubleshooting": {
+    "en_us": [
+      "Match frequency"
+    ],
+    "zh_cn": [
+      "检查频率"
+    ]
+  },
+  "move_set.settings": {
+    "en_us": [
+      "Rules and timing"
+    ],
+    "zh_cn": [
+      "条件与调度"
+    ]
+  },
+  "move_set.troubleshooting": {
+    "en_us": [
+      "Running damage",
+      "Wireless redstone"
+    ],
+    "zh_cn": [
+      "运行中",
+      "无线红石"
+    ]
+  },
+  "navigation.settings": {
+    "en_us": [
+      "Reverse redstone",
+      "The player designs"
+    ],
+    "zh_cn": [
+      "反转红石",
+      "实体机械"
+    ]
+  },
+  "melee.settings": {
+    "en_us": [
+      "Hit limit"
+    ],
+    "zh_cn": [
+      "命中上限按"
+    ]
+  },
+  "flame.settings": {
+    "en_us": [
+      "Particle opens",
+      "Effect adds"
+    ],
+    "zh_cn": [
+      "Particle打开",
+      "Effect在"
+    ]
+  },
+  "flame.example": {
+    "en_us": [
+      "Set Burn"
+    ],
+    "zh_cn": [
+      "不想点燃"
+    ]
+  },
+  "flame.troubleshooting": {
+    "en_us": [
+      "Effects follow",
+      "Existing blue-fire"
+    ],
+    "zh_cn": [
+      "Effect跟随",
+      "旧蓝火"
+    ]
+  },
+  "arrow.settings": {
+    "en_us": [
+      "Explosion and"
+    ],
+    "zh_cn": [
+      "爆炸与"
+    ]
+  },
+  "gun.settings": {
+    "en_us": [
+      "Explosion and"
+    ],
+    "zh_cn": [
+      "爆炸与"
+    ]
+  },
+  "homing.settings": {
+    "en_us": [
+      "Target filters"
+    ],
+    "zh_cn": [
+      "目标/追踪"
+    ]
+  },
+  "laser.settings": {
+    "en_us": [
+      "Tracking and"
+    ],
+    "zh_cn": [
+      "追踪及"
+    ]
+  },
+  "sphere_blast.settings": {
+    "en_us": [
+      "Start distance",
+      "New modules",
+      "At explosion",
+      "Charging and explosion"
+    ],
+    "zh_cn": [
+      "Start distance",
+      "新模块",
+      "爆炸时",
+      "蓄力/爆炸"
+    ]
+  },
+  "sphere_blast.example": {
+    "en_us": [
+      "Select both",
+      "In Move set"
+    ],
+    "zh_cn": [
+      "设置两阶段",
+      "Move set动作"
+    ]
+  },
+  "sphere_blast.troubleshooting": {
+    "en_us": [
+      "Only loaded",
+      "Block destruction"
+    ],
+    "zh_cn": [
+      "仅在已加载",
+      "方块破坏"
+    ]
+  },
+  "slash.settings": {
+    "en_us": [
+      "Count 1",
+      "RGB defaults",
+      "Interval is"
+    ],
+    "zh_cn": [
+      "数量1",
+      "RGB默认",
+      "Interval为"
+    ]
+  },
+  "slash.example": {
+    "en_us": [
+      "Set count",
+      "Add effects"
+    ],
+    "zh_cn": [
+      "数量3",
+      "追加Effect"
+    ]
+  },
+  "slash.troubleshooting": {
+    "en_us": [
+      "Launch frames",
+      "A required mark",
+      "At 256",
+      "Sound starts"
+    ],
+    "zh_cn": [
+      "发射框架",
+      "必需标记",
+      "每模块",
+      "声音在"
+    ]
+  },
+  "pull.settings": {
+    "en_us": [
+      "Stopping distance",
+      "Defaults:"
+    ],
+    "zh_cn": [
+      "停止距离是",
+      "默认预警"
+    ]
+  },
+  "arena.settings": {
+    "en_us": [
+      "Nearby-player death",
+      "No-nearby-player"
+    ],
+    "zh_cn": [
+      "附近玩家死亡",
+      "无附近玩家"
+    ]
+  },
+  "linear_movement.settings": {
+    "en_us": [
+      "Teleport checks"
+    ],
+    "zh_cn": [
+      "传送检查"
+    ]
+  },
+  "auto_facing.settings": {
+    "en_us": [
+      "Horizontal tracking",
+      "Line of sight"
+    ],
+    "zh_cn": [
+      "默认水平",
+      "Line of sight"
+    ]
+  },
+  "auto_facing.troubleshooting": {
+    "en_us": [
+      "Collision check",
+      "Off skips",
+      "Direct movement"
+    ],
+    "zh_cn": [
+      "碰撞判定",
+      "Off跳过",
+      "直线移动优先"
+    ]
+  },
+  "particles.settings": {
+    "en_us": [
+      "Ring height 0",
+      "Random/Even",
+      "Line/Ring/Sphere Propagation",
+      "Motion trail"
+    ],
+    "zh_cn": [
+      "圆环高度0",
+      "Random/Even",
+      "Line/Ring/Sphere的",
+      "Motion trail"
+    ]
+  },
+  "particles.example": {
+    "en_us": [
+      "Switch to Area"
+    ],
+    "zh_cn": [
+      "切Area"
+    ]
+  },
+  "particles.troubleshooting": {
+    "en_us": [
+      "Native friction"
+    ],
+    "zh_cn": [
+      "受控路径"
+    ]
+  }
+}

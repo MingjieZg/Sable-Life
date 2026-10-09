@@ -1,0 +1,12 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="All Rights Reserved"
+[[mods]]
+modId="sablelife_tests"
+version="1.0.0"
+displayName="Sable Life Integration Tests"
+description="Development-only test mod. Not included in the release JAR."
+
+
+[[mixins]]
+config="sablelife_tests.mixins.json"

@@ -1,0 +1,241 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.147'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+base { archivesName = mod_id }
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories { mavenCentral() }
+
+sourceSets {
+    gameTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations {
+    gameTestImplementation.extendsFrom implementation
+    gameTestCompileOnly.extendsFrom compileOnly
+    gameTestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+neoForge {
+    version = project.neo_version
+    addModdingDependenciesTo sourceSets.gameTest
+    mods {
+        "${mod_id}" { sourceSet(sourceSets.main) }
+        sablelife_tests { sourceSet(sourceSets.gameTest) }
+    }
+    runs {
+        client {
+            client()
+            loadedMods = [mods.sablelife]
+            gameDirectory = file('runs/client')
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        server {
+            server()
+            loadedMods = [mods.sablelife]
+            gameDirectory = file('runs/server')
+            programArgument '--nogui'
+        }
+        panelPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/panel-preview')
+            systemProperty 'sablelife.panelPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        soundTimelinePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/sound-preview')
+            systemProperty 'sablelife.soundPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        modulePickerPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/module-picker-preview')
+            systemProperty 'sablelife.pickerPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        languagePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/language-preview')
+            systemProperty 'sablelife.languagePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        itemDisplayPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/item-display-preview')
+            systemProperty 'sablelife.itemDisplayPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        particleRingPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/particle-ring-preview')
+            systemProperty 'sablelife.particleRingPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        laserCutPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/laser-cut-preview')
+            systemProperty 'sablelife.laserCutPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        linearTargetPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/linear-target-preview')
+            systemProperty 'sablelife.linearTargetPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        manualPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/manual-preview')
+            systemProperty 'sablelife.manualPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        redstonePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/redstone-preview')
+            systemProperty 'sablelife.redstonePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        facingPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/facing-preview')
+            systemProperty 'sablelife.facingPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        rgbPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/rgb-preview')
+            systemProperty 'sablelife.rgbPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        slashPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/slash-preview')
+            systemProperty 'sablelife.slashPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        spherePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/sphere-preview')
+            systemProperty 'sablelife.spherePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        adaptiveDashboardPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/adaptive-dashboard-preview')
+            systemProperty 'sablelife.adaptiveDashboardPreview', 'true'
+            programArguments.addAll '--width', '1920', '--height', '1080'
+        }
+        colorPickerPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/color-picker-preview')
+            systemProperty 'sablelife.colorPickerPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        signalTurnPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/signal-turn-preview')
+            systemProperty 'sablelife.signalTurnPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        accumulationPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/accumulation-preview')
+            systemProperty 'sablelife.accumPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        coreEffectsPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/core-effects-preview')
+            systemProperty 'sablelife.coreEffectsPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        defensePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/defense-preview')
+            systemProperty 'sablelife.defensePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('gameTestDirectory').getOrElse('runs/gametest'))
+            systemProperty 'sablelife.localGameTests', 'true'
+            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_tests')
+        }
+        configureEach { logLevel = org.slf4j.event.Level.INFO }
+    }
+}
+
+dependencies {
+    // Downloaded from the official Modrinth release pages, pinned by SHA-512.
+    implementation files('.dev/mods/sable-neoforge-1.21.1-2.0.5.jar')
+    compileOnly fileTree(dir: '.dev/compile-libs', include: ['*.jar'])
+    compileOnly files('.dev/mods/create-1.21.1-6.0.10.jar')
+    runtimeOnly files('.dev/mods/create-1.21.1-6.0.10.jar')
+    runtimeOnly files('.dev/mods/create-aeronautics-bundled-1.21.1-1.3.2.jar')
+    runtimeOnly files('.dev/mods/Jade-1.21.1-NeoForge-15.10.6.jar')
+    runtimeOnly files('.dev/mods/sable-photomancy-1.0.1.jar')
+    runtimeOnly files('.dev/mods/ldlib2-neoforge-1.21.1-2.2.17-all.jar')
+    if (providers.gradleProperty('weaponCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/test-mods', include: ['*.jar'])
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.named('test', Test) { useJUnitPlatform() }
+tasks.named('processResources', ProcessResources) {
+    def metadata = [mod_id: mod_id, mod_name: mod_name, mod_version: mod_version, neo_version: neo_version]
+    inputs.properties metadata
+    filesMatching('META-INF/neoforge.mods.toml') { expand metadata }
+}
+idea { module { downloadSources = true } }

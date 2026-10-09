@@ -1,0 +1,9 @@
+# 0.1.45 Module ordering and UI density
+
+All 11 module types expose properties in functional order, using stable field keys. Target/mode/direction precede ordinary tuning where relevant; damage, interval and range appear before optional audio. Mortar starts with aiming and target selection, then flight and blast controls. Sound groups approach/hurt, ambient, and contact settings. BGM begins with audio, start mode and range. Existing module list positions, IDs, marks, values and triggers are preserved. The add-module list groups detection/navigation, weapons, audio and loot.
+
+The dashboard grows from 360 x 234 to at most 480 x 330 logical pixels when the window allows it. Parameter and sidebar page sizes derive from available space rather than fixed three-property/seven-module limits. The top percentage button cycles Comfortable 100%, Standard 85% (default), Compact 75%. Labels and buttons shrink, rows become denser, and long button labels fit their available width. Core settings and wireless share button styling and font size. Numeric text inputs retain the native readable font and normal hit coordinates. Preferences save locally to config/sablelife/ui-density.txt and persist across restart.
+
+At minimum panel size: 3/4/4 property rows. At maximum panel size: 7/9/11 rows. The same index mapping governs apply buttons, wheel input, paging and reverse sound cycling. Controls and labels use the panel dimensions; the bottom trigger/mark/enable/delete controls remain consistent. Destructive release/remove keep their existing behavior and remove confirmation.
+
+Validation: assemble passed. Layout geometry checked across panel heights 234 through 330 for all three presets, including property/page/footer separation. No automated game tests or client launch; in-game visual verification remains pending.

@@ -1,0 +1,109 @@
+{
+  "jar": "build\\libs\\sablelife-0.1.154.jar",
+  "jar_bytes": 1083708,
+  "legacy_code": {
+    "entries": 29,
+    "compressed": 92405,
+    "uncompressed": 231601
+  },
+  "legacy_resources": {
+    "entries": 28,
+    "compressed": 1727,
+    "uncompressed": 2480
+  },
+  "top_entries": [
+    {
+      "path": "assets/sablelife/textures/custom/redstone_core_generated.png",
+      "compressed": 179089
+    },
+    {
+      "path": "assets/sablelife/lang/zh_cn.json",
+      "compressed": 33501
+    },
+    {
+      "path": "assets/sablelife/lang/en_us.json",
+      "compressed": 32276
+    },
+    {
+      "path": "dev/sablelife/client/HeartDashboardScreen.class",
+      "compressed": 26234
+    },
+    {
+      "path": "dev/sablelife/heart/HeartBlockEntity.class",
+      "compressed": 17885
+    },
+    {
+      "path": "dev/sablelife/client/MoveSetScreen.class",
+      "compressed": 15947
+    },
+    {
+      "path": "dev/sablelife/module/VirtualModule.class",
+      "compressed": 13734
+    },
+    {
+      "path": "dev/sablelife/module/MarkingSessions.class",
+      "compressed": 13441
+    }
+  ],
+  "embedded_jars": [],
+  "test_classes": [],
+  "legacy_entries": [
+    "dev/sablelife/attack/ArrowModuleBlock.class",
+    "dev/sablelife/attack/ArrowModuleBlockEntity.class",
+    "dev/sablelife/attack/ArrowSettingsMenu.class",
+    "dev/sablelife/attack/FlameModuleBlock.class",
+    "dev/sablelife/attack/FlameModuleBlockEntity$Settings.class",
+    "dev/sablelife/attack/FlameModuleBlockEntity.class",
+    "dev/sablelife/attack/FlameSettingsMenu.class",
+    "dev/sablelife/attack/MeleeModuleBlock.class",
+    "dev/sablelife/attack/MeleeModuleBlockEntity$Settings.class",
+    "dev/sablelife/attack/MeleeModuleBlockEntity.class",
+    "dev/sablelife/attack/MeleeSettingsMenu.class",
+    "dev/sablelife/attack/PulseModuleBlock.class",
+    "dev/sablelife/attack/PulseModuleBlockEntity$Settings.class",
+    "dev/sablelife/attack/PulseModuleBlockEntity.class",
+    "dev/sablelife/attack/PulseSettingsMenu.class",
+    "dev/sablelife/item/LegacyModuleItem.class",
+    "dev/sablelife/part/PartLootMenu.class",
+    "dev/sablelife/part/PartMarkerBlock.class",
+    "dev/sablelife/part/PartMarkerBlockEntity.class",
+    "dev/sablelife/sense/TargetSensorBlock.class",
+    "dev/sablelife/sense/TargetSensorBlockEntity$Settings.class",
+    "dev/sablelife/sense/TargetSensorBlockEntity$Shape.class",
+    "dev/sablelife/sense/TargetSensorBlockEntity$TargetMode.class",
+    "dev/sablelife/sense/TargetSensorBlockEntity.class",
+    "dev/sablelife/sense/TargetSensorSettingsMenu.class",
+    "dev/sablelife/sound/SoundModuleBlock.class",
+    "dev/sablelife/sound/SoundModuleBlockEntity$Settings.class",
+    "dev/sablelife/sound/SoundModuleBlockEntity.class",
+    "dev/sablelife/sound/SoundSettingsMenu.class",
+    "assets/sablelife/blockstates/arrow_module.json",
+    "assets/sablelife/blockstates/flame_module.json",
+    "assets/sablelife/blockstates/melee_module.json",
+    "assets/sablelife/blockstates/part_marker.json",
+    "assets/sablelife/blockstates/pulse_module.json",
+    "assets/sablelife/blockstates/sound_module.json",
+    "assets/sablelife/blockstates/target_sensor.json",
+    "assets/sablelife/models/block/arrow_module.json",
+    "assets/sablelife/models/block/flame_module.json",
+    "assets/sablelife/models/block/melee_module.json",
+    "assets/sablelife/models/block/part_marker.json",
+    "assets/sablelife/models/block/pulse_module.json",
+    "assets/sablelife/models/block/sound_module.json",
+    "assets/sablelife/models/block/target_sensor.json",
+    "assets/sablelife/models/item/arrow_module.json",
+    "assets/sablelife/models/item/flame_module.json",
+    "assets/sablelife/models/item/melee_module.json",
+    "assets/sablelife/models/item/part_marker.json",
+    "assets/sablelife/models/item/pulse_module.json",
+    "assets/sablelife/models/item/sound_module.json",
+    "assets/sablelife/models/item/target_sensor.json",
+    "data/sablelife/loot_table/blocks/arrow_module.json",
+    "data/sablelife/loot_table/blocks/flame_module.json",
+    "data/sablelife/loot_table/blocks/melee_module.json",
+    "data/sablelife/loot_table/blocks/part_marker.json",
+    "data/sablelife/loot_table/blocks/pulse_module.json",
+    "data/sablelife/loot_table/blocks/sound_module.json",
+    "data/sablelife/loot_table/blocks/target_sensor.json"
+  ]
+}

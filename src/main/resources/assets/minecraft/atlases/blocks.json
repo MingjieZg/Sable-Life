@@ -1,0 +1,9 @@
+{
+  "sources": [
+    {
+      "type": "minecraft:single",
+      "resource": "sablelife:block/redstone_crystal",
+      "sprite": "sablelife:block/redstone_crystal"
+    }
+  ]
+}

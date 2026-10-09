@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.sablelife.testing.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "GameTestLocalOriginMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
