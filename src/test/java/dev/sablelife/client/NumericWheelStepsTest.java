@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.*;
 class NumericWheelStepsTest {
     @Test void ExplicitUserStepsStayProtected(){
         assertEquals(5,NumericWheelSteps.core("health"));
+        assertEquals(5,NumericWheelSteps.core("regen"));
+        assertEquals(5,NumericWheelSteps.core("regenPercent"));
+        assertEquals(1,NumericWheelSteps.core("regenDelay"));
         assertEquals(1,NumericWheelSteps.module("melee","meleeHitLimit",1,0));
         for(String key:new String[]{"meleeHorizontal","meleeVertical","moveHorizontal","moveVertical","homingRotation","homingVerticalRotation","dispatchCone"})assertEquals(5,NumericWheelSteps.module("any",key,1,-180));
         for(int i=0;i<3;i++)assertEquals(1.1,SoundTimelineInputs.scroll(i,1,1,1));

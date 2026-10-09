@@ -12,6 +12,8 @@
     "LivingBlockItemPlacementMixin",
     "BodyAssemblyMixin",
     "BodyLootMixin",
+    "BodyMaterialDropMixin",
+    "CannonMountCleanupMixin",
     "BodyContainerMixin",
     "BodyReplacementMixin",
     "BodyDestructionMixin",

@@ -1,0 +1,21 @@
+package dev.sablelife.compat;
+
+import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import java.lang.reflect.InvocationTargetException;
+
+/** Optional CBC boundary: remove the assembled cannon without restoring its blocks or inventory. */
+public final class CannonDeathCleanup {
+    public static void discardMounted(BlockEntity mount) {
+        try {
+            Object entity=mount.getClass().getMethod("getContraption").invoke(mount);
+            if (entity instanceof AbstractContraptionEntity cannon) {
+                cannon.ejectPassengers();
+                cannon.discard();
+            }
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("Unsupported CBC cannon mount cleanup API",error instanceof InvocationTargetException invocation?invocation.getCause():error);
+        }
+    }
+    private CannonDeathCleanup() {}
+}

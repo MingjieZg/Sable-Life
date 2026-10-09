@@ -12,7 +12,7 @@ import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
-/** Ghost frequency samples and ordinary player inventory, with server-validated configuration actions. */
+/** Channel editor contains only ghost samples; player inventory lives in the separate frequency picker. */
 public final class HeartWirelessMenu extends AbstractContainerMenu {
     public static final int PAGE_SIZE = 7, OUTPUT = 7, INPUT = 14, ENABLED_ROWS = 21, RECEIVE = 28,
             MASTER = 35, CLOCK_LOW = 36, CLOCK_HIGH = 37, SELECTED = 38, EDITABLE = 39, ALIVE = 40,
@@ -20,13 +20,13 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
     private final HeartBlockEntity heart;
     private final Player viewer;
     private int selected, page;
-    public boolean inventoryVisible;
     private final ContainerData data;
     private final SimpleContainer frequencies = new SimpleContainer(2);
     public HeartWirelessMenu(int id, Inventory inventory) { this(id, inventory, null); }
-    public HeartWirelessMenu(int id, Inventory inventory, HeartBlockEntity heart) {
+    public HeartWirelessMenu(int id, Inventory inventory, HeartBlockEntity heart) { this(id,inventory,heart,0); }
+    public HeartWirelessMenu(int id, Inventory inventory, HeartBlockEntity heart,int channel) {
         super(SableLife.WIRELESS_MENU.get(), id);
-        this.heart = heart; viewer = inventory.player;
+        this.heart = heart; viewer = inventory.player; selected=Math.max(0,channel);page=selected/PAGE_SIZE;
         data = heart == null ? new SimpleContainerData(DATA_COUNT) : new ContainerData() {
             @Override public int getCount() { return DATA_COUNT; }
             @Override public void set(int index, int value) {}
@@ -57,15 +57,7 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
             @Override public boolean mayPlace(ItemStack stack) { return false; }
             @Override public boolean mayPickup(Player player) { return false; }
         });
-        for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++)
-            addSlot(inventorySlot(inventory, col + row * 9 + 9, 143 + col * 18, 85 + row * 18));
-        for (int col = 0; col < 9; col++) addSlot(inventorySlot(inventory, col, 143 + col * 18, 143));
         refresh();
-    }
-    private Slot inventorySlot(Inventory inventory, int index, int x, int y) {
-        return new Slot(inventory, index, x, y) {
-            @Override public boolean isActive() { return heart != null || inventoryVisible; }
-        };
     }
     public int value(int index) { return data.get(index); }
     public int selected() { return value(SELECTED) & 0xffff; }
@@ -101,6 +93,13 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
             selected = raw; page = selected / PAGE_SIZE; refresh(); sendAllDataToRemote(); return true;
         }
         if (field == 8) { heart.openDashboard(player); return true; }
+        if (field == 13) {
+            if (heart.wireless().size()==0) return false;
+            player.openMenu(new net.minecraft.world.SimpleMenuProvider((id,inventory,ignored)->
+                    new dev.sablelife.module.ModuleFrequencyMenu(id,inventory,heart,selected),
+                    net.minecraft.network.chat.Component.translatable("frequency.sablelife.title")));
+            return true;
+        }
         if (field == 12) { page = Math.clamp(raw, 0, Math.max(0, (heart.wireless().size() - 1) / PAGE_SIZE)); broadcastChanges(); return true; }
         if (!heart.canEdit(player)) return false;
         if (field == 11) {

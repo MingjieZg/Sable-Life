@@ -61,10 +61,7 @@ public final class ModuleSphereBlast {
         }
         // Block destruction uses the same vanilla TNT rules as existing explosive projectiles.
         // Entity damage is handled above once; vanilla damage/knockback is disabled.
-        if(m.value("blastBlocks")==1)level.explode(null,null,new ExplosionDamageCalculator(){
-            @Override public boolean shouldDamageEntity(Explosion explosion,Entity entity){return false;}
-            @Override public float getKnockbackMultiplier(Entity entity){return 0;}
-        },point.x,point.y,point.z,(float)radius/2,false,Level.ExplosionInteraction.TNT,
+        if(m.value("blastBlocks")==1)level.explode(null,null,new ModuleTerrainExplosion(heart.creatureId()),point.x,point.y,point.z,(float)radius/2,false,Level.ExplosionInteraction.TNT,
           net.minecraft.core.particles.ParticleTypes.POOF,net.minecraft.core.particles.ParticleTypes.POOF,net.minecraft.core.Holder.direct(net.minecraft.sounds.SoundEvents.EMPTY));
         sendTravel(level,burstParticles(m,point),point,null);
         ModuleAudio.play(level,m,"blastSound",point);

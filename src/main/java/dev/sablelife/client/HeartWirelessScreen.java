@@ -48,10 +48,7 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         button(tr("back"), 299, 7, 51, () -> send(0, 8, 0));
         master = button(Component.empty(), 10, 9, 119,
                 () -> send(0, 7, menu.value(HeartWirelessMenu.MASTER) == 0 ? 1 : 0));
-        picker = button(tr("choose_items"), 254, 38, 96, () -> {
-            menu.inventoryVisible = !menu.inventoryVisible;
-            for (EditBox input : inputs) input.setFocused(false);
-        });
+        picker = button(tr("choose_items"), 254, 38, 96, () -> send(0,13,0));
         picker.setTooltip(Tooltip.create(tr("sample_help")));
         for (int field = 1; field <= 4; field++) {
             final int parameter = field;
@@ -120,23 +117,23 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
                 int value = menu.setting(selected, field);
                 input.setValue(field == 4 ? Integer.toString(value) : String.format(java.util.Locale.ROOT, "%.2f", value / 20.0));
             }
-            input.visible = exists && !menu.inventoryVisible; input.setEditable(exists && editable && (menu.setting(selected, 6) == 0 || menu.setting(selected, 6) == 2));
+            input.visible = exists; input.setEditable(exists && editable && (menu.setting(selected, 6) == 0 || menu.setting(selected, 6) == 2));
             input.active = exists && editable && (menu.setting(selected, 6) == 0 || menu.setting(selected, 6) == 2); input.setTextColor(input.active ? 0xE0E0E0 : 0x666666);
             if (!input.active) input.setFocused(false);
         }
-        for (Button control : editButtons) { control.active = editable && exists; control.visible = exists && !menu.inventoryVisible; }
+        for (Button control : editButtons) { control.active = editable && exists; control.visible = exists; }
         boolean receiving = menu.setting(selected, 6) == 1;
         boolean automatic = receiving || menu.setting(selected, 6) >= 3;
         for (int i = 0; i < 12; i++) editButtons.get(i).active = editable && exists && !automatic;
         loop.active = editable && exists && !automatic;
-        mode.active = editable && exists; mode.visible = exists && !menu.inventoryVisible; mode.setMessage(tr(switch (menu.setting(selected, 6)) { case 1 -> "mode_receive"; case 2 -> "mode_output"; case 3 -> "mode_program"; case 4 -> "mode_program_output"; default -> "mode_repeat"; }));
-        remove.visible = exists && !menu.inventoryVisible; remove.active = editable && exists;
+        mode.active = editable && exists; mode.visible = exists; mode.setMessage(tr(switch (menu.setting(selected, 6)) { case 1 -> "mode_receive"; case 2 -> "mode_output"; case 3 -> "mode_program"; case 4 -> "mode_program_output"; default -> "mode_repeat"; }));
+        remove.visible = exists; remove.active = editable && exists;
         enabled.setMessage(tr(menu.setting(selected, 0) == 0 ? "enable_short" : "disable_short"));
         loop.setMessage(tr(menu.setting(selected, 5) == 0 ? "once" : "loop"));
         master.setMessage(tr(menu.value(HeartWirelessMenu.MASTER) == 0 ? "master_off" : "master_on"));
         master.active = editable;
-        picker.visible = exists; if (!exists) menu.inventoryVisible = false;
-        picker.setMessage(tr(menu.inventoryVisible ? "done_items" : "choose_items"));
+        picker.visible = exists;
+        picker.setMessage(tr("choose_items"));
         lastSelected = selected;
     }
     @Override protected void containerTick() { super.containerTick(); tickCount++; sync(); }
@@ -172,11 +169,7 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         g.fill(x + 142, y + 30, x + 350, y + 63, 0xFF37313D);
         frame(g, x + 170, y + 38, 0xFFBE5356);
         frame(g, x + 220, y + 38, 0xFF5686C9);
-        if (menu.inventoryVisible) {
-            g.fill(x + 141, y + 68, x + 353, y + 204, 0xFF292A35);
-            for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++) frame(g, x + 142 + col * 18, y + 84 + row * 18, 0xFF796F80);
-            for (int col = 0; col < 9; col++) frame(g, x + 142 + col * 18, y + 142, 0xFF796F80);
-        } else if (menu.count() > 0 && menu.setting(menu.selected(), 6) < 3) waveform(g);
+        if (menu.count() > 0 && menu.setting(menu.selected(), 6) < 3) waveform(g);
     }
     private void frame(GuiGraphics g, int x, int y, int color) {
         g.fill(x, y, x + 18, y + 18, color); g.fill(x + 1, y + 1, x + 17, y + 17, 0xFF4A4555);
@@ -204,13 +197,8 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         if (menu.count() == 0) { g.drawWordWrap(font, tr("empty"), 145, 75, 199, 0xD9C4ED); return; }
         g.drawString(font, tr("red"), 150, 44, 0xEF8B89, false);
         g.drawString(font, tr("blue"), 200, 44, 0x83B6EE, false);
-        if (menu.inventoryVisible) {
-            g.drawString(font, playerInventoryTitle, 145, 73, 0xE6D8EA, false);
-            g.drawWordWrap(font, tr("sample_help"), 145, 168, 199, 0xC2B1CA);
-        } else {
-            for (int field = 1; field <= 4; field++) g.drawString(font, tr("field_" + field), 145, 75 + (field - 1) * 23, 0xE6D8EA, false);
-            g.drawString(font, menu.setting(menu.selected(), 6) == 1 ? Component.translatable("wireless.sablelife.receive_power", menu.value(HeartWirelessMenu.SELECTED_INPUT)) : tr(menu.setting(menu.selected(), 6) >= 3 ? "program_timeline" : "timeline"), 145, 166, 0xBDA5D0, false);
-        }
+        for (int field = 1; field <= 4; field++) g.drawString(font, tr("field_" + field), 145, 75 + (field - 1) * 23, 0xE6D8EA, false);
+        g.drawString(font, menu.setting(menu.selected(), 6) == 1 ? Component.translatable("wireless.sablelife.receive_power", menu.value(HeartWirelessMenu.SELECTED_INPUT)) : tr(menu.setting(menu.selected(), 6) >= 3 ? "program_timeline" : "timeline"), 145, 166, 0xBDA5D0, false);
     }
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         sync(); renderBackground(graphics, mouseX, mouseY, partialTick);

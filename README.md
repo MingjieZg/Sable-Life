@@ -1,3 +1,7 @@
+# Current development: 0.1.196
+
+Follow-up fixes for Copycat material drops, assembled CBC cannon cleanup, Sphere Blast self-protection, an independent wireless frequency picker, the 100% adaptive-defense cap and regeneration wheel increments. Client/server protocol 6. Stable remains 0.1.193. See [0.1.196 release notes](docs/RELEASE_0.1.196.md) for validation and limitations.
+
 # Sable Life — current development 0.1.195
 
 Minecraft 1.21.1, Java 21, minimum NeoForge 21.1.235. The last user-accepted stable release is 0.1.193; 0.1.194 is retained as the pre-audit checkpoint.

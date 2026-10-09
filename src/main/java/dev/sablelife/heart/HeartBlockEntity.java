@@ -93,10 +93,11 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
                 new dev.sablelife.module.HeartDashboardMenu(id, inventory, this), Component.translatable("dashboard.sablelife.title")));
     }
     public HeartWireless wireless() { return wireless; }
-    public void openWireless(Player player) {
+    public void openWireless(Player player) { openWireless(player,0); }
+    public void openWireless(Player player,int channel) {
         if (!(level instanceof ServerLevel) || !canAccessEditor(player)) return;
         dev.sablelife.module.CoreEditorPosition.remember(this,player.getUUID(),dev.sablelife.module.CoreEditorPosition.Section.WIRELESS,0);
-        player.openMenu(new net.minecraft.world.SimpleMenuProvider((id, inventory, ignored) -> new HeartWirelessMenu(id, inventory, this),
+        player.openMenu(new net.minecraft.world.SimpleMenuProvider((id, inventory, ignored) -> new HeartWirelessMenu(id, inventory, this,channel),
                 Component.translatable("menu.sablelife.wireless")));
     }
     private ResourceLocation deathLoot = ResourceLocation.withDefaultNamespace("empty");

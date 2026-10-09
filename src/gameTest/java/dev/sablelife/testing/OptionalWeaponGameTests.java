@@ -46,4 +46,23 @@ public final class OptionalWeaponGameTests {
    h.assertTrue(core.health().current()==983,"Flying TaCZ bullet passed through or lost native 17 damage: "+core.health().current());h.assertTrue(bullet.isRemoved(),"Native block impact did not stop non-piercing bullet");h.succeed();
   }catch(Exception e){throw new RuntimeException(e);}});
  }
+
+ @GameTest(template="combat",batch="cbc_mount_death_cleanup") public static void MountedCannonsAreDiscardedWithOwnedMountsAndOrdinaryDisassemblyStillWorks(GameTestHelper h)throws Exception {
+  var level=h.getLevel();var registry=Class.forName("rbasamoyai.createbigcannons.index.CBCBlocks");
+  var cannonType=Class.forName("rbasamoyai.createbigcannons.cannon_control.contraption.PitchOrientedContraptionEntity");
+  var controllerType=Class.forName("rbasamoyai.createbigcannons.cannon_control.ControlPitchContraption$Block");
+  int x=2;
+  for(var key:List.of("CANNON_MOUNT","FIXED_CANNON_MOUNT"))for(boolean owned:List.of(true,false)) {
+   var pos=h.absolutePos(new BlockPos(x,10,3));x+=3;
+   var entry=registry.getField(key).get(null);var block=(net.minecraft.world.level.block.Block)entry.getClass().getMethod("get").invoke(entry);level.setBlockAndUpdate(pos,block.defaultBlockState());var mount=level.getBlockEntity(pos);
+   var contraption=(com.simibubi.create.content.contraptions.Contraption)Class.forName("rbasamoyai.createbigcannons.cannon_control.contraption.MountedBigCannonContraption").getConstructor().newInstance();
+   field(contraption,"initialOrientation",Direction.NORTH);field(contraption,"startPos",BlockPos.ZERO);contraption.anchor=pos.above(2);contraption.bounds=new AABB(0,0,0,1,1,1);
+   contraption.getBlocks().put(BlockPos.ZERO,new net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate.StructureBlockInfo(BlockPos.ZERO,Blocks.GLASS.defaultBlockState(),null));
+   var cannon=(com.simibubi.create.content.contraptions.AbstractContraptionEntity)cannonType.getMethod("create",Level.class,com.simibubi.create.content.contraptions.Contraption.class,Direction.class,controllerType).invoke(null,level,contraption,Direction.NORTH,mount);
+   cannon.setPos(pos.above(2).getCenter());mount.getClass().getMethod("attach",cannonType).invoke(mount,cannon);
+   if(owned){var id=UUID.randomUUID();var data=dev.sablelife.ownership.BodyOwnership.get(level);data.bind(pos,id);data.cleanLoaded(level,id,256);h.assertTrue(cannon.isRemoved()&&!contraption.disassembled&&level.getBlockState(pos.above(2)).isAir(),"Death cleanup restored an assembled cannon: "+key);}
+   else {mount.getClass().getMethod("disassemble").invoke(mount);h.assertTrue(cannon.isRemoved()&&contraption.disassembled,"Ordinary cannon disassembly was intercepted: "+key);level.removeBlock(pos,false);}
+  }
+  h.succeed();
+ }
 }

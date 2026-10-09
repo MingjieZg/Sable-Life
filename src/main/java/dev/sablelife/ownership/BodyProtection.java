@@ -31,9 +31,11 @@ public final class BodyProtection {
             var source = event.getExplosion().getDirectSourceEntity();
             var data = source == null ? null : source.getPersistentData();
             java.util.UUID attacker = data != null && data.hasUUID("SableLifeAttackOwner") ? data.getUUID("SableLifeAttackOwner") : null;
+            if (attacker==null && ((dev.sablelife.mixin.ExplosionDamageAccess)event.getExplosion()).sablelife$calculator() instanceof dev.sablelife.module.ModuleTerrainExplosion module) attacker=module.owner();
+            final var attackOwner=attacker;
             event.getAffectedBlocks().removeIf(pos -> explosionLocked(level, pos)
-                    || attacker != null && (attacker.equals(BodyOwnership.get(level).owner(pos))
-                    || SableBodyProbe.findConnectedHearts(level, pos).stream().anyMatch(core -> !core.acceptsLifeAttack(attacker))));
+                    || attackOwner != null && (attackOwner.equals(BodyOwnership.get(level).owner(pos))
+                    || SableBodyProbe.findConnectedHearts(level, pos).stream().anyMatch(core -> !core.acceptsLifeAttack(attackOwner))));
         }
     }
     public static void drops(BlockDropsEvent event) {

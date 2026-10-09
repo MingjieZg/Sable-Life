@@ -14,7 +14,7 @@ public final class AdaptiveDefense {
     public boolean enabled(){return enabled;} public double threshold(){return threshold;} public double maximum(){return maximum;} public int window(){return window;}
     public double dps(){return enabled?total*20/window:0;} public double reduction(){return enabled?reduction:0;}
     public boolean configure(boolean enabled,double threshold,double maximum,int window){
-        if(!Double.isFinite(threshold)||threshold<.1||threshold>1000000||!Double.isFinite(maximum)||maximum<0||maximum>95||window<2||window>200)return false;
+        if(!Double.isFinite(threshold)||threshold<.1||threshold>1000000||!Double.isFinite(maximum)||maximum<0||maximum>100||window<2||window>200)return false;
         if(this.enabled!=enabled||this.threshold!=threshold||this.maximum!=maximum||this.window!=window){this.enabled=enabled;this.threshold=threshold;this.maximum=maximum;this.window=window;reset();}return true;
     }
     public void reset(){samples.clear();total=reduction=0;last=Long.MIN_VALUE;}

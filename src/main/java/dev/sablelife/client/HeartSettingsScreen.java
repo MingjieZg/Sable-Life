@@ -71,7 +71,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         var choice=button(Component.empty(),150,y,170,()->edit("soundEditor:"+key,0,""));sounds.put(key,choice);
         choice.setTooltip(Tooltip.create(Component.translatable("sound_timeline.sablelife.open_help")));
     }
-    private double maximum(int i) { return switch(keys[i].replace("vanish","death")) { case "health","regen","defenseThreshold"->1000000;case "regenPercent"->100;case "defenseMaximum"->95;case "defenseWindow"->10;case "xp"->menu.snapshot().getBoolean("xpLevels")?dev.sablelife.heart.ExperienceUnits.MAX_LEVELS:dev.sablelife.heart.ExperienceUnits.MAX_POINTS;case "voidDeathHeight"->2048;case "delay"->60;case "regenDelay"->600;case "deathCount","deathRadius"->256;case "deathSpread"->32;case "deathPitch"->2;case "deathVolume"->4;default->10000; }; }
+    private double maximum(int i) { return switch(keys[i].replace("vanish","death")) { case "health","regen","defenseThreshold"->1000000;case "regenPercent"->100;case "defenseMaximum"->100;case "defenseWindow"->10;case "xp"->menu.snapshot().getBoolean("xpLevels")?dev.sablelife.heart.ExperienceUnits.MAX_LEVELS:dev.sablelife.heart.ExperienceUnits.MAX_POINTS;case "voidDeathHeight"->2048;case "delay"->60;case "regenDelay"->600;case "deathCount","deathRadius"->256;case "deathSpread"->32;case "deathPitch"->2;case "deathVolume"->4;default->10000; }; }
     private double minimum(int i) { return keys[i].equals("voidDeathHeight")?-2048:keys[i].equals("defenseThreshold")||keys[i].equals("defenseWindow")?.1:keys[i].equals("health")||keys[i].endsWith("Radius")?1:keys[i].endsWith("Pitch")?.5:0; }
     private boolean valid(int i) {
         if(keys[i].equals("name"))return true;
