@@ -11,6 +11,7 @@
     "LivingBlockPlaceMixin",
     "LivingBlockItemPlacementMixin",
     "BodyAssemblyMixin",
+    "RemovedBodyHeatMapMixin",
     "BodyLootMixin",
     "BodyMaterialDropMixin",
     "CannonMountCleanupMixin",

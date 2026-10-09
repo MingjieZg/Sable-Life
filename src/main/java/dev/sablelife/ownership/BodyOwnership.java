@@ -19,6 +19,7 @@ public final class BodyOwnership extends SavedData {
     public static final ThreadLocal<Integer> MOVING = ThreadLocal.withInitial(() -> 0);
     private final Map<Long, UUID> owners = new HashMap<>();
     private final Map<Long, UUID> parts = new HashMap<>();
+    private final Map<Long,java.util.Set<Long>> byChunk=new HashMap<>();
     private final Map<UUID, java.util.Set<Long>> byOwner = new HashMap<>(), byPart = new HashMap<>();
     private static final class Cursor {
         final java.util.ArrayDeque<Long> queue = new java.util.ArrayDeque<>();
@@ -42,6 +43,9 @@ public final class BodyOwnership extends SavedData {
             else { removedBlocks.remove(key); setDirty(); }
         }
     }
+    private static long chunkKey(BlockPos pos){return net.minecraft.world.level.ChunkPos.asLong(pos.getX()>>4,pos.getZ()>>4);}
+    java.util.Set<Long> chunkRecords(long chunk){return byChunk.getOrDefault(chunk,java.util.Set.of());}
+    boolean matchesCleanup(BlockPos pos,UUID id,boolean part){return id.equals(part?parts.get(pos.asLong()):owners.get(pos.asLong()));}
     public UUID part(BlockPos pos) { return parts.get(pos.asLong()); }
     public boolean hasPart(UUID id) { return byPart.containsKey(id); }
     public boolean hasOwnedWithin(ServerLevel level,UUID owner,java.util.Set<UUID> bodies){
@@ -83,11 +87,12 @@ public final class BodyOwnership extends SavedData {
 
     public void bind(BlockPos pos, UUID creature) {
         if (removedBlocks.remove(pos.asLong())) setDirty();
-        if (owners.putIfAbsent(pos.asLong(), creature) == null) { addIndex(byOwner,creature,pos.asLong());var cursor=ownerCursors.get(creature);if(cursor!=null)cursor.add(pos.asLong());setDirty(); }
+        if (owners.putIfAbsent(pos.asLong(), creature) == null) { addIndex(byOwner,creature,pos.asLong());byChunk.computeIfAbsent(chunkKey(pos),k->new java.util.HashSet<>()).add(pos.asLong());var cursor=ownerCursors.get(creature);if(cursor!=null)cursor.add(pos.asLong());setDirty(); }
     }
     public void forget(BlockPos pos) {
         if (removedBlocks.remove(pos.asLong())) setDirty();
         var part=parts.remove(pos.asLong());if(part!=null){removeIndex(byPart,part,pos.asLong());setDirty();}
+        var records=byChunk.get(chunkKey(pos));if(records!=null){records.remove(pos.asLong());if(records.isEmpty())byChunk.remove(chunkKey(pos));}
         var owner=owners.remove(pos.asLong());if(owner!=null){removeIndex(byOwner,owner,pos.asLong());setDirty();}
     }
     public void release(UUID creature) {
@@ -109,17 +114,25 @@ public final class BodyOwnership extends SavedData {
     }
     public record CleanupResult(int removed,int visited) {}
     /** Queue only this owner's records. Unloaded positions rotate without scanning unrelated creatures. */
-    public CleanupResult cleanBudgeted(ServerLevel level,UUID id,int budget,int visits,boolean part,dev.sablelife.heart.DeathPresentation effect) {
+    public CleanupResult cleanBudgeted(ServerLevel level,UUID id,int budget,int visits,boolean part,dev.sablelife.heart.DeathPresentation effect) {return cleanBudgeted(level,id,budget,visits,part,effect,false);}
+    /** Whole-body deletion is atomic and may consume the remaining block budget in one operation. */
+    public CleanupResult cleanBudgeted(ServerLevel level,UUID id,int budget,int visits,boolean part,dev.sablelife.heart.DeathPresentation effect,boolean wholeBodies) {
         var index=part?byPart:byOwner;var cursors=part?partCursors:ownerCursors;
         var positions=index.get(id);if(positions==null){cursors.remove(id);return new CleanupResult(0,0);}
         if(budget<=0||visits<=0)return new CleanupResult(0,0);
         var cursor=cursors.computeIfAbsent(id,key->{var c=new Cursor();positions.forEach(c::add);return c;});
-        int examined=0,removed=0,smoke=16,limit=Math.min(visits,cursor.queue.size());
-        while(examined<limit&&removed<budget&&!cursor.queue.isEmpty()) {
-            long position=cursor.next();examined++;var pos=BlockPos.of(position);
+        var attemptedBodies=new java.util.HashSet<UUID>();
+        int examined=0,popped=0,removed=0,smoke=16,limit=Math.min(visits,cursor.queue.size());
+        while(popped<limit&&examined<visits&&removed<budget&&!cursor.queue.isEmpty()) {
+            long position=cursor.next();examined++;popped++;var pos=BlockPos.of(position);
             if(!id.equals(part?parts.get(position):owners.get(position)))continue;
             if(!level.hasChunkAt(pos)){cursor.add(position);continue;}
             if(level.getBlockState(pos).isAir()){forget(pos);removed++;continue;}
+            if(wholeBodies&&Sable.HELPER.getContaining(level,pos) instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel body&&attemptedBodies.add(body.getUniqueId())) {
+                var result=SableBodyDeletion.attempt(level,this,body,id,part,Math.max(0,visits-examined),effect);examined+=result.visits();
+                if(result.removed()>0){removed+=result.removed();continue;}
+                if(examined>=visits){cursor.add(position);break;}
+            }
             var point=dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,pos.getCenter());boolean erased;
             BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()+1);
             try{erased=level.removeBlock(pos,false);}finally{BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);}
@@ -180,7 +193,7 @@ public final class BodyOwnership extends SavedData {
         for (int i = 0; i < entries.size(); i++) {
             var entry = entries.getCompound(i);
             if (entry.hasUUID("Owner")) {
-                long position=entry.getLong("Pos");var owner=entry.getUUID("Owner");data.owners.put(position,owner);addIndex(data.byOwner,owner,position);
+                long position=entry.getLong("Pos");var owner=entry.getUUID("Owner");data.owners.put(position,owner);addIndex(data.byOwner,owner,position);data.byChunk.computeIfAbsent(chunkKey(BlockPos.of(position)),k->new java.util.HashSet<>()).add(position);
                 if (entry.hasUUID("Part")) { var part=entry.getUUID("Part");data.parts.put(position,part);addIndex(data.byPart,part,position); }
                 if (entry.getBoolean("Removed")) data.removedBlocks.add(entry.getLong("Pos"));
             }

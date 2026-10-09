@@ -217,7 +217,8 @@ neoForge {
             loadedMods = [mods.sablelife, mods.sablelife_tests]
             gameDirectory = file(providers.gradleProperty('gameTestDirectory').getOrElse('runs/gametest'))
             systemProperty 'sablelife.localGameTests', 'true'
-            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests')
+            systemProperty 'sablelife.expectCleanupCrash', providers.gradleProperty('expectCleanupCrash').getOrElse('false')
+            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_cleanup_regression_tests,sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests')
         }
         configureEach { logLevel = org.slf4j.event.Level.INFO }
     }
@@ -229,6 +230,7 @@ dependencies {
     compileOnly fileTree(dir: '.dev/compile-libs', include: ['*.jar'])
     compileOnly files('.dev/mods/create-1.21.1-6.0.10.jar')
     compileOnly files('.dev/epicfight/epic-fight-21.17.3.1-mc1.21.1-neoforge.jar')
+    if (providers.gradleProperty('cleanupCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/cleanup-mods', include: ['*.jar'])
     if (providers.gradleProperty('epicFightTests').getOrElse('false') == 'true') gameTestRuntimeOnly files('.dev/epicfight/epic-fight-21.17.3.1-mc1.21.1-neoforge.jar')
     runtimeOnly files('.dev/mods/create-1.21.1-6.0.10.jar')
     runtimeOnly files('.dev/mods/create-aeronautics-bundled-1.21.1-1.3.2.jar')

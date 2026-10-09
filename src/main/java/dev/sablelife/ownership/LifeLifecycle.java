@@ -128,7 +128,7 @@ public final class LifeLifecycle extends SavedData {
                 for (var level : server.getAllLevels()) {
                     var ownership = BodyOwnership.get(level);
                     if(remainingBlocks>0&&remainingVisits>0){
-                        var work=ownership.cleanBudgeted(level,entry.getKey(),remainingBlocks,remainingVisits,death.parent!=null,death.parent==null?effect:null);
+                        var work=ownership.cleanBudgeted(level,entry.getKey(),remainingBlocks,remainingVisits,death.parent!=null,death.parent==null?effect:null,true);
                         remainingBlocks-=work.removed();remainingVisits-=work.visited();
                     }
                     pending |= death.parent == null ? ownership.hasOwned(entry.getKey()) : ownership.hasPart(entry.getKey());

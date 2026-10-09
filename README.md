@@ -1,3 +1,9 @@
+# Current development: 0.1.198
+
+Includes the optional Epic Fight 21.17.3.1 mainhand melee bridge and death-cleanup fixes using validated whole-plot removal and removed-source heatmap guards. Stable remains 0.1.193. See [0.1.198 release notes](docs/RELEASE_0.1.198.md) and [Epic Fight scope](docs/EPIC_FIGHT_COMPAT_0.1.197.md).
+
+Before compiling the new optional API integration, run `powershell -File scripts/setup-epicfight.ps1` to download the pinned, checksum-verified API JAR. It is compile-only, not bundled or required at runtime. Use `-PepicFightTests=true` and/or `-PcleanupCompatTests=true` for isolated compatibility runs; the latter expects the locally provided Copycats/Toolgun files.
+
 # Current development: 0.1.196
 
 Follow-up fixes for Copycat material drops, assembled CBC cannon cleanup, Sphere Blast self-protection, an independent wireless frequency picker, the 100% adaptive-defense cap and regeneration wheel increments. Client/server protocol 6. Stable remains 0.1.193. See [0.1.196 release notes](docs/RELEASE_0.1.196.md) for validation and limitations.
