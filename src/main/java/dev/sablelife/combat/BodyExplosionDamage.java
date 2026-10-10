@@ -16,9 +16,12 @@ import java.util.*;
 /** Actual collision voxels, never the empty space in a creature's enclosing box. Event-only work. */
 public final class BodyExplosionDamage {
  private record Hit(BlockPos block,double distance){}
+ private static final Map<Explosion,Boolean> TERRAIN_ONLY=Collections.synchronizedMap(new WeakHashMap<>());
+ /** Identity-scoped suppression: keep vanilla terrain/ordinary-entity behavior, skip duplicate core damage. */
+ public static void terrainOnly(Explosion explosion){if(explosion!=null)TERRAIN_ONLY.put(explosion,true);}
  private static final Map<Explosion,Set<UUID>> SEEN=Collections.synchronizedMap(new WeakHashMap<>());
  public static void detonate(ExplosionEvent.Detonate event){
-  if(!(event.getLevel() instanceof ServerLevel level))return;var explosion=event.getExplosion();var source=explosion.getDirectSourceEntity();
+  if(!(event.getLevel() instanceof ServerLevel level))return;var explosion=event.getExplosion();if(TERRAIN_ONLY.containsKey(explosion))return;var source=explosion.getDirectSourceEntity();
   // Our own modules already apply their configured damage. Their terrain/VFX explosion must not duplicate it.
   if(source!=null&&source.getPersistentData().hasUUID("SableLifeAttackOwner"))return;
   var calculator=((ExplosionDamageAccess)explosion).sablelife$calculator();if(calculator.getClass().getName().startsWith("dev.sablelife."))return;

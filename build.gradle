@@ -238,6 +238,16 @@ dependencies {
     compileOnly fileTree(dir: '.dev/compile-libs', include: ['*.jar'])
     compileOnly files('.dev/mods/create-1.21.1-6.0.10.jar')
     compileOnly files('.dev/epicfight/epic-fight-21.17.3.1-mc1.21.1-neoforge.jar')
+    compileOnly files('.dev/iron-spells-review/irons_spellbooks-1.21.1-3.16.3.jar')
+    compileOnly fileTree(dir: '.dev/iron-spells-testmods', include: ['*.jar'])
+    if (providers.gradleProperty('ironSpellRuntime').getOrElse('false') == 'true') {
+        runtimeOnly files('.dev/iron-spells-review/irons_spellbooks-1.21.1-3.16.3.jar')
+        runtimeOnly fileTree(dir: '.dev/iron-spells-testmods', include: ['*.jar'])
+    }
+    if (providers.gradleProperty('ironSpellTests').getOrElse('false') == 'true') {
+        gameTestRuntimeOnly files('.dev/iron-spells-review/irons_spellbooks-1.21.1-3.16.3.jar')
+        gameTestRuntimeOnly fileTree(dir: '.dev/iron-spells-testmods', include: ['*.jar'])
+    }
     if (providers.gradleProperty('cleanupCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/cleanup-mods', include: ['*.jar'])
     if (providers.gradleProperty('epicFightTests').getOrElse('false') == 'true') gameTestRuntimeOnly files('.dev/epicfight/epic-fight-21.17.3.1-mc1.21.1-neoforge.jar')
     runtimeOnly files('.dev/mods/create-1.21.1-6.0.10.jar')

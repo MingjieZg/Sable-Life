@@ -1,3 +1,9 @@
+# Current development: 0.1.202
+
+Initial optional Iron’s Spells 1.21.1-3.16.3 body-damage bridge: Magic missile/arrow, Small fireball, Fireball, Fire arrow and Shockwave. No proxy targets. Experimental addon APIs and coverage limits are in [compatibility API](docs/COMPATIBILITY_API.md) and [Iron integration notes](docs/IRON_SPELLS_COMPAT_0.1.202.md). Stable remains 0.1.200; protocol 7.
+
+Run `powershell -File scripts/setup-iron-spells.ps1` to restore checksum-pinned optional API/runtime dependencies before compiling. `-PironSpellTests=true` enables isolated native tests; `-PironSpellRuntime=true` enables optional normal development client/server loading. Validated 57 unit tests, 290 default GameTests, 103 combined compatibility tests and an Iron/Epic client startup/UI check. No claim of all spells, addons, entity effects or lock-on support.
+
 # Current development: 0.1.201
 
 Arena now supports bounded range-buff groups controlled by module activation or internal/external channels. Effects refresh every second for 2 seconds and expire naturally. Protocol 7: update both client and server. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.201.md). Validated 57 unit tests, 287 default GameTests, 88 combined compatibility tests and GUI 1–4 pagination/effect-selector checks.

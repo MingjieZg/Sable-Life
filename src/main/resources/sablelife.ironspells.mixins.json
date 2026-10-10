@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "dev.sablelife.mixin",
+  "plugin": "dev.sablelife.compat.ironspells.IronSpellsMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "IronMagicProjectileMixin",
+    "IronSpellBlastMixin",
+    "IronShockwaveMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

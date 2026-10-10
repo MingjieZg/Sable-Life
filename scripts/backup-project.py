@@ -10,7 +10,7 @@ created=datetime.now(timezone(timedelta(hours=8)))
 stable_file=root/"docs/STABLE_VERSION.json"
 stable=stable_file.exists() and json.loads(stable_file.read_text(encoding="utf-8")).get("version")==version
 archive = out / ("Sable-Life-"+version+("-stable" if stable else "")+"-"+created.strftime("%Y%m%d-%H%M%S")+".zip")
-roots = ["src", "docs", "scripts", "gradle", ".git", ".dev/mods", ".dev/compile-libs", ".dev/test-mods", ".dev/epicfight", ".dev/cleanup-mods", "config", "defaultconfigs", "mods", "exports/stable-"+version, "build/libs/sablelife-"+version+".jar"]
+roots = ["src", "docs", "scripts", "gradle", ".git", ".dev/mods", ".dev/compile-libs", ".dev/test-mods", ".dev/epicfight", ".dev/cleanup-mods", ".dev/iron-spells-review", ".dev/iron-spells-testmods", "config", "defaultconfigs", "mods", "exports/stable-"+version, "build/libs/sablelife-"+version+".jar"]
 for runtime in ["client", "server", "gametest"]:
     for name in ["saves", "world", "config", "defaultconfigs", "schematics", "resourcepacks", ".sable", "mods"]:
         roots.append("runs/"+runtime+"/"+name)
