@@ -7,7 +7,8 @@
   "mixins": [
     "IronMagicProjectileMixin",
     "IronSpellBlastMixin",
-    "IronShockwaveMixin"
+    "IronShockwaveMixin",
+    "IronRaycastBuilderMixin"
   ],
   "injectors": {
     "defaultRequire": 1

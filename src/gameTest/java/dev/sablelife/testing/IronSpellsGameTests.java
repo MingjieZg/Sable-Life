@@ -16,4 +16,7 @@ public final class IronSpellsGameTests {
  @GameTest(template="combat",batch="iron_front_entity") public static void EarlierNativeLivingTargetConsumesTheMissileBeforeBody(GameTestHelper h){IronSpellsTestScenarios.front(h,false);}
  @GameTest(template="combat",batch="iron_front_wall") public static void EarlierTerrainStopsMissileBeforeBody(GameTestHelper h){IronSpellsTestScenarios.front(h,true);}
  @GameTest(template="combat",batch="iron_shockwave") public static void NativeShockwaveOnCastHitsRealBodyWithoutProxyEntities(GameTestHelper h){IronSpellsTestScenarios.shockwave(h);}
+ @GameTest(template="combat",batch="iron_ray_body") public static void NativeSiphoningRayKeepsBodyHitInWorldSpace(GameTestHelper h){IronSpellsTestScenarios.ray(h,0);}
+ @GameTest(template="combat",batch="iron_ray_entity") public static void NativeRayStillSelectsCloserLivingTarget(GameTestHelper h){IronSpellsTestScenarios.ray(h,1);}
+ @GameTest(template="combat",batch="iron_ray_wall") public static void NativeRayStillStopsAtEarlierTerrain(GameTestHelper h){IronSpellsTestScenarios.ray(h,2);}
 }

@@ -195,12 +195,19 @@ public final class MarkingSessions {
             ParticlePattern.preview(player, heart, module); return;
         }
         if (module.type().equals("arena")) {
-            if (module.arenaCenter() == null || !player.level().dimension().location().toString().equals(module.arenaDimension())) return;
-            var level = (ServerLevel) player.level(); var center = module.arenaCenter();
-            var dust = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1, .2F, .2F), 1.4F);
+            var level = (ServerLevel) player.level();
+            var red = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1, .2F, .2F), 1.4F);
+            var yellow = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1, 1, .1F), 1.4F);
+            var playerCenter = ModuleArena.corePosition(heart);
+            boolean arenaHere = module.arenaCenter() != null && level.dimension().location().toString().equals(module.arenaDimension());
             for (int i = 0; i < 128; i++) {
-                double angle = Math.PI * 2 * i / 128.; var p = center.add(Math.cos(angle) * module.value("arenaRadius"), .2, Math.sin(angle) * module.value("arenaRadius"));
-                level.sendParticles(player, dust, true, p.x, p.y, p.z, 1, 0, 0, 0, 0);
+                double angle = Math.PI * 2 * i / 128., x = Math.cos(angle), z = Math.sin(angle);
+                if (arenaHere) {
+                    var p = module.arenaCenter().add(x * module.value("arenaRadius"), .2, z * module.value("arenaRadius"));
+                    level.sendParticles(player, red, true, p.x, p.y, p.z, 1, 0, 0, 0, 0);
+                }
+                var p = playerCenter.add(x * module.value("warningRange"), .2, z * module.value("warningRange"));
+                level.sendParticles(player, yellow, true, p.x, p.y, p.z, 1, 0, 0, 0, 0);
             }
             player.displayClientMessage(Component.translatable("dashboard.sablelife.arena_help"), true); return;
         }

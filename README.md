@@ -1,3 +1,7 @@
+# Current development: 0.1.203
+
+Arena preview now shows red fixed arena bounds and yellow player range around the moving core. Iron’s Spells 3.16.3 native RaycastBuilder normalizes Sable hit positions before entity queries, retaining storage block identity. Verified native siphoning cast, closer entities and terrain; siphoning body damage is still unsupported and the reported modpack crash needs user retesting. Stable remains 0.1.200, protocol 7. See [release notes](docs/RELEASE_0.1.203.md).
+
 # Current development: 0.1.202
 
 Initial optional Iron’s Spells 1.21.1-3.16.3 body-damage bridge: Magic missile/arrow, Small fireball, Fireball, Fire arrow and Shockwave. No proxy targets. Experimental addon APIs and coverage limits are in [compatibility API](docs/COMPATIBILITY_API.md) and [Iron integration notes](docs/IRON_SPELLS_COMPAT_0.1.202.md). Stable remains 0.1.200; protocol 7.

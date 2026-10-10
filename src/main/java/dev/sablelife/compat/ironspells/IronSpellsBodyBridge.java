@@ -21,11 +21,14 @@ public final class IronSpellsBodyBridge {
  public static synchronized <T extends AbstractMagicProjectile> boolean registerDirectProjectile(Class<T> type,ToDoubleFunction<? super T> damage){
   if(type==null||damage==null||!AbstractMagicProjectile.class.isAssignableFrom(type)||java.lang.reflect.Modifier.isAbstract(type.getModifiers())||DIRECT.size()>=128&&!DIRECT.containsKey(type))return false;DIRECT.put(type,p->damage.applyAsDouble(type.cast(p)));return true;
  }
+ /** Keep storage BlockPos for ownership/native block callbacks, but distances and queries use world space. */
+ public static BlockHitResult worldBlockHit(net.minecraft.world.level.Level level,BlockHitResult hit){
+  if(hit.getType()!=HitResult.Type.BLOCK)return hit;
+  var point=SableBodyProbe.toWorld(level,hit.getLocation());
+  return point.equals(hit.getLocation())?hit:new BlockHitResult(point,hit.getDirection(),hit.getBlockPos(),hit.isInside());
+ }
  public static HitResult worldHit(AbstractMagicProjectile shot,HitResult hit){
-  if(hit instanceof BlockHitResult block&&hit.getType()==HitResult.Type.BLOCK){
-   var point=SableBodyProbe.toWorld(shot.level(),hit.getLocation());
-   if(!point.equals(hit.getLocation()))return new BlockHitResult(point,block.getDirection(),block.getBlockPos(),block.isInside());
-  }return hit;
+  return hit instanceof BlockHitResult block?worldBlockHit(shot.level(),block):hit;
  }
  public static void direct(AbstractMagicProjectile shot,HitResult hit){
   if(!(shot.level() instanceof ServerLevel)||shot.isRemoved()||!(hit instanceof BlockHitResult block)||hit.getType()!=HitResult.Type.BLOCK)return;

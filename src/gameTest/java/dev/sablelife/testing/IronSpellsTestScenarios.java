@@ -89,4 +89,24 @@ public final class IronSpellsTestScenarios {
   h.assertTrue(Math.abs(before-c.health().current()-expected)<.01,"Native Shockwave did not use spell-level/caster damage: expected="+expected+" actual="+(before-c.health().current()));
   h.assertTrue(entities(level)==beforeEntities,"Shockwave bridge spawned proxy targets");h.succeed();
  });}
+ public static void ray(GameTestHelper h,int kind){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var block=c.getBlockPos().east(2);var center=SableBodyProbe.toWorld(l,block.getCenter());var caster=TestActors.creative(l);
+  caster.setPos(center.add(3,-caster.getEyeHeight(),0));caster.setYRot(90);caster.setXRot(0);
+  net.minecraft.world.entity.animal.Pig pig=null;
+  if(kind==1){pig=net.minecraft.world.entity.EntityType.PIG.create(l);pig.setPos(center.add(1.5,-.4,0));pig.setNoAi(true);pig.setNoGravity(true);l.addFreshEntity(pig);}
+  if(kind==2)l.setBlockAndUpdate(BlockPos.containing(center.add(1.5,0,0)),Blocks.STONE.defaultBlockState());
+  // Assert coordinate safety before invoking the native query: the unpatched builder would scan toward the remote plot.
+  var nativeClip=l.clip(new net.minecraft.world.level.ClipContext(caster.getEyePosition(),center.add(-2,0,0),net.minecraft.world.level.ClipContext.Block.COLLIDER,net.minecraft.world.level.ClipContext.Fluid.NONE,caster));
+  var normalized=dev.sablelife.compat.ironspells.IronSpellsBodyBridge.worldBlockHit(l,nativeClip);
+  if(kind==0)h.assertTrue(nativeClip.getLocation().distanceTo(caster.getEyePosition())>10000&&normalized.getBlockPos().equals(block),"Fixture did not exercise remote plot coordinates with retained body identity");
+  h.assertTrue(normalized.getLocation().distanceTo(caster.getEyePosition())<8,"Ray fixture world normalization failed");
+  var hit=io.redspace.ironsspellbooks.api.util.RaycastBuilder.begin(l,caster).start(caster.getEyePosition()).end(center.add(-2,0,0)).checkForBlocks(true).bbInflation(.15F).build();
+  h.assertTrue(hit.getLocation().distanceTo(caster.getEyePosition())<8,"Native ray leaked storage coordinates");
+  if(kind==1)h.assertTrue(hit instanceof EntityHitResult e&&e.getEntity()==pig,"Closer living target no longer wins");
+  else h.assertTrue(hit instanceof BlockHitResult b&&b.getBlockPos().equals(kind==0?block:BlockPos.containing(center.add(1.5,0,0))),"Ray changed body/terrain identity");
+  float before=c.health().current();
+  SpellRegistry.RAY_OF_SIPHONING_SPELL.get().onCast(l,1,caster,CastSource.COMMAND,new MagicData());
+  h.assertTrue(c.health().current()==before,"Coordinate fix silently added unsupported siphoning body damage");
+  if(pig!=null)pig.discard();h.succeed();
+ });}
 }
