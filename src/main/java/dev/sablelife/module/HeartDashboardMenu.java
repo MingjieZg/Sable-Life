@@ -33,7 +33,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     public CompoundTag snapshot() { return snapshot.getItem(0).getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag(); }
     private void refresh() {
         if (heart == null) return;
-        var tag = heart.modules().snapshot(heart, heart.canEdit(viewer)); tag.putBoolean("Ready", true); tag.putBoolean("CommandEditable", viewer.canUseGameMasterBlocks()); tag.putBoolean("CommandAllowed", heart.getLevel().getServer().isCommandBlockEnabled());
+        var tag = heart.modules().snapshot(heart, heart.canEdit(viewer)); tag.putBoolean("Ready", true); tag.putBoolean("CommandEditable", viewer.canUseGameMasterBlocks()); tag.putBoolean("CommandAllowed", heart.getLevel().getServer().isCommandBlockEnabled());tag.putBoolean("RespawnAllowed",viewer.isCreative()&&viewer.canUseGameMasterBlocks());
         var selected = DashboardSelection.get(heart, viewer.getUUID());if(selected==null&&!heart.modules().all().isEmpty())selected=heart.modules().all().getFirst().id(); if (selected != null) tag.putUUID("Selected", selected);
         // A large core still exposes its complete selected module, but does not resend every other module's deep config.
         if(tag.sizeInBytes()>1_000_000){
@@ -46,7 +46,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         snapshot.setItem(0, stack);
     }
     private static void compactHeader(CompoundTag module){
-        var keep=java.util.Set.of("Version","Id","Type","Name","Enabled","Invalidated","Detached","Trigger","Channel","Status","TriggerPowered","HurtRuntime","PhaseActive","PhaseRemaining","PhaseChannelStatus","PhaseRangeValid","MovementPhase","TurnState","FacingState","LaserPhase","QuakePhase","PullPhase","PullVictims","ArenaDistance","ArenaWarning","NavigationTarget","NavigationLeft","NavigationRight","NavigationUp","NavigationDown","ItemDisplayVisible");
+        var keep=java.util.Set.of("Version","Id","Type","Name","Enabled","Invalidated","Detached","Trigger","Channel","Status","TriggerPowered","HurtRuntime","PhaseActive","PhaseRemaining","PhaseChannelStatus","PhaseRangeValid","MovementPhase","TurnState","FacingState","LaserPhase","QuakePhase","PullPhase","PullVictims","ArenaDistance","ArenaWarning","NavigationTarget","NavigationLeft","NavigationRight","NavigationUp","NavigationDown","ItemDisplayVisible","RespawnRuntime");
         for(var key:java.util.Set.copyOf(module.getAllKeys()))if(!keep.contains(key))module.remove(key);
     }
     @Override public void broadcastChanges() { if (heart != null && heart.getLevel().getGameTime() % 5 == 0) refresh(); super.broadcastChanges(); }
@@ -118,6 +118,11 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         }
         if(operation.equals("accum_reset")){var target=heart.modules().find(id);if(!player.isCreative()||target==null||!target.type().equals("damage_accumulation"))return false;heart.modules().damageAccumulation.reset(id);refresh();broadcastChanges();return true;}
         if(operation.equals("hurt_reset")) { if(!player.isCreative() || heart.modules().find(id)==null) return false; heart.modules().hurtTriggers.reset(id); refresh(); broadcastChanges(); return true; }
+        if(operation.equals("arena_record")||operation.equals("arena_clear")){
+            if(revision!=heart.modules().revision()||!(player instanceof net.minecraft.server.level.ServerPlayer server))return false;
+            var target=heart.modules().find(id);boolean ok=operation.equals("arena_record")?dev.sablelife.ownership.ArenaRespawns.record(server,heart,target):dev.sablelife.ownership.ArenaRespawns.clear(server,heart,target);refresh();broadcastChanges();return ok;
+        }
+        if(operation.equals("edit")&&key.startsWith("arenaRespawn")&&(!dev.sablelife.ownership.ArenaRespawns.available()||!player.canUseGameMasterBlocks()))return false;
         if (!heart.canEdit(player) || revision != heart.modules().revision()) { refresh(); sendAllDataToRemote(); return false; }
         var module = heart.modules().find(id); boolean result;
         switch (operation) {

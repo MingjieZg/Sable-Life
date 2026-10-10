@@ -80,6 +80,7 @@ public final class HeartModules {
             list.getCompound(i).putString("Status", status(modules.get(i), heart));
             list.getCompound(i).putBoolean("TriggerPowered", triggered(modules.get(i), heart));
             var module = modules.get(i);
+            if(module.type().equals("arena"))list.getCompound(i).put("RespawnRuntime",dev.sablelife.ownership.ArenaRespawns.snapshot(heart,module.id()));
             list.getCompound(i).put("HurtRuntime", hurtTriggers.snapshot(module.id(),heart.getLevel().getGameTime()));
             if (module.type().equals("health_phase")) {
                 var data = list.getCompound(i);

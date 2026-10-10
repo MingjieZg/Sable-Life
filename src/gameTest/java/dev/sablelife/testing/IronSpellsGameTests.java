@@ -48,4 +48,11 @@ public final class IronSpellsGameTests {
  @GameTest(template="combat",batch="iron_aoe_immune") public static void ImmuneAreaContactStillRunsNativePostHitOnce(GameTestHelper h){IronSpellsTestScenarios.areaRules(h,0);}
  @GameTest(template="combat",batch="iron_aoe_corner") public static void CircularAreaRejectsItsEmptyBoxCorner(GameTestHelper h){IronSpellsTestScenarios.areaRules(h,1);}
  @GameTest(template="combat",batch="iron_aoe_mixed") public static void MixedBodyAndLivingAreaHitRunsNativePostHitOnce(GameTestHelper h){IronSpellsTestScenarios.areaRules(h,2);}
+ @GameTest(template="combat",batch="iron_mortar") public static void CreeperMortarBodyHitKeepsQuadraticBlast(GameTestHelper h){IronSpellsTestScenarios.remaining(h,0);}
+ @GameTest(template="combat",batch="iron_smite") public static void DivineSmitePhysicalAreaHitsBody(GameTestHelper h){IronSpellsTestScenarios.remaining(h,1);}
+ @GameTest(template="combat",batch="iron_fang") public static void FangPhysicalBiteKeepsNativeWarmup(GameTestHelper h){IronSpellsTestScenarios.remaining(h,2);}
+ @GameTest(template="combat",batch="iron_ice_fall") public static void IceBlockFloatingIsSafeAndFallingContactConsumes(GameTestHelper h){IronSpellsTestScenarios.remaining(h,3);}
+ @GameTest(template="combat",batch="iron_ice_burst") public static void IceBlockGroundImpactKeepsCubicFalloff(GameTestHelper h){IronSpellsTestScenarios.remaining(h,4);}
+ @GameTest(template="combat",batch="iron_fang_cast") public static void NativeFangCastUsesWorldGroundAndPhysicalBodyContact(GameTestHelper h){IronSpellsTestScenarios.fangCast(h);}
+ @GameTest(template="combat",batch="iron_ice_cast") public static void IceBlockNativeFallbackDoesNotRequireBodyEntityLockOn(GameTestHelper h){IronSpellsTestScenarios.iceCast(h);}
 }

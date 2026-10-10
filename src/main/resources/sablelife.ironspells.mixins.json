@@ -16,7 +16,11 @@
     "IronShadowSlashMixin",
     "IronAoeMixin",
     "IronUtilsWorldRayMixin",
-    "IronAreaImpactMixin"
+    "IronAreaImpactMixin",
+    "IronDivineSmiteMixin",
+    "IronFangMixin",
+    "IronFangGroundMixin",
+    "IronIceBlockMixin"
   ],
   "injectors": {
     "defaultRequire": 1

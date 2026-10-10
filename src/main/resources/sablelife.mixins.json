@@ -24,7 +24,9 @@
     "TaczBodyDamageMixin",
     "TaczBlockRayTraceMixin",
     "CannonBodyDamageMixin",
-    "TaczBlastProfileMixin"
+    "TaczBlastProfileMixin",
+    "RespawnTextDisplayAccess",
+    "RespawnDisplayAccess"
   ],
   "client": [
     "ProtectedBodyMiningMixin",

@@ -55,8 +55,18 @@ public final class IronAreaBodyBridge {
     var body=dev.ryanhcode.sable.Sable.HELPER.getContaining(level,contact.block());double width=body==null?1:body.logicalPose().transformPosition(contact.block().getCenter().add(1,0,0)).distanceTo(body.logicalPose().transformPosition(contact.block().getCenter()));
     double r=shot.getExplosionRadius()+width;damage*=(float)Math.max(0,1-contact.distance()*contact.distance()/(r*r));
    }
+   if(shot instanceof io.redspace.ironsspellbooks.entity.spells.creeper_head.CreeperHeadProjectile){double radius=shot.getExplosionRadius();damage*=(float)Math.max(0,1-contact.distance()*contact.distance()/(radius*radius));}
    BodyCombatApi.contact(shot,new BlockHitResult(contact.point(),Direction.UP,contact.block(),false),damage);
   }
+ }
+ public static boolean iceContact(io.redspace.ironsspellbooks.entity.spells.ice_block.IceBlockProjectile shot){
+  if(!(shot.level() instanceof ServerLevel level)||shot.isRemoved())return false;
+  var hits=BodySphereQuery.queryVolumes(level,shot.position(),List.of(volume(shot.getBoundingBox().inflate(.35))));if(hits.isEmpty())return false;
+  var hit=hits.getFirst();BodyCombatApi.projectile(shot,new BlockHitResult(hit.point(),Direction.UP,hit.block(),false),shot.getDamage()/2);shot.impactParticles(shot.getX(),shot.getY(),shot.getZ());shot.discard();return true;
+ }
+ public static void iceBurst(io.redspace.ironsspellbooks.entity.spells.ice_block.IceBlockProjectile shot){
+  if(shot.isRemoved()||shot.getPersistentData().getBoolean("SableLifeIceBurst"))return;shot.getPersistentData().putBoolean("SableLifeIceBurst",true);
+  BodyCombatApi.sphere(shot,shot.position(),shot.position(),3.5,d->shot.getDamage()*Math.max(0,1-Math.pow(d/3.5,3)));
  }
  private IronAreaBodyBridge(){}
 }

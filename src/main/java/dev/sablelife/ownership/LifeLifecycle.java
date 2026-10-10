@@ -54,6 +54,7 @@ public final class LifeLifecycle extends SavedData {
     public boolean explodable(UUID id) { return !explosionProtected.contains(id); }
     public void cancel(UUID id) { deaths.entrySet().removeIf(e -> e.getKey().equals(id) || id.equals(e.getValue().parent)); completed.entrySet().removeIf(e->e.getKey().equals(id)||id.equals(e.getValue().parent)); unbreakable.remove(id); explosionProtected.remove(id); setDirty(); }
     public boolean isDying(UUID id) { return recorded(id); }
+    public boolean finished(UUID id){return completed.containsKey(id)&&deaths.values().stream().noneMatch(d->id.equals(d.parent));}
     public boolean deathDue(UUID id){var job=deaths.get(id);return job!=null&&!job.cleaned&&job.remaining==0;}
     public Vec3 rewardPoint(UUID id,ResourceLocation dimension){var job=deaths.get(id);return job!=null&&!job.rewarded&&job.dimension.equals(dimension)?job.point:null;}
     public void deathLoading(UUID id,boolean enabled){var job=deaths.get(id);if(job!=null&&job.forceLoading!=enabled){job.forceLoading=enabled;setDirty();}}
@@ -98,6 +99,7 @@ public final class LifeLifecycle extends SavedData {
             death.weighted=heart.weighted(); death.rolls=heart.rolls();
         }
         deaths.put(heart.creatureId(), death);
+        ArenaRespawns.death(heart);
         death.forceLoading=heart.forceChunkLoading();
         death.presentation=heart.removalPresentation().save();
         setDirty();

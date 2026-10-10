@@ -1,5 +1,5 @@
 {
-  "revision": 57,
+  "revision": 58,
   "entries": [
     {
       "id": "getting_started",
@@ -120,7 +120,8 @@
           "manual.sablelife.core.usage",
           "manual.sablelife.core.protected_tools",
           "manual.sablelife.core.iron_spells",
-          "manual.sablelife.core.iron_areas"
+          "manual.sablelife.core.iron_areas",
+          "manual.sablelife.core.iron_physical_followup"
         ],
         "settings": [
           "manual.sablelife.core.settings",
@@ -653,7 +654,8 @@
         ],
         "settings": [
           "manual.sablelife.arena.settings",
-          "manual.sablelife.arena.range_buffs"
+          "manual.sablelife.arena.range_buffs",
+          "manual.sablelife.arena.respawn"
         ],
         "example": [
           "manual.sablelife.arena.example"

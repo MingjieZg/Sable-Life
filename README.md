@@ -1,3 +1,7 @@
+# Current development: 0.1.206
+
+Optional Photomancy 1.0.1 Arena templates restore creatures incrementally after a persistent death cooldown, then activate at full health. Missing Photomancy disables only respawn. Server-recorded templates require a creative operator; world data owns jobs, never client snapshots. Adds physical Creeper mortar, Fang strike, Divine smite and Ice block damage paths without synthetic entity targeting. See [release notes](docs/RELEASE_0.1.206.md) for bounds, lifecycle and support limits. Stable remains 0.1.200; protocol 7. Verified 96 combined tests, 25 respawn/lifecycle tests, 40 with Photomancy absent, 290 default tests, 57 units and 16 GUI scale/density layouts. Third-party complex structures still need playtesting.
+
 # Current development: 0.1.205
 
 Fixes remote Sable plot endpoints in native Shadow slash and legacy world-ray/ground helpers. Adds explicit body damage for Wither skull, Starfall comets, Arrow volley small arrows, Sunbeam warmup burst, and Earthquake/Fire field/Poison cloud native pulses. Healing/freeze-only areas remain non-damaging. See [release notes](docs/RELEASE_0.1.205.md) for geometry mappings, native behavior and support limits. Stable remains 0.1.200, protocol 7. Verified 76 targeted GameTests (44 native Iron), 290 no-Iron default GameTests, 57 units and manual revision 57. Original modpack freeze still needs user retesting.

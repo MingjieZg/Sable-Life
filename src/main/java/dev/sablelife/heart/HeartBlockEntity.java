@@ -405,7 +405,16 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             player.displayClientMessage(Component.translatable("message.sablelife.multiple_hearts"), false);
             return;
         }
-        boundBody = body.rootId();
+        activateAssembled(body.rootId());
+        player.displayClientMessage(Component.translatable("message.sablelife.activated"), false);
+    }
+    public boolean activateForRespawn() {
+        if(isControlCore()||!(level instanceof ServerLevel)||isRemoved()||health.state()!=HeartState.DORMANT)return false;
+        var body=SableBodyProbe.inspect(level,worldPosition);if(!body.assembled()||body.otherHearts()>0)return false;
+        activateAssembled(body.rootId());return true;
+    }
+    private void activateAssembled(UUID root) {
+        boundBody = root;
         health.activate();adaptiveDefense.reset();
         dev.sablelife.ownership.LoadedCoreIndex.geometryChanged((ServerLevel)level);
         wireless.start();
@@ -415,7 +424,6 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         ownershipCaptured = true;
         level.setBlock(worldPosition, getBlockState().setValue(HeartBlock.ACTIVE, true), 3);
         changed();
-        player.displayClientMessage(Component.translatable("message.sablelife.activated"), false);
     }
 
     /** Hit-aware entry point for combat; administrative damage(float) intentionally has no body location. */
@@ -460,6 +468,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     /** Releases life/runtime state while retaining the author's core and module configuration. */
     public boolean resetForCreative(Player player) {
         if (level == null || level.isClientSide || player.level() != level || !player.isCreative() || isRemoved()) return false;
+        dev.sablelife.ownership.ArenaRespawns.release(this);
         dev.sablelife.ownership.CoreChunkLoading.release(this);
         wireless.stop();
         modules.clearRuntime();
