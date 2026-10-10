@@ -40,13 +40,17 @@ public final class PhotomancyRespawnBridge {
  }
  public static ArenaRespawns.Build create(CompoundTag template,CompoundTag saved,Vec3 center){return new Build(template,saved,center);}
  private static final class Build implements ArenaRespawns.Build {
+  final UUID tickGroup=UUID.randomUUID();
   final SableBlueprint blueprint;final BlueprintBuildProgress progress;final BlueprintPlacementPlan plan;
   Build(CompoundTag template,CompoundTag saved,Vec3 center){blueprint=SableBlueprint.load(template);progress=saved.isEmpty()?new BlueprintBuildProgress():BlueprintBuildProgress.load(saved);plan=BlueprintPlacementPlan.legacy(blueprint,center);}
   @Override public AABB bounds(){var b=blueprint.hasCanonicalBounds()?blueprint.canonicalBounds():blueprint.rootBounds();return new AABB(b.minX(),b.minY(),b.minZ(),b.maxX(),b.maxY(),b.maxZ()).move(plan.originVec3());}
   @Override public String step(ServerLevel level){
    var previous=TRUSTED.get();TRUSTED.set(blueprint);
-   stabilize(level);
-   try{var status=SableBlueprintIncrementalPlacer.step(level,blueprint,plan,progress,new BlueprintBuildTickBudget(128,16,8,2000000),BlueprintBuildMaterialBudget.UNLIMITED).status().name();stabilize(level);return status;}
+   dev.sablelife.ownership.ArenaBuildTicks.hold(level,tickGroup,bodies());
+   try{stabilize(level);var result=SableBlueprintIncrementalPlacer.step(level,blueprint,plan,progress,new BlueprintBuildTickBudget(128,16,8,2000000),BlueprintBuildMaterialBudget.UNLIMITED);
+    dev.sablelife.ownership.ArenaBuildTicks.hold(level,tickGroup,bodies());
+    if(result.status()==BlueprintBuildStatus.FAILED)throw new IllegalStateException("Photomancy build failed: "+result.message().getString());
+    stabilize(level);if(result.status()==BlueprintBuildStatus.DONE)dev.sablelife.ownership.ArenaBuildTicks.release(level,bodies());return result.status().name();}
    finally{if(previous==null)TRUSTED.remove();else TRUSTED.set(previous);}
   }
   private void stabilize(ServerLevel level){

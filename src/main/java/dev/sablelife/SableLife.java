@@ -114,6 +114,7 @@ public final class SableLife {
         NeoForge.EVENT_BUS.addListener(dev.sablelife.module.MarkingSessions::stopped);
         NeoForge.EVENT_BUS.addListener(HeartCommands::register);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.LifeLifecycle::tick);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::beforeTick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::commands);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::joined);

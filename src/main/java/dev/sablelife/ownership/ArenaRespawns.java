@@ -77,6 +77,9 @@ public final class ArenaRespawns extends SavedData {
   if((long)(x1-x0+1)*(z1-z0+1)>256)return false;
   for(int x=x0;x<=x1;x++)for(int z=z0;z<=z1;z++)if(!level.hasChunk(x,z))return false;return true;
  }
+ public static void beforeTick(ServerTickEvent.Pre event){var server=event.getServer();for(var e:get(server).entries.values())if(!e.newBodies.isEmpty()){
+  var level=server.getLevel(ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,e.dimension));if(level!=null)ArenaBuildTicks.hold(level,e.id,e.newBodies);
+ }}
  public static void tick(ServerTickEvent.Post event){get(event.getServer()).advance(event.getServer());}
  public void advance(MinecraftServer server){
   int buildSlots=1;var list=new ArrayList<>(entries.values());if(list.isEmpty())return;
@@ -123,7 +126,7 @@ public final class ArenaRespawns extends SavedData {
  }
  private void remove(MinecraftServer server,Entry e){
   var level=server.getLevel(ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,e.dimension));if(level!=null)hide(level,e);
-  if(level!=null){var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);if(container!=null)for(var id:e.newBodies)if(container.getSubLevel(id) instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel body&&!body.isRemoved())dev.sablelife.compat.StructureRemovalApi.remove(level,body);}
+  if(level!=null){ArenaBuildTicks.release(level,e.newBodies);removeDisplays(level,e.id);var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);if(container!=null)for(var id:e.newBodies)if(container.getSubLevel(id) instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel body&&!body.isRemoved())dev.sablelife.compat.StructureRemovalApi.remove(level,body);}
   entries.remove(e.id);setDirty();
  }
  public static void joined(net.neoforged.neoforge.event.entity.EntityJoinLevelEvent event){
@@ -131,7 +134,9 @@ public final class ArenaRespawns extends SavedData {
    var entry=get(level.getServer()).entries.get(text.getPersistentData().getUUID("SableLifeArenaRecord"));if(entry==null||entry.phase.equals("ready"))event.setCanceled(true);
   }
  }
- public static void commands(RegisterCommandsEvent event){event.getDispatcher().register(net.minecraft.commands.Commands.literal("sablelife_respawn").requires(s->s.hasPermission(2)).then(net.minecraft.commands.Commands.literal("cancel").executes(ctx->{var source=ctx.getSource();var data=get(source.getServer());var e=data.entries.values().stream().filter(v->v.dimension.equals(source.getLevel().dimension().location())&&v.center.distanceToSqr(source.getPosition())<64*64).min(Comparator.comparingDouble(v->v.center.distanceToSqr(source.getPosition()))).orElse(null);if(e==null)return 0;data.remove(source.getServer(),e);source.sendSuccess(()->Component.translatable("arena_respawn.sablelife.cancelled"),false);return 1;})));}
+ private static void removeDisplays(ServerLevel level,UUID record){var matches=new ArrayList<Display.TextDisplay>();for(var entity:level.getAllEntities())if(entity instanceof Display.TextDisplay text&&text.getPersistentData().hasUUID("SableLifeArenaRecord")&&text.getPersistentData().getUUID("SableLifeArenaRecord").equals(record))matches.add(text);matches.forEach(Entity::discard);}
+ private boolean cancelOrphan(ServerLevel level,Vec3 point){Display.TextDisplay nearest=null;double distance=64*64;for(var entity:level.getAllEntities())if(entity instanceof Display.TextDisplay text&&text.getPersistentData().hasUUID("SableLifeArenaRecord")&&!entries.containsKey(text.getPersistentData().getUUID("SableLifeArenaRecord"))&&text.position().distanceToSqr(point)<distance){nearest=text;distance=text.position().distanceToSqr(point);}if(nearest==null)return false;removeDisplays(level,nearest.getPersistentData().getUUID("SableLifeArenaRecord"));return true;}
+ public static void commands(RegisterCommandsEvent event){event.getDispatcher().register(net.minecraft.commands.Commands.literal("sablelife_respawn").requires(s->s.hasPermission(2)).then(net.minecraft.commands.Commands.literal("cancel").executes(ctx->{var source=ctx.getSource();var data=get(source.getServer());var e=data.entries.values().stream().filter(v->v.dimension.equals(source.getLevel().dimension().location())&&v.center.distanceToSqr(source.getPosition())<64*64).min(Comparator.comparingDouble(v->v.center.distanceToSqr(source.getPosition()))).orElse(null);if(e==null){if(!data.cancelOrphan(source.getLevel(),source.getPosition()))return 0;}else data.remove(source.getServer(),e);source.sendSuccess(()->Component.translatable("arena_respawn.sablelife.cancelled"),false);return 1;})));}
  @Override public CompoundTag save(CompoundTag tag,HolderLookup.Provider lookup){var list=new ListTag();for(var e:entries.values()){
   var t=new CompoundTag();t.putUUID("Id",e.id);t.putUUID("Creature",e.creature);t.putUUID("Module",e.module);t.putUUID("TemplateModule",e.templateModule);t.putString("Dimension",e.dimension.toString());t.putDouble("X",e.center.x);t.putDouble("Y",e.center.y);t.putDouble("Z",e.center.z);t.put("Template",e.template);t.put("Progress",e.progress);t.putInt("Delay",e.delay);t.putInt("Remaining",e.remaining);t.putString("Phase",e.phase);if(e.display!=null)t.putUUID("Display",e.display);var bodies=new ListTag();for(var id:e.oldBodies){var body=new CompoundTag();body.putUUID("Id",id);bodies.add(body);}t.put("OldBodies",bodies);var created=new ListTag();for(var id:e.newBodies){var body=new CompoundTag();body.putUUID("Id",id);created.add(body);}t.put("NewBodies",created);list.add(t);
  }tag.put("Entries",list);return tag;}

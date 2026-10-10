@@ -233,6 +233,7 @@ neoForge {
             loadedMods = [mods.sablelife, mods.sablelife_tests]
             gameDirectory = file(providers.gradleProperty('gameTestDirectory').getOrElse('runs/gametest'))
             systemProperty 'sablelife.localGameTests', 'true'
+            if(providers.gradleProperty('arenaAddonTests').getOrElse('false')=='true') systemProperty 'sablelife.arenaReplayTemplate', file('.dev/arena-replay/template.nbt').absolutePath
             systemProperty 'sablelife.expectCleanupCrash', providers.gradleProperty('expectCleanupCrash').getOrElse('false')
             systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_cleanup_regression_tests,sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests')
         }
@@ -256,6 +257,7 @@ dependencies {
         gameTestRuntimeOnly files('.dev/iron-spells-review/irons_spellbooks-1.21.1-3.16.3.jar')
         gameTestRuntimeOnly fileTree(dir: '.dev/iron-spells-testmods', include: ['*.jar'])
     }
+    if(providers.gradleProperty('arenaAddonTests').getOrElse('false')=='true') gameTestRuntimeOnly fileTree(dir: '.dev/arena-addon-mods', include: ['*.jar'])
     if (providers.gradleProperty('cleanupCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/cleanup-mods', include: ['*.jar'])
     if (providers.gradleProperty('epicFightTests').getOrElse('false') == 'true') gameTestRuntimeOnly files('.dev/epicfight/epic-fight-21.17.3.1-mc1.21.1-neoforge.jar')
     runtimeOnly files('.dev/mods/create-1.21.1-6.0.10.jar')

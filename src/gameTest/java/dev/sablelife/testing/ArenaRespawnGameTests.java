@@ -14,4 +14,8 @@ public final class ArenaRespawnGameTests {
 
  @GameTest(template="combat",batch="respawn_parts_death",timeoutTicks=240) public static void RebuiltPartsWithoutReadyConnectionsAllCleanOnSecondDeath(GameTestHelper h){ArenaRespawnScenarios.multiplePartsSecondDeath(h);}
 
+ @GameTest(template="combat",batch="respawn_orphan_display") public static void CancelClearsOrphanDisplayCopiesWithoutTouchingOtherText(GameTestHelper h){ArenaRespawnScenarios.cancelOrphanDisplay(h);}
+
+ @GameTest(template="combat",batch="respawn_tick_guard",timeoutTicks=100) public static void PartialBlueprintStopsOnlyItsOwnBlockTicksThenResumes(GameTestHelper h){ArenaRespawnScenarios.buildTickIsolation(h);}
+
 }

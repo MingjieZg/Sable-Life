@@ -107,4 +107,24 @@ public final class ArenaRespawnScenarios {
   });
  }
 
+ public static void cancelOrphanDisplay(GameTestHelper h){
+  var l=h.getLevel();var id=UUID.randomUUID();var p=net.minecraft.world.phys.Vec3.atCenterOf(h.absolutePos(new BlockPos(5,6,5)));var ghosts=new ArrayList<net.minecraft.world.entity.Display.TextDisplay>();
+  for(int i=0;i<2;i++){var text=net.minecraft.world.entity.EntityType.TEXT_DISPLAY.create(l);text.setPos(p.add(i,0,0));h.assertTrue(l.addFreshEntity(text),"Display fixture failed");text.getPersistentData().putUUID("SableLifeArenaRecord",id);text.addTag("sablelife_arena_respawn");ghosts.add(text);}
+  var unrelated=net.minecraft.world.entity.EntityType.TEXT_DISPLAY.create(l);unrelated.setPos(p);l.addFreshEntity(unrelated);var actor=TestActors.creative(l);actor.setPos(p);
+  l.getServer().getCommands().performPrefixedCommand(actor.createCommandSourceStack().withPermission(4),"sablelife_respawn cancel");
+  h.assertTrue(ghosts.stream().allMatch(net.minecraft.world.entity.Entity::isRemoved),"Orphan duplicate text was not cancelled");h.assertTrue(!unrelated.isRemoved(),"Unrelated display was removed");unrelated.discard();h.succeed();
+ }
+
+ public static void buildTickIsolation(GameTestHelper h){
+  var l=h.getLevel();var p=h.absolutePos(new BlockPos(5,15,5));var bodies=new ArrayList<dev.ryanhcode.sable.sublevel.ServerSubLevel>();var furnaces=new ArrayList<net.minecraft.world.level.block.entity.FurnaceBlockEntity>();
+  for(int i=0;i<2;i++){var pos=p.east(i*3);l.setBlockAndUpdate(pos,Blocks.FURNACE.defaultBlockState());var body=SubLevelAssemblyHelper.assembleBlocks(l,pos,List.of(pos),new BoundingBox3i(pos.getX(),pos.getY(),pos.getZ(),pos.getX(),pos.getY(),pos.getZ()));var furnace=(net.minecraft.world.level.block.entity.FurnaceBlockEntity)l.getBlockEntity(body.getPlot().getCenterBlock());furnace.setItem(0,new ItemStack(Items.IRON_ORE));furnace.setItem(1,new ItemStack(Items.COAL));bodies.add(body);furnaces.add(furnace);}
+  ArenaBuildTicks.hold(l,UUID.randomUUID(),Set.of(bodies.getFirst().getUniqueId()));
+  h.runAfterDelay(5,()->{
+   h.assertTrue(furnaces.getFirst().getItem(1).getCount()==1&&!l.getBlockState(furnaces.getFirst().getBlockPos()).getValue(net.minecraft.world.level.block.AbstractFurnaceBlock.LIT),"Partial blueprint block entity ticked before commit");
+   h.assertTrue(furnaces.get(1).getItem(1).isEmpty()&&l.getBlockState(furnaces.get(1).getBlockPos()).getValue(net.minecraft.world.level.block.AbstractFurnaceBlock.LIT),"Unrelated body tick was blocked");
+   ArenaBuildTicks.release(l,Set.of(bodies.getFirst().getUniqueId()));
+   h.runAfterDelay(5,()->{h.assertTrue(furnaces.getFirst().getItem(1).isEmpty()&&l.getBlockState(furnaces.getFirst().getBlockPos()).getValue(net.minecraft.world.level.block.AbstractFurnaceBlock.LIT),"Completed blueprint did not resume normal ticks");for(var b:bodies)dev.sablelife.compat.StructureRemovalApi.remove(l,b);h.succeed();});
+  });
+ }
+
 }

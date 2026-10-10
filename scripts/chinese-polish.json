@@ -178,7 +178,7 @@
   "arena_respawn.sablelife.countdown": "重生倒数：%s 秒",
   "arena_respawn.sablelife.building": "正在恢复结构…",
   "arena_respawn.sablelife.cleanup": "等待旧身体清理完成",
-  "arena_respawn.sablelife.failed": "重生已停止，请管理员处理",
+  "arena_respawn.sablelife.failed": "重生已停止。靠近后输入 /sablelife_respawn cancel 清除。",
   "arena_respawn.sablelife.missing": "重生已暂停：Photomancy 不可用",
   "arena_respawn.sablelife.cancelled": "已取消附近场地的重生记录。",
   "arena_respawn.sablelife.error_unassembled": "核心必须位于已组装的结构内。",

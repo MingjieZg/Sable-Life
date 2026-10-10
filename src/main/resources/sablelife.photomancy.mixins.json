@@ -1,1 +1,14 @@
-{"required":false,"minVersion":"0.8","package":"dev.sablelife.mixin","plugin":"dev.sablelife.compat.photomancy.RespawnMixinPlugin","compatibilityLevel":"JAVA_21","mixins":["RespawnBlueprintNbtMixin"],"injectors":{"defaultRequire":1}}
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "dev.sablelife.mixin",
+  "plugin": "dev.sablelife.compat.photomancy.RespawnMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "RespawnBlueprintNbtMixin",
+    "RespawnBuildDiagnosticsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,3 +1,7 @@
+# Current development: 0.1.209
+
+Defers block-entity ticks in partial Arena blueprint bodies until full NBT/joint commit, fixing the reproduced Create redstone-link initialization failure. Retains native failure diagnostics and lets cancellation remove orphan respawn displays. Actual nine-part addon template replay validates connection, activation and cleanup. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.209.md).
+
 # Current development: 0.1.208
 
 Registers every actually rebuilt Arena template part to the fresh creature, independent of connection-actor readiness, so later death cleanup covers all reconstructed parts. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.208.md).

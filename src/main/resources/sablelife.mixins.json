@@ -26,7 +26,8 @@
     "CannonBodyDamageMixin",
     "TaczBlastProfileMixin",
     "RespawnTextDisplayAccess",
-    "RespawnDisplayAccess"
+    "RespawnDisplayAccess",
+    "ArenaBuildBlockEntityTickMixin"
   ],
   "client": [
     "ProtectedBodyMiningMixin",
