@@ -21,7 +21,7 @@ import java.util.*;
 /** World-owned templates and resumable jobs survive deletion of the original core. */
 public final class ArenaRespawns extends SavedData {
  public interface Build {
-  AABB bounds();String step(ServerLevel level);CompoundTag save();float fraction();HeartBlockEntity heart(ServerLevel level);UUID module(UUID original);Set<UUID> bodies();void restoreApprovals(HeartBlockEntity heart);
+  AABB bounds();String step(ServerLevel level);CompoundTag save();float fraction();HeartBlockEntity heart(ServerLevel level);UUID module(UUID original);Set<UUID> bodies();void restoreApprovals(HeartBlockEntity heart);void captureOwnership(HeartBlockEntity heart);
  }
  private static final int LIMIT=32;
  private final LinkedHashMap<UUID,Entry> entries=new LinkedHashMap<>();
@@ -65,6 +65,7 @@ public final class ArenaRespawns extends SavedData {
    if(module==null||!module.enabled()||module.value("arenaRespawnEnabled")!=1||module.arenaCenter()==null||!module.arenaDimension().equals(e.dimension.toString()))continue;
    e.center=module.arenaCenter();e.delay=(int)module.value("arenaRespawnDelay");e.remaining=e.delay;e.phase="countdown";
    var root=dev.ryanhcode.sable.Sable.HELPER.getContaining(level,heart.getBlockPos());
+   e.oldBodies.addAll(BodyOwnership.get(level).bodyIds(level,heart.creatureId()));
    if(root!=null)for(var body:dev.ryanhcode.sable.api.SubLevelHelper.getConnectedChain(root))e.oldBodies.add(body.getUniqueId());
    data.setDirty();
   }
@@ -103,6 +104,7 @@ public final class ArenaRespawns extends SavedData {
      if(module==null){e.phase="failed";setDirty();continue;}
      e.build.restoreApprovals(heart);
      if(!heart.activateForRespawn()){e.phase="failed";setDirty();continue;}
+     e.build.captureOwnership(heart);
      module.arenaCenter(e.center,e.dimension.toString());
      e.creature=heart.creatureId();e.module=moduleId;e.phase="ready";e.progress=new CompoundTag();e.build=null;e.oldBodies.clear();e.newBodies.clear();hide(level,e);heart.modules().changed();heart.setChanged();setDirty();
     }

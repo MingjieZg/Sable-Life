@@ -53,6 +53,21 @@ public final class PhotomancyRespawnBridge {
    var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);var physics=dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem.get(level);if(container==null||physics==null)return;
    for(var part:blueprint.subLevels()){var placed=progress.placedSubLevel(part.id());if(placed==null)continue;if(container.getSubLevel(placed.placedUuid()) instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel body){var pose=plan.pose(part);physics.getPipeline().resetVelocity(body);var pivot=body.logicalPose().rotationPoint();var origin=placed.blockOrigin();var point=pose.transformPosition(new Vec3(pivot.x()-origin.getX(),pivot.y()-origin.getY(),pivot.z()-origin.getZ()));physics.getPipeline().teleport(body,new org.joml.Vector3d(point.x,point.y,point.z),new org.joml.Quaterniond(pose.orientation()));}}
   }
+  @Override public void captureOwnership(HeartBlockEntity heart){
+   var level=(ServerLevel)heart.getLevel();var ownership=dev.sablelife.ownership.BodyOwnership.get(level);
+   var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
+   for(var part:blueprint.subLevels()){
+    var placed=progress.placedSubLevel(part.id());
+    if(placed==null||container==null||container.getSubLevel(placed.placedUuid())==null||container.getSubLevel(placed.placedUuid()).isRemoved())throw new IllegalStateException("Completed respawn is missing a placed body");
+    for(var block:part.blocks()){
+     var pos=placed.blockOrigin().offset(block.localPos());var body=Sable.HELPER.getContaining(level,pos);
+     if(body==null||!body.getUniqueId().equals(placed.placedUuid()))throw new IllegalStateException("Respawn block is outside its allocated body");
+     if(level.getBlockState(pos).isAir())continue;
+     var previous=ownership.owner(pos);if(previous!=null&&!previous.equals(heart.creatureId()))throw new IllegalStateException("Respawn block belongs to another creature");
+     ownership.bind(pos,heart.creatureId());
+    }
+   }
+  }
   @Override public Set<UUID> bodies(){var ids=new HashSet<UUID>();for(var p:progress.placedSubLevels().values())ids.add(p.placedUuid());return ids;}
   @Override public void restoreApprovals(HeartBlockEntity heart){
    for(var part:blueprint.subLevels())for(var raw:part.blockEntities())for(var item:raw.getCompound("VirtualModules").getList("Modules",10)){

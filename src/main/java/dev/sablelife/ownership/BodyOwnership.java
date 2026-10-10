@@ -47,6 +47,15 @@ public final class BodyOwnership extends SavedData {
     java.util.Set<Long> chunkRecords(long chunk){return byChunk.getOrDefault(chunk,java.util.Set.of());}
     boolean matchesCleanup(BlockPos pos,UUID id,boolean part){return id.equals(part?parts.get(pos.asLong()):owners.get(pos.asLong()));}
     public UUID part(BlockPos pos) { return parts.get(pos.asLong()); }
+    /** Registered bodies, including reconstructed parts whose actor connection is not ready yet. */
+    public java.util.Set<UUID> bodyIds(ServerLevel level,UUID creature){
+        var result=new java.util.HashSet<UUID>();
+        for(var key:byOwner.getOrDefault(creature,java.util.Set.of())){
+            var body=Sable.HELPER.getContaining(level,BlockPos.of(key));
+            if(body!=null&&!body.isRemoved())result.add(body.getUniqueId());
+        }
+        return result;
+    }
     public boolean hasPart(UUID id) { return byPart.containsKey(id); }
     public boolean hasOwnedWithin(ServerLevel level,UUID owner,java.util.Set<UUID> bodies){
         for(var position:byOwner.getOrDefault(owner,java.util.Set.of())){var body=Sable.HELPER.getContaining(level,BlockPos.of(position));if(body!=null&&bodies.contains(body.getUniqueId()))return true;}return false;

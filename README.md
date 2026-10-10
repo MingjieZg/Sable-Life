@@ -1,3 +1,7 @@
+# Current development: 0.1.208
+
+Registers every actually rebuilt Arena template part to the fresh creature, independent of connection-actor readiness, so later death cleanup covers all reconstructed parts. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.208.md).
+
 # Current development: 0.1.207
 
 Arena capture accepts larger sparse structures and block-entity data, reports exact rejected limits, and applies matching save/load byte budgets. Independent rope-side structures remain outside the connected-chain capture boundary. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.207.md).

@@ -76,4 +76,35 @@ public final class ArenaRespawnScenarios {
   h.assertTrue(ArenaRespawns.load(source,h.getLevel().registryAccess()).count()==0,"Per-template byte limit was not enforced during world load");h.succeed();
  }
 
+ public static void multiplePartsSecondDeath(GameTestHelper h){
+  var s=setup(h,false);var l=h.getLevel();var p=h.absolutePos(new BlockPos(10,40,10));l.setBlockAndUpdate(p,Blocks.IRON_BLOCK.defaultBlockState());
+  var limb=SubLevelAssemblyHelper.assembleBlocks(l,p,List.of(p),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX(),p.getY(),p.getZ()));
+  var outside=p.east(5);l.setBlockAndUpdate(outside,Blocks.GOLD_BLOCK.defaultBlockState());var sentinel=SubLevelAssemblyHelper.assembleBlocks(l,outside,List.of(outside),new BoundingBox3i(outside.getX(),outside.getY(),outside.getZ(),outside.getX(),outside.getY(),outside.getZ()));
+  h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Capture failed");
+  // Simulate a recorded multi-part assembly whose native connection actor is not ready on rebuild.
+  // Export both real bodies; leave the unrelated third body outside the template.
+  var template=dev.rew1nd.sableschematicapi.blueprint.SableBlueprintExporter.exportSelected(l,s.arena.arenaCenter(),List.of(s.body,limb.getUniqueId())).save();
+  var saved=ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess());var row=saved.getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(s.core.creatureId())).findFirst().orElseThrow();row.put("Template",template);
+  l.getServer().overworld().getDataStorage().set("sablelife_arena_respawns",ArenaRespawns.load(saved,l.registryAccess()));
+  s.core.tryActivate(s.actor);BodyOwnership.get(l).bind(limb.getPlot().getCenterBlock(),s.core.creatureId());s.core.forceDeath();
+  var second=new UUID[]{null};var parts=new HashSet<UUID>();var stopped=new boolean[]{false};
+  h.onEachTick(()->{
+   if(stopped[0])return;
+   if(second[0]==null){
+    var core=LoadedCoreIndex.all(l).stream().filter(c->c.health().state()==HeartState.ALIVE&&!c.creatureId().equals(s.core.creatureId())&&c.modules().all().stream().anyMatch(m->m.name().equals(s.name))).findFirst().orElse(null);if(core==null)return;
+    second[0]=core.creatureId();parts.addAll(BodyOwnership.get(l).bodyIds(l,second[0]));h.assertTrue(parts.size()==2,"Respawn only registered the core part");
+    core.modules().all().stream().filter(m->m.type().equals("arena")).findFirst().orElseThrow().edit("arenaRespawnDelay",72000,"");
+    l.getDataStorage().set("sablelife_bodies",BodyOwnership.load(BodyOwnership.get(l).save(new CompoundTag(),l.registryAccess()),l.registryAccess()));core.forceDeath();
+    var deathRow=ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess()).getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(second[0])).findFirst().orElseThrow();
+    h.assertTrue(deathRow.getList("OldBodies",10).stream().map(v->((CompoundTag)v).getUUID("Id")).collect(java.util.stream.Collectors.toSet()).equals(parts),"Next generation cleanup wait omitted a reconstructed limb");
+    return;
+   }
+   if(!LifeLifecycle.get(l.getServer()).finished(second[0]))return;
+   var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(l);
+   for(var id:parts)h.assertTrue(container.getSubLevel(id)==null||container.getSubLevel(id).isRemoved(),"Second death left a reconstructed limb");
+   h.assertTrue(!BodyOwnership.get(l).hasOwned(second[0]),"Second death retained body ownership");h.assertTrue(container.getSubLevel(sentinel.getUniqueId())!=null&&!sentinel.isRemoved()&&l.getBlockState(sentinel.getPlot().getCenterBlock()).is(Blocks.GOLD_BLOCK),"Unrelated structure was removed");
+   s.actor.setPos(s.arena.arenaCenter());l.getServer().getCommands().performPrefixedCommand(s.actor.createCommandSourceStack().withPermission(4),"sablelife_respawn cancel");stopped[0]=true;h.succeed();
+  });
+ }
+
 }

@@ -12,4 +12,6 @@ public final class ArenaRespawnGameTests {
  @GameTest(template="combat",batch="respawn_sparse",timeoutTicks=200) public static void SparseStructureAndLargeBlockDataRecordAndReload(GameTestHelper h){ArenaRespawnScenarios.sparseCapture(h);}
  @GameTest(template="combat",batch="respawn_saved_budget") public static void SavedTemplatesKeepPerRecordAndWorldByteLimits(GameTestHelper h){ArenaRespawnScenarios.savedBudget(h);}
 
+ @GameTest(template="combat",batch="respawn_parts_death",timeoutTicks=240) public static void RebuiltPartsWithoutReadyConnectionsAllCleanOnSecondDeath(GameTestHelper h){ArenaRespawnScenarios.multiplePartsSecondDeath(h);}
+
 }
