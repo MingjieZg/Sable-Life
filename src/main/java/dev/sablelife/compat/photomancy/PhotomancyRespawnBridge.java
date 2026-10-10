@@ -26,7 +26,9 @@ public final class PhotomancyRespawnBridge {
    visits+=((long)b.maxX()-b.minX()+1)*((long)b.maxY()-b.minY()+1)*((long)b.maxZ()-b.minZ()+1);
    ArenaRespawnLimits.check("scan",visits,dev.sablelife.SableLifeServerConfig.arenaCaptureScanVoxels());
    ArenaRespawnLimits.check("parts",ids.size()+1,ArenaRespawnLimits.PARTS);
-   for(int x=b.minX()>>4;x<=b.maxX()>>4;x++)for(int z=b.minZ()>>4;z<=b.maxZ()>>4;z++)if(!level.hasChunk(x,z))throw new IllegalArgumentException("unloaded");
+   // Plot holes are unallocated air, not unloaded body data. Sable reads them as EmptyLevelChunk.
+   var chunks=body.getPlot().getLoadedChunks();if(chunks.isEmpty())throw new IllegalArgumentException("unloaded");
+   for(var holder:chunks){var chunk=holder.getChunk();if(chunk==null||!level.hasChunk(chunk.getPos().x,chunk.getPos().z))throw new IllegalArgumentException("unloaded");}
    ids.add(body.getUniqueId());
   }
   var blueprint=SableBlueprintExporter.exportSelected(level,center,ids);

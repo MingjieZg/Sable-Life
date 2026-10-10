@@ -144,7 +144,7 @@ public final class BodyOwnership extends SavedData {
             }
             var point=dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,pos.getCenter());boolean erased;
             BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()+1);
-            try{erased=level.removeBlock(pos,false);}finally{BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);}
+            try{dev.sablelife.compat.MountedContraptionCleanup.discardForDeath(level.getBlockEntity(pos));erased=level.removeBlock(pos,false);}finally{BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);}
             if(erased){
                 if(smoke-->0){if(effect!=null)effect.emit(level,point);else dev.sablelife.module.ModuleParticles.send(level,net.minecraft.core.particles.ParticleTypes.POOF,point.x,point.y,point.z,6,.35,.35,.35,.04);}
                 forget(pos);removed++;

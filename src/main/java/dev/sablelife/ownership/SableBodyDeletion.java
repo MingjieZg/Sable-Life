@@ -25,7 +25,6 @@ final class SableBodyDeletion {
         if(expectedRecords>budget)return new Result(0,0);
         var records=new ArrayList<BlockPos>();var points=new ArrayList<Vec3>();
         int visits=0,ownedSolid=0;long[] allSolid={0};
-        var mounts=new ArrayList<net.minecraft.world.level.block.entity.BlockEntity>();
         for(var holder:body.getPlot().getLoadedChunks()) {
             var chunk=holder.getChunk();
             for(var section:chunk.getSections())if(!section.hasOnlyAir()) {
@@ -43,15 +42,11 @@ final class SableBodyDeletion {
                     if(points.size()<16)points.add(body.logicalPose().transformPosition(pos.getCenter()));
                 }
             }
-            for(var entity:chunk.getBlockEntities().values()) {
-                var name=entity.getClass().getName();
-                if(name.equals("rbasamoyai.createbigcannons.cannon_control.cannon_mount.CannonMountBlockEntity")||name.equals("rbasamoyai.createbigcannons.cannon_control.fixed_cannon_mount.FixedCannonMountBlockEntity"))mounts.add(entity);
-            }
+
         }
         if(ownedSolid==0||ownedSolid!=allSolid[0])return new Result(0,visits);
         BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()+1);
         try {
-            for(var mount:mounts)CannonDeathCleanup.discardMounted(mount);
             StructureRemovalApi.remove(level,body);
         }finally {BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);}
         for(var pos:records)if(ownership.matchesCleanup(pos,group,part))ownership.forget(pos);

@@ -6,6 +6,14 @@ import java.lang.reflect.InvocationTargetException;
 
 /** Optional CBC boundary: remove the assembled cannon without restoring its blocks or inventory. */
 public final class CannonDeathCleanup {
+    public static boolean isMount(BlockEntity entity){
+        if(entity==null)return false;
+        for(Class<?> type=entity.getClass();type!=null;type=type.getSuperclass()){
+            String name=type.getName();
+            if(name.equals("rbasamoyai.createbigcannons.cannon_control.cannon_mount.CannonMountBlockEntity")||name.equals("rbasamoyai.createbigcannons.cannon_control.fixed_cannon_mount.FixedCannonMountBlockEntity"))return true;
+        }
+        return false;
+    }
     public static void discardMounted(BlockEntity mount) {
         try {
             Object entity=mount.getClass().getMethod("getContraption").invoke(mount);

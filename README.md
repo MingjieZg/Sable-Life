@@ -1,3 +1,7 @@
+# Current development: 0.1.211
+
+Arena capture validates allocated plot chunks instead of requiring every air hole in a bounding rectangle to exist. Native Sable empty-chunk reads preserve sparse structures without creating chunks. Death cleanup also removes directly referenced cannon/radar contraptions only for registered dying controllers, preserving ordinary disassembly. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.211.md).
+
 # Current development: 0.1.210
 
 Raises the default Arena capture scan budget to 4,194,304 cells, configurable on the server. Keeps native Photomancy incremental placement. Respawn cooldown minimum is 5 seconds and wheel edits use ±1 second. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.210.md).

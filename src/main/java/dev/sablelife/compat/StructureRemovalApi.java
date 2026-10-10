@@ -22,6 +22,9 @@ public final class StructureRemovalApi {
     public static void remove(ServerLevel level,ServerSubLevel body) {
         var container=SubLevelContainer.getContainer(level);
         if(container==null||container.getSubLevel(body.getUniqueId())!=body)throw new IllegalStateException("Structure is no longer registered");
+        // Only controllers in this exact plot, with persisted ownership and an active death/part job, qualify.
+        for(var holder:body.getPlot().getLoadedChunks())for(var controller:List.copyOf(holder.getChunk().getBlockEntities().values()))
+            if(dev.ryanhcode.sable.Sable.HELPER.getContaining(level,controller.getBlockPos())==body)MountedContraptionCleanup.discardForDeath(controller);
         if(Toolgun.coordinator==null){container.removeSubLevel(body,SubLevelRemovalReason.REMOVED);return;}
         try {Toolgun.coordinator.invoke(null,level,container,List.of(body));}
         catch(InvocationTargetException failure){if(failure.getCause() instanceof RuntimeException cause)throw cause;throw new IllegalStateException("Toolgun structure removal failed",failure.getCause());}

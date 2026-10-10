@@ -27,7 +27,8 @@
     "TaczBlastProfileMixin",
     "RespawnTextDisplayAccess",
     "RespawnDisplayAccess",
-    "ArenaBuildBlockEntityTickMixin"
+    "ArenaBuildBlockEntityTickMixin",
+    "BearingDeathCleanupMixin"
   ],
   "client": [
     "ProtectedBodyMiningMixin",
