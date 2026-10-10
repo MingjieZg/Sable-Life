@@ -15,4 +15,9 @@ public abstract class IronMagicProjectileMixin {
  private HitResult sablelife$worldImpact(HitResult hit){return IronSpellsBodyBridge.worldHit((AbstractMagicProjectile)(Object)this,hit);}
  @Inject(method="onHit",at=@At("HEAD"))
  private void sablelife$directBodyHit(HitResult hit,CallbackInfo ci){IronSpellsBodyBridge.direct((AbstractMagicProjectile)(Object)this,hit);}
+ @Inject(method="onHit",at=@At("TAIL"))
+ private void sablelife$consumeBodyContact(HitResult hit,CallbackInfo ci){
+  var shot=(AbstractMagicProjectile)(Object)this;
+  if(shot.getPersistentData().getBoolean("SableLifeIronConsumed"))shot.discard();
+ }
 }

@@ -3,6 +3,7 @@ import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.*;
 import net.minecraft.world.level.Explosion;
@@ -17,6 +18,16 @@ public final class BodyDamageBridge {
   var data=source.getPersistentData();if(data.hasUUID("SableLifeAttackOwner")&&!core.acceptsLifeAttack(data.getUUID("SableLifeAttackOwner")))return false;
   var hits=data.getCompound(HITS);var key=core.creatureId().toString();if(hits.getBoolean(key)||hits.getAllKeys().size()>=64)return false;float before=core.health().current();if(!core.damageAt(hit.getBlockPos(),Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH)))return false;
   hits.putBoolean(key,true);data.put(HITS,hits);BodyCombat.feedback(level,hit,core,before-core.health().current(),source instanceof Projectile p&&p.getOwner() instanceof net.minecraft.world.entity.player.Player player?player:null,false);return true;
+ }
+ public static float contact(Entity source,BlockHitResult hit,float damage){
+  if(source==null||source.isRemoved()||source instanceof LivingEntity living&&!living.isAlive()||!(source.level() instanceof ServerLevel level)||hit==null||hit.getType()!=HitResult.Type.BLOCK||!Double.isFinite(hit.getLocation().lengthSqr())||!Float.isFinite(damage)||damage<=0)return 0;
+  var core=SableBodyProbe.findActivatedHeart(level,hit.getBlockPos());
+  if(core==null||core.isRemoved()||core.isControlCore()||core.health().state()!=HeartState.ALIVE)return 0;
+  var data=source.getPersistentData();if(data.hasUUID("SableLifeAttackOwner")&&!core.acceptsLifeAttack(data.getUUID("SableLifeAttackOwner")))return 0;
+  float before=core.health().current();if(!core.damageAt(hit.getBlockPos(),Math.min(damage,HeartHealth.MAX_CONFIGURED_HEALTH)))return 0;
+  float actual=Math.max(0,before-core.health().current());
+  BodyCombat.feedback(level,hit,core,actual,source instanceof net.minecraft.server.level.ServerPlayer player?player:source instanceof Projectile p&&p.getOwner() instanceof net.minecraft.world.entity.player.Player player?player:null,false);
+  return actual;
  }
  public static boolean melee(net.minecraft.server.level.ServerPlayer player,HeartBlockEntity core,net.minecraft.core.BlockPos block,Vec3 point,float amount) {
   var level=player.serverLevel();
@@ -35,3 +46,4 @@ public final class BodyDamageBridge {
  public static float explosionDamage(Explosion e,double distance,double range){if(e instanceof BlastProfile profile)return profile.sablelife$blastDamage(distance);double impact=Math.max(0,1-distance/range);return (float)((impact*impact+impact)*.5*7*range+1);}
  private BodyDamageBridge(){}
 }
+

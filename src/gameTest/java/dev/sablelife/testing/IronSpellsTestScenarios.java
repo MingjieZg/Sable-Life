@@ -37,7 +37,7 @@ public final class IronSpellsTestScenarios {
   shot.setPos(center.add(1.5,0,0));shot.setDeltaMovement(-3,0,0);shot.setNoGravity(true);shot.setDamage(10);long beforeEntities=entities(level);float before=c.health().current();shot.tick();
   h.assertTrue(Math.abs(before-c.health().current()-10)<.001,"Native projectile missed or duplicated body damage: kind="+kind+" damage="+(before-c.health().current())+" removed="+shot.isRemoved());
   h.assertTrue(level.getBlockState(target).is(Blocks.IRON_BLOCK),"Direct magic removed protected body block");
-  if(kind==1){h.assertTrue(!shot.isRemoved(),"Native piercing arrow was forced to disappear");shot.setPos(center.add(1.5,0,0));shot.setDeltaMovement(-3,0,0);shot.tick();h.assertTrue(c.health().current()==before-10,"Piercing arrow damaged same creature twice");}
+  if(kind==1){h.assertTrue(shot.isRemoved(),"Body contact did not consume piercing arrow");shot.setPos(center.add(1.5,0,0));shot.setDeltaMovement(-3,0,0);shot.tick();h.assertTrue(c.health().current()==before-10,"Piercing arrow damaged same creature twice");}
   else h.assertTrue(shot.isRemoved(),"Native one-shot projectile did not expire");
   if(shot instanceof AddonMissile addon)h.assertTrue(addon.impact!=null&&addon.impact.distanceTo(center)<2,"Native impact VFX did not stay near the world-space body: "+addon.impact);
   h.assertTrue(entities(level)==beforeEntities,"Bridge spawned proxy entities");shot.discard();h.succeed();
@@ -106,7 +106,43 @@ public final class IronSpellsTestScenarios {
   else h.assertTrue(hit instanceof BlockHitResult b&&b.getBlockPos().equals(kind==0?block:BlockPos.containing(center.add(1.5,0,0))),"Ray changed body/terrain identity");
   float before=c.health().current();
   SpellRegistry.RAY_OF_SIPHONING_SPELL.get().onCast(l,1,caster,CastSource.COMMAND,new MagicData());
-  h.assertTrue(c.health().current()==before,"Coordinate fix silently added unsupported siphoning body damage");
+  h.assertTrue(kind!=0||c.health().current()<before,"Siphoning body hit did not apply native tick damage");
   if(pig!=null)pig.discard();h.succeed();
+ });}
+ public static void newDirect(GameTestHelper h,int kind){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(4,0,0));
+  AbstractMagicProjectile shot=switch(kind){case 0->new io.redspace.ironsspellbooks.entity.spells.firebolt.FireboltProjectile(l,caster);case 1->new io.redspace.ironsspellbooks.entity.spells.icicle.IcicleProjectile(l,caster);default->new io.redspace.ironsspellbooks.entity.spells.lightning_lance.LightningLanceProjectile(l,caster);};
+  shot.setPos(center.add(1.5,0,0));shot.setDeltaMovement(-3,0,0);shot.setNoGravity(true);shot.setDamage(12);float before=c.health().current();shot.tick();
+  h.assertTrue(c.health().current()==before-12&&shot.isRemoved(),"New direct projectile missed or did not expire: "+kind);h.succeed();
+ });}
+ public static void blood(GameTestHelper h,boolean hole){HeartBlockEntity c;
+  if(hole){var l=h.getLevel();var p=h.absolutePos(new BlockPos(5,40,5));l.setBlockAndUpdate(p,SableLife.HEART.get().defaultBlockState());l.setBlockAndUpdate(p.east(4),Blocks.IRON_BLOCK.defaultBlockState());var b=SubLevelAssemblyHelper.assembleBlocks(l,p,List.of(p,p.east(4)),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+4,p.getY(),p.getZ()));c=(HeartBlockEntity)l.getBlockEntity(b.getPlot().getCenterBlock());c.configure(1000,60);c.tryActivate(TestActors.creative(l));}else c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var block=c.getBlockPos().east(2);var center=SableBodyProbe.toWorld(l,block.getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(4,0,0));
+  caster.setHealth(5);
+  var shot=new io.redspace.ironsspellbooks.entity.spells.blood_slash.BloodSlashProjectile(l,caster);shot.setDamage(15);shot.setRadius(hole?.15F:1F);shot.setPos(hole?center:center.add(.9,0,0));shot.setDeltaMovement(Vec3.ZERO);
+  float before=c.health().current();shot.handleHitDetection();
+  h.assertTrue(hole?c.health().current()==before&&!shot.isRemoved():c.health().current()==before-15&&shot.isRemoved(),"Blood slash used empty enclosing bounds or missed box-edge contact: hole="+hole+" hp="+c.health().current()+" removed="+shot.isRemoved());
+  h.assertTrue(Math.abs(caster.getHealth()-(hole?5:7.25))<.001,"Blood slash did not preserve native 15% actual-damage lifesteal");
+  shot.handleHitDetection();h.assertTrue(c.health().current()==before-(hole?0:15),"Removed blood slash repeated damage");shot.discard();h.succeed();
+ });}
+ public static void cone(GameTestHelper h,int kind,boolean wall){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(3,-caster.getEyeHeight()+.5,0));caster.setYRot(90);caster.setXRot(0);
+  io.redspace.ironsspellbooks.entity.spells.AbstractConeProjectile shot=switch(kind){case 0->new io.redspace.ironsspellbooks.entity.spells.fire_breath.FireBreathProjectile(l,caster);case 1->new io.redspace.ironsspellbooks.entity.spells.cone_of_cold.ConeOfColdProjectile(l,caster);default->new io.redspace.ironsspellbooks.entity.spells.poison_breath.PoisonBreathProjectile(l,caster);};shot.setDamage(8);
+  if(wall)for(int y=-2;y<=2;y++)for(int z=-4;z<=4;z++)l.setBlockAndUpdate(BlockPos.containing(center.add(1.5,y,z)),Blocks.STONE.defaultBlockState());
+  boolean old=ServerConfigs.SPELL_GREIFING.get();ServerConfigs.SPELL_GREIFING.set(false);float before=c.health().current();
+  try{shot.tick();h.assertTrue(c.health().current()==before-(wall?0:8),"Cone window missed, duplicated across parts, or bypassed wall: "+kind+" hp="+c.health().current());shot.tick();h.assertTrue(c.health().current()==before-(wall?0:8),"Cone applied damage without native activation");}
+  finally{ServerConfigs.SPELL_GREIFING.set(old);}
+  h.runAfterDelay(2,()->{shot.setDealDamageActive();boolean prev=ServerConfigs.SPELL_GREIFING.get();try{ServerConfigs.SPELL_GREIFING.set(false);shot.tick();h.assertTrue(c.health().current()==before-(wall?0:16),"Reactivated cone failed next native window");}finally{ServerConfigs.SPELL_GREIFING.set(prev);shot.discard();}h.succeed();});
+ });}
+ public static void siphon(GameTestHelper h){var c=core(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));armor.edit("damageModifier",-50,"");h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(3,-caster.getEyeHeight(),0));caster.setYRot(90);caster.setXRot(0);caster.setHealth(5);
+  var spell=SpellRegistry.RAY_OF_SIPHONING_SPELL.get();float before=c.health().current();spell.onCast(l,2,caster,CastSource.COMMAND,new MagicData());float loss=before-c.health().current();
+  h.assertTrue(loss>0&&Math.abs(caster.getHealth()-5-loss)<.001,"Siphoning did not heal actual body loss");
+  spell.onCast(l,2,caster,CastSource.COMMAND,new MagicData());h.assertTrue(c.health().current()==before-loss,"Repeated same-window siphoning duplicated damage");
+  h.runAfterDelay(10,()->{var current=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());caster.setPos(current.add(3,-caster.getEyeHeight(),0));spell.onCast(l,2,caster,CastSource.COMMAND,new MagicData());h.assertTrue(Math.abs(c.health().current()-(before-loss*2))<.001,"Next native siphoning pulse failed: actual="+c.health().current()+" expected="+(before-loss*2));h.succeed();});
+ });}
+ public static void immuneSiphon(GameTestHelper h){var c=core(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));armor.edit("damageModifier",-100,"");h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(3,-caster.getEyeHeight(),0));caster.setYRot(90);caster.setXRot(0);caster.setHealth(5);float before=c.health().current();
+  SpellRegistry.RAY_OF_SIPHONING_SPELL.get().onCast(l,2,caster,CastSource.COMMAND,new MagicData());h.assertTrue(c.health().current()==before&&caster.getHealth()==5,"Immune core still supplied siphoning healing");h.succeed();
  });}
 }

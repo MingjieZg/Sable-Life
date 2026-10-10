@@ -16,7 +16,10 @@ import java.util.function.ToDoubleFunction;
 /** Optional typed bridge; raw damage already includes the spell's caster/level calculation. */
 public final class IronSpellsBodyBridge {
  private static final ConcurrentHashMap<Class<?>,ToDoubleFunction<AbstractMagicProjectile>> DIRECT=new ConcurrentHashMap<>();
- static{DIRECT.put(MagicMissileProjectile.class,AbstractMagicProjectile::getDamage);DIRECT.put(MagicArrowProjectile.class,AbstractMagicProjectile::getDamage);DIRECT.put(SmallMagicFireball.class,AbstractMagicProjectile::getDamage);}
+ static{DIRECT.put(MagicMissileProjectile.class,AbstractMagicProjectile::getDamage);DIRECT.put(MagicArrowProjectile.class,AbstractMagicProjectile::getDamage);DIRECT.put(SmallMagicFireball.class,AbstractMagicProjectile::getDamage);
+ DIRECT.put(io.redspace.ironsspellbooks.entity.spells.firebolt.FireboltProjectile.class,AbstractMagicProjectile::getDamage);
+ DIRECT.put(io.redspace.ironsspellbooks.entity.spells.icicle.IcicleProjectile.class,AbstractMagicProjectile::getDamage);
+ DIRECT.put(io.redspace.ironsspellbooks.entity.spells.lightning_lance.LightningLanceProjectile.class,AbstractMagicProjectile::getDamage);}
  /** Experimental addon opt-in: the class must retain the base onHit pipeline and direct-damage semantics. */
  public static synchronized <T extends AbstractMagicProjectile> boolean registerDirectProjectile(Class<T> type,ToDoubleFunction<? super T> damage){
   if(type==null||damage==null||!AbstractMagicProjectile.class.isAssignableFrom(type)||java.lang.reflect.Modifier.isAbstract(type.getModifiers())||DIRECT.size()>=128&&!DIRECT.containsKey(type))return false;DIRECT.put(type,p->damage.applyAsDouble(type.cast(p)));return true;
@@ -34,13 +37,8 @@ public final class IronSpellsBodyBridge {
   if(!(shot.level() instanceof ServerLevel)||shot.isRemoved()||!(hit instanceof BlockHitResult block)||hit.getType()!=HitResult.Type.BLOCK)return;
   for(Class<?> type=shot.getClass();type!=null&&AbstractMagicProjectile.class.isAssignableFrom(type);type=type.getSuperclass()){
    var profile=DIRECT.get(type);if(profile==null)continue;double damage=profile.applyAsDouble(shot);if(Double.isFinite(damage)&&damage>0){
-    if(shot instanceof MagicArrowProjectile){
-     var core=SableBodyProbe.findActivatedHeart(shot.level(),block.getBlockPos());
-     if(core!=null&&!core.isControlCore()&&core.health().state()==dev.sablelife.heart.HeartState.ALIVE){
-      var tried=shot.getPersistentData().getCompound("SableLifeIronArrowAttempts");String id=core.creatureId().toString();
-      if(tried.getBoolean(id)||tried.size()>=64)return;tried.putBoolean(id,true);shot.getPersistentData().put("SableLifeIronArrowAttempts",tried);
-     }
-    }
+    var core=SableBodyProbe.findActivatedHeart(shot.level(),block.getBlockPos());
+    if(core!=null&&!core.isControlCore()&&core.health().state()==dev.sablelife.heart.HeartState.ALIVE)shot.getPersistentData().putBoolean("SableLifeIronConsumed",true);
     BodyCombatApi.projectile(shot,block,(float)Math.min(damage,dev.sablelife.heart.HeartHealth.MAX_CONFIGURED_HEALTH));
    }return;
   }

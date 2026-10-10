@@ -1,3 +1,13 @@
+# 0.1.204 API additions and behavior
+
+`BodyCombatApi.contact(Entity source, BlockHitResult hit, float damage)` validates a server source and actual body block and returns actual health removed. One invocation is one attack window, without lifetime projectile deduplication. Callers must own native cadence and hit validation; do not expose it to unchecked client payloads. Part modifiers, immunity, own-life attack filtering and death cleanup still apply.
+
+`BodySphereQuery.queryVolumes(ServerLevel level, Vec3 visibilityOrigin, List<AttackVolume> volumes)` supports up to 16 exact boxes, a loaded-chunk visibility path and the existing collision budget. Bodies are narrowed to actual collision shapes, including logical-pose rotation/scale; multiple boxes yield at most one hit per creature. It is not a generic replacement for native cone/beam semantics: pass the actual native attack parts and activation window.
+
+The pinned Iron bridge now consumes supported direct projectiles after native body impact, even when body immunity prevents damage. Registered addon direct profiles inherit this body-stop behavior. Native attacks on ordinary entities are unchanged. Additional direct profiles: Firebolt, Icicle and Lightning lance; Blood slash has a separate collision-box adapter. Fire/Cold/Poison breath and Siphoning have explicit native-window adapters. Unsupported families still require an adapter. Native LivingEntity-only status effects and events are not manufactured. See [current support](RELEASE_0.1.204.md).
+
+The following 0.1.202 API description is retained as historical context; its direct projectile piercing behavior and support list are superseded above.
+
 # Experimental body damage API (0.1.202)
 
 This API is experimental, server-only and geometry-based. It does not create a LivingEntity target or a proxy hitbox. Keep mod-specific checks and casting permissions in the caller. Do not forward unvalidated client hits into it.

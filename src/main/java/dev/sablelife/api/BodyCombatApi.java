@@ -13,6 +13,8 @@ public final class BodyCombatApi {
  public static boolean projectile(Projectile source,BlockHitResult hit,float damage){
   return source!=null&&hit!=null&&hit.getType()==HitResult.Type.BLOCK&&Double.isFinite(hit.getLocation().lengthSqr())&&BodyDamageBridge.hit(source,hit,damage);
  }
+ /** One validated continuous attack window; caller owns cadence. Returns actual health removed. */
+ public static float contact(Entity source,BlockHitResult hit,float damage){return BodyDamageBridge.contact(source,hit,damage);}
  /** One invocation is one attack window. Persistent callers must retain their own original cadence. */
  public static int sphere(Entity source,Vec3 center,Vec3 visibilityOrigin,double radius,DoubleUnaryOperator damageAtDistance){
   return sphere(source,center,visibilityOrigin,radius,damageAtDistance,java.util.Set.of());

@@ -8,7 +8,11 @@
     "IronMagicProjectileMixin",
     "IronSpellBlastMixin",
     "IronShockwaveMixin",
-    "IronRaycastBuilderMixin"
+    "IronRaycastBuilderMixin",
+    "IronBloodSlashMixin",
+    "IronConeMixin",
+    "IronSiphoningMixin",
+    "IronFireBreathRayMixin"
   ],
   "injectors": {
     "defaultRequire": 1

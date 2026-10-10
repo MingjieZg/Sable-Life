@@ -1,3 +1,7 @@
+# Current development: 0.1.204
+
+Inspected Iron’s Spells moving damage projectiles now expire on body contact, including piercing arrows/icicles. Blood slash uses exact body box contacts and native actual-damage lifesteal; three breath cones preserve native attack windows; Ray of siphoning damages bodies and heals by actual health removed. Unknown spell families and LivingEntity status/event semantics remain explicit compatibility boundaries. No proxy entities. Stable remains 0.1.200, protocol 7. See [release notes](docs/RELEASE_0.1.204.md). Verified 65 targeted GameTests, 26 final native Iron tests, 290 no-Iron default GameTests, 57 unit tests and manual revision 56.
+
 # Current development: 0.1.203
 
 Arena preview now shows red fixed arena bounds and yellow player range around the moving core. Iron’s Spells 3.16.3 native RaycastBuilder normalizes Sable hit positions before entity queries, retaining storage block identity. Verified native siphoning cast, closer entities and terrain; siphoning body damage is still unsupported and the reported modpack crash needs user retesting. Stable remains 0.1.200, protocol 7. See [release notes](docs/RELEASE_0.1.203.md).
