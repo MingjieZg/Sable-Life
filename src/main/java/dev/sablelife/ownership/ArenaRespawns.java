@@ -44,7 +44,7 @@ public final class ArenaRespawns extends SavedData {
    var template=PhotomancyRespawnBridge.capture(heart,module.arenaCenter());
    long total=template.sizeInBytes();for(var old:data.entries.values())if(old!=existing)total+=old.template.sizeInBytes();
    ArenaRespawnLimits.check("world_templates",total,ArenaRespawnLimits.WORLD_TEMPLATE_BYTES);
-   var e=new Entry();e.id=existing==null?UUID.randomUUID():existing.id;e.creature=heart.creatureId();e.module=module.id();e.templateModule=module.id();e.dimension=player.level().dimension().location();e.center=module.arenaCenter();e.template=template;e.delay=(int)module.value("arenaRespawnDelay");
+   var e=new Entry();e.id=existing==null?UUID.randomUUID():existing.id;e.creature=heart.creatureId();e.module=module.id();e.templateModule=module.id();e.dimension=player.level().dimension().location();e.center=module.arenaCenter();e.template=template;e.delay=Math.clamp((int)module.value("arenaRespawnDelay"),100,72000);
    data.entries.put(e.id,e);data.setDirty();heart.modules().changed();heart.setChanged();return true;
   }catch(ArenaRespawnLimits.Exceeded failure){player.displayClientMessage(Component.translatable("arena_respawn.sablelife.record_limit",Component.translatable("arena_respawn.sablelife.limit_"+failure.kind),failure.actual,failure.maximum),false);com.mojang.logging.LogUtils.getLogger().warn("Arena capture {} rejected: {} {} > {}",heart.creatureId(),failure.kind,failure.actual,failure.maximum);return false;
   }catch(IllegalArgumentException failure){player.displayClientMessage(Component.translatable("arena_respawn.sablelife.record_failed",Component.translatable("arena_respawn.sablelife.error_"+failure.getMessage())),false);return false;}
@@ -63,7 +63,7 @@ public final class ArenaRespawns extends SavedData {
   for(var e:data.entries.values())if(e.creature.equals(heart.creatureId())&&e.phase.equals("ready")){
    var module=heart.modules().find(e.module);
    if(module==null||!module.enabled()||module.value("arenaRespawnEnabled")!=1||module.arenaCenter()==null||!module.arenaDimension().equals(e.dimension.toString()))continue;
-   e.center=module.arenaCenter();e.delay=(int)module.value("arenaRespawnDelay");e.remaining=e.delay;e.phase="countdown";
+   e.center=module.arenaCenter();e.delay=Math.clamp((int)module.value("arenaRespawnDelay"),100,72000);e.remaining=e.delay;e.phase="countdown";
    var root=dev.ryanhcode.sable.Sable.HELPER.getContaining(level,heart.getBlockPos());
    e.oldBodies.addAll(BodyOwnership.get(level).bodyIds(level,heart.creatureId()));
    if(root!=null)for(var body:dev.ryanhcode.sable.api.SubLevelHelper.getConnectedChain(root))e.oldBodies.add(body.getUniqueId());
@@ -146,6 +146,6 @@ public final class ArenaRespawns extends SavedData {
   if(dim==null||!Double.isFinite(center.lengthSqr())||Math.abs(center.x)>30000000||Math.abs(center.z)>30000000||template.isEmpty()||template.sizeInBytes()>ArenaRespawnLimits.TEMPLATE_BYTES)continue;
   if(totalTemplateBytes+template.sizeInBytes()>ArenaRespawnLimits.WORLD_TEMPLATE_BYTES||data.entries.containsKey(t.getUUID("Id")))continue;
   totalTemplateBytes+=template.sizeInBytes();
-  var e=new Entry();e.id=t.getUUID("Id");e.creature=t.getUUID("Creature");e.module=t.getUUID("Module");e.templateModule=t.getUUID("TemplateModule");e.dimension=dim;e.center=center;e.template=template;e.progress=t.getCompound("Progress");e.delay=Math.clamp(t.getInt("Delay"),20,72000);e.remaining=Math.clamp(t.getInt("Remaining"),0,e.delay);e.phase=Set.of("ready","countdown","building","failed").contains(t.getString("Phase"))?t.getString("Phase"):"failed";if(t.hasUUID("Display"))e.display=t.getUUID("Display");for(var b:t.getList("OldBodies",10)){if(e.oldBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.oldBodies.add(v.getUUID("Id"));}for(var b:t.getList("NewBodies",10)){if(e.newBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.newBodies.add(v.getUUID("Id"));}data.entries.put(e.id,e);
+  var e=new Entry();e.id=t.getUUID("Id");e.creature=t.getUUID("Creature");e.module=t.getUUID("Module");e.templateModule=t.getUUID("TemplateModule");e.dimension=dim;e.center=center;e.template=template;e.progress=t.getCompound("Progress");e.delay=Math.clamp(t.getInt("Delay"),100,72000);e.remaining=Math.clamp(t.getInt("Remaining"),0,e.delay);e.phase=Set.of("ready","countdown","building","failed").contains(t.getString("Phase"))?t.getString("Phase"):"failed";if(t.hasUUID("Display"))e.display=t.getUUID("Display");for(var b:t.getList("OldBodies",10)){if(e.oldBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.oldBodies.add(v.getUUID("Id"));}for(var b:t.getList("NewBodies",10)){if(e.newBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.newBodies.add(v.getUUID("Id"));}data.entries.put(e.id,e);
  }return data;}
 }

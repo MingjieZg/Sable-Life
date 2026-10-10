@@ -1,3 +1,7 @@
+# Current development: 0.1.210
+
+Raises the default Arena capture scan budget to 4,194,304 cells, configurable on the server. Keeps native Photomancy incremental placement. Respawn cooldown minimum is 5 seconds and wheel edits use ±1 second. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.210.md).
+
 # Current development: 0.1.209
 
 Defers block-entity ticks in partial Arena blueprint bodies until full NBT/joint commit, fixing the reproduced Create redstone-link initialization failure. Retains native failure diagnostics and lets cancellation remove orphan respawn displays. Actual nine-part addon template replay validates connection, activation and cleanup. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.209.md).

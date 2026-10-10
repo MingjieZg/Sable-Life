@@ -13,6 +13,7 @@ public final class NumericWheelSteps {
         if(type.equals("signal_turn")&&key.endsWith("Channel"))return 1;
         if(key.equals("turnSpeed"))return 5;
         if(key.startsWith("displayRot")||ModuleFields.angle(key)||key.equals("damageModifier"))return 5;
+        if(type.equals("arena")&&key.equals("arenaRespawnDelay"))return 1;
         if(scale!=1)return .1;
         if(WHOLE.contains(key)||BLOCKS.contains(key)||key.endsWith("Radius")&&minimum>=1)return 1;
         if(Set.of("pullStrength","homingTracking","laserFollow","particleSpeed","drift").contains(key))return .01;

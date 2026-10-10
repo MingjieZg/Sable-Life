@@ -24,7 +24,7 @@ public final class PhotomancyRespawnBridge {
   for(var body:SubLevelHelper.getConnectedChain(root)){
    var b=body.getPlot().getBoundingBox();if(body.isRemoved()||b==null)throw new IllegalArgumentException("invalid_structure");
    visits+=((long)b.maxX()-b.minX()+1)*((long)b.maxY()-b.minY()+1)*((long)b.maxZ()-b.minZ()+1);
-   ArenaRespawnLimits.check("scan",visits,ArenaRespawnLimits.SCAN_VOXELS);
+   ArenaRespawnLimits.check("scan",visits,dev.sablelife.SableLifeServerConfig.arenaCaptureScanVoxels());
    ArenaRespawnLimits.check("parts",ids.size()+1,ArenaRespawnLimits.PARTS);
    for(int x=b.minX()>>4;x<=b.maxX()>>4;x++)for(int z=b.minZ()>>4;z<=b.maxZ()>>4;z++)if(!level.hasChunk(x,z))throw new IllegalArgumentException("unloaded");
    ids.add(body.getUniqueId());

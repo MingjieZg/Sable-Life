@@ -7,7 +7,7 @@ public final class SableLifeServerConfig {
     public static final ModConfigSpec SPEC;
     private static final ModConfigSpec.IntValue CHANNELS, PARTICLES, CLEANUP;
     private static final ModConfigSpec.IntValue PROJECTILES, CREATURE_PROJECTILES;
-    private static final ModConfigSpec.IntValue COLLISION;
+    private static final ModConfigSpec.IntValue COLLISION, ARENA_CAPTURE_SCAN;
     static {
         var builder = new ModConfigSpec.Builder();
         CHANNELS = builder.comment("Maximum newly authored wireless channels per core. Existing saves keep their channels.")
@@ -22,6 +22,8 @@ public final class SableLifeServerConfig {
                 .defineInRange("maximumProjectilesPerCreature",2048,64,16384);
         COLLISION=builder.comment("Terrain voxel visits and body broad-phase checks per dimension/tick. Movement waits when exhausted. Minimum permits one maximum-size 16-step rotation check.")
                 .defineInRange("collisionChecksPerTick",8388608,4194304,16777216);
+        ARENA_CAPTURE_SCAN=builder.comment("Bounding-box cells (including air) allowed in one creative-operator Arena capture. Capture uses native Photomancy export synchronously; raising this can increase a one-time pause. Templates and actual block/entity limits remain separate.")
+                .defineInRange("arenaCaptureScanVoxels",dev.sablelife.ownership.ArenaRespawnLimits.SCAN_VOXELS,262144,16777216);
         SPEC = builder.build();
     }
     public static int maximumWirelessChannels() { return SPEC.isLoaded() ? CHANNELS.get() : 256; }
@@ -30,5 +32,6 @@ public final class SableLifeServerConfig {
     public static int maximumProjectilesPerWorld(){return SPEC.isLoaded()?PROJECTILES.get():8192;}
     public static int maximumProjectilesPerCreature(){return SPEC.isLoaded()?CREATURE_PROJECTILES.get():2048;}
     public static int collisionChecksPerTick(){return SPEC.isLoaded()?COLLISION.get():8388608;}
+    public static int arenaCaptureScanVoxels(){return SPEC.isLoaded()?ARENA_CAPTURE_SCAN.get():dev.sablelife.ownership.ArenaRespawnLimits.SCAN_VOXELS;}
     private SableLifeServerConfig() {}
 }
