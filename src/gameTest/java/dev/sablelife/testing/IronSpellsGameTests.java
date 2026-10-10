@@ -30,4 +30,22 @@ public final class IronSpellsGameTests {
  @GameTest(template="combat",batch="iron_breath_wall") public static void BreathDoesNotDamageThroughTerrain(GameTestHelper h){IronSpellsTestScenarios.cone(h,0,true);}
  @GameTest(template="combat",batch="iron_siphon_damage") public static void SiphoningHealsActualDamageAcrossNativeWindows(GameTestHelper h){IronSpellsTestScenarios.siphon(h);}
  @GameTest(template="combat",batch="iron_siphon_immune") public static void ImmuneBodyDoesNotSupplySiphoningHealing(GameTestHelper h){IronSpellsTestScenarios.immuneSiphon(h);}
+ @GameTest(template="combat",batch="iron_shadow") public static void ShadowSlashKeepsQueriesAndImpulseInWorldSpace(GameTestHelper h){IronSpellsTestScenarios.shadow(h,false);}
+ @GameTest(template="combat",batch="iron_shadow_wall") public static void ShadowSlashDoesNotDamageBodyThroughWall(GameTestHelper h){IronSpellsTestScenarios.shadow(h,true);}
+ @GameTest(template="combat",batch="iron_firefield") public static void FireFieldKeepsNativePulseAndPostHitRules(GameTestHelper h){IronSpellsTestScenarios.area(h,0);}
+ @GameTest(template="combat",batch="iron_poisoncloud") public static void PoisonCloudKeepsNativePulseAndPostHitRules(GameTestHelper h){IronSpellsTestScenarios.area(h,1);}
+ @GameTest(template="combat",batch="iron_earthquake") public static void EarthquakeKeepsNativePulseAndPostHitRules(GameTestHelper h){IronSpellsTestScenarios.area(h,2);}
+ @GameTest(template="combat",batch="iron_healing") public static void HealingAreaNeverBecomesBodyDamage(GameTestHelper h){IronSpellsTestScenarios.area(h,3);}
+ @GameTest(template="combat",batch="iron_frostfield") public static void FreezeOnlyFieldNeverBecomesBodyDamage(GameTestHelper h){IronSpellsTestScenarios.area(h,4);}
+ @GameTest(template="combat",batch="iron_wither") public static void WitherSkullContactsBodyWithOneFullDirectHit(GameTestHelper h){IronSpellsTestScenarios.namedProjectile(h,0);}
+ @GameTest(template="combat",batch="iron_comet") public static void StarfallCometHitsRealBody(GameTestHelper h){IronSpellsTestScenarios.namedProjectile(h,1);}
+ @GameTest(template="combat",batch="iron_volley_arrow") public static void ArrowVolleySmallArrowHitsAndExpires(GameTestHelper h){IronSpellsTestScenarios.namedProjectile(h,2);}
+ @GameTest(template="combat",batch="iron_sunbeam") public static void SunbeamKeepsNativeWarmupAndOneBurst(GameTestHelper h){IronSpellsTestScenarios.sunbeam(h);}
+ @GameTest(template="combat",batch="iron_world_helpers") public static void LegacyRayAndGroundHelpersKeepWorldPositions(GameTestHelper h){IronSpellsTestScenarios.worldHelpers(h);}
+ @GameTest(template="combat",batch="iron_starfall_cast") public static void StarfallNativeCastCreatesCometsNearTheWorldTarget(GameTestHelper h){IronSpellsTestScenarios.namedCast(h,0);}
+ @GameTest(template="combat",batch="iron_volley_cast") public static void VolleyNativeCastCreatesWorldSpaceControllerAndArrows(GameTestHelper h){IronSpellsTestScenarios.namedCast(h,1);}
+ @GameTest(template="combat",batch="iron_sunbeam_cast") public static void SunbeamNativeCastDamagesTheSelectedBody(GameTestHelper h){IronSpellsTestScenarios.namedCast(h,2);}
+ @GameTest(template="combat",batch="iron_aoe_immune") public static void ImmuneAreaContactStillRunsNativePostHitOnce(GameTestHelper h){IronSpellsTestScenarios.areaRules(h,0);}
+ @GameTest(template="combat",batch="iron_aoe_corner") public static void CircularAreaRejectsItsEmptyBoxCorner(GameTestHelper h){IronSpellsTestScenarios.areaRules(h,1);}
+ @GameTest(template="combat",batch="iron_aoe_mixed") public static void MixedBodyAndLivingAreaHitRunsNativePostHitOnce(GameTestHelper h){IronSpellsTestScenarios.areaRules(h,2);}
 }

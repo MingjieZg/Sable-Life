@@ -1,5 +1,5 @@
 {
-  "revision": 56,
+  "revision": 57,
   "entries": [
     {
       "id": "getting_started",
@@ -119,7 +119,8 @@
         "usage": [
           "manual.sablelife.core.usage",
           "manual.sablelife.core.protected_tools",
-          "manual.sablelife.core.iron_spells"
+          "manual.sablelife.core.iron_spells",
+          "manual.sablelife.core.iron_areas"
         ],
         "settings": [
           "manual.sablelife.core.settings",

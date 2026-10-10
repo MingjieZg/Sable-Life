@@ -145,4 +145,59 @@ public final class IronSpellsTestScenarios {
   var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(3,-caster.getEyeHeight(),0));caster.setYRot(90);caster.setXRot(0);caster.setHealth(5);float before=c.health().current();
   SpellRegistry.RAY_OF_SIPHONING_SPELL.get().onCast(l,2,caster,CastSource.COMMAND,new MagicData());h.assertTrue(c.health().current()==before&&caster.getHealth()==5,"Immune core still supplied siphoning healing");h.succeed();
  });}
+ public static void shadow(GameTestHelper h,boolean wall){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(3,-caster.getEyeHeight(),0));caster.setYRot(90);caster.setXRot(0);caster.setDeltaMovement(Vec3.ZERO);
+  if(wall)for(int y=-2;y<=2;y++)for(int z=-3;z<=3;z++)l.setBlockAndUpdate(BlockPos.containing(center.add(1.5,y,z)),Blocks.STONE.defaultBlockState());
+  var expected=SpellRegistry.SHADOW_SLASH.get().getSpellPower(2,caster)+io.redspace.ironsspellbooks.api.util.Utils.getWeaponDamage(caster);float before=c.health().current();
+  SpellRegistry.SHADOW_SLASH.get().onCast(l,2,caster,CastSource.COMMAND,new MagicData());
+  h.assertTrue(caster.getDeltaMovement().length()<3,"Shadow slash used remote plot coordinates for impulse");
+  h.assertTrue(Math.abs(c.health().current()-(before-(wall?0:expected)))<.001,"Shadow slash failed damage/wall semantics: hp="+c.health().current()+" expected="+expected);h.succeed();
+ });}
+ public static void area(GameTestHelper h,int kind){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());
+  io.redspace.ironsspellbooks.entity.spells.AoeEntity field=switch(kind){case 0->new io.redspace.ironsspellbooks.entity.spells.magma_ball.FireField(l);case 1->new io.redspace.ironsspellbooks.entity.spells.poison_cloud.PoisonCloud(l);case 2->new io.redspace.ironsspellbooks.entity.spells.EarthquakeAoe(l);case 3->new io.redspace.ironsspellbooks.entity.spells.HealingAoe(l);default->new io.redspace.ironsspellbooks.entity.spells.snowball.FrostField(l);};
+  field.setDamage(9);field.setRadius(3);field.setPos(center.add(0,-.2,0));field.setDuration(80);field.setReapplicationDelay(10);field.setRadiusOnUse(-.1F);field.setDurationOnUse(-2);
+  float before=c.health().current();for(int i=0;i<9;i++){field.tickCount++;field.tick();}h.assertTrue(c.health().current()==before,"Area damaged before native pulse");field.tickCount++;field.tick();boolean damaging=kind<3;
+  h.assertTrue(c.health().current()==before-(damaging?9:0),"Area missed body or treated healing/freeze as damage: kind="+kind+" hp="+c.health().current());
+  h.assertTrue(Math.abs(field.getRadius()-(damaging?2.9F:3F))<.001,"Area body hit lost native radius-on-use");
+  for(int i=0;i<9;i++){field.tickCount++;field.tick();}h.assertTrue(c.health().current()==before-(damaging?9:0),"Area repeated damage between pulses");
+  h.runAfterDelay(1,()->{var current=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());field.setPos(current.add(0,-.2,0));field.tickCount++;field.tick();h.assertTrue(c.health().current()==before-(damaging?18:0),"Next area pulse failed");field.discard();h.succeed();});
+ });}
+ public static void namedProjectile(GameTestHelper h,int kind){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(4,0,0));
+  AbstractMagicProjectile shot=switch(kind){case 0->new io.redspace.ironsspellbooks.entity.spells.WitherSkullProjectile(l,caster);case 1->new io.redspace.ironsspellbooks.entity.spells.comet.Comet(l,caster);default->new io.redspace.ironsspellbooks.entity.spells.small_magic_arrow.SmallMagicArrow(l,caster);};
+  shot.setPos(center.add(1.5,0,0));shot.setDeltaMovement(-3,0,0);shot.setNoGravity(true);shot.setDamage(10);shot.setExplosionRadius(2);float before=c.health().current();shot.tick();
+  h.assertTrue(Math.abs(c.health().current()-(before-10))<.001&&shot.isRemoved(),"Named spell projectile missed, duplicated damage or did not expire: kind="+kind+" hp="+c.health().current());h.succeed();
+ });}
+ public static void sunbeam(GameTestHelper h){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var beam=new io.redspace.ironsspellbooks.entity.spells.sunbeam.SunbeamEntity(l);beam.setPos(center);beam.setDamage(14);float before=c.health().current();
+  beam.tickCount=14;beam.tick();h.assertTrue(c.health().current()==before,"Sunbeam hit before warmup");beam.tickCount=15;beam.tick();h.assertTrue(c.health().current()==before-14,"Sunbeam missed body at native warmup boundary");beam.tickCount=16;beam.tick();h.assertTrue(c.health().current()==before-14&&beam.isRemoved(),"Sunbeam repeated burst or failed to expire");h.succeed();
+ });}
+ public static void worldHelpers(GameTestHelper h){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var target=c.getBlockPos().east(2);var center=SableBodyProbe.toWorld(l,target.getCenter());var raw=l.clip(new net.minecraft.world.level.ClipContext(center.add(0,2,0),center.add(0,-2,0),net.minecraft.world.level.ClipContext.Block.COLLIDER,net.minecraft.world.level.ClipContext.Fluid.NONE,(net.minecraft.world.entity.Entity)null));
+  h.assertTrue(raw.getLocation().distanceTo(center)>10000,"Fixture did not expose plot hit");
+  var ray=io.redspace.ironsspellbooks.api.util.Utils.raycastForBlock(l,center.add(0,2,0),center.add(0,-2,0),net.minecraft.world.level.ClipContext.Fluid.NONE);h.assertTrue(ray.getBlockPos().equals(target)&&ray.getLocation().distanceTo(center)<2,"Legacy ray helper returned remote plot endpoint");
+  var ground=io.redspace.ironsspellbooks.api.util.Utils.moveToRelativeGroundLevel(l,center.add(0,2,0),0,4);h.assertTrue(ground.distanceTo(center)<2,"Ground helper returned remote plot coordinates");h.succeed();
+ });}
+ public static void namedCast(GameTestHelper h,int kind){var c=core(h);h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(3,-caster.getEyeHeight(),0));caster.setYRot(90);caster.setXRot(0);
+  var before=new java.util.HashSet<java.util.UUID>();for(var e:l.getAllEntities())before.add(e.getUUID());
+  var data=new MagicData(caster);data.setSyncedData(new io.redspace.ironsspellbooks.capabilities.magic.SyncedSpellData(caster));var spell=kind==0?SpellRegistry.STARFALL_SPELL.get():kind==1?SpellRegistry.ARROW_VOLLEY_SPELL.get():SpellRegistry.SUNBEAM_SPELL.get();data.initiateCast(spell,2,5,CastSource.COMMAND,"mainhand");spell.onCast(l,2,caster,CastSource.COMMAND,data);if(kind==0)spell.onServerCastTick(l,2,caster,data);
+  var spawned=new java.util.ArrayList<net.minecraft.world.entity.Entity>();for(var e:l.getAllEntities())if(!before.contains(e.getUUID()))spawned.add(e);
+  h.assertTrue(!spawned.isEmpty(),"Native named spell did not create its effect: kind="+kind);
+  for(var e:spawned)h.assertTrue(e.position().distanceTo(center)<32,"Native spell spawned its effect in the remote plot: kind="+kind+" pos="+e.position());
+  if(kind==2){var beam=spawned.stream().filter(e->e instanceof io.redspace.ironsspellbooks.entity.spells.sunbeam.SunbeamEntity).findFirst().orElseThrow();float hp=c.health().current();beam.tickCount=15;beam.tick();h.assertTrue(c.health().current()<hp,"Native Sunbeam cast picked a point which cannot hit the selected body");}
+  if(kind==1){var control=(io.redspace.ironsspellbooks.entity.spells.ArrowVolleyEntity)spawned.stream().filter(e->e instanceof io.redspace.ironsspellbooks.entity.spells.ArrowVolleyEntity).findFirst().orElseThrow();control.tickCount=5;control.tick();int arrows=0;for(var e:l.getAllEntities())if(e instanceof io.redspace.ironsspellbooks.entity.spells.small_magic_arrow.SmallMagicArrow&&!before.contains(e.getUUID())){arrows++;h.assertTrue(e.position().distanceTo(center)<32,"Volley spawned arrow in remote plot");spawned.add(e);}h.assertTrue(arrows>=5,"Native volley did not emit its real small arrows");}
+  for(var e:spawned)e.discard();h.succeed();
+ });}
+ public static void areaRules(GameTestHelper h,int kind){var c=core(h);if(kind==0){var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));armor.edit("damageModifier",-100,"");}h.runAfterDelay(4,()->{
+  var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());io.redspace.ironsspellbooks.entity.spells.AoeEntity field=kind==1?new io.redspace.ironsspellbooks.entity.spells.EarthquakeAoe(l):new io.redspace.ironsspellbooks.entity.spells.magma_ball.FireField(l);field.setRadius(3);field.setDamage(3);field.setRadiusOnUse(-.1F);field.setPos(kind==1?center.add(3,0,3):center.add(0,-.2,0));field.setReapplicationDelay(10);
+  net.minecraft.world.entity.animal.Pig pig=null;float pigHp=0;
+  if(kind==2){pig=net.minecraft.world.entity.EntityType.PIG.create(l);pig.setPos(center.add(0,-.2,1));pig.setNoAi(true);pig.setNoGravity(true);l.addFreshEntity(pig);pigHp=pig.getHealth();}
+  float before=c.health().current();field.tickCount=10;field.tick();
+  h.assertTrue(c.health().current()==before-(kind==2?3:0),"Area immunity/circle/mixed-body rule failed: "+kind);
+  h.assertTrue(Math.abs(field.getRadius()-(kind==1?3:2.9F))<.001,"Native post-hit changed or ran twice: "+kind);
+  if(pig!=null){h.assertTrue(pig.getHealth()<pigHp,"Native living target stopped receiving area damage");pig.discard();}field.discard();h.succeed();
+ });}
 }
+

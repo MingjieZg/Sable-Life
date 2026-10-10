@@ -1,3 +1,11 @@
+# 0.1.205 circular region and native area adapters
+
+`BodySphereQuery.queryRegion(level, center, visibilityOrigin, radius, limit)` intersects a real collision sphere with an exact AttackVolume limit for native circular area height/box rules. It shares loaded-chunk checks and collision budgets, rejects invalid geometry, and returns at most one candidate per creature.
+
+Iron’s Spells `AoeEntity.checkHits` now includes explicitly inspected FireField/PoisonCloud/Earthquake/Sunbeam contacts. No class-wide getDamage guessing: HealingAoe has a positive amount but heals, FrostField freezes only. Native activation cadence and one post-hit update remain in the native method. Other overriding area implementations need their own profile.
+
+Legacy Iron world-point helpers normalize Sable BLOCK locations before caller computations, keeping storage BlockPos identity. Shadow slash adds cast-local UUID dedup for its body impact and native damage boxes. Comet/Wither skull have native override impact adapters, while ArrowVolleyEntity remains a non-damaging controller and its small arrows carry damage. Wither indirect target width is the scaled contact voxel width; see [current release](RELEASE_0.1.205.md). No proxy entities, LivingEntity-only effects or events are synthesized.
+
 # 0.1.204 API additions and behavior
 
 `BodyCombatApi.contact(Entity source, BlockHitResult hit, float damage)` validates a server source and actual body block and returns actual health removed. One invocation is one attack window, without lifetime projectile deduplication. Callers must own native cadence and hit validation; do not expose it to unchecked client payloads. Part modifiers, immunity, own-life attack filtering and death cleanup still apply.

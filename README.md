@@ -1,3 +1,7 @@
+# Current development: 0.1.205
+
+Fixes remote Sable plot endpoints in native Shadow slash and legacy world-ray/ground helpers. Adds explicit body damage for Wither skull, Starfall comets, Arrow volley small arrows, Sunbeam warmup burst, and Earthquake/Fire field/Poison cloud native pulses. Healing/freeze-only areas remain non-damaging. See [release notes](docs/RELEASE_0.1.205.md) for geometry mappings, native behavior and support limits. Stable remains 0.1.200, protocol 7. Verified 76 targeted GameTests (44 native Iron), 290 no-Iron default GameTests, 57 units and manual revision 57. Original modpack freeze still needs user retesting.
+
 # Current development: 0.1.204
 
 Inspected Iron’s Spells moving damage projectiles now expire on body contact, including piercing arrows/icicles. Blood slash uses exact body box contacts and native actual-damage lifesteal; three breath cones preserve native attack windows; Ray of siphoning damages bodies and heals by actual health removed. Unknown spell families and LivingEntity status/event semantics remain explicit compatibility boundaries. No proxy entities. Stable remains 0.1.200, protocol 7. See [release notes](docs/RELEASE_0.1.204.md). Verified 65 targeted GameTests, 26 final native Iron tests, 290 no-Iron default GameTests, 57 unit tests and manual revision 56.

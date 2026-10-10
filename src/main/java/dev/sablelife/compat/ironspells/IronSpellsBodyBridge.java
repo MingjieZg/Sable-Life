@@ -17,6 +17,7 @@ import java.util.function.ToDoubleFunction;
 public final class IronSpellsBodyBridge {
  private static final ConcurrentHashMap<Class<?>,ToDoubleFunction<AbstractMagicProjectile>> DIRECT=new ConcurrentHashMap<>();
  static{DIRECT.put(MagicMissileProjectile.class,AbstractMagicProjectile::getDamage);DIRECT.put(MagicArrowProjectile.class,AbstractMagicProjectile::getDamage);DIRECT.put(SmallMagicFireball.class,AbstractMagicProjectile::getDamage);
+ DIRECT.put(io.redspace.ironsspellbooks.entity.spells.small_magic_arrow.SmallMagicArrow.class,AbstractMagicProjectile::getDamage);
  DIRECT.put(io.redspace.ironsspellbooks.entity.spells.firebolt.FireboltProjectile.class,AbstractMagicProjectile::getDamage);
  DIRECT.put(io.redspace.ironsspellbooks.entity.spells.icicle.IcicleProjectile.class,AbstractMagicProjectile::getDamage);
  DIRECT.put(io.redspace.ironsspellbooks.entity.spells.lightning_lance.LightningLanceProjectile.class,AbstractMagicProjectile::getDamage);}

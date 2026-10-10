@@ -12,7 +12,11 @@
     "IronBloodSlashMixin",
     "IronConeMixin",
     "IronSiphoningMixin",
-    "IronFireBreathRayMixin"
+    "IronFireBreathRayMixin",
+    "IronShadowSlashMixin",
+    "IronAoeMixin",
+    "IronUtilsWorldRayMixin",
+    "IronAreaImpactMixin"
   ],
   "injectors": {
     "defaultRequire": 1
