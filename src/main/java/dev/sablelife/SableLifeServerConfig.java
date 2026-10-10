@@ -7,7 +7,7 @@ public final class SableLifeServerConfig {
     public static final ModConfigSpec SPEC;
     private static final ModConfigSpec.IntValue CHANNELS, PARTICLES, CLEANUP;
     private static final ModConfigSpec.IntValue PROJECTILES, CREATURE_PROJECTILES;
-    private static final ModConfigSpec.IntValue COLLISION, ARENA_CAPTURE_SCAN;
+    private static final ModConfigSpec.IntValue COLLISION, ARENA_CAPTURE_SCAN, ARENA_BLOCKS, ARENA_BLOCK_ENTITIES, ARENA_TEMPLATE_BYTES, ARENA_WORLD_BYTES;
     static {
         var builder = new ModConfigSpec.Builder();
         CHANNELS = builder.comment("Maximum newly authored wireless channels per core. Existing saves keep their channels.")
@@ -24,6 +24,10 @@ public final class SableLifeServerConfig {
                 .defineInRange("collisionChecksPerTick",8388608,4194304,16777216);
         ARENA_CAPTURE_SCAN=builder.comment("Bounding-box cells (including air) allowed in one creative-operator Arena capture. Capture uses native Photomancy export synchronously; raising this can increase a one-time pause. Templates and actual block/entity limits remain separate.")
                 .defineInRange("arenaCaptureScanVoxels",dev.sablelife.ownership.ArenaRespawnLimits.SCAN_VOXELS,262144,16777216);
+        ARENA_BLOCKS=builder.comment("Actual blocks permitted in one administrator Arena record.").defineInRange("arenaCaptureBlocks",dev.sablelife.ownership.ArenaRespawnLimits.BLOCKS,1024,1048576);
+        ARENA_BLOCK_ENTITIES=builder.comment("Block entities permitted in one administrator Arena record.").defineInRange("arenaCaptureBlockEntities",dev.sablelife.ownership.ArenaRespawnLimits.BLOCK_ENTITIES,256,131072);
+        ARENA_TEMPLATE_BYTES=builder.comment("Uncompressed estimated bytes permitted per Arena template.").defineInRange("arenaTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.TEMPLATE_BYTES,1048576,134217728);
+        ARENA_WORLD_BYTES=builder.comment("Total uncompressed estimated bytes permitted across world Arena templates.").defineInRange("arenaWorldTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.WORLD_TEMPLATE_BYTES,1048576,536870912);
         SPEC = builder.build();
     }
     public static int maximumWirelessChannels() { return SPEC.isLoaded() ? CHANNELS.get() : 256; }
@@ -33,5 +37,9 @@ public final class SableLifeServerConfig {
     public static int maximumProjectilesPerCreature(){return SPEC.isLoaded()?CREATURE_PROJECTILES.get():2048;}
     public static int collisionChecksPerTick(){return SPEC.isLoaded()?COLLISION.get():8388608;}
     public static int arenaCaptureScanVoxels(){return SPEC.isLoaded()?ARENA_CAPTURE_SCAN.get():dev.sablelife.ownership.ArenaRespawnLimits.SCAN_VOXELS;}
+    public static int arenaCaptureBlocks(){return SPEC.isLoaded()?ARENA_BLOCKS.get():dev.sablelife.ownership.ArenaRespawnLimits.BLOCKS;}
+    public static int arenaCaptureBlockEntities(){return SPEC.isLoaded()?ARENA_BLOCK_ENTITIES.get():dev.sablelife.ownership.ArenaRespawnLimits.BLOCK_ENTITIES;}
+    public static int arenaTemplateBytes(){return SPEC.isLoaded()?ARENA_TEMPLATE_BYTES.get():dev.sablelife.ownership.ArenaRespawnLimits.TEMPLATE_BYTES;}
+    public static int arenaWorldTemplateBytes(){return SPEC.isLoaded()?ARENA_WORLD_BYTES.get():dev.sablelife.ownership.ArenaRespawnLimits.WORLD_TEMPLATE_BYTES;}
     private SableLifeServerConfig() {}
 }

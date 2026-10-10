@@ -43,7 +43,7 @@ public final class ArenaRespawns extends SavedData {
   try{
    var template=PhotomancyRespawnBridge.capture(heart,module.arenaCenter());
    long total=template.sizeInBytes();for(var old:data.entries.values())if(old!=existing)total+=old.template.sizeInBytes();
-   ArenaRespawnLimits.check("world_templates",total,ArenaRespawnLimits.WORLD_TEMPLATE_BYTES);
+   ArenaRespawnLimits.check("world_templates",total,dev.sablelife.SableLifeServerConfig.arenaWorldTemplateBytes());
    var e=new Entry();e.id=existing==null?UUID.randomUUID():existing.id;e.creature=heart.creatureId();e.module=module.id();e.templateModule=module.id();e.dimension=player.level().dimension().location();e.center=module.arenaCenter();e.template=template;e.delay=Math.clamp((int)module.value("arenaRespawnDelay"),100,72000);
    data.entries.put(e.id,e);data.setDirty();heart.modules().changed();heart.setChanged();return true;
   }catch(ArenaRespawnLimits.Exceeded failure){player.displayClientMessage(Component.translatable("arena_respawn.sablelife.record_limit",Component.translatable("arena_respawn.sablelife.limit_"+failure.kind),failure.actual,failure.maximum),false);com.mojang.logging.LogUtils.getLogger().warn("Arena capture {} rejected: {} {} > {}",heart.creatureId(),failure.kind,failure.actual,failure.maximum);return false;
@@ -143,8 +143,8 @@ public final class ArenaRespawns extends SavedData {
  public static ArenaRespawns load(CompoundTag tag,HolderLookup.Provider lookup){var data=new ArenaRespawns();long totalTemplateBytes=0;for(var item:tag.getList("Entries",10)){
   if(data.entries.size()>=LIMIT)break;var t=(CompoundTag)item;if(!t.hasUUID("Id")||!t.hasUUID("Creature")||!t.hasUUID("Module")||!t.hasUUID("TemplateModule"))continue;
   var dim=ResourceLocation.tryParse(t.getString("Dimension"));var center=new Vec3(t.getDouble("X"),t.getDouble("Y"),t.getDouble("Z"));var template=t.getCompound("Template");
-  if(dim==null||!Double.isFinite(center.lengthSqr())||Math.abs(center.x)>30000000||Math.abs(center.z)>30000000||template.isEmpty()||template.sizeInBytes()>ArenaRespawnLimits.TEMPLATE_BYTES)continue;
-  if(totalTemplateBytes+template.sizeInBytes()>ArenaRespawnLimits.WORLD_TEMPLATE_BYTES||data.entries.containsKey(t.getUUID("Id")))continue;
+  if(dim==null||!Double.isFinite(center.lengthSqr())||Math.abs(center.x)>30000000||Math.abs(center.z)>30000000||template.isEmpty()||template.sizeInBytes()>dev.sablelife.SableLifeServerConfig.arenaTemplateBytes())continue;
+  if(totalTemplateBytes+template.sizeInBytes()>dev.sablelife.SableLifeServerConfig.arenaWorldTemplateBytes()||data.entries.containsKey(t.getUUID("Id")))continue;
   totalTemplateBytes+=template.sizeInBytes();
   var e=new Entry();e.id=t.getUUID("Id");e.creature=t.getUUID("Creature");e.module=t.getUUID("Module");e.templateModule=t.getUUID("TemplateModule");e.dimension=dim;e.center=center;e.template=template;e.progress=t.getCompound("Progress");e.delay=Math.clamp(t.getInt("Delay"),100,72000);e.remaining=Math.clamp(t.getInt("Remaining"),0,e.delay);e.phase=Set.of("ready","countdown","building","failed").contains(t.getString("Phase"))?t.getString("Phase"):"failed";if(t.hasUUID("Display"))e.display=t.getUUID("Display");for(var b:t.getList("OldBodies",10)){if(e.oldBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.oldBodies.add(v.getUUID("Id"));}for(var b:t.getList("NewBodies",10)){if(e.newBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.newBodies.add(v.getUUID("Id"));}data.entries.put(e.id,e);
  }return data;}

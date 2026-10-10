@@ -20,4 +20,6 @@ public final class ArenaRespawnGameTests {
 
  @GameTest(template="combat",batch="respawn_minimum",timeoutTicks=100) public static void RespawnMinimumAppliesToEditorDeathAndSavedDelay(GameTestHelper h){ArenaRespawnScenarios.respawnMinimum(h);}
 
+ @GameTest(template="combat",batch="respawn_64000",timeoutTicks=400) public static void Real64000BlockTemplateCapturesAndReloads(GameTestHelper h){ArenaRespawnScenarios.sixtyFourThousandBlocks(h);}
+
 }

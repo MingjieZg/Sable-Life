@@ -1,3 +1,7 @@
+# Current development: 0.1.212
+
+Adds verified Neo Warfare compact mount death cleanup and clears cannon runtime references to prevent re-disassembly. Real five-segment steel rotary/twin/heavy cannons validate native assembly and cleanup. Arena defaults now allow 131,072 blocks with configurable block/entity/template budgets. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.212.md).
+
 # Current development: 0.1.211
 
 Arena capture validates allocated plot chunks instead of requiring every air hole in a bounding rectangle to exist. Native Sable empty-chunk reads preserve sparse structures without creating chunks. Death cleanup also removes directly referenced cannon/radar contraptions only for registered dying controllers, preserving ordinary disassembly. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.211.md).

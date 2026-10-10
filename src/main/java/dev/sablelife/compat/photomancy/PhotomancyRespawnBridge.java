@@ -33,12 +33,12 @@ public final class PhotomancyRespawnBridge {
   }
   var blueprint=SableBlueprintExporter.exportSelected(level,center,ids);
   if(blueprint.isEmpty())throw new IllegalArgumentException("invalid_structure");
-  ArenaRespawnLimits.check("blocks",blueprint.blockCount(),ArenaRespawnLimits.BLOCKS);
-  ArenaRespawnLimits.check("block_entities",blueprint.blockEntityCount(),ArenaRespawnLimits.BLOCK_ENTITIES);
+  ArenaRespawnLimits.check("blocks",blueprint.blockCount(),dev.sablelife.SableLifeServerConfig.arenaCaptureBlocks());
+  ArenaRespawnLimits.check("block_entities",blueprint.blockEntityCount(),dev.sablelife.SableLifeServerConfig.arenaCaptureBlockEntities());
   ArenaRespawnLimits.check("entities",blueprint.entityCount(),ArenaRespawnLimits.ENTITIES);
   int hearts=0;for(var part:blueprint.subLevels())for(var block:part.blocks())if(part.blockPalette().get(block.paletteId()).is(SableLife.HEART.get()))hearts++;
   if(hearts!=1)throw new IllegalArgumentException("one_heart");
-  var tag=blueprint.save();ArenaRespawnLimits.check("template",tag.sizeInBytes(),ArenaRespawnLimits.TEMPLATE_BYTES);return tag;
+  var tag=blueprint.save();ArenaRespawnLimits.check("template",tag.sizeInBytes(),dev.sablelife.SableLifeServerConfig.arenaTemplateBytes());return tag;
  }
  public static ArenaRespawns.Build create(CompoundTag template,CompoundTag saved,Vec3 center){return new Build(template,saved,center);}
  private static final class Build implements ArenaRespawns.Build {

@@ -75,9 +75,9 @@ public final class ArenaRespawnScenarios {
   var source=new CompoundTag();var entries=new net.minecraft.nbt.ListTag();
   for(int i=0;i<5;i++){
    var row=new CompoundTag();row.putUUID("Id",UUID.randomUUID());row.putUUID("Creature",UUID.randomUUID());row.putUUID("Module",UUID.randomUUID());row.putUUID("TemplateModule",UUID.randomUUID());row.putString("Dimension",h.getLevel().dimension().location().toString());row.putString("Phase","ready");row.putInt("Delay",20);
-   var template=new CompoundTag();template.putByteArray("Fixture",new byte[7*1024*1024]);row.put("Template",template);entries.add(row);
+   var template=new CompoundTag();template.putByteArray("Fixture",new byte[31*1024*1024]);row.put("Template",template);entries.add(row);
   }
-  source.put("Entries",entries);h.assertTrue(ArenaRespawns.load(source,h.getLevel().registryAccess()).count()==4,"World template budget did not reject the fifth 7 MiB template");
+  source.put("Entries",entries);h.assertTrue(ArenaRespawns.load(source,h.getLevel().registryAccess()).count()==4,"World template budget did not reject the fifth 31 MiB template");
   var oversized=((CompoundTag)entries.get(0)).copy();var template=new CompoundTag();template.putByteArray("Fixture",new byte[ArenaRespawnLimits.TEMPLATE_BYTES]);oversized.put("Template",template);var only=new net.minecraft.nbt.ListTag();only.add(oversized);source.put("Entries",only);
   h.assertTrue(ArenaRespawns.load(source,h.getLevel().registryAccess()).count()==0,"Per-template byte limit was not enforced during world load");h.succeed();
  }
@@ -141,5 +141,13 @@ public final class ArenaRespawnScenarios {
   s.actor.setPos(s.arena.arenaCenter());h.runAfterDelay(30,()->{h.assertTrue(LoadedCoreIndex.all(h.getLevel()).stream().noneMatch(c->!c.creatureId().equals(s.core.creatureId())&&c.modules().all().stream().anyMatch(m->m.name().equals(s.name))),"Respawn occurred before five seconds");lCancel(h,s);h.succeed();});
  }
  private static void lCancel(GameTestHelper h,Setup s){h.getLevel().getServer().getCommands().performPrefixedCommand(s.actor.createCommandSourceStack().withPermission(4),"sablelife_respawn cancel");}
+
+ public static void sixtyFourThousandBlocks(GameTestHelper h){
+  var l=h.getLevel();var p=h.absolutePos(new BlockPos(5,40,5));var positions=new ArrayList<BlockPos>(64000);
+  for(int x=0;x<40;x++)for(int y=0;y<40;y++)for(int z=0;z<40;z++){var pos=p.offset(x,y,z);positions.add(pos);l.setBlockAndUpdate(pos,x==0&&y==0&&z==0?SableLife.HEART.get().defaultBlockState():Blocks.IRON_BLOCK.defaultBlockState());}
+  var body=SubLevelAssemblyHelper.assembleBlocks(l,p,positions,new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+39,p.getY()+39,p.getZ()+39));var core=(HeartBlockEntity)l.getBlockEntity(body.getPlot().getCenterBlock());var arena=core.modules().add("arena");arena.arenaCenter(ModuleArena.corePosition(core),l.dimension().location().toString());
+  var actor=new net.neoforged.neoforge.common.util.FakePlayer(l,new com.mojang.authlib.GameProfile(UUID.randomUUID(),"GiantAdmin")){@Override public boolean canUseGameMasterBlocks(){return isCreative();}};actor.setGameMode(net.minecraft.world.level.GameType.CREATIVE);actor.setPos(ModuleArena.corePosition(core).add(0,-actor.getEyeHeight(),2));
+  h.assertTrue(ArenaRespawns.record(actor,core,arena),"Actual 64000-block native template rejected");var saved=ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess());var data=ArenaRespawns.load(saved,l.registryAccess()).save(new CompoundTag(),l.registryAccess());var row=data.getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(core.creatureId())).findFirst().orElseThrow();h.assertTrue(dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(row.getCompound("Template")).blockCount()==64000,"Large native template lost blocks on save/load");ArenaRespawns.clear(actor,core,arena);dev.sablelife.compat.StructureRemovalApi.remove(l,body);h.succeed();
+ }
 
 }
