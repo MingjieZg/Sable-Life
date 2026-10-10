@@ -8,6 +8,7 @@ import dev.ryanhcode.sable.api.SubLevelHelper;
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.ownership.ArenaRespawns;
+import dev.sablelife.ownership.ArenaRespawnLimits;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.*;
@@ -23,15 +24,19 @@ public final class PhotomancyRespawnBridge {
   for(var body:SubLevelHelper.getConnectedChain(root)){
    var b=body.getPlot().getBoundingBox();if(body.isRemoved()||b==null)throw new IllegalArgumentException("invalid_structure");
    visits+=((long)b.maxX()-b.minX()+1)*((long)b.maxY()-b.minY()+1)*((long)b.maxZ()-b.minZ()+1);
-   if(visits>32768||ids.size()>=32)throw new IllegalArgumentException("too_large");
+   ArenaRespawnLimits.check("scan",visits,ArenaRespawnLimits.SCAN_VOXELS);
+   ArenaRespawnLimits.check("parts",ids.size()+1,ArenaRespawnLimits.PARTS);
    for(int x=b.minX()>>4;x<=b.maxX()>>4;x++)for(int z=b.minZ()>>4;z<=b.maxZ()>>4;z++)if(!level.hasChunk(x,z))throw new IllegalArgumentException("unloaded");
    ids.add(body.getUniqueId());
   }
   var blueprint=SableBlueprintExporter.exportSelected(level,center,ids);
-  if(blueprint.isEmpty()||blueprint.blockCount()>16384||blueprint.blockEntityCount()>1024||blueprint.entityCount()>256)throw new IllegalArgumentException("too_large");
+  if(blueprint.isEmpty())throw new IllegalArgumentException("invalid_structure");
+  ArenaRespawnLimits.check("blocks",blueprint.blockCount(),ArenaRespawnLimits.BLOCKS);
+  ArenaRespawnLimits.check("block_entities",blueprint.blockEntityCount(),ArenaRespawnLimits.BLOCK_ENTITIES);
+  ArenaRespawnLimits.check("entities",blueprint.entityCount(),ArenaRespawnLimits.ENTITIES);
   int hearts=0;for(var part:blueprint.subLevels())for(var block:part.blocks())if(part.blockPalette().get(block.paletteId()).is(SableLife.HEART.get()))hearts++;
   if(hearts!=1)throw new IllegalArgumentException("one_heart");
-  var tag=blueprint.save();if(tag.sizeInBytes()>1048576)throw new IllegalArgumentException("too_large");return tag;
+  var tag=blueprint.save();ArenaRespawnLimits.check("template",tag.sizeInBytes(),ArenaRespawnLimits.TEMPLATE_BYTES);return tag;
  }
  public static ArenaRespawns.Build create(CompoundTag template,CompoundTag saved,Vec3 center){return new Build(template,saved,center);}
  private static final class Build implements ArenaRespawns.Build {

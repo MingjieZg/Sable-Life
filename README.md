@@ -1,3 +1,7 @@
+# Current development: 0.1.207
+
+Arena capture accepts larger sparse structures and block-entity data, reports exact rejected limits, and applies matching save/load byte budgets. Independent rope-side structures remain outside the connected-chain capture boundary. Stable remains 0.1.200. See [release notes](docs/RELEASE_0.1.207.md).
+
 # Current development: 0.1.206
 
 Optional Photomancy 1.0.1 Arena templates restore creatures incrementally after a persistent death cooldown, then activate at full health. Missing Photomancy disables only respawn. Server-recorded templates require a creative operator; world data owns jobs, never client snapshots. Adds physical Creeper mortar, Fang strike, Divine smite and Ice block damage paths without synthetic entity targeting. See [release notes](docs/RELEASE_0.1.206.md) for bounds, lifecycle and support limits. Stable remains 0.1.200; protocol 7. Verified 96 combined tests, 25 respawn/lifecycle tests, 40 with Photomancy absent, 290 default tests, 57 units and 16 GUI scale/density layouts. Third-party complex structures still need playtesting.

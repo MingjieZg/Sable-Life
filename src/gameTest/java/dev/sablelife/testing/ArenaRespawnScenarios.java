@@ -16,12 +16,13 @@ import net.minecraft.world.phys.*;
 import java.util.*;
 public final class ArenaRespawnScenarios {
  private record Setup(HeartBlockEntity core,VirtualModule arena,net.neoforged.neoforge.common.util.FakePlayer actor,UUID mark,UUID body,String name){}
- private static Setup setup(GameTestHelper h,boolean large){
-  var l=h.getLevel();var p=h.absolutePos(new BlockPos(5,40,5));var positions=new ArrayList<BlockPos>();int length=large?260:3;
+ private static Setup setup(GameTestHelper h,boolean large){return setup(h,large,false);}
+ private static Setup setup(GameTestHelper h,boolean large,boolean sparse){
+  var l=h.getLevel();var p=h.absolutePos(new BlockPos(5,40,5));var positions=new ArrayList<BlockPos>();int length=sparse?100:large?260:3;
   // Keep physical spawn dimensions bounded while requiring multiple incremental steps.
-  for(int i=0;i<length;i++){var b=p.offset(i%16,0,i/16);positions.add(b);l.setBlockAndUpdate(b,i==0?SableLife.HEART.get().defaultBlockState():i==1?Blocks.CHEST.defaultBlockState():Blocks.IRON_BLOCK.defaultBlockState());}
+  for(int i=0;i<length;i++){var b=sparse?(i<34?p.offset(i,0,0):i<67?p.offset(33,i-33,0):p.offset(33,33,i-66)):p.offset(i%16,0,i/16);positions.add(b);l.setBlockAndUpdate(b,i==0?SableLife.HEART.get().defaultBlockState():i==1?Blocks.CHEST.defaultBlockState():Blocks.IRON_BLOCK.defaultBlockState());}
   ((ChestBlockEntity)l.getBlockEntity(p.east())).setItem(0,new ItemStack(Items.DIAMOND,7));
-  var body=SubLevelAssemblyHelper.assembleBlocks(l,p,positions,new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+(large?15:2),p.getY(),p.getZ()+(large?16:0)));
+  var body=SubLevelAssemblyHelper.assembleBlocks(l,p,positions,new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+(sparse?33:large?15:2),p.getY()+(sparse?33:0),p.getZ()+(sparse?33:large?16:0)));
   var c=(HeartBlockEntity)l.getBlockEntity(body.getPlot().getCenterBlock());c.configure(100,0);var arena=c.modules().add("arena");arena.arenaCenter(ModuleArena.corePosition(c),l.dimension().location().toString());arena.edit("arenaRespawnEnabled",1,"");arena.edit("arenaRespawnDelay",20,"");
   var mark=c.modules().add("melee");mark.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos().east(2),Direction.EAST)));mark.edit("damage",17,"");String caseName="R"+c.creatureId();mark.edit("name",0,caseName);
   // Vanilla FakePlayer deliberately denies command-block permissions; use an explicit admin test role.
@@ -53,4 +54,26 @@ public final class ArenaRespawnScenarios {
  }}
  public static void repeats(GameTestHelper h){var s=setup(h,false);final UUID original=s.core.creatureId();h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Capture failed");s.core.tryActivate(s.actor);s.core.forceDeath();var generation=new UUID[]{original};var cycles=new int[]{0};var finished=new boolean[]{false};h.onEachTick(()->{if(finished[0])return;var found=LoadedCoreIndex.all(h.getLevel()).stream().filter(c->c.health().state()==HeartState.ALIVE&&c.modules().all().stream().anyMatch(m->m.name().equals(s.name))).toList();if(found.isEmpty())return;h.assertTrue(found.size()==1,"Several alive generations exist");var core=found.getFirst();if(core.creatureId().equals(generation[0]))return;generation[0]=core.creatureId();cycles[0]++;if(cycles[0]<2){core.forceDeath();return;}finished[0]=true;ArenaRespawns.clear(s.actor,core,core.modules().all().stream().filter(m->m.type().equals("arena")).findFirst().orElseThrow());h.succeed();});}
  public static void cancelPartial(GameTestHelper h){var s=setup(h,true);final UUID original=s.core.creatureId();h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Capture failed");s.core.tryActivate(s.actor);s.core.forceDeath();var stopped=new boolean[]{false};h.onEachTick(()->{if(stopped[0])return;var data=ArenaRespawns.get(h.getLevel().getServer());var rows=data.save(new CompoundTag(),h.getLevel().registryAccess()).getList("Entries",10);for(var item:rows){var row=(CompoundTag)item;if(!row.getUUID("Creature").equals(original)||!row.getString("Phase").equals("building")||row.getList("NewBodies",10).isEmpty())continue;stopped[0]=true;var ids=row.getList("NewBodies",10).stream().map(v->((CompoundTag)v).getUUID("Id")).toList();s.actor.setPos(s.arena.arenaCenter());h.getLevel().getServer().getCommands().performPrefixedCommand(s.actor.createCommandSourceStack().withPermission(4),"sablelife_respawn cancel");h.assertTrue(ArenaRespawns.get(h.getLevel().getServer()).save(new CompoundTag(),h.getLevel().registryAccess()).getList("Entries",10).stream().noneMatch(v->((CompoundTag)v).getUUID("Creature").equals(original)),"Cancelled job remained");var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(h.getLevel());for(var id:ids)h.assertTrue(container.getSubLevel(id)==null||container.getSubLevel(id).isRemoved(),"Cancelled partial body remained live");h.succeed();}});}
+ public static void sparseCapture(GameTestHelper h){
+  var s=setup(h,false,true);
+  var chest=(ChestBlockEntity)h.getLevel().getBlockEntity(s.core.getBlockPos().east());chest.getPersistentData().putByteArray("RespawnLargeDataTest",new byte[2*1024*1024]);
+  var template=dev.sablelife.compat.photomancy.PhotomancyRespawnBridge.capture(s.core,s.arena.arenaCenter());
+  h.assertTrue(template.sizeInBytes()>1048576,"Fixture did not exceed the old template limit");
+  h.assertTrue(dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(template).blockCount()==100,"Sparse capture lost actual blocks or captured unrelated structures");
+  h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Sparse 34 cubed bounding box or 2 MiB block-entity data was rejected");
+  var saved=ArenaRespawns.get(h.getLevel().getServer()).save(new CompoundTag(),h.getLevel().registryAccess());var restored=ArenaRespawns.load(saved,h.getLevel().registryAccess()).save(new CompoundTag(),h.getLevel().registryAccess());
+  var row=restored.getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(s.core.creatureId())).findFirst().orElseThrow();
+  h.assertTrue(row.getCompound("Template").sizeInBytes()==template.sizeInBytes(),"Large recorded template disappeared after save/load");ArenaRespawns.clear(s.actor,s.core,s.arena);h.succeed();
+ }
+ public static void savedBudget(GameTestHelper h){
+  var source=new CompoundTag();var entries=new net.minecraft.nbt.ListTag();
+  for(int i=0;i<5;i++){
+   var row=new CompoundTag();row.putUUID("Id",UUID.randomUUID());row.putUUID("Creature",UUID.randomUUID());row.putUUID("Module",UUID.randomUUID());row.putUUID("TemplateModule",UUID.randomUUID());row.putString("Dimension",h.getLevel().dimension().location().toString());row.putString("Phase","ready");row.putInt("Delay",20);
+   var template=new CompoundTag();template.putByteArray("Fixture",new byte[7*1024*1024]);row.put("Template",template);entries.add(row);
+  }
+  source.put("Entries",entries);h.assertTrue(ArenaRespawns.load(source,h.getLevel().registryAccess()).count()==4,"World template budget did not reject the fifth 7 MiB template");
+  var oversized=((CompoundTag)entries.get(0)).copy();var template=new CompoundTag();template.putByteArray("Fixture",new byte[ArenaRespawnLimits.TEMPLATE_BYTES]);oversized.put("Template",template);var only=new net.minecraft.nbt.ListTag();only.add(oversized);source.put("Entries",only);
+  h.assertTrue(ArenaRespawns.load(source,h.getLevel().registryAccess()).count()==0,"Per-template byte limit was not enforced during world load");h.succeed();
+ }
+
 }
