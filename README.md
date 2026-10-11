@@ -1,3 +1,7 @@
+# Current development: 0.1.214
+
+Grounds Arena respawn countdown displays at the center X/Z independently of blueprint spawn height. Cancellation also works near the actual display. Manual explains native normalized anchors and terrain-overlap precautions. Stable remains 0.1.200.
+
 # Current development: 0.1.213
 
 Adds a visible bilingual Arena record config-limit note. Functional behavior unchanged from 0.1.212. Stable remains 0.1.200.

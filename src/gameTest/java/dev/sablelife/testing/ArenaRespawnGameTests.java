@@ -22,4 +22,6 @@ public final class ArenaRespawnGameTests {
 
  @GameTest(template="combat",batch="respawn_64000",timeoutTicks=400) public static void Real64000BlockTemplateCapturesAndReloads(GameTestHelper h){ArenaRespawnScenarios.sixtyFourThousandBlocks(h);}
 
+ @GameTest(template="combat",batch="respawn_grounded_timer",timeoutTicks=100) public static void GroundedCountdownKeepsHighSpawnAnchorAndCanBeCancelledNearby(GameTestHelper h){ArenaRespawnScenarios.groundedTimer(h);}
+
 }

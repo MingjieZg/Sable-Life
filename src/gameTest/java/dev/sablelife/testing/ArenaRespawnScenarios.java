@@ -150,4 +150,17 @@ public final class ArenaRespawnScenarios {
   h.assertTrue(ArenaRespawns.record(actor,core,arena),"Actual 64000-block native template rejected");var saved=ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess());var data=ArenaRespawns.load(saved,l.registryAccess()).save(new CompoundTag(),l.registryAccess());var row=data.getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(core.creatureId())).findFirst().orElseThrow();h.assertTrue(dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(row.getCompound("Template")).blockCount()==64000,"Large native template lost blocks on save/load");ArenaRespawns.clear(actor,core,arena);dev.sablelife.compat.StructureRemovalApi.remove(l,body);h.succeed();
  }
 
+ public static void groundedTimer(GameTestHelper h){
+  var s=setup(h,false);var l=h.getLevel();var center=s.arena.arenaCenter().add(0,150,0);s.arena.arenaCenter(center,l.dimension().location().toString());
+  var ground=new BlockPos((int)Math.floor(center.x),h.absolutePos(new BlockPos(0,5,0)).getY(),(int)Math.floor(center.z));l.setBlockAndUpdate(ground,Blocks.STONE.defaultBlockState());
+  // Completed GameTests can leave beacon/marker terrain above this column; establish a unique known surface.
+  for(int y=ground.getY()+1;y<l.getMaxBuildHeight();y++)l.setBlockAndUpdate(new BlockPos(ground.getX(),y,ground.getZ()),Blocks.AIR.defaultBlockState());
+  h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Capture failed");s.core.tryActivate(s.actor);s.core.forceDeath();
+  h.runAfterDelay(3,()->{
+   var row=ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess()).getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(s.core.creatureId())).findFirst().orElseThrow();h.assertTrue(row.hasUUID("Display"),"Countdown display missing");var text=l.getEntity(row.getUUID("Display"));
+   h.assertTrue(text!=null&&text.getY()==ground.getY()+3.5&&text.getX()==center.x&&text.getZ()==center.z,"Actual countdown="+(text==null?"missing":text.position())+" ground="+ground+" center="+center);h.assertTrue(row.getDouble("Y")==center.y&&text.position().distanceTo(center)>64,"Grounded timer changed spawn anchor or fixture not high enough");
+   s.actor.setPos(text.position());l.getServer().getCommands().performPrefixedCommand(s.actor.createCommandSourceStack().withPermission(4),"sablelife_respawn cancel");h.assertTrue(text.isRemoved()&&ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess()).getList("Entries",10).stream().noneMatch(v->((CompoundTag)v).getUUID("Creature").equals(s.core.creatureId())),"Cannot cancel high-anchor job from its ground display");h.succeed();
+  });
+ }
+
 }

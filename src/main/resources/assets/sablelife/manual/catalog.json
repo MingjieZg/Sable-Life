@@ -1,5 +1,5 @@
 {
-  "revision": 64,
+  "revision": 65,
   "entries": [
     {
       "id": "getting_started",
@@ -650,7 +650,8 @@
       "title": "dashboard.sablelife.type_arena",
       "sections": {
         "usage": [
-          "manual.sablelife.arena.usage"
+          "manual.sablelife.arena.usage",
+          "manual.sablelife.arena.respawn_notes"
         ],
         "settings": [
           "manual.sablelife.arena.settings",
