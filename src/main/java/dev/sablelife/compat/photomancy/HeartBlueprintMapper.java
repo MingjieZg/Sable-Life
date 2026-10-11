@@ -17,6 +17,10 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
     private static final String REF = "sablelife:blueprint_mark";
     private static final String ARENA = "sablelife:blueprint_arena_offset";
     public static void register() {
+        SableBlueprintEventRegistry.register(new SableBlueprintEvent(){
+            @Override public net.minecraft.resources.ResourceLocation id(){return net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("sablelife","respawn_placement");}
+            @Override public void onPlaceBeforeBlocks(BlueprintPlaceSession session,CompoundTag data){PhotomancyRespawnBridge.observePlacement(session);}
+        });
         SableBlueprintMapperRegistry.register(SableLife.HEART_ENTITY.get(), new HeartBlueprintMapper());
         com.mojang.logging.LogUtils.getLogger().info("Registered Sable Life Heart blueprint mapper for Photomancy");
     }

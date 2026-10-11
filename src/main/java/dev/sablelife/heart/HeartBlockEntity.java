@@ -449,10 +449,11 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         modules.hurtTriggers.hurt(this);
         modules.events().hurt(this);
         if (health.state() != HeartState.ALIVE) {
+            // Register death before stopping signals: mounted controllers can react synchronously.
+            LifeLifecycle.get(((ServerLevel) level).getServer()).schedule(this);
             adaptiveDefense.reset();modules.clearRuntime();
             wireless.stop();
             pulseSignal = 0;
-            LifeLifecycle.get(((ServerLevel) level).getServer()).schedule(this);
         }
         changed();
         return true;

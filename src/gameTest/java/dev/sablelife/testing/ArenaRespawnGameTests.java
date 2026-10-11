@@ -4,7 +4,7 @@ import net.neoforged.neoforge.gametest.*;
 @GameTestHolder("sablelife_respawn_tests") @PrefixGameTestTemplate(false)
 public final class ArenaRespawnGameTests {
  @GameTest(template="combat",batch="respawn_cycle",timeoutTicks=360) public static void RecordedBodyRespawnsActiveWithMarksAndInventory(GameTestHelper h){ArenaRespawnScenarios.cycle(h,false);}
- @GameTest(template="combat",batch="respawn_resume",timeoutTicks=360) public static void MidPlacementSaveReloadDoesNotDuplicateBody(GameTestHelper h){ArenaRespawnScenarios.cycle(h,true);}
+ @GameTest(template="combat",batch="respawn_resume",timeoutTicks=360) public static void LegacyMidPlacementSaveReloadDoesNotDuplicateBody(GameTestHelper h){ArenaRespawnScenarios.cycle(h,true);}
  @GameTest(template="combat",batch="respawn_permissions") public static void RecordRequiresCreativeOperatorAndRejectsWrongModule(GameTestHelper h){ArenaRespawnScenarios.permissions(h);}
  @GameTest(template="combat",batch="respawn_unloaded",timeoutTicks=100) public static void CountdownPausesWithoutLoadingDistantChunks(GameTestHelper h){ArenaRespawnScenarios.unloaded(h);}
  @GameTest(template="combat",batch="respawn_repeat",timeoutTicks=360) public static void TwoGenerationsKeepAutoRespawnWithoutDuplicatingLife(GameTestHelper h){ArenaRespawnScenarios.repeats(h);}
@@ -20,8 +20,10 @@ public final class ArenaRespawnGameTests {
 
  @GameTest(template="combat",batch="respawn_minimum",timeoutTicks=100) public static void RespawnMinimumAppliesToEditorDeathAndSavedDelay(GameTestHelper h){ArenaRespawnScenarios.respawnMinimum(h);}
 
- @GameTest(template="combat",batch="respawn_64000",timeoutTicks=400) public static void Real64000BlockTemplateCapturesAndReloads(GameTestHelper h){ArenaRespawnScenarios.sixtyFourThousandBlocks(h);}
+ @GameTest(template="combat",batch="respawn_64000",timeoutTicks=400) public static void Real64000BlockTemplateCapturesReloadsAndPlacesInOneCall(GameTestHelper h){ArenaRespawnScenarios.sixtyFourThousandBlocks(h);}
 
  @GameTest(template="combat",batch="respawn_grounded_timer",timeoutTicks=100) public static void GroundedCountdownKeepsHighSpawnAnchorAndCanBeCancelledNearby(GameTestHelper h){ArenaRespawnScenarios.groundedTimer(h);}
 
+ @GameTest(template="combat",batch="respawn_direct",timeoutTicks=100) public static void NativeDirectPlacementCompletesInOneCallAndDoesNotRepeatAfterReload(GameTestHelper h){ArenaRespawnScenarios.directPlacement(h);}
+ @GameTest(template="combat",batch="respawn_direct_failure",timeoutTicks=100) public static void NativeRestoreDiagnosticStopsActivationAndDuplicateRetry(GameTestHelper h){ArenaRespawnScenarios.directFailure(h);}
 }

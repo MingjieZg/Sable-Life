@@ -186,7 +186,7 @@
   "arena_respawn.sablelife.error_too_large": "结构规模或数据量超过记录上限。",
   "arena_respawn.sablelife.error_unloaded": "请先加载所有相连部件再记录。",
   "arena_respawn.sablelife.error_one_heart": "模板必须包含且只包含一个生命核心。",
-  "dashboard.sablelife.arena_respawn_help": "需要 Photomancy 1.0.1，由创造模式管理员操作。标记场地中心，记录当前相连结构，再开启自动重生。死亡时开始倒数，重生区域未加载时暂停；旧身体清理完成后才分批恢复，新生命体会满血激活。重新记录可替换模板，清除记录可停止后续重生。",
+  "dashboard.sablelife.arena_respawn_help": "需要 Photomancy 1.0.1，由创造模式管理员操作。标记场地中心，记录当前相连结构，再开启自动重生。死亡时开始倒数，重生区域未加载时暂停；旧身体清理完成后通过 Photomancy 原生接口一次性恢复，新生命体会满血激活。重新记录可替换模板，清除记录可停止后续重生。",
   "manual.sablelife.revision": "内容修订 %s · 仅查看",
   "arena_respawn.sablelife.record_limit": "无法记录结构：%s为 %s，上限为 %s。",
   "arena_respawn.sablelife.limit_scan": "包围盒扫描格数（含空气）",
@@ -196,5 +196,6 @@
   "arena_respawn.sablelife.limit_entities": "记录实体数",
   "arena_respawn.sablelife.limit_template": "单份模板数据字节数",
   "arena_respawn.sablelife.limit_world_templates": "世界模板总数据字节数",
-  "dashboard.sablelife.arena_record_config_note": "方块/数据上限随服务器 config 设置"
+  "dashboard.sablelife.arena_record_config_note": "方块/数据上限随服务器 config 设置",
+  "dashboard.sablelife.arena_record_release_note": "每次解除生命化后，需要重新记录当前结构"
 }

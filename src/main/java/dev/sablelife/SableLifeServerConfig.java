@@ -14,7 +14,7 @@ public final class SableLifeServerConfig {
                 .defineInRange("maximumWirelessChannels", 256, 1, 65535);
         PARTICLES = builder.comment("Visual particle points per player per server tick. Damage and timing are unaffected.")
                 .defineInRange("particlePointsPerPlayerTick", 8192, 256, 65536);
-        CLEANUP = builder.comment("Successful death-cleanup block removals per server tick, shared across jobs and dimensions.")
+        CLEANUP = builder.comment("Fallback block removals per server tick, shared across death jobs and dimensions. An eligible whole-body native removal is atomic and may exceed this block count.")
                 .defineInRange("deathCleanupBlocksPerTick", 256, 16, 4096);
         PROJECTILES = builder.comment("Maximum loaded Sable Life projectiles per dimension. Saved projectiles are never discarded by this limit.")
                 .defineInRange("maximumProjectilesPerWorld",8192,256,65536);
@@ -24,9 +24,9 @@ public final class SableLifeServerConfig {
                 .defineInRange("collisionChecksPerTick",8388608,4194304,16777216);
         ARENA_CAPTURE_SCAN=builder.comment("Bounding-box cells (including air) allowed in one creative-operator Arena capture. Capture uses native Photomancy export synchronously; raising this can increase a one-time pause. Templates and actual block/entity limits remain separate.")
                 .defineInRange("arenaCaptureScanVoxels",dev.sablelife.ownership.ArenaRespawnLimits.SCAN_VOXELS,262144,16777216);
-        ARENA_BLOCKS=builder.comment("Actual blocks permitted in one administrator Arena record.").defineInRange("arenaCaptureBlocks",dev.sablelife.ownership.ArenaRespawnLimits.BLOCKS,1024,1048576);
-        ARENA_BLOCK_ENTITIES=builder.comment("Block entities permitted in one administrator Arena record.").defineInRange("arenaCaptureBlockEntities",dev.sablelife.ownership.ArenaRespawnLimits.BLOCK_ENTITIES,256,131072);
-        ARENA_TEMPLATE_BYTES=builder.comment("Uncompressed estimated bytes permitted per Arena template.").defineInRange("arenaTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.TEMPLATE_BYTES,1048576,134217728);
+        ARENA_BLOCKS=builder.comment("Actual blocks permitted in one administrator Arena record. Also bounds the work of native one-call respawn placement; this is not a per-tick construction budget.").defineInRange("arenaCaptureBlocks",dev.sablelife.ownership.ArenaRespawnLimits.BLOCKS,1024,1048576);
+        ARENA_BLOCK_ENTITIES=builder.comment("Block entities permitted in one administrator Arena record. Limits NBT restoration work during native one-call placement.").defineInRange("arenaCaptureBlockEntities",dev.sablelife.ownership.ArenaRespawnLimits.BLOCK_ENTITIES,256,131072);
+        ARENA_TEMPLATE_BYTES=builder.comment("Uncompressed estimated bytes permitted per Arena template at capture and saved-data admission. Required for native one-call respawn memory limits.").defineInRange("arenaTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.TEMPLATE_BYTES,1048576,134217728);
         ARENA_WORLD_BYTES=builder.comment("Total uncompressed estimated bytes permitted across world Arena templates.").defineInRange("arenaWorldTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.WORLD_TEMPLATE_BYTES,1048576,536870912);
         SPEC = builder.build();
     }

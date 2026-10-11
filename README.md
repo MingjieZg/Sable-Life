@@ -1,3 +1,19 @@
+# Current stable: 0.1.218
+
+Native one-call respawn and whole-life death deletion are accepted. Owned hanging decorations now clear before removal; lethal actionbar is red; recording reminds authors to re-record after release. All server config keys remain compatible.
+
+# Current development: 0.1.217
+
+Eligible fully loaded lives now clear every owned body in one server tick after the death delay, using the native Sable removal path and optional Toolgun batch coordinator. Mounted payloads are handled before any body removal. Unloaded records wait; mixed/unsupported/oversized groups retain budgeted fallback. Stable0.1.200.
+
+# Current development: 0.1.216
+
+Prevents owned CBC/Neo cannon mounts from disassembling during a registered death countdown; formal cleanup discards their mounted entities. Reproduced on the user blueprint with assembly power loss. Living disassembly remains native. Server limit keys and values stay compatible; comments clarify one-call respawn versus block cleanup. Stable0.1.200.
+
+# Current development: 0.1.215
+
+Arena respawn now uses Photomancy native one-call blueprint placement, then registers all body parts and activates the core. Native Copycat/inventory/UUID/64000-block and multi-part tests pass. Existing incremental jobs retain their recovery path. Stable remains 0.1.200; actual giant machine replay is pending.
+
 # Current development: 0.1.214
 
 Grounds Arena respawn countdown displays at the center X/Z independently of blueprint spawn height. Cancellation also works near the actual display. Manual explains native normalized anchors and terrain-overlap precautions. Stable remains 0.1.200.

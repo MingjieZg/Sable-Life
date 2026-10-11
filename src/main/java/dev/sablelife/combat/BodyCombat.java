@@ -166,7 +166,9 @@ public final class BodyCombat {
                 SoundSource.BLOCKS, 0.7F, critical ? 1.0F : 0.8F);
         if (attacker != null) {
             attacker.displayClientMessage(Component.translatable("message.sablelife.hit", rounded(damage),
-                    rounded(heart.health().current()), rounded(heart.health().maximum())), true);
+                    rounded(heart.health().current()), rounded(heart.health().maximum())).withStyle(
+                    heart.health().state()==dev.sablelife.heart.HeartState.DYING||heart.health().state()==dev.sablelife.heart.HeartState.DEAD
+                            ?net.minecraft.ChatFormatting.RED:net.minecraft.ChatFormatting.WHITE), true);
         }
     }
 

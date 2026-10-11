@@ -46,6 +46,8 @@ public final class BodyOwnership extends SavedData {
     private static long chunkKey(BlockPos pos){return net.minecraft.world.level.ChunkPos.asLong(pos.getX()>>4,pos.getZ()>>4);}
     java.util.Set<Long> chunkRecords(long chunk){return byChunk.getOrDefault(chunk,java.util.Set.of());}
     boolean matchesCleanup(BlockPos pos,UUID id,boolean part){return id.equals(part?parts.get(pos.asLong()):owners.get(pos.asLong()));}
+    java.util.Set<Long> cleanupPositions(UUID id,boolean part){return (part?byPart:byOwner).getOrDefault(id,java.util.Set.of());}
+    void finishCleanup(UUID id,boolean part){if(cleanupPositions(id,part).isEmpty())(part?partCursors:ownerCursors).remove(id);}
     public UUID part(BlockPos pos) { return parts.get(pos.asLong()); }
     /** Registered bodies, including reconstructed parts whose actor connection is not ready yet. */
     public java.util.Set<UUID> bodyIds(ServerLevel level,UUID creature){
@@ -144,7 +146,7 @@ public final class BodyOwnership extends SavedData {
             }
             var point=dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,pos.getCenter());boolean erased;
             BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()+1);
-            try{dev.sablelife.compat.MountedContraptionCleanup.discardForDeath(level.getBlockEntity(pos));erased=level.removeBlock(pos,false);}finally{BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);}
+            try{dev.sablelife.compat.BodyDecorationCleanup.discardForBlock(level,pos);dev.sablelife.compat.MountedContraptionCleanup.discardForDeath(level.getBlockEntity(pos));erased=level.removeBlock(pos,false);}finally{BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);}
             if(erased){
                 if(smoke-->0){if(effect!=null)effect.emit(level,point);else dev.sablelife.module.ModuleParticles.send(level,net.minecraft.core.particles.ParticleTypes.POOF,point.x,point.y,point.z,6,.35,.35,.35,.04);}
                 forget(pos);removed++;

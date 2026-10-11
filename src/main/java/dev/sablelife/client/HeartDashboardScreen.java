@@ -480,7 +480,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             int labelWidth = (int) ((inputX - detailX - 6) / textScale());
             if(key.equals("redstoneFrequency"))labelWidth=Math.max(1,font.width(label));
             if(m.type().equals("pull")&&key.equals("pullStop"))label=label.copy().append("\n").append(tr("pull_stop_note"));
-            if(m.type().equals("arena")&&key.equals("arenaRespawnRecord"))label=label.copy().append("\n").append(tr("arena_record_config_note").copy().withStyle(net.minecraft.ChatFormatting.GRAY));
+            if(m.type().equals("arena")&&key.equals("arenaRespawnRecord"))label=label.copy().append("\n").append(tr("arena_record_config_note").copy().withStyle(net.minecraft.ChatFormatting.GRAY)).append("\n").append(tr("arena_record_release_note").copy().withStyle(net.minecraft.ChatFormatting.RED));
             int lines = font.split(label, labelWidth).size();
             float scale = Math.min(textScale(), (rowPitch - 2f) / Math.max(font.lineHeight, lines * font.lineHeight));
             if(key.equals("redstoneFrequency"))scale=Math.min(scale,(frequencySlotsX()-detailX-4f)/Math.max(1,font.width(label)));

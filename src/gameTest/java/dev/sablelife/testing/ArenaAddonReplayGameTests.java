@@ -10,7 +10,7 @@ public final class ArenaAddonReplayGameTests {
   var path=System.getProperty("sablelife.arenaReplayTemplate");h.assertTrue(path!=null,"Requires private replay fixture and arenaAddonTests profile");
   var template=NbtIo.readCompressed(java.nio.file.Path.of(path),NbtAccounter.unlimitedHeap());
   var build=PhotomancyRespawnBridge.create(template,new CompoundTag(),Vec3.atCenterOf(h.absolutePos(new net.minecraft.core.BlockPos(10,40,10))));var done=new boolean[]{false};
-  h.onEachTick(()->{if(done[0])return;var status=build.step(h.getLevel());if(status.equals("DONE")){done[0]=true;h.assertTrue(build.heart(h.getLevel())!=null,"Completed addon template has no core");var core=build.heart(h.getLevel());var expected=dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(template).subLevels().size();
+  h.onEachTick(()->{if(done[0])return;var status=build.step(h.getLevel());h.assertTrue(status.equals("DONE"),"New addon build did not use one-call native placement");if(status.equals("DONE")){done[0]=true;h.assertTrue(build.heart(h.getLevel())!=null,"Completed addon template has no core");var core=build.heart(h.getLevel());var expected=dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(template).subLevels().size();
    h.runAfterDelay(20,()->{
     var root=dev.ryanhcode.sable.Sable.HELPER.getContaining(h.getLevel(),core.getBlockPos());
     h.assertTrue(root!=null&&dev.ryanhcode.sable.api.SubLevelHelper.getConnectedChain(root).size()==expected,"Addon joints did not reconnect all recorded parts");

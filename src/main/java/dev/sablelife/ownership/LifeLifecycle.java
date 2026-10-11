@@ -110,7 +110,7 @@ public final class LifeLifecycle extends SavedData {
         get(event.getServer()).tickDeaths(event.getServer());
     }
     public void tickDeaths(MinecraftServer server) {
-        int remainingBlocks=dev.sablelife.SableLifeServerConfig.deathCleanupBlocksPerTick(),remainingVisits=16384;
+        int remainingBlocks=dev.sablelife.SableLifeServerConfig.deathCleanupBlocksPerTick(),remainingVisits=16384,wholeSlots=1;
         var jobs=new java.util.ArrayList<>(deaths.entrySet());
         if(!jobs.isEmpty()){java.util.Collections.rotate(jobs,-Math.floorMod(cleanupTurn++,jobs.size()));}
         for (var entry : jobs) {
@@ -125,7 +125,14 @@ public final class LifeLifecycle extends SavedData {
                 }
             }
             // Never force-load chunks. Their registered blocks stay protected and are retried on later ticks.
-            if (!death.cleaned) {
+            if(!death.cleaned&&!death.wholeFallback&&wholeSlots>0&&server.overworld().getGameTime()>=death.nextWholeAttempt){
+                wholeSlots--;
+                var result=WholeLifeDeletion.attempt(server,entry.getKey(),death.parent!=null,death.parent==null?effect:null);
+                if(result==WholeLifeDeletion.Outcome.DONE){death.cleaned=true;setDirty();}
+                else if(result==WholeLifeDeletion.Outcome.FALLBACK){death.wholeFallback=true;setDirty();}
+                else death.nextWholeAttempt=server.overworld().getGameTime()+20;
+            }
+            if (!death.cleaned&&death.wholeFallback) {
                 boolean pending = false;
                 for (var level : server.getAllLevels()) {
                     var ownership = BodyOwnership.get(level);
@@ -163,6 +170,8 @@ public final class LifeLifecycle extends SavedData {
         int remaining;
         boolean rewarded;
         boolean cleaned;
+        boolean wholeFallback;
+        transient long nextWholeAttempt;
         boolean forceLoading;
         boolean experienceLevels;
         CompoundTag presentation=new CompoundTag();
@@ -190,7 +199,7 @@ public final class LifeLifecycle extends SavedData {
             if (job.hasUUID("Id") && dimension != null && loot != null) {
                 var death = new Death(dimension, new Vec3(job.getDouble("X"), job.getDouble("Y"), job.getDouble("Z")),
                         Math.clamp(job.getInt("Remaining"), 0, job.hasUUID("Parent")?12000:dev.sablelife.heart.HeartHealth.MAX_DEATH_DELAY), loot, Math.clamp(job.getInt("Experience"), 0, job.hasUUID("Parent")?10000:dev.sablelife.heart.ExperienceUnits.MAX_POINTS), job.getBoolean("Rewarded"));
-                death.cleaned = job.getBoolean("Cleaned");death.experienceLevels=job.getBoolean("ExperienceLevels");
+                death.wholeFallback=job.getBoolean("WholeFallback");death.cleaned = job.getBoolean("Cleaned");death.experienceLevels=job.getBoolean("ExperienceLevels");
                 death.forceLoading=job.getBoolean("ForceLoading");
                 death.presentation=job.getCompound("Presentation").copy();death.presentationPlayed=job.getBoolean("PresentationPlayed");
                 death.parent = job.hasUUID("Parent") ? job.getUUID("Parent") : null;
@@ -228,7 +237,7 @@ public final class LifeLifecycle extends SavedData {
             job.putString("Dimension", death.dimension.toString()); job.putString("Loot", death.loot.toString());
             job.putDouble("X", death.point.x); job.putDouble("Y", death.point.y); job.putDouble("Z", death.point.z);
             job.putInt("Remaining", death.remaining); job.putInt("Experience", death.experience);job.putBoolean("ExperienceLevels",death.experienceLevels); job.putBoolean("Rewarded", death.rewarded);
-            job.putBoolean("Cleaned", death.cleaned);job.putBoolean("ForceLoading",death.forceLoading);
+            job.putBoolean("WholeFallback",death.wholeFallback);job.putBoolean("Cleaned", death.cleaned);job.putBoolean("ForceLoading",death.forceLoading);
             job.put("Presentation",death.presentation.copy());job.putBoolean("PresentationPlayed",death.presentationPlayed);
             if (death.parent != null) { job.putUUID("Parent", death.parent); job.putString("PartName", death.partName); }
             if (death.templates != null) {

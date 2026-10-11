@@ -97,7 +97,7 @@ public final class ArenaRespawns extends SavedData {
     var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
     if(container==null||e.oldBodies.stream().anyMatch(id->container.getSubLevel(id)!=null)){display(level,e,"cleanup",0);continue;}
     if(buildSlots--<=0)continue;
-    e.phase="building";var status=e.build.step(level);e.progress=e.build.save();e.newBodies=e.build.bodies();setDirty();
+    e.phase="building";display(level,e,"building",0);var status=e.build.step(level);e.progress=e.build.save();e.newBodies=e.build.bodies();setDirty();
     display(level,e,"building",e.build.fraction());
     if(status.equals("FAILED")||status.equals("WAITING_FOR_MATERIALS")){e.phase="failed";setDirty();continue;}
     if(status.equals("DONE")){

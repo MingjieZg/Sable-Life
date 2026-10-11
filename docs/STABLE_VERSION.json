@@ -1,29 +1,29 @@
 {
-  "version": "0.1.200",
+  "version": "0.1.218",
   "status": "stable",
-  "accepted_at": "2026-10-10T06:45:35.073145+08:00",
+  "accepted_at": "2026-10-11T12:36:23.482899+08:00",
   "timezone": "Asia/Singapore",
-  "acceptance": "User authorized stable promotion after the requested fixes and automated verification. User confirmed prior large-body cleanup continues after reload and normal tool attacks work.",
-  "jar": "sablelife-0.1.200.jar",
-  "bytes": 1233185,
-  "sha256": "e0064c26238a2f1cbc45d4bbe926c5c93912e31e883b39de826f676bbdc590c5",
+  "acceptance": "User confirmed 0.1.217 whole-life deletion and authorized stable promotion after the requested template reminder, hanging decoration cleanup and lethal actionbar color fixes.",
+  "jar": "sablelife-0.1.218.jar",
+  "bytes": 1367997,
+  "sha256": "d50a63b22d641bbba8e1a04ed95a3332c53e5ee8535d0c9d80d1513bcd97f944",
   "minecraft": "1.21.1",
   "loader": "NeoForge",
   "minimum_neoforge": "21.1.235",
   "tested_neoforge": "21.1.235",
-  "protocol": 6,
+  "protocol": 7,
   "required_mods": {
     "sable": "2.0.5",
     "create": "6.0.10"
   },
-  "optional_epic_fight": "21.17.3.1",
+  "previous_stable": "0.1.200",
   "automated_validation": {
-    "unit": 57,
-    "default_gametest": 282,
-    "combined_compatibility_gametest": 81,
-    "real_epic_client_ui": "passed",
-    "manual_revision": 53
+    "unit": 58,
+    "default_gametest": 291,
+    "specialty_gametest": 26,
+    "user_blueprint_toolgun_mounted_decorations": 21,
+    "manual_revision": 69,
+    "without_photomancy_gametest": 40
   },
-  "previous_stable": "0.1.193",
-  "user_validation": "0.1.199 core behavior accepted; the 0.1.200 changes have automated coverage and user authorization to release. Their original-scene visual feel has not yet been manually retested."
+  "user_validation": "User confirmed original one-call respawn restores appearance/function and whole-life death cleanup works. Final new decoration/UI fixes have automated coverage; stable promotion explicitly authorized."
 }
