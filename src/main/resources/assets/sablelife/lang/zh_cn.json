@@ -1523,5 +1523,6 @@
   "arena_respawn.sablelife.limit_block_entities": "记录方块实体数",
   "arena_respawn.sablelife.limit_entities": "记录实体数",
   "arena_respawn.sablelife.limit_template": "单份模板数据字节数",
-  "arena_respawn.sablelife.limit_world_templates": "世界模板总数据字节数"
+  "arena_respawn.sablelife.limit_world_templates": "世界模板总数据字节数",
+  "dashboard.sablelife.arena_record_config_note": "方块/数据上限随服务器 config 设置"
 }

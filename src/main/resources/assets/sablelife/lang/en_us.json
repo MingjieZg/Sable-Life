@@ -1523,5 +1523,6 @@
   "arena_respawn.sablelife.limit_block_entities": "captured block entities",
   "arena_respawn.sablelife.limit_entities": "captured entities",
   "arena_respawn.sablelife.limit_template": "template data bytes",
-  "arena_respawn.sablelife.limit_world_templates": "world template data bytes"
+  "arena_respawn.sablelife.limit_world_templates": "world template data bytes",
+  "dashboard.sablelife.arena_record_config_note": "Block/data limits follow server config"
 }
