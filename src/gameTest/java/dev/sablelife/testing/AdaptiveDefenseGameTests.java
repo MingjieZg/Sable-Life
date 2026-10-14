@@ -16,9 +16,9 @@ public final class AdaptiveDefenseGameTests {
     private static HeartBlockEntity fixture(GameTestHelper h,int x,int z){var l=h.getLevel();var p=h.absolutePos(new BlockPos(x,6,z));l.setBlockAndUpdate(p,SableLife.HEART.get().defaultBlockState());l.setBlockAndUpdate(p.east(),Blocks.IRON_BLOCK.defaultBlockState());var body=SubLevelAssemblyHelper.assembleBlocks(l,p,List.of(p,p.east()),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+1,p.getY(),p.getZ()));return (HeartBlockEntity)l.getBlockEntity(body.getPlot().getCenterBlock());}
     private static net.neoforged.neoforge.common.util.FakePlayer author(GameTestHelper h){var p=FakePlayerFactory.get(h.getLevel(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),"DefenseAuthor"));p.setGameMode(net.minecraft.world.level.GameType.CREATIVE);return p;}
     @GameTest(template="combat",batch="defense_armor")
-    public static void ArmorRunsBeforeSharedDpsStatisticsAndBlockedDamageIsIgnored(GameTestHelper h){var heart=fixture(h,4,4);var p=author(h);heart.configure(1000,60);heart.editCore(p,"defenseEnabled",1,"");var armor=heart.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos().east(),Direction.EAST)));armor.edit("reduction",50,"");heart.tryActivate(p);
+    public static void ArmorRunsBeforeSharedDpsStatisticsAndBlockedDamageIsIgnored(GameTestHelper h){var heart=fixture(h,4,4);var p=author(h);heart.configure(1000,60);heart.editCore(p,"defenseEnabled",1,"");var armor=heart.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos().east(),Direction.EAST)));ArmorTestSupport.set(heart,armor,-50);heart.tryActivate(p);
         h.assertTrue(heart.damageAt(heart.getBlockPos(),100)&&heart.damageAt(heart.getBlockPos().east(),100)&&heart.damageAt(heart.getBlockPos(),100),"Valid damage rejected");h.assertTrue(Math.abs(heart.health().current()-(1000-50-50-100f/3))<.001,"Armor/adaptive mitigation order incorrect");h.assertTrue(heart.adaptiveDefense().dps()==150,"Different hit parts did not share post-armor DPS");
-        armor.edit("reduction",100,"");h.assertTrue(!heart.damageAt(heart.getBlockPos(),100)&&!heart.damage(Float.NaN)&&!heart.damage(0)&&heart.adaptiveDefense().dps()==150,"Blocked/invalid hits polluted DPS");h.succeed();}
+        ArmorTestSupport.set(heart,armor,-100);h.assertTrue(!heart.damageAt(heart.getBlockPos(),100)&&!heart.damage(Float.NaN)&&!heart.damage(0)&&heart.adaptiveDefense().dps()==150,"Blocked/invalid hits polluted DPS");h.succeed();}
     @GameTest(template="combat",batch="defense_copy")
     public static void ConfigurationPersistsAndCopiesWithoutRuntimeHistory(GameTestHelper h){var heart=fixture(h,2,3);var target=fixture(h,6,7);var p=author(h);heart.configure(10000,60);heart.editCore(p,"defenseThreshold",250,"");heart.editCore(p,"defenseMaximum",75,"");heart.editCore(p,"defenseWindow",2,"");heart.editCore(p,"defenseEnabled",1,"");heart.tryActivate(p);heart.damage(2000);h.assertTrue(heart.adaptiveDefense().dps()==1000&&heart.adaptiveDefense().reduction()==.75,"DPS fixture failed");
         var saved=heart.saveWithoutMetadata(h.getLevel().registryAccess());var loaded=new HeartBlockEntity(heart.getBlockPos(),heart.getBlockState());loaded.loadWithComponents(saved,h.getLevel().registryAccess());h.assertTrue(loaded.adaptiveDefense().enabled()&&loaded.adaptiveDefense().threshold()==250&&loaded.adaptiveDefense().maximum()==75&&loaded.adaptiveDefense().window()==40&&loaded.adaptiveDefense().dps()==0&&loaded.adaptiveDefense().reduction()==0,"Configuration or runtime reset failed on load");
@@ -34,38 +34,34 @@ public final class AdaptiveDefenseGameTests {
     public static void SignedPartModifierAmplifiesReducesAndPreservesOverlapPriority(GameTestHelper h){
         var heart=fixture(h,4,4);var p=author(h);heart.configure(1000,60);
         var modifier=heart.modules().add("armor");modifier.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos(),Direction.UP)));
-        h.assertTrue(modifier.value("damageModifier")==0,"New damage modifier must default to ordinary damage");
-        h.assertTrue(modifier.edit("damageModifier",1001,"")&&modifier.value("damageModifier")==1000&&modifier.edit("damageModifier",-101,"")&&modifier.value("damageModifier")==-100&&!modifier.edit("damageModifier",Double.NaN,""),"Signed range clamping failed");
-        modifier.edit("damageModifier",50,"");
+        h.assertTrue(modifier.armorRules().rows().isEmpty(),"New armor should have no rules");
+        var bounds=new ArmorRules().add();h.assertTrue(!bounds.edit("modifier",1001)&&!bounds.edit("modifier",-101)&&!bounds.edit("modifier",Double.NaN),"Invalid modifiers accepted");
+        ArmorTestSupport.set(heart,modifier,50);
         heart.tryActivate(p);heart.damageAt(heart.getBlockPos().east(),20);
         h.assertTrue(heart.health().current()==970,"Positive modifier failed to amplify entire marked part");
-        modifier.edit("damageModifier",-50,"");heart.damageAt(heart.getBlockPos(),20);
+        ArmorTestSupport.set(heart,modifier,-50);heart.damageAt(heart.getBlockPos(),20);
         h.assertTrue(heart.health().current()==960,"Negative modifier failed to reduce damage");
-        modifier.edit("damageModifier",0,"");heart.damageAt(heart.getBlockPos(),20);
+        ArmorTestSupport.set(heart,modifier,0);heart.damageAt(heart.getBlockPos(),20);
         h.assertTrue(heart.health().current()==940,"Zero modifier changed damage");
-        modifier.edit("damageModifier",100,"");var shield=heart.modules().add("armor");shield.anchors(modifier.anchors());shield.edit("damageModifier",-100,"");
+        ArmorTestSupport.set(heart,modifier,100);var shield=heart.modules().add("armor");shield.anchors(modifier.anchors());ArmorTestSupport.set(heart,shield,-100);
         h.assertTrue(!heart.damageAt(heart.getBlockPos(),20)&&heart.health().current()==940,"Amplification bypassed overlapping immunity");
         shield.edit("enabled",0,"");heart.damageAt(heart.getBlockPos(),20);
         h.assertTrue(heart.health().current()==900,"Disabled immunity blocked amplification");
         modifier.edit("enabled",0,"");heart.damageAt(heart.getBlockPos(),20);
         h.assertTrue(heart.health().current()==880,"Inactive modifier changed ordinary damage");
-        modifier.edit("enabled",1,"");modifier.edit("damageModifier",1000,"");heart.damageAt(heart.getBlockPos(),20);
+        modifier.edit("enabled",1,"");ArmorTestSupport.set(heart,modifier,1000);heart.damageAt(heart.getBlockPos(),20);
         h.assertTrue(heart.health().current()==660,"+1000% did not yield eleven times incoming damage");
-        h.assertTrue(VirtualModule.load(modifier.save()).value("damageModifier")==1000&&ModulePreset.create(modifier.save()).value("damageModifier")==1000,"Extended amplification failed save/preset round trip");h.succeed();
+        h.assertTrue(VirtualModule.load(modifier.save()).armorRules().rows().getFirst().modifier()==1000&&ModulePreset.create(modifier.save()).armorRules().rows().getFirst().modifier()==1000,"Extended amplification failed save/preset round trip");h.succeed();
     }
     @GameTest(template="combat",batch="defense_modifier_save")
     public static void SignedModifierMigratesLegacyWorldsAndPresetsWithoutDoubleNegation(GameTestHelper h){
-        var legacy=new VirtualModule("armor").save();var settings=legacy.getCompound("Settings");settings.remove("damageModifier");settings.putDouble("reduction",75);
-        var migrated=VirtualModule.load(legacy);h.assertTrue(migrated.value("damageModifier")==-75,"Legacy reduction became amplification");
-        h.assertTrue(ModulePreset.create(legacy).value("damageModifier")==-75,"Legacy personal preset failed migration");
-        h.assertTrue(VirtualModule.load(migrated.save()).value("damageModifier")==-75,"Reload double-negated migrated immunity");
-        migrated.edit("damageModifier",50,"");var saved=migrated.save();saved.getCompound("Settings").putDouble("reduction",100);
-        h.assertTrue(VirtualModule.load(saved).value("damageModifier")==50&&ModulePreset.create(saved).value("damageModifier")==50,"Stale legacy key overrode current signed setting");h.succeed();
+        var old=new VirtualModule("armor").save();old.getCompound("Settings").putDouble("damageModifier",-100);old.getCompound("Settings").putDouble("reduction",75);
+        h.assertTrue(VirtualModule.load(old).armorRules().rows().isEmpty()&&ModulePreset.create(old).armorRules().rows().isEmpty(),"Old numeric values migrated unexpectedly");h.succeed();
     }
     @GameTest(template="combat",batch="defense_modifier_dps")
     public static void AmplifiedPartDamageFeedsAdaptiveStatistics(GameTestHelper h){
         var heart=fixture(h,4,4);var p=author(h);heart.configure(1000,60);heart.editCore(p,"defenseEnabled",1,"");
-        var modifier=heart.modules().add("armor");modifier.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos(),Direction.UP)));modifier.edit("damageModifier",100,"");heart.tryActivate(p);
+        var modifier=heart.modules().add("armor");modifier.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos(),Direction.UP)));ArmorTestSupport.set(heart,modifier,100);heart.tryActivate(p);
         heart.damageAt(heart.getBlockPos(),100);h.assertTrue(heart.adaptiveDefense().dps()==200&&heart.health().current()==900,"Adaptive defense did not measure amplified damage before reduction");h.succeed();
     }
 }

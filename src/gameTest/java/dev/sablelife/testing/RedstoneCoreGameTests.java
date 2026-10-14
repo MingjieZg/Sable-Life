@@ -42,7 +42,7 @@ public final class RedstoneCoreGameTests {
     public static void SurvivalSoundMixEditorRetainsDisabledCombatSettings(GameTestHelper h){
         var core=fixture(h,false);var author=player(h,core);var dashboard=new HeartDashboardMenu(1,author.getInventory(),core);
         for(String type:List.of("sound","trigger_sound","bgm"))h.assertTrue(dashboard.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"Sound module add rejected: "+type);
-        for(var m:core.modules().all())for(String key:m.type().equals("sound")?List.of("approach","ambient","contactSound"):List.of(m.type().equals("bgm")?"bgm":"triggerSound")){
+        for(var m:core.modules().all())for(String key:m.type().equals("sound")?List.of("approach","ambient"):m.type().equals("trigger_sound")?List.of("triggerSound","contactSound"):List.of("bgm")){
             h.assertTrue(dev.sablelife.sound.SoundTimelineMenu.open(author,core,m.id(),key,"module"),"Survival sound editor rejected: "+key);
             var editor=new dev.sablelife.sound.SoundTimelineMenu(1,author.getInventory(),core,m.id(),key,"module");h.assertTrue(editor.stillValid(author)&&editor.action(author,editor.snapshot().getInt("Revision"),"add",null,0,"minecraft:block.note_block.bass"),"Survival sound mix edit failed");
         }
@@ -55,7 +55,7 @@ public final class RedstoneCoreGameTests {
     }
     @GameTest(template="combat",batch="redstone_audio_runtime",timeoutTicks=20)
     public static void TriggerSoundRunsWithoutLifeAndMasterClearsRepeatState(GameTestHelper h){
-        var core=fixture(h,false);var trigger=core.modules().add("trigger_sound");trigger.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos().east(),Direction.NORTH)));trigger.edit("trigger",0,"");trigger.edit("cooldown",0,"");
+        var core=fixture(h,false);var trigger=core.modules().add("trigger_sound");h.assertTrue(trigger.text("triggerSound").isEmpty(),"Trigger Sound default mix was not empty");trigger.edit("triggerSound",0,"minecraft:entity.ravager.roar");trigger.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos().east(),Direction.NORTH)));trigger.edit("trigger",0,"");trigger.edit("cooldown",0,"");
         var ambient=core.modules().add("sound");ambient.anchors(trigger.anchors());
         core.modules().tick(core);long count=core.modules().events().emittedSounds();h.assertTrue(count==1,"Trigger sound required life activation");core.modules().events().hurt(core);h.assertTrue(core.modules().events().emittedSounds()==count,"Disabled Hurt sound played");
         core.modules().tick(core);h.assertTrue(core.modules().events().emittedSounds()==count,"Once trigger repeated while signal stayed high");
@@ -90,9 +90,9 @@ public final class RedstoneCoreGameTests {
         var core=fixture(h,false);var sensor=core.modules().add("sensor");var nav=core.modules().add("navigation");
         sensor.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos().east(),Direction.NORTH)));nav.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));sensor.edit("target",1,"");nav.edit("target",1,"");sensor.edit("lineOfSight",1,"");nav.edit("lineOfSight",1,"");
         var center=SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter());var cow=net.minecraft.world.entity.EntityType.COW.create(h.getLevel());cow.setNoAi(true);cow.setNoGravity(true);cow.setPos(center.add(-4,0,-6));h.getLevel().addFreshEntity(cow);
-        core.modules().tick(core);var a=sensor.anchors().getFirst();h.assertTrue(ModuleSignals.signal(h.getLevel(),a.position(a.body(core)),Direction.DOWN)==15,"Dormant sensor output missing");
+        core.modules().tick(core);var a=sensor.anchors().getFirst();h.assertTrue(h.getLevel().getBestNeighborSignal(a.position(a.body(core)))==15,"Dormant sensor output missing");
         h.assertTrue(core.modules().events().navigation().left(nav.id())>0,"Dormant target alignment output missing");
-        core.wireless().master(false);core.modules().tick(core);h.assertTrue(ModuleSignals.signal(h.getLevel(),a.position(a.body(core)),Direction.DOWN)==0,"Master off retained sensing output");cow.discard();h.succeed();
+        core.wireless().master(false);core.modules().tick(core);h.assertTrue(h.getLevel().getBestNeighborSignal(a.position(a.body(core)))==0,"Master off retained sensing output");cow.discard();h.succeed();
     }
     @GameTest(template="combat",timeoutTicks=30,batch="redstone_redstonecorefacestargetwithoutlifeactivation")
     public static void RedstoneCoreFacesTargetWithoutLifeActivation(GameTestHelper h){

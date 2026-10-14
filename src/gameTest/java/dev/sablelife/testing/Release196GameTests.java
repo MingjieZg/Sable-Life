@@ -59,7 +59,7 @@ public final class Release196GameTests {
             }
         };player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);player.setPos(pos.getCenter());
         var main=new HeartWirelessMenu(1,player.getInventory(),core,1);
-        h.assertTrue(main.slots.size()==2&&main.slots.stream().noneMatch(s->s.container==player.getInventory()),"Main wireless page still exposes inventory slots");
+        h.assertTrue(main.slots.size()==3&&!main.getSlot(2).isActive()&&!main.getSlot(2).mayPickup(player)&&main.slots.stream().noneMatch(s->s.container==player.getInventory()),"Main wireless page still exposes inventory slots");
         var picker=new ModuleFrequencyMenu(2,player.getInventory(),core,1);h.assertTrue(picker.slots.size()==38,"Independent picker omitted inventory");
         picker.setCarried(new ItemStack(Items.EMERALD,23));picker.clicked(0,0,ClickType.PICKUP,player);
         h.assertTrue(core.wireless().channel(1).first().is(Items.EMERALD)&&core.wireless().channel(0).first().isEmpty()&&picker.getCarried().getCount()==23,"Picker changed wrong channel or consumed item");

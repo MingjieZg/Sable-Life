@@ -4,7 +4,7 @@ import java.util.List;
 
 /** Shared defaults and limits for current virtual modules. Scale converts ticks to UI seconds. */
 public final class ModuleFields {
-    public static boolean angle(String key){return List.of("launchAngle","deadZone","pitchDeadZone","dispatchCone","homingFan","homingRotation","homingVerticalRotation","moveHorizontal","moveVertical","meleeHorizontal","meleeVertical","slashHorizontal","slashVertical","slashFan","slashRoll","sweepAngle","facingSpeed").contains(key);}
+    public static boolean angle(String key){return List.of("launchAngle","deadZone","pitchDeadZone","dispatchCone","homingFan","homingRotation","homingVerticalRotation","moveHorizontal","moveVertical","meleeHorizontal","meleeVertical","slashHorizontal","slashVertical","slashFan","slashRoll","sweepAngle","facingSpeed","gyroTilt","gyroSpeed").contains(key);}
     public record Field(String key, double min, double max, double initial, double scale, List<String> choices) {
         public boolean choice() { return !choices.isEmpty(); }
     }
@@ -29,8 +29,9 @@ public final class ModuleFields {
     private static List<Field> buildForType(String type) {
         List<String> order = switch (type) {
             case "damage_accumulation" -> List.of("accumThreshold","accumChannel","accumPower","accumPulse","accumInvert","redstoneFrequency","accumReset");
-            case "health_phase" -> List.of("phaseUpper", "phaseLower", "phaseChannel", "phasePower", "phaseMode", "phasePulse");
-            case "wireless_redstone" -> List.of("redstonePower", "redstoneMode", "redstonePulse", "redstoneInvert", "redstoneFaces", "redstoneFrequency");
+            case "gyroscope" -> List.of("gyroCalibrate","gyroTilt","gyroSpeed","gyroReturn","gyroCollision");
+            case "health_phase" -> List.of("healthPhaseRules");
+            case "wireless_redstone" -> List.of("redstonePower", "redstoneMode", "redstonePulse", "redstoneInvert", "redstoneFaces", "redstoneChannel", "redstoneFrequency");
         case "sequence" -> List.of("sequenceSteps", "sequenceRepeat", "stopOnLow", "resetChannel", "resetSource");
             case "arena" -> List.of("arenaRadius", "warningRange", "countdown", "arenaDeath", "arenaForceReturn", "arenaReturn", "arenaBuffEnabled", "arenaBuffGroups", "arenaRespawnEnabled", "arenaRespawnDelay", "arenaRespawnRecord", "arenaRespawnClear");
             case "quake" -> List.of("quakeMode", "quakeOrigin", "target", "targetMultiple", "quakeDetectRange", "quakeRange", "quakeWidth", "quakeSpeed", "warningTime", "damage", "quakeLaunch", "quakePush", "quakeRise", "quakeGrounded", "quakeReach", "quakeWaves", "quakeGap", "interval", "direction", "quakeColor", "warningSound", "quakeSound", "particles");
@@ -38,20 +39,20 @@ public final class ModuleFields {
             case "laser" -> List.of("laserAim", "laserTracking", "laserFollow", "target", "targetMultiple", "beamLength", "laserBreakBlocks", "laserBreakMode", "laserBreakSpeed", "damage", "chargeTime", "beamHits", "hitInterval", "interval", "sweepAngle", "beamWidth", "direction", "beamColor", "particles", "chargeSound", "fireSound");
             case "slash" -> List.of("startDistance","slashHorizontal","slashVertical","direction","slashLength","slashWidth","range","slashSpeed","slashCount","slashFan","slashRoll","damage","target","interval","slashVisual","slashColor","particles","effects","flightSound");
             case "sphere_blast" -> List.of("releasePosition","target","castTargetRange","startDistance","sphereDistance","blastRadius","damage","chargeTime","sphereChargeSpeed","interval","direction","blastBlocks","sphereChargeParticles","chargeSound","sphereBlastParticles","blastSound","effects");
-            case "armor" -> List.of("damageModifier", "armorWhen");
-            case "melee" -> List.of("damage", "interval", "meleeHitLimit", "startDistance", "meleeHorizontal", "meleeVertical", "knockback", "effects");
+            case "armor" -> List.of("armorRules");
+            case "melee" -> List.of("damage", "interval", "meleeHitLimit", "startDistance", "meleeHorizontal", "meleeVertical", "knockback", "burn", "effects");
             case "flame" -> List.of("direction", "range", "damage", "flameDirectHit", "interval", "flameSpeed", "particles", "effects", "width", "burn", "fireSound");
-            case "arrow" -> List.of("projectile", "particles", "direction", "damage", "interval", "speed", "arrows", "projectileSize", "arrowHitbox", "arrowResidue", "endRadius", "explode", "blastDamage", "blastRadius", "blastBlocks", "effects", "fireSound");
+            case "arrow" -> List.of("projectile", "particles", "direction", "damage", "interval", "speed", "arrows", "projectileSize", "arrowHitbox", "arrowResidue", "endRadius", "explode", "blastDamage", "blastRadius", "blastBlocks", "effects", "fireSound", "arrowLandSound");
             case "gun" -> List.of("projectile", "particles", "direction", "damage", "interval", "speed", "range", "arrows", "bulletHitbox", "endRadius", "explode", "blastDamage", "blastRadius", "blastBlocks", "effects", "fireSound");
             case "homing" -> List.of("projectile", "projectileHitbox", "homingCount", "homingOffset", "homingHeight", "homingFan", "homingPlane", "homingRotation", "homingVerticalRotation", "direction", "homingDeploy", "chargeTime", "target", "targetMultiple", "targetRange", "lineOfSight", "homingMode", "homingTracking", "speed", "homingLife", "damage", "explode", "blastDamage", "blastRadius", "blastBlocks", "blastSound", "interval", "particles", "effects", "chargeSound", "fireSound", "impactSound");
             case "mortar" -> List.of("projectile", "particles", "projectileHitbox", "damage", "aimMode", "target", "targetMultiple", "targetRange", "interval", "speed", "launchAngle", "direction", "explode", "blastDamage", "blastRadius", "mortarWarningColor", "blastBlocks", "effects", "fireSound");
             case "pull" -> List.of("releasePosition","target","castTargetRange", "pullRadius", "pullWarning", "pullDuration", "interval", "pullStrength", "pullSpeed", "pullOffset", "pullStop", "pullWarningColor", "pullCenterColor", "lineOfSight", "warningSound", "pullSound", "particles");
-            case "pulse" -> List.of("pulseStart", "target", "radius", "knockback", "damage", "interval", "effects", "sound");
+            case "pulse" -> List.of("pulseStart", "target", "radius", "knockback", "damage", "interval", "pulseVisual", "pulseExpandTime", "pulseCenterParticles", "pulseWaveParticles", "effects", "sound");
             case "item_display" -> List.of("displayItem","displaySize","displayX","displayY","displayZ","displayRotX","displayRotY","displayRotZ","displayAlways");
             case "particles" -> List.of("particlePattern", "particles", "startDistance", "direction", "particleRadius", "particleRingHeight", "particleLength", "particleDistribution", "particleFill", "particleLineMode", "particlePropagation", "particleSpeed", "interval", "density", "trail", "motionOnly", "drift");
-            case "sensor" -> List.of("target", "shape", "radius", "lineOfSight", "direction", "innerRadius", "frontWidth");
-            case "sound" -> List.of("approach", "hurt", "radius", "volume", "pitch", "cooldown", "ambient", "ambientMin", "ambientMax", "contactMode", "contactSound", "contactDirection", "contactDistance", "contactCooldown");
-            case "trigger_sound" -> List.of("triggerSound", "soundMode", "volume", "pitch", "cooldown", "interval");
+            case "sensor" -> List.of("target", "shape", "radius", "lineOfSight", "direction", "innerRadius", "frontWidth", "sensorChannel", "sensorPower", "sensorInvert", "redstoneFrequency");
+            case "sound" -> List.of("approach", "hurt", "radius", "volume", "pitch", "cooldown", "ambient", "ambientMin", "ambientMax");
+            case "trigger_sound" -> List.of("triggerSound", "soundMode", "volume", "pitch", "cooldown", "interval", "contactMode", "contactSound", "contactDirection", "contactDistance", "contactCooldown");
             case "bgm" -> List.of("bgm", "bgmStart", "bgmRadius", "bgmVolume", "bgmFade");
             case "navigation" -> List.of("target", "radius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert");
             case "loot" -> List.of("weighted", "rolls");
@@ -86,13 +87,17 @@ public final class ModuleFields {
         case "item_display" -> List.of(c("displayItem","item"),n("displaySize",.05,32,1),n("displayX",-64,64,0),n("displayY",-64,64,0),n("displayZ",-64,64,0),n("displayRotX",-180,180,0),n("displayRotY",-180,180,0),n("displayRotZ",-180,180,0),c("displayAlways","off","on"));
 
         case "damage_accumulation" -> List.of(n("accumThreshold",1,1000000,100),n("accumChannel",0,65535,0),n("accumPower",1,15,15),t("accumPulse",1,12000,20),c("accumInvert","off","on"),c("redstoneFrequency","frequency"),c("accumReset","accum_reset"));
-        case "health_phase" -> List.of(n("phaseUpper", 0, 100, 100), n("phaseLower", 0, 100, 70), n("phaseChannel", 0, 65535, 0), n("phasePower", 1, 15, 15), c("phaseMode", "phase_hold", "phase_enter"), t("phasePulse", 1, 12000, 20));
+        case "health_phase" -> List.of(c("healthPhaseRules","phase_rule_editor"));
         case "wireless_redstone" -> List.of(n("redstonePower", 0, 15, 15), c("redstoneMode", "signal_hold", "signal_pulse"),
-                t("redstonePulse", 1, 12000, 20), c("redstoneInvert", "off", "on"), c("redstoneFaces", "all_faces", "marked_face"),
+                t("redstonePulse", 1, 12000, 20), c("redstoneInvert", "off", "on"), c("redstoneFaces", "all_faces", "marked_face"), n("redstoneChannel",0,65535,0),
                 c("redstoneFrequency", "frequency"));
         case "move_set" -> List.of(c("moveSetEditor", "move_set_editor"));
         case "command" -> List.of(c("commandEditor", "command_editor"));
         case "signal_turn" -> turnFields();
+        case "hit_counter" -> List.of(n("hitThreshold",1,10000,5),n("hitSource",0,64,0),t("hitGap",0,1200,0),n("hitChannel",0,65535,0),n("hitPower",1,15,15),t("hitPulse",1,12000,20));
+        case "health_adjustment" -> List.of(n("healthAmount",-1000000,1000000,10),c("healthUnits","health_hp","health_percent"),c("healthMode","health_once","health_periodic"),t("healthInterval",1,12000,20),c("healthLethal","off","on"));
+        case "hover_anchor" -> List.of(new Field("hoverX",0,1,1,1,List.of("off","on")),new Field("hoverY",0,1,1,1,List.of("off","on")),new Field("hoverZ",0,1,1,1,List.of("off","on")),c("hoverRotation","off","on"),c("hoverMode","hover_hard","hover_elastic"),n("hoverStrength",0,1000,20),n("hoverDamping",0,100,0),n("hoverOffset",0,16,2));
+        case "gyroscope" -> List.of(c("gyroCalibrate","gyro_record"),n("gyroTilt",0,180,20),n("gyroSpeed",.1,720,90),c("gyroReturn","gyro_level","gyro_limit"),new Field("gyroCollision",0,1,1,1,List.of("off","on")));
         case "auto_facing" -> List.of(target(0),n("facingRange",1,256,64),n("facingSpeed",1,720,180),c("facingVertical","off","on"),new Field("facingCollision",0,1,1,1,List.of("off","on")),new Field("facingCreative",0,1,1,1,List.of("off","on")),c("lineOfSight","off","on"));
         case "slash" -> List.of(n("slashHorizontal",-180,180,0),n("slashVertical",-180,180,0),direction(),n("slashLength",.5,32,4),n("slashWidth",.1,8,.5),n("range",1,128,24),n("slashSpeed",1,80,16),n("slashCount",1,16,1),n("slashFan",0,180,60),n("slashRoll",-180,180,0),n("damage",0,1000,10),target(2),t("interval",1,12000,40),c("slashVisual","slash_color","slash_particles"),new Field("slashColor",0,6,5,1,List.of("strike_red","strike_orange","strike_blue","strike_purple","strike_green","strike_white","strike_yellow")),c("particles","particles"),c("flightSound","library"));
         case "sphere_blast" -> List.of(c("releasePosition","release_marked","release_target"),n("castTargetRange",1,256,32),n("sphereDistance",0,128,8),n("blastRadius",.5,16,4),target(2),n("damage",0,1000,20),t("chargeTime",0,1200,40),n("sphereChargeSpeed",.1,20,2),t("interval",1,12000,100),direction(),c("blastBlocks","off","on"),c("sphereChargeParticles","particles"),c("sphereBlastParticles","particles"),c("chargeSound","library"),c("blastSound","library"));
@@ -123,10 +128,10 @@ public final class ModuleFields {
                 n("beamHits", 1, 100, 5), t("hitInterval", 1, 200, 10), t("interval", 1, 12000, 60),
                 n("beamWidth", .1, 4, .5), n("sweepAngle", -180, 180, 0), direction(), c("beamColor", "strike_red", "strike_orange", "strike_blue", "strike_purple", "strike_green", "strike_white", "strike_yellow"),
                 c("particles", "particles"), c("chargeSound", "library"), c("fireSound", "library"));
-        case "armor" -> List.of(n("damageModifier", -100, 1000, 0), c("armorWhen", "powered", "unpowered"));
-        case "melee" -> List.of(n("meleeHorizontal", -180, 180, 0), n("meleeVertical", -90, 90, 0), n("meleeHitLimit", 0, 1024, 0), n("damage", .1, 1000, 6), n("knockback", 0, 100, 1), t("interval", 1, 12000, 20));
+        case "armor" -> List.of(c("armorRules","armor_rule_editor"));
+        case "melee" -> List.of(n("meleeHorizontal", -180, 180, 0), n("meleeVertical", -90, 90, 0), n("meleeHitLimit", 0, 1024, 0), n("damage", .1, 1000, 6), n("knockback", 0, 100, 1), n("burn", 0, 30, 0), t("interval", 1, 12000, 20));
         case "flame" -> List.of(n("range", 1, 32, 6), n("damage", 1, 1000, 2), new Field("flameDirectHit", 0, 1, 1, 1, List.of("off", "on")), n("burn", 0, 30, 3), t("interval", 1, 100, 10), n("width", .25, 4, .75), direction(), c("fireSound", "library"), n("flameSpeed", .1, 4, .8), c("particles","particles"));
-        case "arrow" -> explosive(List.of(c("projectile", "item"), n("projectileSize", .1, 8, 1), n("arrowHitbox", .05, 2, .25), t("arrowResidue", 0, 12000, 200), c("fireSound", "library"), n("damage", 1, 1000, 5), t("interval", 2, 200, 20), n("speed", .5, 5, 2), n("arrows", 1, 9, 1), n("endRadius", 0, 8, 1), direction()), false);
+        case "arrow" -> explosive(List.of(c("projectile", "item"), n("projectileSize", .1, 8, 1), n("arrowHitbox", .05, 2, .25), t("arrowResidue", 0, 12000, 200), c("fireSound", "library"), c("arrowLandSound", "library"), n("damage", 1, 1000, 5), t("interval", 2, 200, 20), n("speed", .5, 5, 2), n("arrows", 1, 9, 1), n("endRadius", 0, 8, 1), direction()), false);
         case "gun" -> explosive(List.of(c("projectile", "item"), n("damage", 1, 1000, 5), t("interval", 1, 200, 10), n("speed", .5, 8, 4), n("arrows", 1, 9, 1), n("endRadius", 0, 8, 0), direction(), n("range", 1, 256, 64), c("fireSound", "library"), n("bulletHitbox", .05, 2, .2)), false);
         case "mortar" -> explosive(List.of(c("projectile", "item"), n("projectileHitbox", .05, 2, .15), n("damage", 0, 1000, 5), t("interval", 5, 1200, 60), n("speed", .5, 4, 2), n("launchAngle", 45, 85, 65), direction(), c("fireSound", "library"),
                 c("aimMode", "fixed", "target_position"), target(0), n("targetRange", 1, 128, 64), c("mortarWarningColor", "strike_red", "strike_orange", "strike_blue", "strike_purple", "strike_green", "strike_white", "strike_yellow")), true);
@@ -136,18 +141,17 @@ public final class ModuleFields {
                 new Field("pullWarningColor", 0, 7, 1, 1, List.of("strike_red", "strike_orange", "strike_blue", "strike_purple", "strike_green", "strike_white", "strike_yellow", "pull_cyan")),
                 new Field("pullCenterColor", 0, 7, 4, 1, List.of("strike_red", "strike_orange", "strike_blue", "strike_purple", "strike_green", "strike_white", "strike_yellow", "pull_cyan")), c("lineOfSight", "on", "off"), c("warningSound", "library"), c("pullSound", "library"), c("particles", "particles"));
         case "pulse" -> List.of(c("pulseStart", "periodic", "target_present"), target(2),
-                n("radius", 1, 16, 5), n("damage", 1, 1000, 6), n("knockback", 0, 100, 1), t("interval", 5, 200, 40), c("sound", "library"));
+                n("radius", 1, 16, 5), n("damage", 1, 1000, 6), n("knockback", 0, 100, 1), t("interval", 5, 200, 40), c("pulseVisual","pulse_fixed","pulse_outward"), t("pulseExpandTime",1,200,10), c("pulseCenterParticles","particles"), c("pulseWaveParticles","particles"), c("sound", "library"));
         case "particles" -> List.of(c("particlePattern", "particle_area", "particle_point", "particle_line", "particle_ring", "particle_sphere"),
                 n("startDistance", 0, 128, 0), direction(), n("particleRadius", .05, 32, 3), n("particleRingHeight",0,128,0), n("particleLength", .1, 128, 8),
                 c("particleDistribution", "particle_random", "particle_even"), c("particleFill", "particle_inside", "particle_surface"),
                 c("particleLineMode", "particle_line_place", "particle_line_spray"), c("particlePropagation", "particle_default", "particle_outward", "particle_inward"), n("particleSpeed", .01, 4, .25), c("particles", "particles"), t("interval", 1, 200, 2), n("density", 1, 32, 4), new Field("trail", 0, 1, 1, 1, List.of("off", "on")), c("motionOnly", "off", "on"), n("drift", 0, .5, 0));
-        case "sensor" -> List.of(n("radius", 1, 32, 12), target(0), c("lineOfSight", "on", "off"), c("shape", "ring", "front"), n("innerRadius", 0, 31, 0), n("frontWidth", .5, 16, 3), direction());
+        case "sensor" -> List.of(n("radius", 1, 64, 12), target(0), c("lineOfSight", "on", "off"), c("shape", "ring", "front"), n("innerRadius", 0, 31, 0), n("frontWidth", .5, 16, 3), direction(),n("sensorChannel",0,65535,0),n("sensorPower",1,15,15),c("sensorInvert","off","on"),c("redstoneFrequency","frequency"));
         case "sound" -> List.of(c("approach", "library"), c("hurt", "library"), n("radius", 1, 64, 16), n("volume", 0, 4, 1), n("pitch", .5, 2, 1), t("cooldown", 2, 1200, 20),
-                c("ambient", "library"), t("ambientMin", 20, 12000, 100), t("ambientMax", 20, 12000, 200),
-                c("contactMode", "off", "on"), c("contactSound", "library"), n("contactDistance", .05, 4, .25), t("contactCooldown", 1, 200, 6),
-                c("contactDirection", "down", "up", "north", "south", "west", "east"));
+                c("ambient", "library"), t("ambientMin", 20, 12000, 100), t("ambientMax", 20, 12000, 200));
         case "trigger_sound" -> List.of(c("triggerSound", "library"), c("soundMode", "signal_once", "signal_repeat"),
-                n("volume", 0, 4, 1), n("pitch", .5, 2, 1), t("cooldown", 0, 12000, 20), t("interval", 1, 12000, 60));
+                n("volume", 0, 4, 1), n("pitch", .5, 2, 1), t("cooldown", 0, 12000, 20), t("interval", 1, 12000, 60), c("contactMode", "off", "on"), c("contactSound", "library"),
+                c("contactDirection", "down", "up", "north", "south", "west", "east"), n("contactDistance", .05, 4, .25), t("contactCooldown", 1, 200, 6));
         case "bgm" -> List.of(c("bgm", "library"), c("bgmStart", "after_hit", "on_approach"), n("bgmRadius", 1, 256, 64), t("bgmFade", 0, 400, 60), n("bgmVolume", 0, 1, 1));
         case "navigation" -> List.of(target(0), n("radius", 1, 128, 32), c("lineOfSight", "on", "off"),
                 new Field("verticalTracking", 0, 1, 1, 1, List.of("off", "on")), c("targetLock", "locked", "nearest"), n("deadZone", 0, 45, 3), n("pitchDeadZone", 0, 45, 3),

@@ -69,7 +69,12 @@ public final class ArenaRespawnScenarios {
   h.getLevel().getServer().overworld().getDataStorage().set("sablelife_arena_respawns",ArenaRespawns.load(saved,h.getLevel().registryAccess()));
   var ids=row.getList("NewBodies",10).stream().map(v->((CompoundTag)v).getUUID("Id")).toList();s.actor.setPos(s.arena.arenaCenter());lCancel(h,s);
   h.assertTrue(ArenaRespawns.get(h.getLevel().getServer()).save(new CompoundTag(),h.getLevel().registryAccess()).getList("Entries",10).stream().noneMatch(v->((CompoundTag)v).getUUID("Creature").equals(s.core.creatureId())),"Cancelled job remained");
-  var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(h.getLevel());for(var id:ids)h.assertTrue(container.getSubLevel(id)==null||container.getSubLevel(id).isRemoved(),"Cancelled partial body remained live");h.succeed();
+  var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(h.getLevel());for(var id:ids)h.assertTrue(container.getSubLevel(id)==null||container.getSubLevel(id).isRemoved(),"Cancelled partial body remained live");
+  // Exercise the real operator cancel path, then the ordinary native blueprint tool path.
+  var result=dev.rew1nd.sableschematicapi.blueprint.SableBlueprintPlacer.place(h.getLevel(),dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(row.getCompound("Template")),s.arena.arenaCenter().add(0,20,0));
+  h.assertTrue(result.diagnostics().isEmpty()&&result.placedSubLevels()>0,"Operator cancel broke ordinary Photomancy placement");
+  for(var id:result.subLevelUuidMap().values())if(container.getSubLevel(id) instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel body)dev.sablelife.compat.StructureRemovalApi.remove(h.getLevel(),body);
+  h.succeed();
  }
  public static void directPlacement(GameTestHelper h){
   var s=setup(h,true);h.getLevel().setBlockAndUpdate(s.core.getBlockPos().east(2),com.simibubi.create.AllBlocks.COPYCAT_PANEL.getDefaultState());

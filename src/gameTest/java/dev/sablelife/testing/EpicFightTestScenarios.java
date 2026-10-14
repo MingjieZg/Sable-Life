@@ -43,17 +43,42 @@ public final class EpicFightTestScenarios {
         var body=SubLevelAssemblyHelper.assembleBlocks(level,pos,blocks,new BoundingBox3i(pos.getX(),pos.getY(),pos.getZ(),pos.getX()+3,pos.getY(),pos.getZ()));
         var core=(HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());var module=core.modules().add("melee");
         module.anchors(List.of(dev.sablelife.module.ModuleAnchor.create(core,core.getBlockPos().east(),Direction.EAST),dev.sablelife.module.ModuleAnchor.create(core,core.getBlockPos().east(3),Direction.EAST)));
-        module.edit("interval",4,"");module.edit("knockback",0,"");core.tryActivate(TestActors.creative(level));
+        module.edit("interval",4,"");module.edit("knockback",0,"");module.edit("burn",5,"");core.tryActivate(TestActors.creative(level));
         var victim=new GuardPlayer(level);victim.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);victim.tickCount=100;
         var center=dev.sablelife.module.MeleeGeometry.frame(core,module).center();victim.setPos(center.add(0,-.4,0));victim.setYRot(90);victim.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,new ItemStack(Items.DIAMOND_SWORD));
         level.addNewPlayer(victim);var patch=EpicFightCapabilities.getServerPlayerPatch(victim);patch.toEpicFightMode(false);
         var cap=EpicFightCapabilities.getItemStackCapability(victim.getMainHandItem());patch.updateHeldItem(EpicFightCapabilities.getItemStackCapability(ItemStack.EMPTY),cap,ItemStack.EMPTY,victim.getMainHandItem(),net.minecraft.world.InteractionHand.MAIN_HAND);
         var guard=yesman.epicfight.registry.entries.EpicFightSkills.GUARD.get();patch.getSkill(yesman.epicfight.skill.SkillSlots.GUARD).setSkill(guard,true);patch.setStamina(patch.getMaxStamina());patch.startSkillHolding(guard);
         var runtime=new dev.sablelife.module.ModuleCombat();float before=patch.getStamina();runtime.tick(core);float after=patch.getStamina();
-        h.assertTrue(victim.getHealth()==20&&after<before,"Actual module failed to guard");runtime.tick(core);
+        h.assertTrue(victim.getHealth()==20&&!victim.isOnFire()&&after<before,"Actual module failed to guard damage/burn");runtime.tick(core);
         h.assertTrue(patch.getStamina()==after,"Same tick drained stamina again");
         h.runAfterDelay(1,()->{runtime.tick(core);h.assertTrue(patch.getStamina()==after&&victim.getHealth()==20,"Blocked contact ignored interval");
             module.edit("enabled",0,"");patch.resetHolding();level.removePlayerImmediately(victim,net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);h.succeed();});
+    }
+    public static void NativeAndModuleArrowsFollowTheSameGuardAndParryingRules(GameTestHelper h) {
+        var player=new GuardPlayer(h.getLevel());player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        player.setPos(h.absolutePos(new BlockPos(5,40,5)).getCenter());player.setYRot(0);player.tickCount=100;
+        var item=new ItemStack(Items.DIAMOND_SWORD);player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,item);
+        var patch=EpicFightCapabilities.getServerPlayerPatch(player);patch.toEpicFightMode(false);
+        var cap=EpicFightCapabilities.getItemStackCapability(item);
+        patch.updateHeldItem(EpicFightCapabilities.getItemStackCapability(ItemStack.EMPTY),cap,ItemStack.EMPTY,item,net.minecraft.world.InteractionHand.MAIN_HAND);
+        var slot=patch.getSkill(yesman.epicfight.skill.SkillSlots.GUARD);
+        for(var guard:List.of(yesman.epicfight.registry.entries.EpicFightSkills.GUARD.get(),yesman.epicfight.registry.entries.EpicFightSkills.PARRYING.get())) for(boolean module:new boolean[]{false,true}) {
+            patch.resetHolding();slot.setSkill(guard,true);patch.setStamina(patch.getMaxStamina());
+            h.assertTrue(patch.startSkillHolding(guard),"Unable to hold native guard");
+            boolean parrying=guard instanceof yesman.epicfight.skill.guard.ParryingSkill;
+            if(parrying)slot.getDataManager().setData(yesman.epicfight.registry.entries.EpicFightSkillDataKeys.LAST_ACTIVE,player.tickCount);
+            net.minecraft.world.entity.projectile.AbstractArrow arrow=module?new dev.sablelife.attack.ModuleArrow(SableLife.MODULE_ARROW.get(),h.getLevel()):new net.minecraft.world.entity.projectile.Arrow(net.minecraft.world.entity.EntityType.ARROW,h.getLevel());
+            if(arrow instanceof dev.sablelife.attack.ModuleArrow a)a.configure(new dev.sablelife.module.VirtualModule("arrow"));
+            arrow.setPos(player.position().add(0,0,2));arrow.setDeltaMovement(0,0,-1);
+            var source=h.getLevel().damageSources().arrow(arrow,null);
+            h.assertTrue(source.is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE),"Arrow damage lost projectile tag");
+            var event=new yesman.epicfight.api.event.types.entity.TakeDamageEvent.Income(patch,source,6);
+            yesman.epicfight.api.event.EpicFightEventHooks.Entity.TAKE_DAMAGE_INCOME.postWithListener(event,patch.getEventListener());
+            h.assertTrue(event.isCanceled()==parrying,"Native/module arrow guard behavior differs: module="+module+" guard="+guard.getClass().getSimpleName());
+            if(parrying)h.assertTrue(event.isParried(),"Arrow parry window did not apply");arrow.discard();
+        }
+        patch.resetHolding();h.succeed();
     }
     public static void PositionBasedMeleeUsesNativeGuardParryAndRearRules(GameTestHelper h) {
         var player=new GuardPlayer(h.getLevel());player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
@@ -179,10 +204,10 @@ public final class EpicFightTestScenarios {
             oldModifier.ifPresent(v->phase.addProperty(yesman.epicfight.api.animation.property.AnimationProperty.AttackPhaseProperty.DAMAGE_MODIFIER,v));
         }
         var armor=core.modules().add("armor");armor.anchors(List.of(dev.sablelife.module.ModuleAnchor.create(core,core.getBlockPos(),Direction.UP)));
-        armor.edit("damageModifier",-50,"");patch.removeHurtEntities();float hp=core.health().current(),resource=skill.getResource();
+        ArmorTestSupport.set(core,armor,-50);patch.removeHurtEntities();float hp=core.health().current(),resource=skill.getResource();
         access.sablelife$hurtColliding(patch,from,to,animation.getState(patch,from),animation.getState(patch,to),phase);
         h.assertTrue(Math.abs(hp-core.health().current()-5)<.001&&Math.abs(skill.getResource()-resource-5)<.001,"Reduced damage charged raw damage");
-        armor.edit("damageModifier",-100,"");patch.removeHurtEntities();hp=core.health().current();resource=skill.getResource();
+        ArmorTestSupport.set(core,armor,-100);patch.removeHurtEntities();hp=core.health().current();resource=skill.getResource();
         access.sablelife$hurtColliding(patch,from,to,animation.getState(patch,from),animation.getState(patch,to),phase);
         h.assertTrue(core.health().current()==hp&&skill.getResource()==resource,"Immune body charged weapon");
         h.assertTrue(java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(),false).count()==entityCount,"Bridge spawned proxy entities");

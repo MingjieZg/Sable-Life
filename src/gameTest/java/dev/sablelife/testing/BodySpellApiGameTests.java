@@ -24,7 +24,7 @@ public final class BodySpellApiGameTests {
   var slab=SableBodyProbe.toWorld(l,c.getBlockPos().east(4).getCenter());h.assertTrue(BodySphereQuery.query(l,slab.add(0,.35,0),eye,.2).isEmpty(),"Sphere hit air above a slab");
   h.assertTrue(BodySphereQuery.query(l,center,eye,.3).size()==1,"Sphere missed real core collision");h.succeed();});}
  @GameTest(template="combat",batch="spell_sphere_wall_armor")
- public static void SphereDamageRespectsWallsArmorAndInvalidInputs(GameTestHelper h){var c=sparse(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.NORTH)));armor.edit("damageModifier",-50,"");h.runAfterDelay(4,()->{
+ public static void SphereDamageRespectsWallsArmorAndInvalidInputs(GameTestHelper h){var c=sparse(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.NORTH)));ArmorTestSupport.set(c,armor,-50);h.runAfterDelay(4,()->{
   var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().getCenter());var origin=center.add(0,0,-2);var caster=TestActors.creative(l);caster.setPos(origin);float before=c.health().current();
   h.assertTrue(BodyCombatApi.sphere(caster,origin,origin,3,d->10)==1&&c.health().current()==before-5,"Sphere bypassed part armor or hit multiple times");
   var wall=BlockPos.containing(center.add(0,0,-1));l.setBlockAndUpdate(wall,Blocks.STONE.defaultBlockState());before=c.health().current();

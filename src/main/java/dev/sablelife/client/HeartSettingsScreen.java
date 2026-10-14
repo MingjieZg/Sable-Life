@@ -36,11 +36,11 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         imageHeight=page==4||page==1?Math.min(246,height-12):246;
         super.init();inputs.clear();applies.clear();toggles.clear();sounds.clear();soundNones.clear();particle=pattern=preview=restore=experienceMode=bossColor=null;
         keys=page==4?new String[]{"defenseThreshold","defenseMaximum","defenseWindow"}:page==0?new String[]{"name","health","delay","xp","regen","regenPercent","regenDelay"}:page==1?new String[]{"voidDeathHeight"}:page==2?new String[]{"deathCount","deathSpread","deathEffectRadius"}:page==3?new String[]{"vanishCount","vanishSpread"}:new String[]{};
-        button(tr("modules"),10,9,70,()->navigation(0));button(tr("wireless"),85,9,70,()->navigation(1));button(tr("loot"),160,9,75,()->navigation(2));
-        release=button(Component.translatable("dashboard.sablelife.release").withStyle(net.minecraft.ChatFormatting.RED),240,9,55,()->edit("release",0,""));release.setTooltip(Tooltip.create(Component.translatable("dashboard.sablelife.release_help")));
-        button(Component.literal("x"),300,9,20,()->navigation(3));
+        button(tr("wireless"),10,9,75,()->navigation(1));button(tr("loot"),90,9,80,()->navigation(2));
+        release=button(Component.translatable("dashboard.sablelife.release").withStyle(net.minecraft.ChatFormatting.RED),175,9,85,()->edit("release",0,""));release.setTooltip(Tooltip.create(Component.translatable("dashboard.sablelife.release_help")));
+        button(Component.translatable("dashboard.sablelife.back"),265,9,55,()->navigation(0));
         for(int i=0;i<keys.length;i++) {
-            final int n=i;int y=(page==4?69:page==1?141:51)+i*18;var input=new EditBox(font,leftPos+150,topPos+y,keys[i].equals("name")?135:85,16,tr(keys[i]));
+            final int n=i;int y=(page==4?69:page==1?159:51)+i*18;var input=new EditBox(font,leftPos+150,topPos+y,keys[i].equals("name")?135:85,16,tr(keys[i]));
             if(keys[i].equals("name"))input.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("name_help")));
             input.setMaxLength(keys[i].equals("name")?64:10);if(!keys[i].equals("name"))input.setFilter(s->s.matches(keys[n].equals("voidDeathHeight")?"-?[0-9]{0,4}":"[0-9]{0,7}(\\.[0-9]{0,2})?"));
             if(page==1)input.setTooltip(Tooltip.create(tr("void_death_help")));else if(page==4)input.setTooltip(Tooltip.create(tr(keys[i]+"_help")));else if(page>=2)input.setTooltip(Tooltip.create(tr(keys[i].equals("deathEffectRadius")?"deathEffectRadius_help":page==3?"vanish_help":"death_help")));else if(i>=4)input.setTooltip(Tooltip.create(tr("regen_help")));
@@ -49,17 +49,17 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         }
         if(page==0){experienceMode=button(Component.empty(),100,105,44,this::switchExperience);experienceMode.setTooltip(Tooltip.create(tr("xp_units_help")));}
         if(page==1) {
-            String[] options={"breaking","explosion","bossbar","lifeAttacks","forceChunkLoading"};
+            String[] options={"breaking","explosion","bossbar","lifeAttacks","survivalInteraction","forceChunkLoading"};
             for(int i=0;i<options.length;i++) { String key=options[i];var b=button(Component.empty(),150,51+i*18,170,()->edit(key,menu.snapshot().getBoolean(key)?0:1,""));LifeUiStyle.reverse(b,b::onPress);toggles.put(key,b);
                 if(key.equals("bossbar")){
                     b.setWidth(80);bossColor=button(Component.empty(),235,51+i*18,85,()->cycleBossColor(1));
                     LifeUiStyle.reverse(bossColor,()->cycleBossColor(-1));bossColor.setTooltip(Tooltip.create(tr("bossbar_color_help")));
                 }
-                if(!key.equals("bossbar"))b.setTooltip(Tooltip.create(tr(key.equals("forceChunkLoading")?"force_chunk_help":key.equals("breaking")?"protection_help":key.equals("explosion")?"explosion_help":"lifeAttacks_help")));
+                if(!key.equals("bossbar"))b.setTooltip(Tooltip.create(tr(key.equals("survivalInteraction")?"survivalInteraction_help":key.equals("forceChunkLoading")?"force_chunk_help":key.equals("breaking")?"protection_help":key.equals("explosion")?"explosion_help":"lifeAttacks_help")));
             }
         }
         if(page==4){var enabled=button(Component.empty(),150,51,170,()->edit("defenseEnabled",menu.snapshot().getBoolean("defenseEnabled")?0:1,""));toggles.put("defenseEnabled",enabled);enabled.setTooltip(Tooltip.create(tr("defense_help")));}
-        if(page<=1){button(tr("defense_open"),150,177,170,()->showPage(4));button(Component.translatable("manual.sablelife.open"),10,177,134,()->minecraft.setScreen(new ManualScreen(this,"core")));}
+        if(page<=1){button(tr("defense_open"),150,page==1?195:177,170,()->showPage(4));button(Component.translatable("manual.sablelife.open"),10,page==1?195:177,134,()->minecraft.setScreen(new ManualScreen(this,"core")));}
         if(page==2||page==3) {
             pattern=button(Component.empty(),150,141,170,()->cyclePattern(1));LifeUiStyle.reverse(pattern,()->cyclePattern(-1));pattern.setTooltip(Tooltip.create(tr("pattern_help")));
             particle=button(Component.empty(),150,159,170,()->navigation(page==3?5:4));particle.setTooltip(Tooltip.create(tr(page==3?"vanish_help":"death_help")));
@@ -102,7 +102,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     @Override public boolean keyPressed(int key,int scan,int modifiers){if(key==257||key==335)for(int i=0;i<inputs.size();i++)if(inputs.get(i).isFocused()){apply(i);return true;}if(key!=256)for(var input:inputs)if(input.active&&input.isFocused()){input.keyPressed(key,scan,modifiers);return true;}return super.keyPressed(key,scan,modifiers);}
     @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){if(vertical!=0)for(int i=0;i<inputs.size();i++){var input=inputs.get(i);if(keys[i].equals("name")||!input.active||!input.isMouseOver(x,y))continue;double value;try{value=Double.parseDouble(input.getValue());}catch(NumberFormatException ignored){value=menu.snapshot().getDouble(keys[i]);}value=Math.clamp(Math.round((value+Math.signum(vertical)*NumericWheelSteps.core(keys[i]))*100)/100.,minimum(i),maximum(i));input.setValue(keys[i].equals("voidDeathHeight")?Integer.toString((int)value):String.format(Locale.ROOT,"%.2f",value));apply(i);input.setFocused(true);return true;}return super.mouseScrolled(x,y,horizontal,vertical);}
     @Override protected void renderBg(GuiGraphics g,float partial,int x,int y){g.fill(leftPos-2,topPos-2,leftPos+imageWidth+2,topPos+imageHeight+2,0xFF19151D);g.fill(leftPos,topPos,leftPos+imageWidth,topPos+imageHeight,0xFF9B614E);g.fill(leftPos+3,topPos+3,leftPos+imageWidth-3,topPos+imageHeight-3,0xFF242632);}
-    @Override protected void renderLabels(GuiGraphics g,int x,int y){label(g,page==4?"defense_title":page==2?"death_stage":page==3?"vanish_stage":"title",34,page==2||page==3?158:230);for(int i=0;i<keys.length;i++){label(g,keys[i],(page==4?73:page==1?145:55)+i*18,keys[i].equals("xp")?84:134);if(!keys[i].equals("name"))g.drawString(font,Component.literal("≤"+(int)maximum(i)),240,(page==4?73:page==1?145:55)+i*18,0xAEB8C7,false);}int row=0;for(var key:toggles.keySet())label(g,key,55+row++*18,134);if(page==2||page==3){label(g,prefix()+"Pattern",145,134);label(g,prefix()+"Particle",163,134);label(g,prefix()+"Sound",181,134);}if(page==1){var data=menu.snapshot();g.drawString(font,Component.translatable("core.sablelife.chunk_status",tr("chunk_"+(data.getString("ChunkLoadingStatus").isBlank()?"off":data.getString("ChunkLoadingStatus"))),data.getInt("ChunkLoadingCount")),10,163,0xAEB8C7,false);}
+    @Override protected void renderLabels(GuiGraphics g,int x,int y){label(g,page==4?"defense_title":page==2?"death_stage":page==3?"vanish_stage":"title",34,page==2||page==3?158:230);for(int i=0;i<keys.length;i++){label(g,keys[i],(page==4?73:page==1?163:55)+i*18,keys[i].equals("xp")?84:134);if(!keys[i].equals("name"))g.drawString(font,Component.literal("≤"+(int)maximum(i)),240,(page==4?73:page==1?163:55)+i*18,0xAEB8C7,false);}int row=0;for(var key:toggles.keySet())label(g,key,55+row++*18,134);if(page==2||page==3){label(g,prefix()+"Pattern",145,134);label(g,prefix()+"Particle",163,134);label(g,prefix()+"Sound",181,134);}if(page==1){var data=menu.snapshot();g.drawString(font,Component.translatable("core.sablelife.chunk_status",tr("chunk_"+(data.getString("ChunkLoadingStatus").isBlank()?"off":data.getString("ChunkLoadingStatus"))),data.getInt("ChunkLoadingCount")),10,183,0xAEB8C7,false);}
         if(page==4){var data=menu.snapshot();int footer=imageHeight-22;int dpsY=Math.min(137,footer-24),reductionY=Math.min(157,footer-12);
             g.drawString(font,Component.translatable("core.sablelife.defense_dps",String.format(Locale.ROOT,data.getDouble("DefenseDps")>10000000?"%.2e":"%.1f",data.getDouble("DefenseDps"))),10,dpsY,0xD9C4ED,false);
             g.drawString(font,Component.translatable("core.sablelife.defense_reduction",String.format(Locale.ROOT,"%.1f",data.getDouble("DefenseReduction"))),10,reductionY,0xFFFF55,false);

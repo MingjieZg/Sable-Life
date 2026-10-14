@@ -83,6 +83,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
             var module = (CompoundTag) entry;
             if (module.hasUUID("Id")) module.putUUID("Id", context.allocateMappedUuid(module.getUUID("Id")));
             else module.putUUID("Id", UUID.randomUUID());
+            var hitSettings=module.getCompound("Settings");if(module.getString("Type").equals("hit_counter")&&hitSettings.hasUUID("HitSourceId"))hitSettings.putUUID("HitSourceId",context.allocateMappedUuid(hitSettings.getUUID("HitSourceId")));
             if (module.getString("Type").equals("command")) module.putBoolean("CommandApprovalRequired", true);
             for (var moveValue : module.getList("Moves", 10)) {
                 var move = (CompoundTag)moveValue;

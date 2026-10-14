@@ -8,15 +8,19 @@ import java.util.ArrayList;
 
 /** Persistent authoring settings shared by the dashboard and validated server runtime. */
 public final class VirtualModule {
-    public static final List<String> TYPES = List.of("move_set", "health_phase", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
+    public static final List<String> TYPES = List.of("move_set", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
     /** New-module catalog grouped by sidebar color: signal, weapon, function. */
     public static final List<String> AVAILABLE_TYPES = List.of(
-            "move_set", "health_phase", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation",
+            "move_set", "health_phase", "hit_counter", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation",
             "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse",
-            "arena", "armor", "linear_movement", "auto_facing", "signal_turn", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
+            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
     private final java.util.Map<String,VirtualModule> movementParticles = new java.util.HashMap<>();
     public VirtualModule movementParticles(String stage) { return movementParticles.get(stage); }
-    public static String particleStage(String key){if(key.startsWith("move")&&key.endsWith("Particles"))return key.substring(4,key.length()-9);if(key.startsWith("sphere")&&key.endsWith("Particles"))return key.substring(6,key.length()-9);return null;}
+    public static String particleStage(String key){if(key.startsWith("pulse")&&key.endsWith("Particles"))return key.substring(5,key.length()-9);if(key.startsWith("move")&&key.endsWith("Particles"))return key.substring(4,key.length()-9);if(key.startsWith("sphere")&&key.endsWith("Particles"))return key.substring(6,key.length()-9);return null;}
+    private final HealthPhaseRules healthPhaseRules=new HealthPhaseRules();
+    public HealthPhaseRules healthPhaseRules(){return healthPhaseRules;}
+    private final ArmorRules armorRules=new ArmorRules();
+    public ArmorRules armorRules(){return armorRules;}
     private final CommandProgram commands = new CommandProgram();
     public CommandProgram commands() { return commands; }
     private final MoveSet moveSet = new MoveSet();
@@ -38,6 +42,15 @@ public final class VirtualModule {
             default -> { return false; }
         }
         return true;
+    }
+    private net.minecraft.world.phys.Vec3 gyroDown;
+    public net.minecraft.world.phys.Vec3 gyroDown() { return gyroDown; }
+    public boolean gyroDown(net.minecraft.world.phys.Vec3 value) {
+        if (!type.equals("gyroscope")) return false;
+        if (value == null) { gyroDown = null; return true; }
+        double length = value.lengthSqr();
+        if (!Double.isFinite(value.x) || !Double.isFinite(value.y) || !Double.isFinite(value.z) || !Double.isFinite(length) || length < 1e-10) return false;
+        gyroDown = value.normalize(); return true;
     }
     private net.minecraft.world.phys.Vec3 arenaCenter;
     private String arenaDimension = "";
@@ -62,13 +75,13 @@ public final class VirtualModule {
     private CompoundTag redBlue = new CompoundTag();
     public net.minecraft.world.item.ItemStack redBlue(boolean blue, net.minecraft.core.HolderLookup.Provider registries) { return net.minecraft.world.item.ItemStack.parseOptional(registries,redBlue.getCompound(blue ? "Blue" : "Red")); }
     public void redBlue(boolean blue, net.minecraft.world.item.ItemStack sample, net.minecraft.core.HolderLookup.Provider registries) {
-        if(!List.of("wireless_redstone","damage_accumulation").contains(type)) return;
+        if(!List.of("wireless_redstone","damage_accumulation","sensor").contains(type)) return;
         String key=blue ? "Blue" : "Red";
         if(sample.isEmpty()) redBlue.remove(key); else redBlue.put(key,sample.copyWithCount(1).save(registries));
     }
     public boolean hasRedBlue() { return !redBlue.isEmpty(); }
     private CompoundTag lootSamples = new CompoundTag();
-    public boolean coreModule() { return List.of("bgm", "health_phase", "damage_accumulation", "sequence", "move_set", "command").contains(type); }
+    public boolean coreModule() { return List.of("bgm", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "move_set", "command").contains(type); }
     public boolean area() { return type.equals("melee") || type.equals("particles") && value("particlePattern") == 0; }
     private final List<String> particles = new ArrayList<>();
     public List<String> particles() { return List.copyOf(particles); }
@@ -127,6 +140,7 @@ public final class VirtualModule {
     private CompoundTag unknown;
     public VirtualModule(String type) { this(UUID.randomUUID(), type); }
     private VirtualModule(UUID id, String type) {
+        if(type.equals("health_phase"))healthPhaseRules.add();
         this.id = id; this.type = type;
         for(var f:ModuleFields.HURT_FIELDS) settings.putDouble(f.key(),f.initial());
         ModuleFields.forType(type).forEach(f -> settings.putDouble(f.key(), f.initial()));
@@ -141,9 +155,9 @@ public final class VirtualModule {
             settings.putString("chargeSound","minecraft:entity.warden.sonic_charge");settings.putString("blastSound","minecraft:entity.generic.explode");
         }
         if(type.equals("slash"))settings.putString("flightSound","minecraft:entity.player.attack.sweep");
-        if (type.equals("pulse")) settings.putString("sound", "minecraft:entity.warden.sonic_boom");
+        if (type.equals("pulse")) {settings.putString("sound", "minecraft:entity.warden.sonic_boom");for(var stage:List.of("Center","Wave")){var child=new VirtualModule("particles");child.editParticle("add",stage.equals("Center")?"minecraft:sonic_boom":"minecraft:electric_spark");movementParticles.put(stage,child);}}
         if (type.equals("flame")) settings.putString("fireSound", "minecraft:item.firecharge.use");
-        if (type.equals("arrow")) settings.putString("fireSound", "minecraft:entity.arrow.shoot");
+        if (type.equals("arrow")) { settings.putString("fireSound", "minecraft:entity.arrow.shoot"); settings.putString("arrowLandSound", "minecraft:entity.arrow.hit"); }
         if (type.equals("laser")) settings.putString("fireSound", "minecraft:entity.warden.sonic_boom");
         if (type.equals("laser")) settings.putString("chargeSound", "minecraft:entity.warden.sonic_charge");
         if (type.equals("gun")) settings.putString("fireSound", "minecraft:entity.firework_rocket.blast");
@@ -154,7 +168,7 @@ public final class VirtualModule {
         if (type.equals("ground_strike")) settings.putString("impactSound", "minecraft:entity.generic.explode");
         if (type.equals("quake")) settings.putString("quakeSound", "minecraft:entity.generic.explode");
         if (type.equals("wireless_redstone")) trigger = 2;
-        if (type.equals("trigger_sound")) { settings.putString("triggerSound", "minecraft:entity.ravager.roar"); trigger = 1; }
+        if (type.equals("trigger_sound")) { trigger = 1; }
         if (type.equals("sound")) {
             settings.putString("approach", "minecraft:entity.ender_dragon.growl"); settings.putString("hurt", "minecraft:entity.iron_golem.hurt");
             settings.putString("ambient", ""); settings.putString("contactSound", "");
@@ -187,16 +201,18 @@ public final class VirtualModule {
         if (group.equals("ImportSource")) { if (source == null) return false; source = anchor; return true; }
         var values = group.equals("Anchors") ? anchors : group.equals("ParticlePointAnchors") && type.equals("particles") ? particlePointAnchors : null;
         if (values == null || index < 0 || index >= values.size()) return false;
+        if (type.equals("gyroscope") && !values.get(index).bodyId().equals(anchor.bodyId())) gyroDown = null;
         values.set(index, anchor); return true;
     }
     private List<ModuleAnchor> activeAnchors() { return type.equals("particles") && !area() ? particlePointAnchors : anchors; }
     public List<ModuleAnchor> anchors() { return List.copyOf(activeAnchors()); }
     public void clearMarks() { anchors(List.of()); arenaCenter=null; arenaDimension=""; }
-    public void anchors(List<ModuleAnchor> values) { var active = activeAnchors(); active.clear(); active.addAll(values); invalidated = false; detached = false; }
+    public void anchors(List<ModuleAnchor> values) { if (type.equals("gyroscope") && !anchors().equals(values)) gyroDown = null; var active = activeAnchors(); active.clear(); active.addAll(values); invalidated = false; detached = false; }
     public CompoundTag lootSamples() { return lootSamples.copy(); }
     public void lootSamples(CompoundTag tag) { lootSamples = tag.copy(); importData.putBoolean("TableMode", false); }
     void importSound(String key, String value) { settings.putString(key, value); }
     private CompoundTag soundTimelines = new CompoundTag();
+    public boolean hasSoundTimeline(String key) { return soundTimelines.contains(key); }
     public boolean soundKey(String key) { return ModuleFields.forType(type).stream().anyMatch(f -> f.key().equals(key) && f.choices().equals(List.of("library"))); }
     public dev.sablelife.sound.SoundTimeline soundTimeline(String key) {
         if (soundTimelines.contains(key)) return dev.sablelife.sound.SoundTimeline.load(soundTimelines.getCompound(key));
@@ -215,23 +231,27 @@ public final class VirtualModule {
             sounds.put(field.key(),dev.sablelife.sound.SoundTimeline.load(soundTimelines.getCompound(field.key())).save());
         soundTimelines=sounds;
         if(!List.of("arrow","gun","mortar","homing","ground_strike","item_display").contains(type))projectileItem=new CompoundTag();
-        if(!List.of("wireless_redstone","damage_accumulation").contains(type))redBlue=new CompoundTag();
+        if(!List.of("wireless_redstone","damage_accumulation","sensor").contains(type))redBlue=new CompoundTag();
         else {var frequencies=new CompoundTag();for(var key:List.of("Red","Blue"))if(redBlue.contains(key))frequencies.put(key,redBlue.get(key).copy());redBlue=frequencies;}
         if(!type.equals("loot"))lootSamples=new CompoundTag();
         else {var samples=new CompoundTag();for(int i=0;i<27;i++)for(var prefix:List.of("Slot","Chance","Weight")){var key=prefix+i;if(lootSamples.contains(key))samples.put(key,lootSamples.get(key).copy());}lootSamples=samples;}
-        arenaBuffs.unbind();
+        if(type.equals("hit_counter")){settings.putDouble("hitChannel",0);hitSource(null,0);}
+        if(type.equals("wireless_redstone"))settings.putDouble("redstoneChannel",0);
+        arenaBuffs.unbind();armorRules.unbind();healthPhaseRules.unbind();
         movementParticles.values().forEach(VirtualModule::sanitizeImportedAuthoring);
     }
+    public UUID hitSourceId(){return settings.hasUUID("HitSourceId")?settings.getUUID("HitSourceId"):null;}
+    public void hitSource(UUID id,int index){if(id==null)settings.remove("HitSourceId");else settings.putUUID("HitSourceId",id);settings.putDouble("hitSource",index);}
     public String text(String key) { return settings.getString(key); }
     /** Preserve the referenced signal when rows shift; a deleted reference stays unbound. */
     public boolean wirelessChannelDeleted(int index) {
         boolean changed = false;
         if (channel >= index) { channel = channel == index ? -1 : channel - 1; changed = true; }
-        if (type.equals("health_phase")) {
-            int output = (int) value("phaseChannel");
-            if (output > index) { settings.putDouble("phaseChannel", output == index + 1 ? 0 : output - 1); changed = true; }
-        }
+        if(type.equals("hit_counter")){int output=(int)value("hitChannel");if(output>index){settings.putDouble("hitChannel",output==index+1?0:output-1);changed=true;}}
+        if(type.equals("health_phase"))changed|=healthPhaseRules.channelDeleted(index);
         if(type.equals("signal_turn"))for(String direction:ModuleSignalTurn.DIRECTIONS){int output=(int)value(direction+"Channel");if(output>index){settings.putDouble(direction+"Channel",output==index+1?0:output-1);changed=true;}}
+        if(type.equals("wireless_redstone")){int output=(int)value("redstoneChannel");if(output>index){settings.putDouble("redstoneChannel",output==index+1?0:output-1);changed=true;}}
+        if(type.equals("sensor")){int output=(int)value("sensorChannel");if(output>index){settings.putDouble("sensorChannel",output==index+1?0:output-1);changed=true;}}
         if (type.equals("damage_accumulation")) {
             int output=(int)value("accumChannel");
             if(output>index){settings.putDouble("accumChannel",output==index+1?0:output-1);changed=true;}
@@ -245,20 +265,17 @@ public final class VirtualModule {
             int reset = (int) value("resetChannel");
             if (reset > index) { settings.putDouble("resetChannel", reset == index + 1 ? 0 : reset - 1); changed = true; }
         }
-        changed|=arenaBuffs.channelDeleted(index);
+        changed|=arenaBuffs.channelDeleted(index);changed|=armorRules.channelDeleted(index);
         return changed;
     }
-    public double value(String key) { if(type.equals("slash")&&List.of("slashRed","slashGreen","slashBlue").contains(key))key="slashColor"+key.substring(5);return switch (key) {
+    public double value(String key) { if(type.equals("health_phase")&&HealthPhaseRules.FIELDS.contains(key))return healthPhaseRules.rows().isEmpty()?0:healthPhaseRules.rows().getFirst().value(key);if(type.equals("slash")&&List.of("slashRed","slashGreen","slashBlue").contains(key))key="slashColor"+key.substring(5);return switch (key) {
         case "trigger" -> trigger; case "channel" -> channel;
         case "enabled" -> enabled ? 1 : 0; default -> settings.getDouble(key);
     }; }
     public boolean edit(String key, double value, String text) {
         if (!known() || !Double.isFinite(value)) return false;
-        // Legacy callers use positive reduction; the editor now uses positive amplification.
-        if (type.equals("armor") && key.equals("reduction")) {
-            if (value < 0 || value > 100) return false;
-            key = "damageModifier"; value = -value;
-        }
+        if(type.equals("health_phase")&&HealthPhaseRules.FIELDS.contains(key)){if(healthPhaseRules.rows().isEmpty())healthPhaseRules.add();return healthPhaseRules.rows().getFirst().edit(key,value);}
+        if(type.equals("armor")&&List.of("damageModifier","reduction","armorWhen").contains(key))return false;
         if(type.equals("slash")&&List.of("slashRed","slashGreen","slashBlue").contains(key)){edit("slashColorRgb",1,"");key="slashColor"+key.substring(5);}
         switch (key) {
             case "name" -> {
@@ -281,7 +298,7 @@ public final class VirtualModule {
                     if(color!=null&&(key.endsWith("Red")||key.endsWith("Green")||key.endsWith("Blue")))settings.putDouble(color+"RgbSet",1);
                     double next = Math.clamp(value, field.min(), field.max());
                     if(color!=null)next=Math.round(next);
-                    if (field.scale() == 20 || field.choice() || type.equals("signal_turn")&&key.endsWith("Channel") || List.of("slashCount","slashRed","slashGreen","slashBlue","arrows", "burn", "rolls", "radius", "innerRadius", "direction", "effectLevel", "density", "strikeRays", "strikeRandomCount", "beamHits", "accumChannel", "accumPower", "phaseChannel", "phasePower", "resetChannel", "redstonePower", "quakeWaves", "homingCount", "meleeHitLimit").contains(key)) next = Math.round(next);
+                    if (field.scale() == 20 || field.choice() || type.equals("signal_turn")&&key.endsWith("Channel") || List.of("slashCount","slashRed","slashGreen","slashBlue","arrows", "burn", "rolls", "radius", "innerRadius", "direction", "effectLevel", "density", "strikeRays", "strikeRandomCount", "beamHits", "sensorChannel", "sensorPower", "accumChannel", "accumPower", "phaseChannel", "phasePower", "resetChannel", "redstoneChannel", "redstonePower", "quakeWaves", "homingCount", "meleeHitLimit","hitThreshold","hitSource","hitChannel","hitPower").contains(key)) next = Math.round(next);
                     if (key.equals("innerRadius")) next = Math.min(next, value("radius") - 1);
                     settings.putDouble(key, next);
                     if (key.equals("particlePattern")) { invalidated = false; detached = false; }
@@ -296,6 +313,9 @@ public final class VirtualModule {
     public CompoundTag save() {
         if (unknown != null) return unknown.copy();
         var tag = new CompoundTag(); tag.putInt("ColorControlsVersion",1);tag.putInt("Version", 1); tag.putUUID("Id", id); tag.putString("Type", type);
+        if (type.equals("gyroscope") && gyroDown != null) { var down = new CompoundTag(); down.putDouble("X",gyroDown.x); down.putDouble("Y",gyroDown.y); down.putDouble("Z",gyroDown.z); tag.put("GyroDown",down); }
+        if(type.equals("health_phase"))tag.put("HealthPhaseRules",healthPhaseRules.save());
+        if(type.equals("armor"))tag.put("ArmorRules",armorRules.save());
         if(type.equals("arena"))tag.put("ArenaBuffGroups",arenaBuffs.save());
         if (arenaCenter != null) {
             var center = new CompoundTag(); center.putDouble("X", arenaCenter.x); center.putDouble("Y", arenaCenter.y); center.putDouble("Z", arenaCenter.z);
@@ -304,7 +324,7 @@ public final class VirtualModule {
         if (type.equals("move_set")) tag.put("Moves", moveSet.save());
         if (type.equals("command")) tag.put("Commands", commands.save());
         if (commandApprovalRequired) tag.putBoolean("CommandApprovalRequired", true);
-        if(type.equals("linear_movement")||type.equals("sphere_blast")){var stages=new CompoundTag();movementParticles.forEach((stage,selection)->stages.put(stage,selection.save()));tag.put("MovementParticles",stages);}
+        if(type.equals("linear_movement")||type.equals("sphere_blast")||type.equals("pulse")){var stages=new CompoundTag();movementParticles.forEach((stage,selection)->stages.put(stage,selection.save()));tag.put("MovementParticles",stages);}
         if (type.equals("homing")) tag.putInt("HomingFormationVersion", 4);
         tag.putString("Name", name); tag.putBoolean("Enabled", enabled);
         tag.putBoolean("Invalidated", invalidated);
@@ -339,9 +359,11 @@ public final class VirtualModule {
             if (tag.contains(nbt)) module.edit(key, tag.getDouble(nbt), "");
         }
         var saved = tag.getCompound("Settings");
-        // Migrate old worlds, copies and personal presets without reversing protection.
-        if (module.type.equals("armor") && !saved.contains("damageModifier") && saved.contains("reduction"))
-            module.edit("damageModifier", -Math.clamp(saved.getDouble("reduction"), 0, 100), "");
+        if(module.type.equals("hit_counter")&&saved.hasUUID("HitSourceId"))module.settings.putUUID("HitSourceId",saved.getUUID("HitSourceId"));
+        if(module.type.equals("health_phase")){
+            if(tag.contains("HealthPhaseRules",9))module.healthPhaseRules.load(tag.getList("HealthPhaseRules",10));
+            else for(var key:HealthPhaseRules.FIELDS)if(saved.contains(key))module.edit(key,saved.getDouble(key),"");
+        }
         for(var f:ModuleFields.HURT_FIELDS) if(saved.contains(f.key())) module.edit(f.key(),saved.getDouble(f.key()),"");
         for (var field : ModuleFields.forType(module.type)) if (saved.contains(field.key())) {
             if (field.choices().equals(List.of("library"))) module.settings.putString(field.key(), saved.getString(field.key()));
@@ -360,6 +382,7 @@ public final class VirtualModule {
                 if (module.text("fireSound" + suffix).equals("minecraft:entity.shulker.shoot")) module.settings.putString("fireSound" + suffix,"minecraft:entity.firework_rocket.shoot");
             }
         }
+        if (module.type.equals("gyroscope") && tag.contains("GyroDown")) { var down=tag.getCompound("GyroDown"); module.gyroDown(new net.minecraft.world.phys.Vec3(down.getDouble("X"),down.getDouble("Y"),down.getDouble("Z"))); }
         if (tag.contains("ArenaCenter")) { var center = tag.getCompound("ArenaCenter");
             module.arenaCenter(new net.minecraft.world.phys.Vec3(center.getDouble("X"), center.getDouble("Y"), center.getDouble("Z")), center.getString("Dimension"));
         }
@@ -372,7 +395,7 @@ public final class VirtualModule {
         }
         if (module.type.equals("move_set")) module.moveSet.load(tag.getList("Moves", 10));
         if (module.type.equals("command")) module.commands.load(tag.getList("Commands", 10));
-        if(module.type.equals("linear_movement")||module.type.equals("sphere_blast")){var stages=tag.getCompound("MovementParticles");for(String stage:module.type.equals("sphere_blast")?List.of("Charge","Blast"):List.of("Charge","Departure","Arrival"))if(stages.contains(stage)){var child=stages.getCompound(stage).copy();child.putString("Type","particles");child.remove("MovementParticles");module.movementParticles.put(stage,VirtualModule.load(child));}}
+        if(module.type.equals("linear_movement")||module.type.equals("sphere_blast")||module.type.equals("pulse")){var stages=tag.getCompound("MovementParticles");for(String stage:module.type.equals("pulse")?List.of("Center","Wave"):module.type.equals("sphere_blast")?List.of("Charge","Blast"):List.of("Charge","Departure","Arrival"))if(stages.contains(stage)){var child=stages.getCompound(stage).copy();child.putString("Type","particles");child.remove("MovementParticles");module.movementParticles.put(stage,VirtualModule.load(child));}}
         module.lootSamples = tag.getCompound("LootSamples").copy();
         module.importData = tag.getCompound("ImportData").copy();
         if(module.type.equals("flame"))module.particles.clear();
@@ -383,6 +406,7 @@ public final class VirtualModule {
             String particle=saved.getDouble("flameVisual")==1?"minecraft:soul_fire_flame":"minecraft:flame";
             module.particles.add(particle);module.particleProperties.put(particle,new ModuleParticles.Entry(particle,0,saved.contains("flameParticleSize")?(float)saved.getDouble("flameParticleSize"):1F));
         }
+        if(module.type.equals("armor"))module.armorRules.load(tag.getList("ArmorRules",10));
         if(module.type.equals("arena"))module.arenaBuffs.load(tag.getList("ArenaBuffGroups",10));
         if (tag.contains("Effects")) module.effects.addAll(ModuleEffects.load(tag.getList("Effects", 10)));
         else if (module.type.equals("melee")) {

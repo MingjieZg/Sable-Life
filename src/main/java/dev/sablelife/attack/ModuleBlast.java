@@ -38,6 +38,7 @@ public final class ModuleBlast {
         var entity = event.getEntity(); var tag = entity.getPersistentData().getCompound(KEY);
         if (!tag.getBoolean("Enabled") || tag.getBoolean("Spent")) return;
         tag.putBoolean("Spent", true);
+        if (entity instanceof ModuleArrow arrow) arrow.playLandingSound(hit);
         explode(world, entity, SableBodyProbe.toWorld(world, hit.getLocation()).add(Vec3.atLowerCornerOf(hit.getDirection().getNormal()).scale(.03)), tag);
         entity.discard(); event.setCanceled(true);
     }

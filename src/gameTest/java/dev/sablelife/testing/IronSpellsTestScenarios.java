@@ -63,7 +63,7 @@ public final class IronSpellsTestScenarios {
   @Override public float getSpeed(){return 3;}
   @Override public java.util.Optional<net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent>> getImpactSound(){return java.util.Optional.empty();}
  }
- public static void immune(GameTestHelper h){var c=core(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));armor.edit("damageModifier",-100,"");h.runAfterDelay(4,()->{
+ public static void immune(GameTestHelper h){var c=core(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));ArmorTestSupport.set(c,armor,-100);h.runAfterDelay(4,()->{
   var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(4,0,0));var arrow=new MagicArrowProjectile(l,caster);arrow.setDamage(10);arrow.setNoGravity(true);arrow.setPos(center.add(1.5,0,0));arrow.setDeltaMovement(-3,0,0);float before=c.health().current();arrow.tick();h.assertTrue(c.health().current()==before,"Arrow bypassed immunity");armor.edit("enabled",0,"");arrow.setPos(center.add(1.5,0,0));arrow.setDeltaMovement(-3,0,0);arrow.tick();h.assertTrue(c.health().current()==before,"Same arrow retried previously immune creature");arrow.discard();h.succeed();
  });}
  public static void optin(GameTestHelper h){var c=core(h);h.runAfterDelay(4,()->{
@@ -134,14 +134,14 @@ public final class IronSpellsTestScenarios {
   finally{ServerConfigs.SPELL_GREIFING.set(old);}
   h.runAfterDelay(2,()->{shot.setDealDamageActive();boolean prev=ServerConfigs.SPELL_GREIFING.get();try{ServerConfigs.SPELL_GREIFING.set(false);shot.tick();h.assertTrue(c.health().current()==before-(wall?0:16),"Reactivated cone failed next native window");}finally{ServerConfigs.SPELL_GREIFING.set(prev);shot.discard();}h.succeed();});
  });}
- public static void siphon(GameTestHelper h){var c=core(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));armor.edit("damageModifier",-50,"");h.runAfterDelay(4,()->{
+ public static void siphon(GameTestHelper h){var c=core(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));ArmorTestSupport.set(c,armor,-50);h.runAfterDelay(4,()->{
   var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(3,-caster.getEyeHeight(),0));caster.setYRot(90);caster.setXRot(0);caster.setHealth(5);
   var spell=SpellRegistry.RAY_OF_SIPHONING_SPELL.get();float before=c.health().current();spell.onCast(l,2,caster,CastSource.COMMAND,new MagicData());float loss=before-c.health().current();
   h.assertTrue(loss>0&&Math.abs(caster.getHealth()-5-loss)<.001,"Siphoning did not heal actual body loss");
   spell.onCast(l,2,caster,CastSource.COMMAND,new MagicData());h.assertTrue(c.health().current()==before-loss,"Repeated same-window siphoning duplicated damage");
   h.runAfterDelay(10,()->{var current=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());caster.setPos(current.add(3,-caster.getEyeHeight(),0));spell.onCast(l,2,caster,CastSource.COMMAND,new MagicData());h.assertTrue(Math.abs(c.health().current()-(before-loss*2))<.001,"Next native siphoning pulse failed: actual="+c.health().current()+" expected="+(before-loss*2));h.succeed();});
  });}
- public static void immuneSiphon(GameTestHelper h){var c=core(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));armor.edit("damageModifier",-100,"");h.runAfterDelay(4,()->{
+ public static void immuneSiphon(GameTestHelper h){var c=core(h);var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));ArmorTestSupport.set(c,armor,-100);h.runAfterDelay(4,()->{
   var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(l);caster.setPos(center.add(3,-caster.getEyeHeight(),0));caster.setYRot(90);caster.setXRot(0);caster.setHealth(5);float before=c.health().current();
   SpellRegistry.RAY_OF_SIPHONING_SPELL.get().onCast(l,2,caster,CastSource.COMMAND,new MagicData());h.assertTrue(c.health().current()==before&&caster.getHealth()==5,"Immune core still supplied siphoning healing");h.succeed();
  });}
@@ -190,7 +190,7 @@ public final class IronSpellsTestScenarios {
   if(kind==1){var control=(io.redspace.ironsspellbooks.entity.spells.ArrowVolleyEntity)spawned.stream().filter(e->e instanceof io.redspace.ironsspellbooks.entity.spells.ArrowVolleyEntity).findFirst().orElseThrow();control.tickCount=5;control.tick();int arrows=0;for(var e:l.getAllEntities())if(e instanceof io.redspace.ironsspellbooks.entity.spells.small_magic_arrow.SmallMagicArrow&&!before.contains(e.getUUID())){arrows++;h.assertTrue(e.position().distanceTo(center)<32,"Volley spawned arrow in remote plot");spawned.add(e);}h.assertTrue(arrows>=5,"Native volley did not emit its real small arrows");}
   for(var e:spawned)e.discard();h.succeed();
  });}
- public static void areaRules(GameTestHelper h,int kind){var c=core(h);if(kind==0){var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));armor.edit("damageModifier",-100,"");}h.runAfterDelay(4,()->{
+ public static void areaRules(GameTestHelper h,int kind){var c=core(h);if(kind==0){var armor=c.modules().add("armor");armor.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.EAST)));ArmorTestSupport.set(c,armor,-100);}h.runAfterDelay(4,()->{
   var l=h.getLevel();var center=SableBodyProbe.toWorld(l,c.getBlockPos().east(2).getCenter());io.redspace.ironsspellbooks.entity.spells.AoeEntity field=kind==1?new io.redspace.ironsspellbooks.entity.spells.EarthquakeAoe(l):new io.redspace.ironsspellbooks.entity.spells.magma_ball.FireField(l);field.setRadius(3);field.setDamage(3);field.setRadiusOnUse(-.1F);field.setPos(kind==1?center.add(3,0,3):center.add(0,-.2,0));field.setReapplicationDelay(10);
   net.minecraft.world.entity.animal.Pig pig=null;float pigHp=0;
   if(kind==2){pig=net.minecraft.world.entity.EntityType.PIG.create(l);pig.setPos(center.add(0,-.2,1));pig.setNoAi(true);pig.setNoGravity(true);l.addFreshEntity(pig);pigHp=pig.getHealth();}

@@ -30,20 +30,28 @@ public final class ModuleEvents {
     public TargetNavigation navigation() { return navigation; }
     private HeartBlockEntity owner;
     private long emitted;
+    private final Set<UUID> sensorOutputIds=new HashSet<>();
+    private final Set<UUID> sensorTargets=new HashSet<>();
+    private final Set<UUID> sensorPowered=new HashSet<>();
+    public boolean sensorDetected(UUID id){return sensorTargets.contains(id);}
+    public boolean sensorPowered(UUID id){return sensorPowered.contains(id);}
     public long emittedSounds() { return emitted; }
     public void clear() {
-        if (owner != null) { sounds.forEach((id, state) -> stopAudio(owner, id, state)); ModuleSignals.clear(owner); }
-        sounds.clear(); redstone.clear(); navigation.clear(); owner = null;
+        if (owner != null) { sounds.forEach((id, state) -> stopAudio(owner, id, state)); ModuleSignals.clear(owner); owner.wireless().programOutputs("sensor",Map.of());owner.wireless().clearModuleFrequencies(sensorOutputIds); }
+        sensorOutputIds.clear();sensorTargets.clear();sensorPowered.clear(); sounds.clear(); redstone.clear(); navigation.clear(); owner = null;
     }
     public static boolean supported(String type) { return type.equals("sensor") || type.equals("sound") || type.equals("trigger_sound") || type.equals("bgm") || type.equals("navigation"); }
     public void tick(HeartBlockEntity heart) {
         owner = heart;
         if (!(heart.getLevel() instanceof ServerLevel level)) return;
-        var signals = new HashMap<net.minecraft.core.BlockPos, Integer>();
+        var weakFaces = new HashMap<ModuleSignals.Face, Integer>();
         var activeSounds = new HashSet<UUID>();
         var activeNavigation = new HashSet<UUID>();
+        sensorTargets.clear();sensorPowered.clear();
         var faceSignals = new HashMap<ModuleSignals.Face, Integer>();
+        sensorOutputIds.clear();
         for (var module : heart.modules().all()) {
+            if(module.type().equals("sensor"))sensorOutputIds.add(module.id());
             if (!supported(module.type())) continue;
             if(heart.isControlCore()&&!dev.sablelife.heart.RedstoneCorePolicy.allowed(module))continue;
             if (heart.health().state() == HeartState.ALIVE && !module.detached()
@@ -54,7 +62,9 @@ public final class ModuleEvents {
                 if (heart.operational() && (!heart.isControlCore()||heart.wireless().master()) && HeartModules.status(module, heart).equals("valid")) {
                     activeSounds.add(module.id());
                     var state = sounds.computeIfAbsent(module.id(), ignored -> new State());
-                    triggerSound(level, heart, module, state, HeartModules.triggered(module, heart));
+                    boolean powered=HeartModules.triggered(module, heart);
+                    triggerSound(level, heart, module, state, powered);
+                    contactSound(level,heart,module,state,powered);
                 }
                 continue;
             }
@@ -69,9 +79,13 @@ public final class ModuleEvents {
                 continue;
             }
             if (module.type().equals("sensor")) {
-                if (detect(level, heart, module)) {
+                boolean detected=detect(level,heart,module);if(detected)sensorTargets.add(module.id());
+                if (detected!=(module.value("sensorInvert")==1)) {
+                    sensorPowered.add(module.id());
                     var anchor = module.anchors().getFirst();
-                    signals.put(anchor.position(anchor.body(heart)), 15);
+                    // Supply weak power into the marked block through its selected face,
+                    // like Wireless redstone surface mode; the marker is a receiver, not an emitter.
+                    weakFaces.merge(new ModuleSignals.Face(anchor.position(anchor.body(heart)).relative(anchor.face()), anchor.face().getOpposite()), 15, Math::max);
                 }
             } else {
                 activeSounds.add(module.id());
@@ -94,20 +108,14 @@ public final class ModuleEvents {
                         state.ambientDue = now + ambientDelay(level, module);
                     }
                 } else state.ambientDue = 0;
-                boolean touching = module.value("contactMode") == 1 && contact(level, heart, module);
-                if (touching && !state.touching && now >= state.contactDue) {
-                    play(level, heart, module, "contactSound");
-                    state.contactDue = now + (int) module.value("contactCooldown");
-                }
-                state.touching = touching;
+
             }
         }
         var iterator = sounds.entrySet().iterator();
         while (iterator.hasNext()) { var entry = iterator.next(); if (!activeSounds.contains(entry.getKey())) { stopAudio(heart, entry.getKey(), entry.getValue()); iterator.remove(); } }
-        var weakFaces = new HashMap<ModuleSignals.Face, Integer>();
-        redstone.tick(heart, weakFaces);
+        redstone.tick(heart, weakFaces,sensorPowered);
         ModuleSignals.updateWeakFaces(heart, weakFaces);
-        ModuleSignals.update(heart, signals);
+        ModuleSignals.update(heart, Map.of());
         navigation.retain(activeNavigation);
         ModuleSignals.updateFaces(heart, faceSignals);
     }
@@ -119,6 +127,12 @@ public final class ModuleEvents {
             state.triggerDue = now + (repeat ? Math.max((int) module.value("interval"), (int) module.value("cooldown")) : (int) module.value("cooldown"));
         }
         state.triggerPowered = powered;
+    }
+    private void contactSound(ServerLevel level,HeartBlockEntity heart,VirtualModule module,State state,boolean powered){
+        boolean touching=powered&&module.value("contactMode")==1&&contact(level,heart,module);
+        long now=level.getGameTime();
+        if(touching&&!state.touching&&now>=state.contactDue){play(level,heart,module,"contactSound");state.contactDue=now+(int)module.value("contactCooldown");}
+        state.touching=touching;
     }
     private static void stopMusic(HeartBlockEntity heart, UUID id, State state) {
         if (heart.getLevel() instanceof ServerLevel level) for (UUID listener : state.musicListeners.keySet()) {
@@ -165,7 +179,7 @@ public final class ModuleEvents {
         return module.anchors().getFirst().world(heart, false).add(contactDirection(heart, module).scale(.501));
     }
     public static Vec3 contactDirection(HeartBlockEntity heart, VirtualModule module) {
-        var choices = ModuleFields.find("sound", "contactDirection").choices();
+        var choices = ModuleFields.find("trigger_sound", "contactDirection").choices();
         var face = net.minecraft.core.Direction.byName(choices.get(Math.clamp((int) module.value("contactDirection"), 0, choices.size() - 1)));
         return dev.sablelife.attack.ContactBox.rotate(new org.joml.Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation()), Vec3.atLowerCornerOf(face.getNormal()));
     }

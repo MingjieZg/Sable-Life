@@ -1,5 +1,5 @@
 {
-  "revision": 69,
+  "revision": 89,
   "entries": [
     {
       "id": "getting_started",
@@ -747,6 +747,25 @@
       "module": "signal_turn"
     },
     {
+      "id": "gyroscope",
+      "title": "dashboard.sablelife.type_gyroscope",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_gyroscope"
+        ],
+        "settings": [
+          "manual.sablelife.gyroscope.settings"
+        ],
+        "example": [
+          "manual.sablelife.gyroscope.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.gyroscope.troubleshooting"
+        ]
+      },
+      "module": "gyroscope"
+    },
+    {
       "id": "particles",
       "title": "dashboard.sablelife.type_particles",
       "sections": {
@@ -859,6 +878,63 @@
         ]
       },
       "module": "loot"
+    },
+    {
+      "id": "hover_anchor",
+      "title": "dashboard.sablelife.type_hover_anchor",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_hover_anchor"
+        ],
+        "settings": [
+          "manual.sablelife.hover_anchor.settings"
+        ],
+        "example": [
+          "manual.sablelife.hover_anchor.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.hover_anchor.troubleshooting"
+        ]
+      },
+      "module": "hover_anchor"
+    },
+    {
+      "id": "hit_counter",
+      "title": "dashboard.sablelife.type_hit_counter",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_hit_counter"
+        ],
+        "settings": [
+          "manual.sablelife.hit_counter.settings"
+        ],
+        "example": [
+          "manual.sablelife.hit_counter.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.hit_counter.troubleshooting"
+        ]
+      },
+      "module": "hit_counter"
+    },
+    {
+      "id": "health_adjustment",
+      "title": "dashboard.sablelife.type_health_adjustment",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_health_adjustment"
+        ],
+        "settings": [
+          "manual.sablelife.health_adjustment.settings"
+        ],
+        "example": [
+          "manual.sablelife.health_adjustment.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.health_adjustment.troubleshooting"
+        ]
+      },
+      "module": "health_adjustment"
     }
   ]
 }

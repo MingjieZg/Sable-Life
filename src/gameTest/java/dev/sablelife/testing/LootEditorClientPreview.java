@@ -1,0 +1,25 @@
+package dev.sablelife.testing;
+import dev.sablelife.SableLife;import dev.sablelife.client.LootEditorScreen;import net.minecraft.client.*;import net.minecraft.client.gui.*;import net.minecraft.client.gui.screens.Screen;import net.minecraft.world.entity.player.Inventory;import net.minecraft.world.inventory.ChestMenu;import net.minecraft.world.SimpleContainer;import net.minecraft.world.item.*;import net.minecraft.core.component.DataComponents;import net.minecraft.world.item.component.CustomData;import net.minecraft.network.chat.Component;import net.neoforged.api.distmarker.Dist;import net.neoforged.bus.api.SubscribeEvent;import net.neoforged.fml.common.EventBusSubscriber;import net.neoforged.neoforge.client.event.ClientTickEvent;
+@EventBusSubscriber(modid="sablelife_tests",value=Dist.CLIENT)
+public final class LootEditorClientPreview {
+ private static Preview preview;private static int ticks,index;
+ @SubscribeEvent public static void tick(ClientTickEvent.Post e)throws Exception{if(!Boolean.getBoolean("sablelife.lootEditorPreview"))return;var mc=Minecraft.getInstance();if(preview==null){if(mc.screen==null||mc.getOverlay()!=null||mc.level!=null)return;mc.options.guiScale().set(1);mc.resizeDisplay();preview=new Preview();mc.setScreen(preview);return;}if(++ticks==20){var dir=mc.gameDirectory.toPath().resolve("screenshots");java.nio.file.Files.createDirectories(dir);try(var img=Screenshot.takeScreenshot(mc.getMainRenderTarget())){img.writeToFile(dir.resolve("loot-editor-"+index+".png"));}}if(ticks==25){ticks=0;if(++index==4){System.out.println("Loot editor empty/loading/populated/read-only GUI 1-4 passed");mc.stop();}else{mc.options.guiScale().set(index+1);mc.resizeDisplay();}}}
+ private static final class CapturingEditor extends LootEditorScreen {
+  double sent;String key;CapturingEditor(ChestMenu m,Inventory i,Component t){super(m,i,t);}
+  @Override protected void send(String k,double v){key=k;sent=v;}
+ }
+ private static void focusedWheel( CapturingEditor panel,SimpleContainer data,net.minecraft.nbt.CompoundTag tag)throws Exception {
+  var field=LootEditorScreen.class.getDeclaredField("inputs");field.setAccessible(true);var inputs=(java.util.List<net.minecraft.client.gui.components.EditBox>)field.get(panel);
+  String[] keys={"quantity","rule","rolls"};
+  for(int i=0;i<3;i++){var box=inputs.get(i);if(!box.active)continue;inputs.forEach(b->b.setFocused(false));box.setFocused(true);int initial=Integer.parseInt(box.getValue()),step=i==1&&!tag.getBoolean("Weighted")?5:1;
+   // No server acknowledgement between wheel events: focused text must advance independently.
+   panel.mouseScrolled(box.getX()+2,box.getY()+2,0,1);panel.mouseScrolled(box.getX()+2,box.getY()+2,0,1);
+   int expected=initial+2*step;if(!box.getValue().equals(Integer.toString(expected))||panel.sent!=expected||!panel.key.equals(keys[i]))throw new AssertionError("Focused wheel left stale text for "+keys[i]);
+   panel.keyPressed(257,0,0);if(panel.sent!=expected)throw new AssertionError("Confirm rolled back wheel edit for "+keys[i]);
+   if(i==0)data.getItem(4).setCount(expected);else if(i==1)tag.putInt("Rule4",expected);else tag.putInt("Rolls",expected);
+   data.getItem(40).set(DataComponents.CUSTOM_DATA,CustomData.of(tag));
+  }
+  System.out.println("Focused wheel + repeated events + Enter preserved quantity/chance/weight/draw requests");
+ }
+ private static final class Preview extends Screen {LootEditorScreen panel;Preview(){super(Component.translatable("menu.sablelife.heart_loot"));}@Override protected void init(){var inv=new Inventory(null);inv.setItem(9,new ItemStack(Items.DIAMOND,24));var data=new SimpleContainer(54);var menu=new ChestMenu(SableLife.LOOT_CHEST.get(),1,inv,data,6);panel=new CapturingEditor(menu,inv,title);panel.init(minecraft,width,height);var tag=new net.minecraft.nbt.CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("Editable",index!=2);tag.putBoolean("Weighted",index%2==1);tag.putInt("Rolls",3);tag.putInt("MaxRule",index%2==1?1000:100);tag.putUUID("Id",java.util.UUID.randomUUID());for(int i=0;i<27;i++)tag.putInt("Rule"+i,75);var meta=new ItemStack(Items.BOOK);meta.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));data.setItem(40,meta);panel.init(minecraft,width,height);data.setItem(0,new ItemStack(Items.EMERALD,12));data.setItem(4,new ItemStack(Items.ENDER_EYE,2));panel.init(minecraft,width,height);var slot=menu.getSlot(4);panel.mouseClicked((width-((index==0)?480:Math.max(360,Math.min(480,width-14))))/2+slot.x+5,(height-Math.max(220,Math.min(320,height-14)))/2+slot.y+5,0);if(!menu.getCarried().isEmpty()||data.getItem(4).getCount()!=2)throw new AssertionError("Selecting sample consumed item");try{focusedWheel((CapturingEditor)panel,data,tag);}catch(Exception e){throw new IllegalStateException(e);}}@Override public void render(GuiGraphics g,int x,int y,float p){panel.render(g,-100,-100,p);}}
+}

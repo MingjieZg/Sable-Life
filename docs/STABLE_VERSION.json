@@ -1,29 +1,28 @@
 {
-  "version": "0.1.218",
+  "version": "0.1.243",
   "status": "stable",
-  "accepted_at": "2026-10-11T12:36:23.482899+08:00",
+  "accepted_at": "2026-10-14T20:01:41.844366+08:00",
   "timezone": "Asia/Singapore",
-  "acceptance": "User confirmed 0.1.217 whole-life deletion and authorized stable promotion after the requested template reminder, hanging decoration cleanup and lethal actionbar color fixes.",
-  "jar": "sablelife-0.1.218.jar",
-  "bytes": 1367997,
-  "sha256": "d50a63b22d641bbba8e1a04ed95a3332c53e5ee8535d0c9d80d1513bcd97f944",
+  "acceptance": "User explicitly authorized current version as stable, backup and upload; confirmed hover and both health modules functional. Includes healthAmount wheel ±5.",
+  "jar": "sablelife-0.1.243.jar",
+  "bytes": 1486979,
+  "sha256": "59d107cbe0a2abb347df86d791b60c66369918405a8dea229a70f0bc8780034e",
   "minecraft": "1.21.1",
   "loader": "NeoForge",
   "minimum_neoforge": "21.1.235",
   "tested_neoforge": "21.1.235",
-  "protocol": 7,
+  "protocol": 13,
   "required_mods": {
     "sable": "2.0.5",
     "create": "6.0.10"
   },
-  "previous_stable": "0.1.200",
+  "previous_stable": "0.1.218",
   "automated_validation": {
-    "unit": 58,
-    "default_gametest": 291,
-    "specialty_gametest": 26,
-    "user_blueprint_toolgun_mounted_decorations": 21,
-    "manual_revision": 69,
-    "without_photomancy_gametest": 40
+    "default_gametest": 354,
+    "control_gametest": 90,
+    "client_combined_scale_density": 16,
+    "manual_revision": 89,
+    "unit": "not rerun; older expectations pending maintenance"
   },
-  "user_validation": "User confirmed original one-call respawn restores appearance/function and whole-life death cleanup works. Final new decoration/UI fixes have automated coverage; stable promotion explicitly authorized."
+  "user_validation": "Hover anchor 0.1.242 fully accepted; Hit counter and Health adjustment functional, deep testing not performed. Promotion explicitly authorized. Final ±5 wheel change packaged without additional regression."
 }

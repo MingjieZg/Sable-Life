@@ -26,9 +26,9 @@ public final class DamageAccumulationGameTests {
     }
     @GameTest(template="combat",batch="damage_accum_actual")
     public static void OnlyActualHealthLossCountsAndImmunityHealingAndDisabledHitsDoNot(GameTestHelper h){
-        var c=fixture(h);var m=configured(c);var shield=c.modules().add("armor");shield.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.UP)));shield.edit("damageModifier",-50,"");c.tryActivate(TestActors.creative(h.getLevel()));
+        var c=fixture(h);var m=configured(c);var shield=c.modules().add("armor");shield.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.UP)));ArmorTestSupport.set(c,shield,-50);c.tryActivate(TestActors.creative(h.getLevel()));
         c.damageAt(c.getBlockPos(),100);h.assertTrue(state(c,m).getDouble("Accumulated")==50,"Pre-armor damage was counted");c.restoreFullHealth();h.assertTrue(state(c,m).getDouble("Accumulated")==50,"Healing subtracted cumulative damage");
-        shield.edit("damageModifier",-100,"");c.damageAt(c.getBlockPos(),100);c.damage(Float.NaN);h.assertTrue(state(c,m).getDouble("Accumulated")==50,"Immune or invalid damage counted");
+        ArmorTestSupport.set(c,shield,-100);c.damageAt(c.getBlockPos(),100);c.damage(Float.NaN);h.assertTrue(state(c,m).getDouble("Accumulated")==50,"Immune or invalid damage counted");
         m.edit("enabled",0,"");c.damage(20);h.assertTrue(state(c,m).getDouble("Accumulated")==50,"Disabled accumulation counted a hit");m.edit("enabled",1,"");c.damage(60);
         h.assertTrue(state(c,m).getLong("Pending")==1&&state(c,m).getDouble("Accumulated")==100,"Threshold did not latch once");c.modules().tick(c);float before=c.health().current();c.damage(1000);
         h.assertTrue(c.health().current()==before-1000&&state(c,m).getLong("Pending")==0&&state(c,m).getDouble("Accumulated")==100,"Output window accumulated damage or prevented ordinary HP loss");h.succeed();

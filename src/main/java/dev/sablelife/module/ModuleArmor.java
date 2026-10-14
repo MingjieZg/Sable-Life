@@ -13,7 +13,11 @@ public final class ModuleArmor {
         double modifier = Double.POSITIVE_INFINITY;
         for (var module : heart.modules().all()) {
             if (!module.type().equals("armor") || !HeartModules.triggered(module, heart)) continue;
-            if (module.anchors().getFirst().bodyId().equals(body.getUniqueId())) modifier = Math.min(modifier, module.value("damageModifier"));
+            if (module.anchors().getFirst().bodyId().equals(body.getUniqueId())) for(var row:module.armorRules().rows()) {
+                if(!row.enabled()||row.channel()==0||row.channel()>heart.wireless().size())continue;
+                int power=row.source()==0?heart.wireless().output(row.channel()-1):heart.wireless().input(row.channel()-1);
+                if(row.when()==0?power>0:power==0)modifier=Math.min(modifier,row.modifier());
+            }
         }
         // Preserve strongest-protection precedence on overlapping marks; modifiers do not stack.
         if (modifier == Double.POSITIVE_INFINITY) return amount;

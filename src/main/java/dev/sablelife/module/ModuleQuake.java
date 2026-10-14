@@ -147,7 +147,7 @@ public final class ModuleQuake {
             boolean grounded = victim.onGround() || Math.abs(victim.getY() - floor.y) <= .12 && victim.getDeltaMovement().y <= 0;
             if (m.value("quakeGrounded") == 0 && !grounded) continue;
             hits.add(victim.getUUID());
-            if (m.value("damage") > 0) ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"));
+            if (m.value("damage") > 0) ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"),heart,m);
             var outward = m.value("quakeMode") != 0 ? new Vec3(delta.x, 0, delta.z).normalize() : s.direction;
             victim.push(outward.x * m.value("quakePush"), 0, outward.z * m.value("quakePush"));
             var velocity = victim.getDeltaMovement();

@@ -37,10 +37,13 @@ public final class LifeLifecycle extends SavedData {
     private boolean recorded(UUID id){return deaths.containsKey(id)||completed.containsKey(id);}
     private void complete(UUID id,Death death){
         completed.put(id,new Completion(death.parent,death.partName));deaths.remove(id);
-        unbreakable.remove(id);explosionProtected.remove(id);setDirty();
+        unbreakable.remove(id);explosionProtected.remove(id);interactionAllowed.remove(id);setDirty();
     }
     private final Set<UUID> unbreakable = new HashSet<>();
     private final Set<UUID> explosionProtected = new HashSet<>();
+    private final Set<UUID> interactionAllowed = new HashSet<>();
+    public void setInteractionAllowed(UUID id,boolean enabled){if(enabled?interactionAllowed.add(id):interactionAllowed.remove(id))setDirty();}
+    public boolean interactionAllowed(UUID id){return interactionAllowed.contains(id);}
     public static LifeLifecycle get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(new Factory<>(LifeLifecycle::new, LifeLifecycle::load), "sablelife_lifecycle");
     }
@@ -52,7 +55,7 @@ public final class LifeLifecycle extends SavedData {
         if (enabled ? explosionProtected.remove(id) : explosionProtected.add(id)) setDirty();
     }
     public boolean explodable(UUID id) { return !explosionProtected.contains(id); }
-    public void cancel(UUID id) { deaths.entrySet().removeIf(e -> e.getKey().equals(id) || id.equals(e.getValue().parent)); completed.entrySet().removeIf(e->e.getKey().equals(id)||id.equals(e.getValue().parent)); unbreakable.remove(id); explosionProtected.remove(id); setDirty(); }
+    public void cancel(UUID id) { deaths.entrySet().removeIf(e -> e.getKey().equals(id) || id.equals(e.getValue().parent)); completed.entrySet().removeIf(e->e.getKey().equals(id)||id.equals(e.getValue().parent)); unbreakable.remove(id); explosionProtected.remove(id);interactionAllowed.remove(id); setDirty(); }
     public boolean isDying(UUID id) { return recorded(id); }
     public boolean finished(UUID id){return completed.containsKey(id)&&deaths.values().stream().noneMatch(d->id.equals(d.parent));}
     public boolean deathDue(UUID id){var job=deaths.get(id);return job!=null&&!job.cleaned&&job.remaining==0;}
@@ -224,6 +227,7 @@ public final class LifeLifecycle extends SavedData {
             data.completed.put(job.getUUID("Id"),new Completion(job.hasUUID("Parent")?job.getUUID("Parent"):null,job.getString("PartName")));
             data.deaths.remove(job.getUUID("Id"));
         }
+        for(var value:tag.getList("InteractionAllowed",10)){var entry=(CompoundTag)value;if(entry.hasUUID("Id"))data.interactionAllowed.add(entry.getUUID("Id"));}
         var locked = tag.getList("Unbreakable", 10);
         for (int i = 0; i < locked.size(); i++) if (locked.getCompound(i).hasUUID("Id")) data.unbreakable.add(locked.getCompound(i).getUUID("Id"));
         var explosions = tag.getList("ExplosionProtected", 10);
@@ -257,6 +261,7 @@ public final class LifeLifecycle extends SavedData {
         var explosions = new ListTag();
         explosionProtected.forEach(id -> { var value = new CompoundTag(); value.putUUID("Id", id); explosions.add(value); });
         tag.put("ExplosionProtected", explosions);
+        var interactions=new ListTag();interactionAllowed.forEach(id->{var entry=new CompoundTag();entry.putUUID("Id",id);interactions.add(entry);});tag.put("InteractionAllowed",interactions);
         return tag;
     }
 }

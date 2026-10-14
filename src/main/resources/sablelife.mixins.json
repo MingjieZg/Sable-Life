@@ -28,7 +28,13 @@
     "RespawnTextDisplayAccess",
     "RespawnDisplayAccess",
     "ArenaBuildBlockEntityTickMixin",
-    "BearingDeathCleanupMixin"
+    "BearingDeathCleanupMixin",
+    "ServerChunkCacheAccess",
+    "PlotChunkCacheMixin",
+    "AuthoritativePlotChunkReadMixin",
+    "CreateBodyConfigurationMixin",
+    "ProtectedBodyContainerClickMixin",
+    "CreateBodyContraptionInteractionMixin"
   ],
   "client": [
     "ProtectedBodyMiningMixin",

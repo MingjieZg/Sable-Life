@@ -68,3 +68,6 @@ Lock-on, chains, curses, freezing, DOT clouds, homing target acquisition and arb
 Run `powershell -File scripts/setup-iron-spells.ps1` for checksum-pinned public artifacts. Use `-PironSpellTests=true` for isolated GameTests, or `-PironSpellRuntime=true` for an optional normal development client/server runtime. These flags do not add a hard runtime dependency or bundle third-party JARs in Sable Life. Test classes with optional API references are kept outside annotated discovery wrappers.
 
 All required dependency filenames, official download URLs and SHA512 values are in `scripts/iron-spells-dependencies.json`.
+
+
+0.1.223：CBC AT Heavy Autocannon 已通过其 `AbstractHeavyAutocannonProjectile.calculateBlockPenetration` 接入共同炮弹桥接；CBC 大炮弹、普通机炮弹、AT 重型机炮属于不同实现分支。测试覆盖 AT AP、APDSFS、HE 的原生回调和每发每生命体去重。未来弹种若重新实现碰撞/穿透入口且不经过已接入方法，需要单独核对；共用公共炮弹基类本身不保证自动兼容。

@@ -52,7 +52,7 @@ public final class BattleMusicClient {
         MusicVoice(SoundTimeline.Row row,Candidate candidate,long started){super(SoundEvent.createVariableRangeEvent(ResourceLocation.parse(row.sound())),SoundSource.MASTER,RandomSource.create());this.row=row;this.candidate=candidate;this.started=started;volume=row.volume()*candidate.volume;pitch=row.pitch();looping=row.duration()==0;relative=true;attenuation=SoundInstance.Attenuation.NONE;}
         @Override public boolean canStartSilent(){return true;}
         void fadeOut(int ticks){fade=remaining=ticks;if(ticks==0)stop();}
-        @Override public void tick(){if(row.duration()>0&&BattleMusicClient.tick-started>=row.duration()){stop();return;}float gain=row.volume()*candidate.volume;
+        @Override public void tick(){if(row.duration()>0&&BattleMusicClient.tick-started>=dev.sablelife.sound.SoundFade.stopAfter(row.duration(),row.fade())){stop();return;}float gain=row.volume()*candidate.volume*dev.sablelife.sound.SoundFade.gain(BattleMusicClient.tick-started,row.duration(),row.fade());
             var player=Minecraft.getInstance().player;if(player==null){stop();return;}
             if(candidate.spatial&&dev.sablelife.compat.sable.SableBodyProbe.toWorld(player.level(),player.position()).distanceToSqr(candidate.center)>row.radius()*row.radius())gain=0;
             if(fade>=0){gain*=Math.max(0,--remaining)/(float)Math.max(1,fade);if(remaining<=0)stop();}volume=gain;

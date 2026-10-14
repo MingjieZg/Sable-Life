@@ -132,7 +132,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         mortarWarningColor = dev.sablelife.module.ModuleColors.packed(module,"mortarWarningColor");
         range = mortar() ? 2048 : module.value("range"); blast = ModuleBlast.settings(module); trail = module.particleEntries(); owner = heart.creatureId();
         getPersistentData().putUUID("SableLifeAttackOwner", owner);
-        ModuleDamage.nameProjectile(this,heart);blast.putString(ModuleDamage.ATTACK_NAME,heart.creatureName());
+        ModuleDamage.nameProjectile(this,heart);AttackHitCredit.attach(this,heart,module);blast.putString(ModuleDamage.ATTACK_NAME,heart.creatureName());
     }
     public boolean mortar() { return entityData.get(KIND) == 1; }
     public static ModuleShot fallingVisual(ServerLevel level, Vec3 origin, double speed, int lifetime, VirtualModule module) {
@@ -199,7 +199,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
                 }
             } else if (block.getType() == HitResult.Type.BLOCK) {
                 var heart = SableBodyProbe.findActivatedHeart(world, block.getBlockPos());
-                if (heart != null && heart.acceptsLifeAttack(owner)) heart.damageAt(block.getBlockPos(), damage);
+                if (heart != null && heart.acceptsLifeAttack(owner)){float before=heart.health().current();if(heart.damageAt(block.getBlockPos(), damage))AttackHitCredit.record(this,Math.max(0,before-heart.health().current()));}
                 stop = stop.add(net.minecraft.world.phys.Vec3.atLowerCornerOf(block.getDirection().getNormal()).scale(.03));
             }
             if (entity != null || block.getType() == HitResult.Type.BLOCK) {

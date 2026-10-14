@@ -59,6 +59,10 @@ public final class SableLife {
             MENUS.register("projectile_item", () -> new MenuType<>(dev.sablelife.module.ProjectileItemMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.ModuleFrequencyMenu>> MODULE_FREQUENCY_MENU =
             MENUS.register("module_frequency", () -> new MenuType<>(dev.sablelife.module.ModuleFrequencyMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
+    public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.HealthPhaseRuleMenu>> HEALTH_PHASE_RULE_MENU =
+            MENUS.register("health_phase_rules", () -> new MenuType<>(dev.sablelife.module.HealthPhaseRuleMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
+    public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.ArmorRuleMenu>> ARMOR_RULE_MENU =
+            MENUS.register("armor_rules", () -> new MenuType<>(dev.sablelife.module.ArmorRuleMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.ArenaBuffMenu>> ARENA_BUFF_MENU =
             MENUS.register("arena_buffs", () -> new MenuType<>(dev.sablelife.module.ArenaBuffMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.SequenceMenu>> SEQUENCE_MENU =
@@ -107,6 +111,12 @@ public final class SableLife {
         ENTITIES.register(bus);
         PARTICLES.register(bus);
         bus.addListener(dev.sablelife.module.ModuleNetworking::register);
+        NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, dev.sablelife.ownership.BodyInteraction::rightClick);
+        NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, dev.sablelife.ownership.BodyInteraction::entityClick);
+        NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, dev.sablelife.ownership.BodyInteraction::entityClickSpecific);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BodyInteraction::opened);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BodyInteraction::closed);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BodyInteraction::tick);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, dev.sablelife.module.MarkingSessions::click);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST,dev.sablelife.heart.CorePlacementRules::placed);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, dev.sablelife.module.MarkingSessions::attack);

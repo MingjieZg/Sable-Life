@@ -66,7 +66,7 @@ public final class ModuleSignals {
         indexUpdate(source==FACES?FACE_INDEX:WEAK_INDEX,level,heart,old,next);
         var positions = new HashSet<BlockPos>();
         for (var face : changed) if (!Objects.equals(old.get(face), next.get(face))) positions.add(face.pos());
-        for (var pos : positions) if (level.hasChunkAt(pos)) level.updateNeighborsAt(pos, level.getBlockState(pos).getBlock());
+        for (var pos : positions) if (level.getServer().isRunning() && level.hasChunkAt(pos)) level.updateNeighborsAt(pos, level.getBlockState(pos).getBlock());
     }
     public static int signal(ServerLevel level, BlockPos pos) {
         return indexedSignal(POSITION_INDEX,level,pos);
@@ -80,10 +80,18 @@ public final class ModuleSignals {
         var changed = new HashSet<BlockPos>(old.keySet()); changed.addAll(next.keySet());
         if (next.isEmpty()) cores.remove(heart); else cores.put(heart, Map.copyOf(next));
         indexUpdate(POSITION_INDEX,level,heart,old,next);
-        for (var pos : changed) if (!Objects.equals(old.get(pos), next.get(pos)) && level.hasChunkAt(pos)) {
+        for (var pos : changed) if (!Objects.equals(old.get(pos), next.get(pos)) && level.getServer().isRunning() && level.hasChunkAt(pos)) {
             level.updateNeighborsAt(pos, level.getBlockState(pos).getBlock());
         }
     }
     public static void clear(HeartBlockEntity heart) { update(heart, Map.of()); updateFaces(heart, Map.of()); updateWeakFaces(heart, Map.of()); }
+    /** Teardown must not turn off blocks after Sable has removed their native rigid bodies. */
+    public static void forget(HeartBlockEntity heart) {
+        if (!(heart.getLevel() instanceof ServerLevel level)) return;
+        forget(LEVELS,POSITION_INDEX,level,heart);forget(FACES,FACE_INDEX,level,heart);forget(WEAK_FACES,WEAK_INDEX,level,heart);
+    }
+    private static <K> void forget(Map<ServerLevel,Map<HeartBlockEntity,Map<K,Integer>>> source,Map<ServerLevel,Map<K,Map<HeartBlockEntity,Integer>>> index,ServerLevel level,HeartBlockEntity heart) {
+        var cores=source.get(level);if(cores==null)return;var old=cores.remove(heart);if(old!=null)indexUpdate(index,level,heart,old,Map.of());if(cores.isEmpty())source.remove(level);
+    }
     private ModuleSignals() {}
 }

@@ -26,8 +26,11 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
     private final List<Button> channelButtons = new ArrayList<>(), editButtons = new ArrayList<>();
     private final List<EditBox> inputs = new ArrayList<>();
     private int page, lastSelected = -1;
+    private int detailX, detailWidth, inputX, fieldPitch, sidebarPitch, requestedRows;
+    private boolean showTimeline;
     private int deleteUntil, deleteChannel = -1, deleteCount;
-    private Button enabled, loop, master, picker, mode, add, previous, next, remove;
+    private Button enabled, loop, master, picker, mode, add, previous, next, remove, nameApply, back;
+    private EditBox nameInput;
     public HeartWirelessScreen(HeartWirelessMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title); imageWidth = 360; imageHeight = 234;
     }
@@ -36,38 +39,54 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         return addRenderableWidget(LifeUiStyle.button(label, leftPos + x, topPos + y, width, 18, action));
     }
     @Override protected void init() {
+        imageWidth = Math.max(300, Math.min(480, width - 14)); imageHeight = Math.max(200, height - 14);
+        detailX = Math.min(155, Math.max(103, Math.round(imageWidth * .32f))); detailWidth = imageWidth - detailX - 10;
+        inputX = detailX + Math.round(detailWidth * .45f); showTimeline = imageHeight >= 250;
+        fieldPitch = Math.clamp((imageHeight - (showTimeline ? 89 : 55) - 96) / 4, 12, 30);
+        sidebarPitch = Math.max(14, (int)Math.ceil(font.lineHeight * LifeUiStyle.scale()) + 8);
+        requestedRows = Math.clamp((imageHeight - 51 - 34 - 5) / sidebarPitch, 1, HeartWirelessMenu.PAGE_SIZE);
+        menu.layoutSlots(detailX + 35, detailX + 91, 60);
         super.init(); channelButtons.clear(); editButtons.clear(); inputs.clear();
         for (int i = 0; i < HeartWirelessMenu.PAGE_SIZE; i++) {
             int row = i;
-            channelButtons.add(button(Component.empty(), 10, 34 + i * 20, 119,
-                    () -> send(0, 6, page * HeartWirelessMenu.PAGE_SIZE + row)));
+            var control = button(Component.empty(), 10, 34 + i * sidebarPitch, detailX - 20,
+                    () -> send(0, 6, page * menu.pageSize() + row)); control.setHeight(sidebarPitch - 2); channelButtons.add(control);
         }
-        previous = button(Component.literal("‹"), 10, 180, 28, () -> send(0, 12, page - 1));
-        next = button(Component.literal("›"), 101, 180, 28, () -> send(0, 12, page + 1));
-        add = button(tr("add"), 10, 208, 119, () -> send(0, 10, 0));
-        button(tr("back"), 299, 7, 51, () -> send(0, 8, 0));
-        master = button(Component.empty(), 10, 9, 119,
+        previous = button(Component.literal("‹"), 10, imageHeight - 51, 28, () -> send(0, 12, page - 1));
+        next = button(Component.literal("›"), detailX - 38, imageHeight - 51, 28, () -> send(0, 12, page + 1));
+        add = button(tr("add"), 10, imageHeight - 28, detailX - 20, () -> send(0, 10, 0));
+        back = button(tr("back"), imageWidth - 62, 8, 52, () -> send(0, 8, 0));
+        var density = button(Component.translatable("dashboard.sablelife.density_" + LifeUiStyle.density()), imageWidth - 106, 8, 40, () -> changeDensity(1));
+        LifeUiStyle.reverse(density, () -> changeDensity(-1));
+        density.setTooltip(Tooltip.create(Component.translatable("dashboard.sablelife.density_help")));
+        master = button(Component.empty(), 10, 8, detailX - 20,
                 () -> send(0, 7, menu.value(HeartWirelessMenu.MASTER) == 0 ? 1 : 0));
-        picker = button(tr("choose_items"), 254, 38, 96, () -> send(0,13,0));
+        nameInput = addRenderableWidget(new EditBox(font, leftPos + detailX + 58, topPos + 34, detailWidth - 82, 18, tr("name")));
+        nameInput.setMaxLength(dev.sablelife.heart.WirelessChannel.NAME_LIMIT * 2);
+        nameInput.setHint(tr("name")); nameInput.setTooltip(Tooltip.create(tr("name_help")));
+        nameApply = addRenderableWidget(LifeUiStyle.button(Component.literal("✓"), leftPos + imageWidth - 30, topPos + 34, 20, 18, this::rename));
+        picker = button(tr("choose_items"), detailX + 118, 60, detailWidth - 118, () -> send(0,13,0));
         picker.setTooltip(Tooltip.create(tr("sample_help")));
         for (int field = 1; field <= 4; field++) {
             final int parameter = field;
-            int y = 70 + (field - 1) * 23;
-            var input = new EditBox(font, leftPos + 239, topPos + y, 54, 18, tr("field_" + field));
+            int y = 96 + (field - 1) * fieldPitch;
+            var input = new EditBox(font, leftPos + inputX, topPos + y, imageWidth - inputX - 68, fieldPitch - 2, tr("field_" + field));
             input.setFilter(s -> s.matches("[0-9]{0,4}(\\.[0-9]{0,2})?"));
             input.setMaxLength(7); addRenderableWidget(input); inputs.add(input);
-            editButtons.add(button(Component.literal("−"), 296, y, 16, () -> adjust(parameter, -1)));
-            editButtons.add(button(Component.literal("+"), 315, y, 16, () -> adjust(parameter, 1)));
-            editButtons.add(button(Component.literal("✓"), 334, y, 16, () -> apply(parameter)));
+            editButtons.add(button(Component.literal("−"), imageWidth - 64, y, 16, () -> adjust(parameter, -1)));
+            editButtons.add(button(Component.literal("+"), imageWidth - 46, y, 16, () -> adjust(parameter, 1)));
+            editButtons.add(button(Component.literal("✓"), imageWidth - 28, y, 18, () -> apply(parameter)));
         }
-        enabled = button(Component.empty(), 145, 208, 65, () -> toggle(0));
-        mode = button(Component.empty(), 145, 185, 205, () -> send(menu.selected(), 9, (menu.setting(menu.selected(), 6) + 1) % 5));
+        for (var control : editButtons) control.setHeight(fieldPitch - 2);
+        int third = (detailWidth - 8) / 3;
+        enabled = button(Component.empty(), detailX, imageHeight - 28, third, () -> toggle(0));
+        mode = button(Component.empty(), detailX, imageHeight - 52, detailWidth, () -> send(menu.selected(), 9, (menu.setting(menu.selected(), 6) + 1) % 5));
         LifeUiStyle.reverse(mode, () -> send(menu.selected(), 9, Math.floorMod(menu.setting(menu.selected(), 6) - 1, 5)));
         LifeUiStyle.reverse(master, master::onPress); LifeUiStyle.reverse(enabled, enabled::onPress); LifeUiStyle.reverse(picker, picker::onPress);
         mode.setTooltip(Tooltip.create(tr("mode_help")));
-        loop = button(Component.empty(), 214, 208, 65, () -> toggle(5));
+        loop = button(Component.empty(), detailX + third + 4, imageHeight - 28, third, () -> toggle(5));
         LifeUiStyle.reverse(loop, loop::onPress);
-        remove = button(tr("delete"), 283, 208, 67, () -> {
+        remove = button(tr("delete"), detailX + (third + 4) * 2, imageHeight - 28, detailWidth - (third + 4) * 2, () -> {
             if (deleteUntil > tickCount && deleteChannel == menu.selected() && deleteCount == menu.count()) {
                 send(0, 11, menu.selected()); deleteUntil = 0;
             } else {
@@ -76,11 +95,18 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         });
         remove.setTooltip(Tooltip.create(tr("delete_help")));
         editButtons.add(enabled); editButtons.add(loop);
-        sync();
+        sync(); send(0, 14, requestedRows);
     }
+    private void changeDensity(int direction) { LifeUiStyle.cycle(direction); rebuildWidgets(); }
     private void send(int channel, int field, int raw) {
         if (minecraft != null && minecraft.gameMode != null)
             minecraft.gameMode.handleInventoryButtonClick(menu.containerId, field << 16 | Math.clamp(raw, 0, 65535));
+    }
+    private void rename() {
+        if (!nameInput.active) return;
+        if (nameInput.getValue().codePointCount(0, nameInput.getValue().length()) > dev.sablelife.heart.WirelessChannel.NAME_LIMIT) { nameInput.setTextColor(0xFF7777); return; }
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new dev.sablelife.module.ModuleNetworking.Action(menu.containerId, 0, new java.util.UUID(0, 0), "wireless_name", "", menu.selected(), nameInput.getValue()));
+        nameInput.setTextColor(0xE0E0E0); nameInput.setFocused(false);
     }
     private void toggle(int field) { send(menu.selected(), field, menu.setting(menu.selected(), field) == 0 ? 1 : 0); }
     private void adjust(int field, int direction) {
@@ -103,13 +129,15 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         int selected = menu.selected(); boolean exists = menu.count() > 0;
         if (selected != deleteChannel || menu.count() != deleteCount) deleteUntil = 0;
         remove.setMessage(tr(deleteUntil > tickCount ? "confirm_delete" : "delete"));
-        previous.active = page > 0; next.active = (page + 1) * HeartWirelessMenu.PAGE_SIZE < menu.count();
+        previous.active = page > 0; next.active = (page + 1) * menu.pageSize() < menu.count();
         add.active = editable && menu.count() < ((menu.value(HeartWirelessMenu.CHANNEL_LIMIT)&0xffff)==0?dev.sablelife.heart.HeartWireless.CHANNELS:menu.value(HeartWirelessMenu.CHANNEL_LIMIT)&0xffff);
         for (int i = 0; i < HeartWirelessMenu.PAGE_SIZE; i++) {
-            int channel = page * HeartWirelessMenu.PAGE_SIZE + i, output = menu.rowPower(i);
-            channelButtons.get(i).visible = channel < menu.count();
-            channelButtons.get(i).setMessage(Component.literal((channel == selected ? "▶ " : "") + (channel + 1) + "  ")
-                    .append(tr(menu.setting(channel, 0) == 0 ? "disabled" : output > 0 ? "powered" : "ready")));
+            int channel = page * menu.pageSize() + i, output = menu.rowPower(i);
+            channelButtons.get(i).visible = i < Math.min(requestedRows, menu.pageSize()) && channel < menu.count();
+            var label = Component.literal((channel == selected ? "▶ " : "") + (channel + 1) + ".  ")
+                    .append(tr(menu.setting(channel, 0) == 0 ? "disabled" : output > 0 ? "powered" : "ready"));
+            var name = menu.channelName(channel); if (!name.isEmpty()) label.append("  ").append(Component.literal(name));
+            channelButtons.get(i).setMessage(label); channelButtons.get(i).setTooltip(name.isEmpty() ? null : Tooltip.create(label));
         }
         for (int field = 1; field <= 4; field++) {
             var input = inputs.get(field - 1);
@@ -134,6 +162,10 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         master.active = editable;
         picker.visible = exists;
         picker.setMessage(tr("choose_items"));
+        nameInput.visible = exists; nameApply.visible = exists;
+        nameInput.active = editable && exists; nameInput.setEditable(nameInput.active); nameApply.active = nameInput.active;
+        if (lastSelected != selected) nameInput.setFocused(false);
+        if (!nameInput.isFocused()) nameInput.setValue(menu.channelName(selected));
         lastSelected = selected;
     }
     @Override protected void containerTick() { super.containerTick(); tickCount++; sync(); }
@@ -153,6 +185,10 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
+        if (nameInput.visible && nameInput.active && nameInput.isFocused()) {
+            if (key == 257 || key == 335) { rename(); return true; }
+            if (key != 256) { nameInput.keyPressed(key, scan, modifiers); return true; }
+        }
         if (key == 257 || key == 335) for (int i = 0; i < inputs.size(); i++) if (inputs.get(i).isFocused()) { apply(i + 1); return true; }
         if (key != 256) for (EditBox input : inputs) if (input.visible && input.active && input.isFocused()) {
             input.keyPressed(key, scan, modifiers); return true;
@@ -161,15 +197,15 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
     }
     @Override protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos, y = topPos;
-        g.fill(x - 2, y - 2, x + 362, y + 236, 0xFF19151D);
-        g.fill(x, y, x + 360, y + 234, 0xFF9B614E);
-        g.fill(x + 3, y + 3, x + 357, y + 231, 0xFF242632);
-        g.fill(x + 5, y + 5, x + 134, y + 229, 0xFF363140);
-        g.fill(x + 136, y + 5, x + 138, y + 229, 0xFF9770B5);
-        g.fill(x + 142, y + 30, x + 350, y + 63, 0xFF37313D);
-        frame(g, x + 170, y + 38, 0xFFBE5356);
-        frame(g, x + 220, y + 38, 0xFF5686C9);
-        if (menu.count() > 0 && menu.setting(menu.selected(), 6) < 3) waveform(g);
+        g.fill(x - 2, y - 2, x + imageWidth + 2, y + imageHeight + 2, 0xFF19151D);
+        g.fill(x, y, x + imageWidth, y + imageHeight, 0xFF9B614E);
+        g.fill(x + 3, y + 3, x + imageWidth - 3, y + imageHeight - 3, 0xFF242632);
+        g.fill(x + 5, y + 5, x + detailX - 8, y + imageHeight - 5, 0xFF363140);
+        g.fill(x + detailX - 6, y + 5, x + detailX - 4, y + imageHeight - 5, 0xFF9770B5);
+        g.fill(x + detailX - 3, y + 56, x + imageWidth - 10, y + 88, 0xFF37313D);
+        frame(g, x + detailX + 34, y + 59, 0xFFBE5356);
+        frame(g, x + detailX + 90, y + 59, 0xFF5686C9);
+        if (showTimeline && menu.count() > 0 && menu.setting(menu.selected(), 6) < 3) waveform(g);
     }
     private void frame(GuiGraphics g, int x, int y, int color) {
         g.fill(x, y, x + 18, y + 18, color); g.fill(x + 1, y + 1, x + 17, y + 17, 0xFF4A4555);
@@ -178,7 +214,7 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         int channel = menu.selected(), delay = menu.setting(channel, 1), on = menu.setting(channel, 2), off = menu.setting(channel, 3);
         int horizon = Math.max(100, delay + (on + off) * 2);
         if (menu.setting(channel, 6) == 1) return;
-        int x = leftPos + 145, y = topPos + 176, width = 205;
+        int x = leftPos + detailX, y = topPos + imageHeight - 68, width = detailWidth;
         g.fill(x, y, x + width, y + 7, 0xFF151B24);
         for (int pixel = 0; pixel < width; pixel++) {
             long t = (long) pixel * horizon / width;
@@ -190,15 +226,21 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
             g.fill(x + cursor, y, x + cursor + 1, y + 7, 0xFF87F3B1);
         }
     }
+    private void text(GuiGraphics g, Component label, int x, int y, int available, int color) {
+        float scale = Math.min(LifeUiStyle.scale(), available / (float)Math.max(1, font.width(label)));
+        g.pose().pushPose(); g.pose().translate(x, y, 0); g.pose().scale(scale, scale, 1);
+        g.drawString(font, label, 0, 0, color, false); g.pose().popPose();
+    }
     @Override protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        g.drawString(font, tr("title"), 145, 11, 0xF2DDD1, false);
-        if (menu.count() > 0) g.drawString(font, Component.translatable("wireless.sablelife.channel", menu.selected() + 1), 145, 24, 0xD9C4ED, false);
-        g.drawString(font, Component.literal((page + 1) + " / " + Math.max(1, (menu.count() + HeartWirelessMenu.PAGE_SIZE - 1) / HeartWirelessMenu.PAGE_SIZE)), 56, 185, 0xD9C4ED, false);
-        if (menu.count() == 0) { g.drawWordWrap(font, tr("empty"), 145, 75, 199, 0xD9C4ED); return; }
-        g.drawString(font, tr("red"), 150, 44, 0xEF8B89, false);
-        g.drawString(font, tr("blue"), 200, 44, 0x83B6EE, false);
-        for (int field = 1; field <= 4; field++) g.drawString(font, tr("field_" + field), 145, 75 + (field - 1) * 23, 0xE6D8EA, false);
-        g.drawString(font, menu.setting(menu.selected(), 6) == 1 ? Component.translatable("wireless.sablelife.receive_power", menu.value(HeartWirelessMenu.SELECTED_INPUT)) : tr(menu.setting(menu.selected(), 6) >= 3 ? "program_timeline" : "timeline"), 145, 166, 0xBDA5D0, false);
+        text(g, tr("title"), detailX, 12, detailWidth - 100, 0xF2DDD1);
+        if (menu.count() > 0) text(g, Component.translatable("wireless.sablelife.channel", menu.selected() + 1), detailX, 39, 54, 0xD9C4ED);
+        var pages = Component.literal((page + 1) + " / " + Math.max(1, (menu.count() + menu.pageSize() - 1) / menu.pageSize()));
+        text(g, pages, 43, imageHeight - 46, detailX - 84, 0xD9C4ED);
+        if (menu.count() == 0) { g.drawWordWrap(font, tr("empty"), detailX, 96, detailWidth, 0xD9C4ED); return; }
+        text(g, tr("red"), detailX + 5, 66, 26, 0xEF8B89);
+        text(g, tr("blue"), detailX + 61, 66, 26, 0x83B6EE);
+        for (int field = 1; field <= 4; field++) text(g, tr("field_" + field), detailX, 96 + (field - 1) * fieldPitch + 3, inputX - detailX - 6, 0xE6D8EA);
+        if (showTimeline) text(g, menu.setting(menu.selected(), 6) == 1 ? Component.translatable("wireless.sablelife.receive_power", menu.value(HeartWirelessMenu.SELECTED_INPUT)) : tr(menu.setting(menu.selected(), 6) >= 3 ? "program_timeline" : "timeline"), detailX, imageHeight - 83, detailWidth, 0xBDA5D0);
     }
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         sync(); renderBackground(graphics, mouseX, mouseY, partialTick);

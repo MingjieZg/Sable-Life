@@ -46,7 +46,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         snapshot.setItem(0, stack);
     }
     private static void compactHeader(CompoundTag module){
-        var keep=java.util.Set.of("Version","Id","Type","Name","Enabled","Invalidated","Detached","Trigger","Channel","Status","TriggerPowered","HurtRuntime","PhaseActive","PhaseRemaining","PhaseChannelStatus","PhaseRangeValid","MovementPhase","TurnState","FacingState","LaserPhase","QuakePhase","PullPhase","PullVictims","ArenaDistance","ArenaWarning","NavigationTarget","NavigationLeft","NavigationRight","NavigationUp","NavigationDown","ItemDisplayVisible","RespawnRuntime");
+        var keep=java.util.Set.of("Version","Id","Type","Name","Enabled","Invalidated","Detached","Trigger","Channel","Status","TriggerPowered","HurtRuntime","PhaseRuntime","HitRuntime","PhaseActive","PhaseRemaining","PhaseChannelStatus","PhaseRangeValid","MovementPhase","TurnState","FacingState","LaserPhase","QuakePhase","PullPhase","PullVictims","ArenaDistance","ArenaWarning","NavigationTarget","NavigationLeft","NavigationRight","NavigationUp","NavigationDown","ItemDisplayVisible","RespawnRuntime");
         for(var key:java.util.Set.copyOf(module.getAllKeys()))if(!keep.contains(key))module.remove(key);
     }
     @Override public void broadcastChanges() { if (heart != null && heart.getLevel().getGameTime() % 5 == 0) refresh(); super.broadcastChanges(); }
@@ -76,6 +76,8 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         if (operation.equals("settings")) { heart.openSettings(player); return true; }
         if (operation.equals("wireless")) { heart.openWireless(player); return true; }
         if (operation.equals("loot")) { heart.openDeathLootMenu(player); return true; }
+        if(operation.equals("phase_rules")){var module=heart.modules().find(id);if(module==null||!module.type().equals("health_phase"))return false;HealthPhaseRuleMenu.open(player,heart,module,null);return true;}
+        if(operation.equals("armor_rules")){var module=heart.modules().find(id);if(module==null||!module.type().equals("armor"))return false;ArmorRuleMenu.open(player,heart,module,null);return true;}
         if(operation.equals("arena_buffs")){var module=heart.modules().find(id);if(module==null||!module.type().equals("arena"))return false;ArenaBuffMenu.open(player,heart,module,null);return true;}
         if (operation.equals("sequence")) {
             var module = heart.modules().find(id); if (module == null || !module.type().equals("sequence")) return false;
@@ -84,7 +86,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         }
         if (operation.equals("effects")) {
             var module = heart.modules().find(id);
-            if(module!=null&&(module.type().equals("linear_movement")||module.type().equals("sphere_blast"))&&VirtualModule.particleStage(key)!=null){
+            if(module!=null&&(module.type().equals("linear_movement")||module.type().equals("sphere_blast")||module.type().equals("pulse"))&&VirtualModule.particleStage(key)!=null){
                 String stage=VirtualModule.particleStage(key);if(module.movementParticles(stage)==null)return false;
                 player.openMenu(new net.minecraft.world.SimpleMenuProvider((container,inventory,ignored)->EffectSelectionMenu.movement(container,inventory,heart,module,stage),net.minecraft.network.chat.Component.translatable("effects.sablelife.title")));return true;
             }
@@ -99,7 +101,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
                     net.minecraft.network.chat.Component.translatable("projectile.sablelife.title"))); return true;
         }
         if(operation.equals("frequency")) {
-            var module=heart.modules().find(id);if(module==null||!java.util.List.of("wireless_redstone","damage_accumulation").contains(module.type()))return false;
+            var module=heart.modules().find(id);if(module==null||!java.util.List.of("wireless_redstone","damage_accumulation","sensor").contains(module.type()))return false;
             player.openMenu(new net.minecraft.world.SimpleMenuProvider((container,inventory,ignored)->new ModuleFrequencyMenu(container,inventory,heart,module),net.minecraft.network.chat.Component.translatable("frequency.sablelife.title")));return true;
         }
         if (operation.equals("samples")) {
@@ -152,10 +154,11 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
                 result = module != null && module.type().equals("move_set") && module.moveSet().edit(key, value, text, heart.modules());
                 if (result) heart.modules().changed();
             }
+            case "gyro_calibrate" -> { result=ModuleGyroscope.calibrate(heart,module); if(result)heart.modules().changed(); }
             case "reorder" -> result=Double.isFinite(value)&&(value==-1||value==1)&&heart.modules().reorder(id,(int)value);
             case "remove" -> { if(module!=null&&module.type().equals("command")&&!player.canUseGameMasterBlocks())return false;result=heart.modules().remove(id); }
             case "mark" -> { return module != null && module.known() && MarkingSessions.start(player, heart, module); }
-            case "edit" -> { if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
+            case "edit" -> { if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; if(module!=null&&module.type().equals("hit_counter")&&key.equals("hitSource")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleHitCounter.ATTACKS.contains(source.type()))return false;module.hitSource(source==null?null:source.id(),(int)value);result=true;}else result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
             default -> { return false; }
         }
         if (result) { heart.setChanged(); refresh(); broadcastChanges(); }

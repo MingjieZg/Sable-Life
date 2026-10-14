@@ -17,7 +17,7 @@ public final class BodySphereQuery {
   var result=new ArrayList<Hit>();var budget=CollisionWorkBudget.begin(level);
   for(var core:LoadedCoreIndex.query(level,new AABB(center,center).inflate(radius))){
    if(core.isControlCore()||core.isRemoved()||core.health().state()!=HeartState.ALIVE)continue;
-   var hit=nearest(level,core,center,eye,radius,budget,null);if(hit!=null)result.add(hit);
+   var hit=nearest(level,core,center,eye,radius,budget,null,null);if(hit!=null)result.add(hit);
    if(result.size()>=64||CollisionWorkBudget.exhausted(level))break;
   }
   result.sort(Comparator.comparingDouble(Hit::distance));return List.copyOf(result);
@@ -31,7 +31,7 @@ public final class BodySphereQuery {
   var hits=new ArrayList<Hit>();var budget=CollisionWorkBudget.begin(level);
   for(var core:LoadedCoreIndex.query(level,bounds)){
    if(core.isControlCore()||core.isRemoved()||core.health().state()!=HeartState.ALIVE)continue;
-   var hit=nearest(level,core,center,eye,radius,budget,volumes);if(hit!=null)hits.add(hit);
+   var hit=nearest(level,core,center,eye,radius,budget,volumes,null);if(hit!=null)hits.add(hit);
    if(hits.size()>=64||CollisionWorkBudget.exhausted(level))break;
   }hits.sort(Comparator.comparingDouble(Hit::distance));return List.copyOf(hits);
  }
@@ -41,11 +41,23 @@ public final class BodySphereQuery {
   var hits=new ArrayList<Hit>();var budget=CollisionWorkBudget.begin(level);
   for(var core:LoadedCoreIndex.query(level,limit.bounds())){
    if(core.isControlCore()||core.isRemoved()||core.health().state()!=HeartState.ALIVE)continue;
-   var hit=nearest(level,core,center,eye,radius,budget,List.of(limit));if(hit!=null)hits.add(hit);
+   var hit=nearest(level,core,center,eye,radius,budget,List.of(limit),null);if(hit!=null)hits.add(hit);
    if(hits.size()>=64||CollisionWorkBudget.exhausted(level))break;
   }hits.sort(Comparator.comparingDouble(Hit::distance));return List.copyOf(hits);
  }
- private static Hit nearest(ServerLevel level,HeartBlockEntity core,Vec3 center,Vec3 eye,double radius,CollisionWorkBudget.Budget budget,java.util.List<dev.sablelife.attack.AttackVolume> volumes){
+ private record Sweep(Vec3 start,Vec3 end,double radius){}
+ /** Swept circular flame front against actual owned voxels; terrain occludes contact. */
+ public static List<Hit> querySweep(ServerLevel level,UUID attacker,Vec3 start,Vec3 end,double radius){
+  if(level==null||start==null||end==null||!Double.isFinite(start.lengthSqr()+end.lengthSqr()+radius)||radius<=0||radius>4||start.distanceToSqr(end)>16.01)return List.of();
+  var center=start.lerp(end,.5);double enclosing=start.distanceTo(end)/2+radius;
+  var hits=new ArrayList<Hit>();var budget=CollisionWorkBudget.begin(level);var sweep=new Sweep(start,end,radius);
+  for(var core:LoadedCoreIndex.query(level,new AABB(start,end).inflate(radius))){
+   if(core.isControlCore()||core.isRemoved()||core.health().state()!=HeartState.ALIVE||!core.acceptsLifeAttack(attacker))continue;
+   var hit=nearest(level,core,center,start,enclosing,budget,null,sweep);if(hit!=null)hits.add(hit);
+   if(hits.size()>=64||CollisionWorkBudget.exhausted(level))break;
+  }return List.copyOf(hits);
+ }
+ private static Hit nearest(ServerLevel level,HeartBlockEntity core,Vec3 center,Vec3 eye,double radius,CollisionWorkBudget.Budget budget,java.util.List<dev.sablelife.attack.AttackVolume> volumes,Sweep sweep){
   var root=Sable.HELPER.getContaining(level,core.getBlockPos());if(root==null)return null;var ownership=BodyOwnership.get(level);Hit best=null;int remaining=32768;
   for(var body:SubLevelHelper.getConnectedChain(root)){
    if(body.isRemoved())continue;var bounds=body.getPlot().getBoundingBox();if(bounds==null)continue;var pivot=body.getPlot().getCenterBlock().getCenter();var pose=body.logicalPose();var world=pose.transformPosition(pivot);
@@ -65,6 +77,15 @@ public final class BodySphereQuery {
       boolean intersects=false;for(var volume:volumes){if(!budget.spend(1))return best;if(volume.intersects(voxel)){intersects=true;break;}}if(!intersects)continue;
      }
      var localPoint=new Vec3(Math.clamp(local.x,x+box.minX,x+box.maxX),Math.clamp(local.y,y+box.minY,y+box.maxY),Math.clamp(local.z,z+box.minZ,z+box.maxZ));
+     if(sweep!=null){
+      if(!budget.spend(8))return best;
+      var from=sweep.start.subtract(world);var to=sweep.end.subtract(world);
+      var localStart=pivot.add(from.dot(xAxis)/(sx*sx),from.dot(yAxis)/(sy*sy),from.dot(zAxis)/(sz*sz));
+      var localEnd=pivot.add(to.dot(xAxis)/(sx*sx),to.dot(yAxis)/(sy*sy),to.dot(zAxis)/(sz*sz));
+      var contact=SegmentBoxContact.closest(localStart,localEnd,box.move(x,y,z),new Vec3(sx*sx,sy*sy,sz*sz));
+      localPoint=contact.point();
+      if(pose.transformPosition(localPoint).distanceToSqr(sweep.start.lerp(sweep.end,contact.fraction()))>sweep.radius*sweep.radius+1e-8)continue;
+     }
      var point=pose.transformPosition(localPoint);double distance=point.distanceTo(center);if(distance>radius||best!=null&&distance>=best.distance)continue;
      var inside=pose.transformPosition(localPoint.lerp(box.getCenter().add(x,y,z),.001));
      if(!loadedPath(level,eye,inside,budget))continue;

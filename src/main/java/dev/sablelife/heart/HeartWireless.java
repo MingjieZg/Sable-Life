@@ -64,6 +64,9 @@ public final class HeartWireless {
             }
         });
     }
+    public void clearModuleFrequencies(java.util.Set<java.util.UUID> ids){
+        for(var id:ids){var transmitter=moduleTransmitters.remove(id);if(transmitter!=null)removeModuleTransmitter(transmitter);}
+    }
     private void removeModuleTransmitter(Transmitter transmitter) {
         transmitter.power=0;
         if(transmitter.level.getServer().isRunning()) {
@@ -92,7 +95,7 @@ public final class HeartWireless {
         int keep = 0;
         for (int i = 0; i < channels.size(); i++) {
             var channel = channels.get(i);
-            if (!channel.first().isEmpty() || !channel.second().isEmpty() || channel.value(0) != 0
+            if (!channel.name().isEmpty() || !channel.first().isEmpty() || !channel.second().isEmpty() || channel.value(0) != 0
                     || channel.value(1) != 0 || channel.value(2) != 20 || channel.value(3) != 20
                     || channel.value(4) != 15 || channel.value(5) != 1 || channel.receiving()) keep = i + 1;
         }

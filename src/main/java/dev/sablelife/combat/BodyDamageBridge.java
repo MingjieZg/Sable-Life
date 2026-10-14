@@ -17,6 +17,7 @@ public final class BodyDamageBridge {
   if(!(source.level() instanceof ServerLevel level)||source.isRemoved()||!Float.isFinite(amount)||amount<=0)return false;var core=SableBodyProbe.findActivatedHeart(level,hit.getBlockPos());if(core==null||core.isControlCore()||core.health().state()!=HeartState.ALIVE)return false;
   var data=source.getPersistentData();if(data.hasUUID("SableLifeAttackOwner")&&!core.acceptsLifeAttack(data.getUUID("SableLifeAttackOwner")))return false;
   var hits=data.getCompound(HITS);var key=core.creatureId().toString();if(hits.getBoolean(key)||hits.getAllKeys().size()>=64)return false;float before=core.health().current();if(!core.damageAt(hit.getBlockPos(),Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH)))return false;
+  dev.sablelife.attack.AttackHitCredit.record(source,Math.max(0,before-core.health().current()));
   hits.putBoolean(key,true);data.put(HITS,hits);BodyCombat.feedback(level,hit,core,before-core.health().current(),source instanceof Projectile p&&p.getOwner() instanceof net.minecraft.world.entity.player.Player player?player:null,false);return true;
  }
  public static float contact(Entity source,BlockHitResult hit,float damage){
@@ -25,7 +26,7 @@ public final class BodyDamageBridge {
   if(core==null||core.isRemoved()||core.isControlCore()||core.health().state()!=HeartState.ALIVE)return 0;
   var data=source.getPersistentData();if(data.hasUUID("SableLifeAttackOwner")&&!core.acceptsLifeAttack(data.getUUID("SableLifeAttackOwner")))return 0;
   float before=core.health().current();if(!core.damageAt(hit.getBlockPos(),Math.min(damage,HeartHealth.MAX_CONFIGURED_HEALTH)))return 0;
-  float actual=Math.max(0,before-core.health().current());
+  float actual=Math.max(0,before-core.health().current());dev.sablelife.attack.AttackHitCredit.record(source,actual);
   BodyCombat.feedback(level,hit,core,actual,source instanceof net.minecraft.server.level.ServerPlayer player?player:source instanceof Projectile p&&p.getOwner() instanceof net.minecraft.world.entity.player.Player player?player:null,false);
   return actual;
  }

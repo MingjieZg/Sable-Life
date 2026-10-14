@@ -40,7 +40,7 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         tag.putString("name", heart.creatureName()); tag.putFloat("health", heart.health().maximum());
         tag.putDouble("delay", heart.health().deathDelay() / 20.); tag.putInt("xp", heart.displayedExperience());tag.putBoolean("xpLevels",heart.deathExperienceLevels());tag.putInt("xpPoints",heart.deathExperience());
         tag.putBoolean("explosion", heart.allowExplosion()); tag.putBoolean("breaking", heart.allowBreaking()); tag.putBoolean("bossbar", heart.showBossBar());
-        tag.putBoolean("lifeAttacks",heart.allowLifeAttacks());tag.putInt("bossbarColor",heart.bossBarColor().ordinal());
+        tag.putBoolean("survivalInteraction",heart.allowSurvivalInteraction());tag.putBoolean("lifeAttacks",heart.allowLifeAttacks());tag.putInt("bossbarColor",heart.bossBarColor().ordinal());
         tag.putInt("voidDeathHeight",heart.voidDeathHeight());tag.putBoolean("VoidDeathDefault",heart.defaultVoidDeathHeight());
         tag.putBoolean("forceChunkLoading",heart.forceChunkLoading());tag.putBoolean("ChunkLoadingEditable",heart.canEditChunkLoading(viewer));
         tag.putString("ChunkLoadingStatus",dev.sablelife.ownership.CoreChunkLoading.status(heart));tag.putInt("ChunkLoadingCount",dev.sablelife.ownership.CoreChunkLoading.count(heart));

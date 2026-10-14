@@ -171,11 +171,12 @@ public final class MarkingSessions {
         }
     }
     private static void previewModule(ServerPlayer player, HeartBlockEntity heart, VirtualModule module) {
-        if (module.type().equals("wireless_redstone") && HeartModules.status(module, heart).equals("valid")) {
+        if (module.type().equals("gyroscope") && List.of("valid","disabled").contains(HeartModules.status(module,heart))) { preview(player,heart,List.of(module.anchors().getFirst(),module.anchors().getFirst())); ModuleGyroscope.preview(player,heart,module); return; }
+        if (List.of("wireless_redstone", "sensor").contains(module.type()) && HeartModules.status(module, heart).equals("valid")) {
             var anchor = module.anchors().getFirst(); var body = anchor.body(heart);
             var center = anchor.position(body).getCenter(); var level = (ServerLevel) player.level();
             var dust = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.2F, 1, .4F), 1.2F);
-            for (var face : Direction.values()) if (module.value("redstoneFaces") == 0 || face == anchor.face()) {
+            for (var face : Direction.values()) if (module.type().equals("wireless_redstone") && module.value("redstoneFaces") == 0 || face == anchor.face()) {
                 var normal = Vec3.atLowerCornerOf(face.getNormal());
                 var u = face.getAxis() == Direction.Axis.X ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0);
                 var v = normal.cross(u); var surface = center.add(normal.scale(.505));
@@ -187,7 +188,8 @@ public final class MarkingSessions {
                     level.sendParticles(player, dust, true, world.x, world.y, world.z, 1, 0, 0, 0, 0);
                 }
             }
-            player.displayClientMessage(Component.translatable("dashboard.sablelife.redstone_help"), true); return;
+            player.displayClientMessage(Component.translatable(module.type().equals("sensor") ? "dashboard.sablelife.sensor_output_help" : "dashboard.sablelife.redstone_help"), true);
+            if (module.type().equals("wireless_redstone")) return;
         }
         if(module.type().equals("item_display")&&!module.anchors().isEmpty()&&module.anchors().getFirst().status(heart).equals("valid")){ModuleItemDisplay.preview(player,heart,module);return;}
         if (module.type().equals("particles")) {
@@ -259,7 +261,7 @@ public final class MarkingSessions {
                 level.sendParticles(player, dust, true, v[0], v[1], v[2], 1, 0, 0, 0, 0);
             }
             player.displayClientMessage(Component.translatable("dashboard.sablelife." + (module.type().equals("armor") ? "armor_preview_help" : "loot_preview_help")), true);
-        } else if (module.type().equals("sound") && module.value("contactMode") == 1) {
+        } else if (module.type().equals("trigger_sound") && module.value("contactMode") == 1) {
             var start = ModuleEvents.contactStart(heart, module);
             var end = start.add(ModuleEvents.contactDirection(heart, module).scale(module.value("contactDistance")));
             for (int i = 0; i <= 20; i++) particle(level, player, start.lerp(end, i / 20.));

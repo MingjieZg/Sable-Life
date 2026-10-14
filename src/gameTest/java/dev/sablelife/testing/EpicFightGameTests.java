@@ -8,6 +8,8 @@ import net.neoforged.neoforge.gametest.*;
 public final class EpicFightGameTests {
     @GameTest(template="combat",batch="epic_module_guard_interval")
     public static void ActualMeleeModuleBlocksWithoutEveryTickStaminaDrain(GameTestHelper h){EpicFightTestScenarios.ActualMeleeModuleBlocksWithoutEveryTickStaminaDrain(h);}
+    @GameTest(template="combat",batch="epic_arrow_guard_rules")
+    public static void NativeAndModuleArrowsFollowTheSameGuardAndParryingRules(GameTestHelper h){EpicFightTestScenarios.NativeAndModuleArrowsFollowTheSameGuardAndParryingRules(h);}
     @GameTest(template="combat",batch="epic_body_guard")
     public static void PositionBasedMeleeUsesNativeGuardParryAndRearRules(GameTestHelper h){EpicFightTestScenarios.PositionBasedMeleeUsesNativeGuardParryAndRearRules(h);}
     @GameTest(template="combat",batch="epic_charge_rules")

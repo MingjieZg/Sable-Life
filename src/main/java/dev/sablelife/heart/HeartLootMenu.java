@@ -18,9 +18,10 @@ import dev.sablelife.compat.sable.SableBodyProbe;
 public final class HeartLootMenu extends ChestMenu {
     private static final int TEMPLATE_SLOTS = 27, MENU_SLOTS = 54;
     private final HeartBlockEntity heart;
+    private final Player viewer;
     public HeartLootMenu(int id, Inventory inventory, HeartBlockEntity heart) {
         super(dev.sablelife.SableLife.LOOT_CHEST.get(), id, inventory, new SimpleContainer(MENU_SLOTS), 6);
-        this.heart = heart;
+        this.heart = heart;this.viewer=inventory.player;
         refresh();
     }
     private void refresh() {
@@ -43,8 +44,17 @@ public final class HeartLootMenu extends ChestMenu {
         icon(32, Items.REPEATER, Component.translatable("menu.sablelife.loot_rolls", heart.rolls()),
                 Component.translatable("menu.sablelife.loot_rolls_help"));
         icon(40, Items.BOOK, Component.translatable("menu.sablelife.loot_help"));
-        icon(53, Items.ARROW, Component.translatable("menu.sablelife.back"));
+        icon(53, Items.ARROW, Component.translatable("menu.sablelife.back"));metadata();
     }
+    public boolean action(Player player,int revision,java.util.UUID id,String key,double value,String text){
+        if(!stillValid(player)||!heart.creatureId().equals(id))return false;
+        if(key.equals("back")){heart.openDashboard(player);return true;}
+        if(revision!=heart.modules().revision()) {refresh();sendAllDataToRemote();return false;}
+        int slot;try{slot=Integer.parseInt(text);}catch(NumberFormatException e){return false;}
+        boolean accepted=heart.editLootRule(player,slot,key,value);
+        if(accepted)heart.modules().changed();refresh();sendAllDataToRemote();return accepted;
+    }
+    private void metadata(){var tag=new net.minecraft.nbt.CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("Editable",heart.canEditTemplates(viewer));tag.putBoolean("Weighted",heart.weighted());tag.putInt("Rolls",heart.rolls());tag.putInt("MaxRule",100);tag.putUUID("Id",heart.creatureId());tag.putInt("Revision",heart.modules().revision());for(int i=0;i<27;i++)tag.putInt("Rule"+i,heart.weighted()?heart.weight(i):heart.chance(i));getContainer().getItem(40).set(DataComponents.CUSTOM_DATA,net.minecraft.world.item.component.CustomData.of(tag));}
     private void icon(int slot, net.minecraft.world.item.Item item, Component name, Component... lines) {
         var display = new ItemStack(item);
         display.set(DataComponents.CUSTOM_NAME, name);
@@ -74,6 +84,7 @@ public final class HeartLootMenu extends ChestMenu {
                     sample.setCount(ItemStack.isSameItemSameComponents(sample, existing)
                             ? Math.min(existing.getCount() + 1, sample.getMaxStackSize()) : 1);
                 }
+                if(sample.isEmpty()&&button==0){refresh();sendAllDataToRemote();return;}
                 if (sample.isEmpty() && button == 1) {
                     sample = heart.lootTemplates().get(slot).copy(); sample.shrink(1);
                 }

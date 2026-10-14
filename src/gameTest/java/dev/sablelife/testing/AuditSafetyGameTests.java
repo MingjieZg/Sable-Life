@@ -143,6 +143,22 @@ public final class AuditSafetyGameTests {
         ModuleSignals.updateFaces(a,Map.of(new ModuleSignals.Face(pos,Direction.NORTH),0));h.assertTrue(ModuleSignals.connects(h.getLevel(),pos,Direction.NORTH),"Zero-strength configured face lost connection");
         ModuleSignals.clear(a);h.assertTrue(ModuleSignals.signal(h.getLevel(),pos)==0&&!ModuleSignals.connects(h.getLevel(),pos,Direction.NORTH),"Index retained cleared output");h.succeed();
     }
+    @GameTest(template="combat",batch="audit_signal_teardown",timeoutTicks=80)
+    public static void UnloadForgetsOutputsWithoutUpdatingBlocksAfterNativeRemoval(GameTestHelper h) {
+        var core=fixture(h,3,40);core.tryActivate(author(h,true));core.modules().tick(core);
+        var pos=h.absolutePos(new BlockPos(5,20,5));var lamp=pos.east();
+        h.getLevel().setBlockAndUpdate(pos,Blocks.IRON_BLOCK.defaultBlockState());
+        h.getLevel().setBlockAndUpdate(lamp,Blocks.REDSTONE_LAMP.defaultBlockState());
+        ModuleSignals.update(core,Map.of(pos,15));
+        ModuleSignals.updateFaces(core,Map.of(new ModuleSignals.Face(pos,Direction.NORTH),7));
+        ModuleSignals.updateWeakFaces(core,Map.of(new ModuleSignals.Face(pos,Direction.SOUTH),9));
+        h.assertTrue(h.getLevel().getBlockState(lamp).getValue(net.minecraft.world.level.block.RedstoneLampBlock.LIT),"Fixture did not light lamp");
+        var body=dev.ryanhcode.sable.Sable.HELPER.getContaining(h.getLevel(),core.getBlockPos());
+        dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(h.getLevel()).removeSubLevel(body,dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason.UNLOADED);
+        core.onChunkUnloaded();
+        h.assertTrue(ModuleSignals.signal(h.getLevel(),pos)==0&&!ModuleSignals.connects(h.getLevel(),pos,Direction.NORTH)&&!ModuleSignals.connects(h.getLevel(),pos,Direction.SOUTH),"Unload retained signals or configured connections");
+        h.runAfterDelay(8,()->{h.assertTrue(h.getLevel().getBlockState(lamp).getValue(net.minecraft.world.level.block.RedstoneLampBlock.LIT),"Unload sent block updates after native removal");h.succeed();});
+    }
     @GameTest(template="combat",batch="audit_hidden_payload")
     public static void PresetsDiscardUnrelatedHiddenGroups(GameTestHelper h) {
         var tag=new VirtualModule("item_display").save();var junk=new CompoundTag();junk.putString("unrelated","x".repeat(12000));tag.put("SoundTimelines",junk);tag.put("LootSamples",junk.copy());tag.put("RedBlue",junk.copy());

@@ -161,7 +161,7 @@ public final class ModuleGroundStrike {
             var nearest = new Vec3(Math.clamp(strike.point.x, box.minX, box.maxX), Math.clamp(strike.point.y, box.minY, box.maxY), Math.clamp(strike.point.z, box.minZ, box.maxZ));
             if (nearest.distanceToSqr(strike.point) > strike.radius * strike.radius) continue;
             if (!ModuleTargets.visible(level,heart.creatureId(),strike.point,victim)) continue;
-            if (strike.damage > 0) ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), strike.damage);
+            if (strike.damage > 0) ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), strike.damage,heart,module);
         }
     }
 }

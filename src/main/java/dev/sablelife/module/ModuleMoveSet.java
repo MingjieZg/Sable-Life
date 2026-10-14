@@ -13,9 +13,11 @@ public final class ModuleMoveSet {
         final Map<UUID, Long> cooldown = new HashMap<>();
     }
     private final Map<UUID, State> states = new HashMap<>();
+    private final Map<UUID,Long> activations=new HashMap<>();
+    public long activation(UUID id){return activations.getOrDefault(id,Long.MIN_VALUE);}
     private final Set<UUID> active = new HashSet<>();
     public boolean powered(UUID id) { return active.contains(id); }
-    public void clear() { states.clear(); active.clear(); }
+    public void clear() { states.clear(); active.clear();activations.clear(); }
     public static String status(MoveSet.Move move, HeartBlockEntity heart) {
         if (!move.config().enabled()) return "disabled";
         if (move.actions().isEmpty()) return "empty";
@@ -28,7 +30,7 @@ public final class ModuleMoveSet {
         return "ready";
     }
     public void tick(HeartBlockEntity heart) {
-        active.clear();
+        active.clear();activations.clear();
         if (!heart.operational() || !heart.wireless().master()) { clear(); return; }
         long now = heart.getLevel().getGameTime(); var keep = new HashSet<UUID>();
         for (var table : heart.modules().all()) {
@@ -53,7 +55,7 @@ public final class ModuleMoveSet {
                 }
             }
             if(running==null && ModuleHurt.once(table)) heart.modules().hurtTriggers.finish(table.id());
-            if (running != null) for (var a : running.actions()) if (a.active(now - state.started)) active.add(a.module());
+            if (running != null) for (var a : running.actions()) if (a.active(now - state.started)){active.add(a.module());activations.merge(a.module(),state.started+a.start(),Math::max);}
         }
         states.keySet().retainAll(keep);
     }

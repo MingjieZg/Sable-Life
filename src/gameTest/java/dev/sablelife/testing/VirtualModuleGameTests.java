@@ -24,10 +24,10 @@ import java.util.UUID;
 public final class VirtualModuleGameTests {
     @GameTest(template = "combat", batch = "contact_six_faces")
     public static void contactDetectsAllSixConfiguredFacesAndReloads(GameTestHelper h) {
-        var heart = fixture(h); var module = heart.modules().add("sound");
+        var heart = fixture(h); var module = heart.modules().add("trigger_sound");
         module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos().east(), Direction.DOWN)));
         module.edit("contactDistance", .5, "");
-        var choices = ModuleFields.find("sound", "contactDirection").choices();
+        var choices = ModuleFields.find("trigger_sound", "contactDirection").choices();
         for (int index = 0; index < choices.size(); index++) {
             module.edit("contactDirection", index, "");
             var face = Direction.byName(choices.get(index));
@@ -45,9 +45,9 @@ public final class VirtualModuleGameTests {
     }
     @GameTest(template = "combat", batch = "virtual_audio", timeoutTicks = 100)
     public static void contactReentryHasIndependentCooldown(GameTestHelper h) {
-        var heart = fixture(h); var module = heart.modules().add("sound");
+        var heart = fixture(h); var module = heart.modules().add("trigger_sound");
         module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos().east(), Direction.DOWN)));
-        module.edit("approach", 0, ""); module.edit("hurt", 0, ""); module.edit("contactMode", 1, "");
+        module.edit("trigger",0,""); module.edit("triggerSound",0,""); module.edit("contactMode", 1, "");
         module.edit("contactSound", 0, "minecraft:block.note_block.bass"); module.edit("contactDistance", .5, "");
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel()));
         var ground = BlockPos.containing(ModuleEvents.contactStart(heart, module).add(0, -.25, 0));
@@ -77,9 +77,9 @@ public final class VirtualModuleGameTests {
         module.anchors(List.of(anchor)); module.edit("target", 1, ""); module.edit("radius", 6, "");
         var center = anchor.world(heart, false); var victim = cow(h, center.add(4, -.7, 0));
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(level)); heart.modules().tick(heart);
-        h.assertTrue(ModuleSignals.signal(level, local) == 15, "Own surrounding body completely blinded ring sensor");
+        h.assertTrue(level.getBestNeighborSignal(local) == 15, "Own surrounding body completely blinded ring sensor");
         var wall = BlockPos.containing(center.add(2, 0, 0)); level.setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
-        heart.modules().tick(heart); h.assertTrue(ModuleSignals.signal(level, local) == 0, "External wall became transparent");
+        heart.modules().tick(heart); h.assertTrue(level.getBestNeighborSignal(local) == 0, "External wall became transparent");
         level.setBlockAndUpdate(wall, Blocks.AIR.defaultBlockState()); victim.discard(); heart.modules().clearRuntime(); h.succeed();
     }
     @GameTest(template = "combat", batch = "virtual_sensor")
@@ -87,9 +87,9 @@ public final class VirtualModuleGameTests {
         var heart = fixture(h); var module = heart.modules().add("sensor"); var local = heart.getBlockPos().east();
         var anchor = ModuleAnchor.create(heart, local, Direction.EAST); module.anchors(List.of(anchor)); module.edit("target", 1, ""); module.edit("lineOfSight", 1, "");
         var victim = cow(h, anchor.world(heart, false).add(3, -6, 0)); heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel()));
-        heart.modules().tick(heart); h.assertTrue(ModuleSignals.signal(h.getLevel(), local) == 15, "Full range does not include target below marker");
+        heart.modules().tick(heart); h.assertTrue(h.getLevel().getBestNeighborSignal(local) == 15, "Full range does not include target below marker");
         module.edit("radius", 4, ""); heart.modules().tick(heart);
-        h.assertTrue(ModuleSignals.signal(h.getLevel(), local) == 0, "Target outside spherical radius still detected");
+        h.assertTrue(h.getLevel().getBestNeighborSignal(local) == 0, "Target outside spherical radius still detected");
         h.assertTrue(!ModuleEvents.withinShape(heart, module, new net.minecraft.world.phys.Vec3(3, 3, 3))
                 && ModuleEvents.withinShape(heart, module, new net.minecraft.world.phys.Vec3(0, 3, 0)), "Full range is a cylinder instead of a sphere");
         victim.discard(); heart.modules().clearRuntime(); h.succeed();
@@ -112,8 +112,8 @@ public final class VirtualModuleGameTests {
     }
     @GameTest(template = "combat", batch = "virtual_audio")
     public static void contactSoundOnlyPlaysOnNewGroundContact(GameTestHelper h) {
-        var heart = fixture(h); var module = heart.modules().add("sound"); var anchor = ModuleAnchor.create(heart, heart.getBlockPos().east(), Direction.DOWN);
-        module.anchors(List.of(anchor)); module.edit("approach", 0, ""); module.edit("hurt", 0, "");
+        var heart = fixture(h); var module = heart.modules().add("trigger_sound"); var anchor = ModuleAnchor.create(heart, heart.getBlockPos().east(), Direction.DOWN);
+        module.anchors(List.of(anchor)); module.edit("trigger",0,""); module.edit("triggerSound",0,"");
         module.edit("contactMode", 1, ""); module.edit("contactSound", 0, "minecraft:block.note_block.bass");
         module.edit("contactDistance", .5, "");
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel()));
@@ -136,10 +136,11 @@ public final class VirtualModuleGameTests {
         var loaded = VirtualModule.load(tag);
         h.assertTrue(loaded.text("ambient").isEmpty() && loaded.value("contactMode") == 0, "Old module gained unsolicited sounds");
         loaded.edit("ambient", 0, "minecraft:entity.zombie.ambient"); loaded.edit("ambientMin", 300, "");
-        loaded.edit("ambientMax", 100, ""); loaded.edit("contactMode", 1, ""); loaded.edit("contactDistance", 1.25, "");
+        loaded.edit("ambientMax", 100, "");
         loaded = VirtualModule.load(loaded.save());
-        h.assertTrue(loaded.value("ambientMax") >= loaded.value("ambientMin") && loaded.value("contactMode") == 1
-                && loaded.value("contactDistance") == 1.25 && loaded.text("ambient").equals("minecraft:entity.zombie.ambient"), "Extended sound settings lost or invalid interval"); h.succeed();
+        h.assertTrue(loaded.value("ambientMax") >= loaded.value("ambientMin") && loaded.text("ambient").equals("minecraft:entity.zombie.ambient"), "Extended sound settings lost or invalid interval");
+        h.assertTrue(ModuleFields.find("sound","contactMode")==null&&!loaded.edit("contactMode",1,""),"Sounds still accepts contact controls");
+        var contact=new VirtualModule("trigger_sound");contact.edit("contactMode",1,"");contact.edit("contactDistance",1.25,"");contact=VirtualModule.load(contact.save());h.assertTrue(contact.value("contactMode")==1&&contact.value("contactDistance")==1.25,"Trigger Sound contact settings did not reload");h.succeed();
     }
     @GameTest(template = "combat", batch = "virtual_sensor")
     public static void ringSensorSeesDiagonalWithSightEnabled(GameTestHelper h) {
@@ -148,22 +149,22 @@ public final class VirtualModuleGameTests {
         module.anchors(List.of(anchor)); module.edit("target", 1, ""); module.edit("radius", 6, "");
         var victim = cow(h, anchor.world(heart, false).add(3, -.7, 3));
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel())); heart.modules().tick(heart);
-        h.assertTrue(ModuleSignals.signal(h.getLevel(), local) == 15, "Ring diagonal ray was blocked by its own marker");
+        h.assertTrue(h.getLevel().getBestNeighborSignal(local) == 15, "Ring diagonal ray was blocked by its own marker");
         victim.discard(); heart.modules().clearRuntime(); h.succeed();
     }
     @GameTest(template = "combat", batch = "virtual_sensor")
-    public static void virtualSensorOutputsAllFacesAndClearsOnDisable(GameTestHelper h) {
+    public static void virtualSensorChargesSelectedMarkFaceAndClearsOnDisable(GameTestHelper h) {
         var heart = fixture(h); var module = heart.modules().add("sensor");
         var local = heart.getBlockPos().east(); var anchor = ModuleAnchor.create(heart, local, Direction.EAST);
         module.anchors(List.of(anchor)); module.edit("target", 1, ""); module.edit("lineOfSight", 1, ""); module.edit("radius", 3, "");
         var victim = cow(h, anchor.world(heart, false).add(2, -.7, 0));
         var lamp = local.east(); h.getLevel().setBlockAndUpdate(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel())); heart.modules().tick(heart);
-        for (var face : Direction.values()) h.assertTrue(h.getLevel().getSignal(local, face) == 15
-                && h.getLevel().getDirectSignal(local, face) == 15, "Sensor did not emit on " + face);
-        h.assertTrue(h.getLevel().getBlockState(lamp).getValue(net.minecraft.world.level.block.RedstoneLampBlock.LIT), "Vanilla lamp did not receive sensor output");
+        h.assertTrue(h.getLevel().getBestNeighborSignal(local)==15,"Mark did not receive charge");
+        for (var face : Direction.values()) h.assertTrue(h.getLevel().getSignal(local.relative(face),face)==(face==anchor.face()?15:0),"Mark charge escaped selected face: "+face);
+        h.assertTrue(h.getLevel().getDirectSignal(lamp,Direction.EAST)==0,"Sensor charge became strong relay power");
         module.edit("enabled", 0, ""); heart.modules().tick(heart);
-        h.assertTrue(ModuleSignals.signal(h.getLevel(), local) == 0 && h.getLevel().getSignal(local, Direction.EAST) == 0, "Disabled sensor retained signal");
+        h.assertTrue(h.getLevel().getBestNeighborSignal(local) == 0 && h.getLevel().getSignal(local, Direction.EAST) == 0, "Disabled sensor retained signal");
         h.getLevel().setBlockAndUpdate(lamp, Blocks.AIR.defaultBlockState()); victim.discard(); heart.modules().clearRuntime(); h.succeed();
     }
     @GameTest(template = "combat", batch = "virtual_sensor")
@@ -180,13 +181,13 @@ public final class VirtualModuleGameTests {
         var wall = BlockPos.containing(center.add(forward.scale(1.5)));
         h.getLevel().setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel())); heart.modules().tick(heart);
-        h.assertTrue(ModuleSignals.signal(h.getLevel(), local) == 0, "Sensor sees through wall");
+        h.assertTrue(h.getLevel().getBestNeighborSignal(local) == 0, "Sensor sees through wall");
         module.edit("lineOfSight", 1, ""); heart.modules().tick(heart);
-        h.assertTrue(ModuleSignals.signal(h.getLevel(), local) == 15, "LOS off still blocks detection");
+        h.assertTrue(h.getLevel().getBestNeighborSignal(local) == 15, "LOS off still blocks detection");
         h.getLevel().setBlockAndUpdate(wall, Blocks.AIR.defaultBlockState()); victim.discard(); heart.modules().clearRuntime(); h.succeed();
     }
     @GameTest(template = "combat", batch = "virtual_sensor")
-    public static void virtualSensorPowersDiagonalControlAndStopsAfterDetachment(GameTestHelper h) {
+    public static void virtualSensorChargeStopsAfterDetachment(GameTestHelper h) {
         var level = h.getLevel(); var origin = h.absolutePos(new BlockPos(4, 6, 4));
         level.setBlockAndUpdate(origin, SableLife.HEART.get().defaultBlockState());
         level.setBlockAndUpdate(origin.east(), Blocks.IRON_BLOCK.defaultBlockState()); level.setBlockAndUpdate(origin.above(), Blocks.IRON_BLOCK.defaultBlockState());
@@ -197,10 +198,10 @@ public final class VirtualModuleGameTests {
         sensor.anchors(List.of(anchor)); sensor.edit("target", 1, ""); sensor.edit("lineOfSight", 1, ""); sensor.edit("radius", 3, "");
         var victim = cow(h, anchor.world(heart, false).add(2, -.7, 0));
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(level)); heart.modules().tick(heart);
-        h.assertTrue(dev.sablelife.attack.ModulePower.hasControlSignal(level, heart.getBlockPos().above()), "Diagonal sensor cannot drive control");
+        h.assertTrue(level.getBestNeighborSignal(local)==15, "Sensor failed to charge Mark before detachment");
         SubLevelAssemblyHelper.assembleBlocks(level, local, List.of(local), new BoundingBox3i(local.getX(), local.getY(), local.getZ(), local.getX(), local.getY(), local.getZ()));
         heart.modules().tick(heart);
-        h.assertTrue(sensor.detached() && ModuleSignals.signal(level, local) == 0, "Detached sensor retained output");
+        h.assertTrue(sensor.detached() && level.getBestNeighborSignal(local) == 0, "Detached sensor retained output");
         victim.discard(); heart.modules().clearRuntime(); h.succeed();
     }
     @GameTest(template = "combat", batch="audit_virtualmodulegametests_virtualsoundhurtcooldownindependentanddeathstops")

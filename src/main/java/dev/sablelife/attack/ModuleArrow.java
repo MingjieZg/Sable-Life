@@ -23,6 +23,8 @@ public final class ModuleArrow extends Arrow {
     private static final EntityDataAccessor<Boolean> EDGE_STUCK = SynchedEntityData.defineId(ModuleArrow.class, EntityDataSerializers.BOOLEAN);
     private java.util.List<dev.sablelife.module.ModuleParticles.Entry> trail = java.util.List.of();
     private int residueTicks = 200, residueAge;
+    private dev.sablelife.sound.SoundTimeline landingSound = new dev.sablelife.sound.SoundTimeline();
+    private boolean customLandingSound, suppressNativeLanding;
     private net.minecraft.core.BlockPos edgeBlock;
     public ModuleArrow(EntityType<? extends ModuleArrow> type, Level level) { super(type, level); refreshDimensions(); }
     public ModuleArrow(Level level, double x, double y, double z, ItemStack arrow, ItemStack weapon) {
@@ -33,6 +35,9 @@ public final class ModuleArrow extends Arrow {
         entityData.set(HITBOX, (float) module.value("arrowHitbox"));
         entityData.set(SIZE, (float) module.value("projectileSize")); refreshDimensions();
         residueTicks = (int) module.value("arrowResidue"); trail = module.particleEntries();
+        // soundTimeline returns a fresh snapshot; later editor changes cannot alter this shot.
+        landingSound = module.soundTimeline("arrowLandSound");
+        customLandingSound = module.hasSoundTimeline("arrowLandSound") || !module.text("arrowLandSound").equals("minecraft:entity.arrow.hit");
     }
     public ItemStack appearance() { return entityData.get(APPEARANCE).copy(); }
     public float visualSize() { return entityData.get(SIZE); }
@@ -94,6 +99,7 @@ public final class ModuleArrow extends Arrow {
         tag.putFloat("ModuleHitbox", hitbox()); tag.putFloat("ModuleSize", visualSize());
         tag.put("ModuleTrail", dev.sablelife.module.ModuleParticles.save(trail.stream().map(dev.sablelife.module.ModuleParticles.Entry::id).toList())); tag.put("ModuleTrailProperties", dev.sablelife.module.ModuleParticles.saveEntries(trail)); tag.putInt("ModuleResidueTicks", residueTicks); tag.putInt("ModuleResidueAge", residueAge);
         if (edgeBlock != null) tag.putLong("ModuleEdgeBlock", edgeBlock.asLong());
+        if (customLandingSound) tag.put("ModuleLandingSound", landingSound.save());
     }
     @Override public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
@@ -104,13 +110,32 @@ public final class ModuleArrow extends Arrow {
         residueAge = Math.clamp(tag.getInt("ModuleResidueAge"), 0, 12000); trail = dev.sablelife.module.ModuleParticles.loadEntries(tag.getList("ModuleTrailProperties", 10), dev.sablelife.module.ModuleParticles.load(tag.getList("ModuleTrail", 8)));
         edgeBlock = tag.contains("ModuleEdgeBlock") ? net.minecraft.core.BlockPos.of(tag.getLong("ModuleEdgeBlock")) : null;
         entityData.set(EDGE_STUCK, edgeBlock != null);
+        customLandingSound = tag.contains("ModuleLandingSound");
+        landingSound = customLandingSound ? dev.sablelife.sound.SoundTimeline.load(tag.getCompound("ModuleLandingSound")) : new dev.sablelife.sound.SoundTimeline();
+    }
+    /** Also used by an accepted explosive block impact, which skips vanilla embedding. */
+    public void playLandingSound(BlockHitResult hit) {
+        if (customLandingSound && level() instanceof ServerLevel world)
+            dev.sablelife.module.ModuleAudio.play(world, getUUID(), landingSound, SableBodyProbe.toWorld(world, hit.getLocation()));
+    }
+    @Override protected void onHitBlock(BlockHitResult hit) {
+        suppressNativeLanding = customLandingSound;
+        try { super.onHitBlock(hit); }
+        finally { suppressNativeLanding = false; }
+        playLandingSound(hit);
+    }
+    @Override public void playSound(net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {
+        if (suppressNativeLanding && sound == getHitGroundSoundEvent()) return;
+        super.playSound(sound, volume, pitch);
     }
     @Override protected void onHitEntity(EntityHitResult hit) {
         if (hit.getEntity() instanceof LivingEntity target) {
+            float before=target.getHealth();
             int previous = target.invulnerableTime;
             target.invulnerableTime = 0;
             try { super.onHitEntity(hit); }
             finally { if (target.isAlive()) target.invulnerableTime = Math.max(previous, target.invulnerableTime); }
+            AttackHitCredit.record(this,Math.max(0,before-target.getHealth()));
         } else super.onHitEntity(hit);
     }
 }

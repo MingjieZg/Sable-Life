@@ -1,3 +1,7 @@
+# Current stable: 0.1.243
+
+User-accepted stable release on 2026-10-14. Includes configurable Hover anchor, Hit counter, Health adjustment and final health amount wheel ±5. See [release notes](docs/RELEASE_0.1.243.md) and [stable metadata](docs/STABLE_VERSION.json). Protocol 13: update client and server together. Native GameTests: 354 passed; unit tests were not rerun.
+
 # Current stable: 0.1.218
 
 Native one-call respawn and whole-life death deletion are accepted. Owned hanging decorations now clear before removal; lethal actionbar is red; recording reminds authors to re-record after release. All server config keys remain compatible.

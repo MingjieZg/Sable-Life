@@ -46,15 +46,25 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("7");
+        var registrar = event.registrar("13");
         registrar.playToServer(Action.TYPE, Action.CODEC, (p, ctx) -> {
             if (p.operation.equals("cancel")) { MarkingSessions.cancel(ctx.player()); return; }
             if (!AuthoringRateLimit.allow(ctx.player(), p.operation.equals("add_preset") ? 20 : 1)) return;
             if (p.operation.equals("clear_mark")) { MarkingSessions.clearMarks(ctx.player()); return; }
             if (ctx.player().containerMenu instanceof HeartDashboardMenu menu && menu.containerId == p.container)
                 menu.action(ctx.player(), p.revision, p.module, p.operation, p.key, p.value, p.text);
+            else if (ctx.player().containerMenu instanceof dev.sablelife.heart.HeartWirelessMenu menu && menu.containerId == p.container && p.operation.equals("wireless_name"))
+                menu.rename(ctx.player(), p.value, p.text);
             else if (ctx.player().containerMenu instanceof EffectSelectionMenu menu && menu.containerId == p.container && p.operation.equals("effect"))
                 menu.action(ctx.player(), p.module, p.key, p.value, p.text);
+            else if(ctx.player().containerMenu instanceof dev.sablelife.heart.HeartLootMenu menu&&menu.containerId==p.container&&p.operation.equals("loot_edit"))
+                menu.action(ctx.player(),p.revision,p.module,p.key,p.value,p.text);
+            else if(ctx.player().containerMenu instanceof VirtualLootMenu menu&&menu.containerId==p.container&&p.operation.equals("loot_edit"))
+                menu.action(ctx.player(),p.revision,p.module,p.key,p.value,p.text);
+            else if(ctx.player().containerMenu instanceof HealthPhaseRuleMenu menu&&menu.containerId==p.container&&p.operation.equals("phase_rule_edit"))
+                menu.action(ctx.player(),p.revision,p.module,p.key,p.value);
+            else if(ctx.player().containerMenu instanceof ArmorRuleMenu menu&&menu.containerId==p.container&&p.operation.equals("armor_rule_edit"))
+                menu.action(ctx.player(),p.revision,p.module,p.key,p.value);
             else if(ctx.player().containerMenu instanceof ArenaBuffMenu menu&&menu.containerId==p.container&&p.operation.equals("arena_buff_edit"))
                 menu.action(ctx.player(),p.revision,p.module,p.key,p.value);
             else if (ctx.player().containerMenu instanceof SequenceMenu menu && menu.containerId == p.container && p.operation.equals("seq_edit"))
@@ -81,15 +91,16 @@ public final class ModuleNetworking {
         }, b -> new BattleMusic(b.readUUID(), b.readUtf(256), b.readBoolean(), b.readBoolean(), b.readFloat(), b.readVarInt(), b.readNbt(),new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble())));
         @Override public Type<BattleMusic> type() { return TYPE; }
     }
-    public record ModuleSound(UUID module, String sound, boolean stop, net.minecraft.world.phys.Vec3 position, float volume, float pitch, float radius, int start, int duration, boolean persistent) implements CustomPacketPayload {
+    public record ModuleSound(UUID module, String sound, boolean stop, net.minecraft.world.phys.Vec3 position, float volume, float pitch, float radius, int start, int duration, int fade, boolean persistent) implements CustomPacketPayload {
         public ModuleSound(UUID module, String sound, boolean stop, net.minecraft.world.phys.Vec3 position, float volume, float pitch) { this(module, sound, stop, position, volume, pitch, 0, 0, 0, false); }
         public ModuleSound(UUID module, String sound, boolean stop, net.minecraft.world.phys.Vec3 position, float volume, float pitch, float radius) { this(module,sound,stop,position,volume,pitch,radius,0,0,false); }
         public ModuleSound(UUID module,String sound,boolean stop,net.minecraft.world.phys.Vec3 position,float volume,float pitch,float radius,int start,int duration){this(module,sound,stop,position,volume,pitch,radius,start,duration,false);}
+        public ModuleSound(UUID module,String sound,boolean stop,net.minecraft.world.phys.Vec3 position,float volume,float pitch,float radius,int start,int duration,boolean persistent){this(module,sound,stop,position,volume,pitch,radius,start,duration,0,persistent);}
         public static final Type<ModuleSound> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(SableLife.MOD_ID, "module_sound"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ModuleSound> CODEC = StreamCodec.of((b, p) -> {
             b.writeUUID(p.module); b.writeUtf(p.sound, 256); b.writeBoolean(p.stop);
-            b.writeDouble(p.position.x); b.writeDouble(p.position.y); b.writeDouble(p.position.z); b.writeFloat(p.volume); b.writeFloat(p.pitch); b.writeFloat(p.radius); b.writeVarInt(p.start); b.writeVarInt(p.duration);b.writeBoolean(p.persistent);
-        }, b -> new ModuleSound(b.readUUID(), b.readUtf(256), b.readBoolean(), new net.minecraft.world.phys.Vec3(b.readDouble(), b.readDouble(), b.readDouble()), b.readFloat(), b.readFloat(), b.readFloat(), b.readVarInt(), b.readVarInt(), b.readBoolean()));
+            b.writeDouble(p.position.x); b.writeDouble(p.position.y); b.writeDouble(p.position.z); b.writeFloat(p.volume); b.writeFloat(p.pitch); b.writeFloat(p.radius); b.writeVarInt(p.start); b.writeVarInt(p.duration);b.writeVarInt(p.fade);b.writeBoolean(p.persistent);
+        }, b -> new ModuleSound(b.readUUID(), b.readUtf(256), b.readBoolean(), new net.minecraft.world.phys.Vec3(b.readDouble(), b.readDouble(), b.readDouble()), b.readFloat(), b.readFloat(), b.readFloat(), b.readVarInt(), b.readVarInt(), b.readVarInt(), b.readBoolean()));
         @Override public Type<ModuleSound> type() { return TYPE; }
     }
 }

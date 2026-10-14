@@ -110,8 +110,10 @@ public final class BodyCombat {
         if (BodyOwnership.protects(event.getLevel(), event.getPos())
                 || hearts.size() == 1 && hearts.getFirst().health().state() != HeartState.DORMANT) {
             event.setUseItem(TriState.FALSE);
-            event.setCancellationResult(net.minecraft.world.InteractionResult.PASS);
-            event.setCanceled(true);
+            // Block placement remains forbidden, but enabled device interactions may consume frequency samples.
+            if(!dev.sablelife.ownership.BodyInteraction.allowed(event.getEntity(),event.getPos())){
+                event.setCancellationResult(net.minecraft.world.InteractionResult.PASS);event.setCanceled(true);
+            }
         }
     }
 
@@ -149,6 +151,7 @@ public final class BodyCombat {
         if (arrow.isCritArrow()) damage += arrow.getRandom().nextInt(damage / 2 + 2);
         float before = heart.health().current();
         if (!heart.damageAt(hit.getBlockPos(), Math.min(damage, HeartHealth.MAX_CONFIGURED_HEALTH))) return;
+        dev.sablelife.attack.AttackHitCredit.record(arrow,Math.max(0,before-heart.health().current()));
         hits.putBoolean(creature, true);
         arrow.getPersistentData().put(ARROW_HITS, hits);
         feedback(level, hit, heart, before - heart.health().current(), arrow.getOwner() instanceof Player player ? player : null, false);

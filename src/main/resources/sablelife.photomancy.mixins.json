@@ -6,7 +6,9 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "RespawnBlueprintNbtMixin",
-    "RespawnBuildDiagnosticsMixin"
+    "RespawnBuildDiagnosticsMixin",
+    "BlueprintToolFailureDiagnosticsMixin",
+    "BlueprintToolFailureMessageMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -17,11 +17,14 @@ public final class ModuleDamage {
         return new DamageSource(level.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.DAMAGE_TYPE)
                 .getHolderOrThrow(key), projectile, null);
     }
+    public static boolean hurt(LivingEntity target, DamageSource source, float amount,dev.sablelife.heart.HeartBlockEntity heart,dev.sablelife.module.VirtualModule module){
+        float before=target.getHealth();boolean hit=hurt(target,source,amount);if(hit)heart.modules().hitCounter.record(heart,module.id(),Math.max(0,before-target.getHealth()));return hit;
+    }
     public static boolean hurt(LivingEntity target, DamageSource source, float amount) {
         int previous = target.invulnerableTime;
         target.invulnerableTime = 0;
         try {
-            return target.hurt(source, amount);
+            float before=target.getHealth();boolean hit=target.hurt(source, amount);if(hit)AttackHitCredit.record(source.getDirectEntity(),Math.max(0,before-target.getHealth()));return hit;
         } finally {
             if (target.isAlive()) target.invulnerableTime = Math.max(previous, target.invulnerableTime);
         }

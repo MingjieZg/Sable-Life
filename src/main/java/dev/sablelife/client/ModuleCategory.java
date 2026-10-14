@@ -9,7 +9,7 @@ public enum ModuleCategory {
     public static ModuleCategory of(String type) {
         return switch (type) {
             case "sphere_blast", "slash", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "ground_strike", "quake", "pull", "pulse" -> WEAPON;
-            case "move_set", "health_phase", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation" -> SIGNAL;
+            case "move_set", "health_phase", "hit_counter", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation" -> SIGNAL;
             default -> FUNCTION;
         };
     }

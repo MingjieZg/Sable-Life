@@ -57,7 +57,7 @@ public final class ModuleSphereBlast {
         for(var victim:ModuleTargets.query(level,heart.creatureId(),new AABB(point,point).inflate(radius),e->ModuleTargets.matches(e,m))){
             var b=victim.getBoundingBox();var closest=new Vec3(Math.clamp(point.x,b.minX,b.maxX),Math.clamp(point.y,b.minY,b.maxY),Math.clamp(point.z,b.minZ,b.maxZ));
             if(closest.distanceToSqr(point)>radius*radius)continue;
-            if(damage==0||ModuleDamage.hurt(victim,ModuleDamage.named(ModuleDamage.blast(level,null),heart),damage))ModuleEffects.apply(victim,m.effects(),null);
+            if(damage==0||ModuleDamage.hurt(victim,ModuleDamage.named(ModuleDamage.blast(level,null),heart),damage,heart,m))ModuleEffects.apply(victim,m.effects(),null);
         }
         // Block destruction uses the same vanilla TNT rules as existing explosive projectiles.
         // Entity damage is handled above once; vanilla damage/knockback is disabled.

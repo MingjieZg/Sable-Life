@@ -186,7 +186,7 @@ public final class ModuleLaser {
                     var box = victim.getBoundingBox().inflate(radius);
                     if (!box.contains(start) && box.clip(start, end).isEmpty()) continue;
                     if (!ModuleTargets.visible(level, heart.creatureId(), start, victim)) continue;
-                    if (damaged.add(victim.getUUID())) ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"));
+                    if (damaged.add(victim.getUUID())) ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"),heart,m);
                 }
             }
         }

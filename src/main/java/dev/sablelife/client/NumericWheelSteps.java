@@ -5,13 +5,15 @@ import java.util.Set;
 
 /** Editing increments in display units; never changes saved defaults or validation ranges. */
 public final class NumericWheelSteps {
-    private static final Set<String> WHOLE=Set.of("slashCount","slashRed","slashGreen","slashBlue","damage","blastDamage","arrows","burn","rolls","density","beamHits","meleeHitLimit","strikeRays","strikeRandomCount","quakeWaves","homingCount","accumThreshold","accumChannel","accumPower","phaseChannel","phasePower","resetChannel","redstonePower","dispatchWeight","phaseUpper","phaseLower");
+    private static final Set<String> WHOLE=Set.of("slashCount","slashRed","slashGreen","slashBlue","damage","blastDamage","arrows","burn","rolls","density","beamHits","meleeHitLimit","strikeRays","strikeRandomCount","quakeWaves","homingCount","accumThreshold","sensorChannel","sensorPower","accumChannel","accumPower","phaseChannel","phasePower","resetChannel","redstoneChannel","redstonePower","dispatchWeight","hitThreshold","hitSource","hitChannel","hitPower","phaseUpper","phaseLower");
     private static final Set<String> BLOCKS=Set.of("moveTargetRange","castTargetRange","slashLength","slashSpeed","sphereDistance","range","radius","innerRadius","targetRange","facingRange","arenaRadius","warningRange","bgmRadius","quakeRange","quakeDetectRange","strikeRange","strikeHeight","strikeStep","beamLength","pullRadius","dispatchNear","dispatchFar");
     public static double module(String type,String key,double scale,double minimum){
         if(dev.sablelife.module.ModuleColors.parent(type,key)!=null)return 1;
         // Explicit user choices: angles ±5, hit limit ±1; sound mixes keep their own policy.
         if(type.equals("signal_turn")&&key.endsWith("Channel"))return 1;
         if(key.equals("turnSpeed"))return 5;
+        if(key.equals("hoverStrength"))return 5;
+        if(key.equals("healthAmount"))return 5;
         if(key.startsWith("displayRot")||ModuleFields.angle(key)||key.equals("damageModifier"))return 5;
         if(type.equals("arena")&&key.equals("arenaRespawnDelay"))return 1;
         if(scale!=1)return .1;

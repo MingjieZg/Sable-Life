@@ -29,34 +29,39 @@ public final class ModuleSoundClient {
             pending.cancel(packet.module(),packet.persistent());
             var old = voices.get(packet.module()); if(old!=null){old.removeIf(v->{if(packet.persistent()||!v.persistent){mc.getSoundManager().stop(v.sound);return true;}return false;});if(old.isEmpty())voices.remove(packet.module());}return;
         }
-        if(packet.start()<0||packet.start()>12000||packet.duration()<0||packet.duration()>12000)return;
+        if(packet.start()<0||packet.start()>12000||packet.duration()<0||packet.duration()>12000||packet.fade()<0||packet.fade()>12000)return;
         if(packet.start()>0){
             if(pending.size()>=4096)return;
-            pending.add(packet.module(),tick,packet.start(),packet.persistent(),new ModuleNetworking.ModuleSound(packet.module(),packet.sound(),false,packet.position(),packet.volume(),packet.pitch(),packet.radius(),0,packet.duration(),packet.persistent()));return;
+            pending.add(packet.module(),tick,packet.start(),packet.persistent(),new ModuleNetworking.ModuleSound(packet.module(),packet.sound(),false,packet.position(),packet.volume(),packet.pitch(),packet.radius(),0,packet.duration(),packet.fade(),packet.persistent()));return;
         }
         var id = ResourceLocation.tryParse(packet.sound());
         if (id == null || !Float.isFinite(packet.volume()) || !Float.isFinite(packet.pitch())) return;
         var sound = new SimpleSoundInstance(id, SoundSource.HOSTILE, Math.clamp(packet.volume(), 0F, 4F), Math.clamp(packet.pitch(), .5F, 2F),
                 RandomSource.create(), false, 0, SoundInstance.Attenuation.LINEAR, packet.position().x, packet.position().y, packet.position().z, false);
-        SoundInstance playback = packet.radius() > 0 && Float.isFinite(packet.radius()) ? new RadiusSound(id, packet) : sound;
+        SoundInstance playback = (packet.radius() > 0 && Float.isFinite(packet.radius())) || packet.fade()>0 ? new RadiusSound(id, packet) : sound;
         var list = voices.computeIfAbsent(packet.module(), key -> new ArrayList<>());
         if (list.size() >= 128) mc.getSoundManager().stop(list.removeFirst().sound);
-        list.add(new Voice(playback, tick, packet.duration()>0?tick+packet.duration():Long.MAX_VALUE,packet.persistent())); mc.getSoundManager().play(playback);
+        list.add(new Voice(playback, tick, packet.duration()>0?tick+dev.sablelife.sound.SoundFade.stopAfter(packet.duration(),packet.fade()):Long.MAX_VALUE,packet.persistent())); mc.getSoundManager().play(playback);
     }
     private static final class RadiusSound extends AbstractTickableSoundInstance {
         private final float gain, radius;
+        private final long started=tick;
+        private final int duration, fade;
         RadiusSound(ResourceLocation id, ModuleNetworking.ModuleSound packet) {
             super(net.minecraft.sounds.SoundEvent.createVariableRangeEvent(id), SoundSource.HOSTILE, RandomSource.create());
-            gain = Math.clamp(packet.volume(), 0F, 4F); radius = Math.clamp(packet.radius(), 1F, 256F);
+            gain = Math.clamp(packet.volume(), 0F, 4F); radius = Float.isFinite(packet.radius()) && packet.radius()>0 ? Math.clamp(packet.radius(), 1F, 256F) : 0;
+            duration=packet.duration(); fade=packet.fade();
             x = packet.position().x; y = packet.position().y; z = packet.position().z;
-            pitch = Math.clamp(packet.pitch(), .5F, 2F); attenuation = SoundInstance.Attenuation.NONE;
+            pitch = Math.clamp(packet.pitch(), .5F, 2F); attenuation = radius>0?SoundInstance.Attenuation.NONE:SoundInstance.Attenuation.LINEAR;
             tick();
         }
         @Override public boolean canStartSilent() { return true; }
         @Override public void tick() {
             var player = Minecraft.getInstance().player;
             if (player == null) { stop(); return; }
-            volume = gain * (float) Math.clamp(1 - dev.sablelife.compat.sable.SableBodyProbe.toWorld(player.level(),player.position()).distanceTo(new net.minecraft.world.phys.Vec3(x,y,z)) / radius, 0, 1);
+            float envelope=dev.sablelife.sound.SoundFade.gain(ModuleSoundClient.tick-started,duration,fade);
+            if(envelope<=0){stop();return;}
+            volume = gain * envelope * (radius<=0?1:(float) Math.clamp(1 - dev.sablelife.compat.sable.SableBodyProbe.toWorld(player.level(),player.position()).distanceTo(new net.minecraft.world.phys.Vec3(x,y,z)) / radius, 0, 1));
         }
     }
     @SubscribeEvent public static void tick(ClientTickEvent.Post event) {

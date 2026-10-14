@@ -11,6 +11,14 @@ public final class WirelessChannel {
     public void onChange(Runnable callback) { changed = callback; }
     private ItemStack first = ItemStack.EMPTY, second = ItemStack.EMPTY;
     private boolean enabled, loop = true;
+    public static final int NAME_LIMIT = 40;
+    private String name = "";
+    public String name() { return name; }
+    /** Cosmetic only: renaming must not restart the waveform or unregister its links. */
+    public boolean name(String value) {
+        if (value == null || value.codePointCount(0, value.length()) > NAME_LIMIT || value.codePoints().anyMatch(Character::isISOControl)) return false;
+        name = value.trim(); return true;
+    }
     private int mode;
     public boolean receiving() { return mode == 1; }
     public boolean programmed() { return mode >= 3; }
@@ -48,6 +56,7 @@ public final class WirelessChannel {
     }
     public CompoundTag save(HolderLookup.Provider registries) {
         var tag = new CompoundTag();
+        if (!name.isEmpty()) tag.putString("Name", name);
         if (!first.isEmpty()) tag.put("First", first.save(registries));
         if (!second.isEmpty()) tag.put("Second", second.save(registries));
         tag.putBoolean("Enabled", enabled); tag.putBoolean("Loop", loop);
@@ -57,6 +66,7 @@ public final class WirelessChannel {
     }
     public static WirelessChannel load(CompoundTag tag, HolderLookup.Provider registries) {
         var channel = new WirelessChannel();
+        channel.name(tag.getString("Name"));
         channel.first = ItemStack.parseOptional(registries, tag.getCompound("First"));
         channel.second = ItemStack.parseOptional(registries, tag.getCompound("Second"));
         if (!channel.first.isEmpty()) channel.first.setCount(1);
