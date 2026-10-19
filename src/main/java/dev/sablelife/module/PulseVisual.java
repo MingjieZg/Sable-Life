@@ -5,7 +5,7 @@ public final class PulseVisual {
  public static final int POINTS=64;
  public static List<ParticleTravelPacket> particles(VirtualModule module,Vec3 center){
   var entries=module.movementParticles("Wave").particleEntries();if(module.value("pulseVisual")!=1||entries.isEmpty())return List.of();double radius=module.value("radius");int ticks=Math.clamp((int)module.value("pulseExpandTime"),1,200);var result=new ArrayList<ParticleTravelPacket>();
-  for(int i=0;i<POINTS;i++){double y=1-2*(i+.5)/POINTS,angle=i*Math.PI*(3-Math.sqrt(5)),r=Math.sqrt(1-y*y);var to=center.add(Math.cos(angle)*r*radius,y*radius,Math.sin(angle)*r*radius);var entry=entries.get(i%entries.size());result.add(new ParticleTravelPacket(entry.id(),center,to,ticks,Math.max(ticks+2,entry.ticks()),entry.size()));}
+  for(int i=0;i<POINTS;i++){double y=1-2*(i+.5)/POINTS,angle=i*Math.PI*(3-Math.sqrt(5)),r=Math.sqrt(1-y*y);var to=center.add(Math.cos(angle)*r*radius,y*radius,Math.sin(angle)*r*radius);var entry=entries.get(i%entries.size());result.add(new ParticleTravelPacket(entry.id(),center,to,ticks,Math.max(ticks+2,entry.ticks()),entry.size(),entry.color()));}
   return List.copyOf(result);
  }
  public static void send(ServerLevel level,VirtualModule module,Vec3 center){

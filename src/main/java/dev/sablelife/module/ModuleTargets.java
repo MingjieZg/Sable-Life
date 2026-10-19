@@ -40,10 +40,16 @@ public final class ModuleTargets {
         refresh(target);
         return dev.sablelife.sense.SensorGeometry.visible(level,owner,start,target.getBoundingBox().getCenter(),target instanceof LifeTarget ? target.getUUID() : null);
     }
+    /** Attack impulses only: movement, gravity, attraction and native contact physics stay independent. */
+    public static void attackPush(LivingEntity victim,Vec3 impulse){
+        double scale=victim instanceof LifeTarget life?1-life.heart.knockbackResistance()/100:1;
+        if(scale>0)victim.push(impulse.x*scale,impulse.y*scale,impulse.z*scale);
+    }
     /** A detached adapter lets geometry/cadence code treat a core consistently with ordinary targets. */
     public static final class LifeTarget extends ArmorStand {
         private final HeartBlockEntity heart;
         private final UUID attacker;
+        private double knockbackScale=1;
         private LifeTarget(ServerLevel level,HeartBlockEntity heart,UUID attacker) {
             super(level,0,0,0); this.heart=heart; this.attacker=attacker;
             setUUID(heart.creatureId()); setInvisible(true); setNoGravity(true); refresh();
@@ -59,12 +65,18 @@ public final class ModuleTargets {
             var body=dev.ryanhcode.sable.Sable.HELPER.getContaining(heart.getLevel(),heart.getBlockPos());
             return body instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel server ? new Vec3(server.latestLinearVelocity.x/20,server.latestLinearVelocity.y/20,server.latestLinearVelocity.z/20) : Vec3.ZERO;
         }
+        @Override public void knockback(double strength,double x,double z){
+            if(heart==null){super.knockback(strength,x,z);return;}
+            double scale=1-heart.knockbackResistance()/100;if(scale<=0)return;
+            knockbackScale=scale;
+            try{super.knockback(strength,x,z);}finally{knockbackScale=1;}
+        }
         @Override public void setDeltaMovement(Vec3 movement) {
             if(heart==null) { super.setDeltaMovement(movement); return; }
             var body=dev.ryanhcode.sable.Sable.HELPER.getContaining(heart.getLevel(),heart.getBlockPos());
             var system=dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem.get((ServerLevel)heart.getLevel());
             if(body instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel server && system!=null && !server.isRemoved()) {
-                var delta=movement.subtract(getDeltaMovement()).scale(20);
+                var delta=movement.subtract(getDeltaMovement()).scale(20*knockbackScale);
                 system.getPipeline().addLinearAndAngularVelocity(server,new org.joml.Vector3d(delta.x,delta.y,delta.z),new org.joml.Vector3d());
             }
         }

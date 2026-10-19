@@ -3,7 +3,10 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 /** A position-based body attack; no attacking entity is fabricated. */
-public final class BodyMeleeSource extends DamageSource {
+public final class BodyMeleeSource extends DamageSource implements CreatureAttackSource {
+    private java.util.UUID owner;
+    public BodyMeleeSource owner(java.util.UUID id){owner=id;return this;}
+    @Override public java.util.UUID creatureOwner(){return owner;}
     private final net.minecraft.network.chat.Component killer;
     private boolean blocked;
     public BodyMeleeSource(net.minecraft.world.level.Level level,Vec3 origin,String name) {

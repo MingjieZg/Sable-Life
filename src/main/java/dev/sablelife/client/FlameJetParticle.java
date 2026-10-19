@@ -87,9 +87,9 @@ public final class FlameJetParticle extends FlameParticle {
                 if(entry.ticks()>0)particle.setLifetime(entry.ticks());
                 if(particle.isAlive())mc.particleEngine.add(particle);
             }else{
-                var type=dev.sablelife.module.ModuleParticles.type(entry.id());if(type==null)continue;
+                var type=dev.sablelife.module.ModuleParticles.options(entry);if(type==null)continue;
                 var from=birth.origin();var particle=mc.particleEngine.createParticle(type,from.x,from.y,from.z,0,0,0);
-                if(particle!=null){particle.scale(entry.size());((ParticleTravel)particle).sablelife$jet(from,birth.velocity(),jet.speed(),jet.range(),birth.phase(),entry.ticks());}
+                if(particle!=null){ParticleVisualClient.color(particle,entry);particle.scale(entry.size());((ParticleTravel)particle).sablelife$jet(from,birth.velocity(),jet.speed(),jet.range(),birth.phase(),entry.ticks());}
             }
         }
     }

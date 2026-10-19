@@ -27,4 +27,27 @@ public final class SlashGameTests {
  @GameTest(template="combat",batch="slash_overlap",timeoutTicks=30) public static void ReleaseIntervalAllowsOverlappingVolleys(GameTestHelper h){var c=fixture(h);var m=module(c);m.edit("slashSpeed",20,"");m.edit("range",8,"");m.edit("interval",3,"");m.edit("damage",1,"");var target=pig(h,start(c,m).add(0,4,0));c.tryActivate(TestActors.creative(h.getLevel()));c.modules().tick(c);h.runAfterDelay(10,()->{h.assertTrue(target.getHealth()<=7,"Interval waited for earlier blades to vanish: "+target.getHealth());m.clearMarks();h.succeed();});}
  @GameTest(template="combat",batch="slash_signal_tail",timeoutTicks=30) public static void HurtDurationStopsNewReleasesButFlightTailContinues(GameTestHelper h){var c=fixture(h);var m=module(c);m.edit("trigger",5,"");m.edit("hurtMode",1,"");m.edit("hurtDuration",4,"");m.edit("slashSpeed",20,"");m.edit("range",8,"");m.edit("interval",2,"");m.edit("damage",1,"");var target=pig(h,start(c,m).add(0,5,0));c.tryActivate(TestActors.creative(h.getLevel()));c.damage(1);h.runAfterDelay(14,()->{h.assertTrue(target.getHealth()==8&&!c.modules().hurtTriggers.powered(m.id()),"Signal end erased flights or kept releasing: "+target.getHealth());h.succeed();});}
 
+ @GameTest(template="combat",batch="slash_moving_audio",timeoutTicks=35)
+ public static void FlightSoundTracksEachBladeAndStopsIndependently(GameTestHelper h){
+  var c=fixture(h);var m=module(c);m.edit("slashCount",2,"");m.edit("slashFan",30,"");m.edit("slashSpeed",20,"");m.edit("range",10,"");
+  var audio=m.soundTimeline("slashFlightSound");audio.edit("clear",null,0,"");h.assertTrue(audio.edit("add",null,0,"minecraft:entity.blaze.ambient"),"Sound row missing");m.soundTimeline("slashFlightSound",audio);
+  var packets=new java.util.ArrayList<net.minecraft.network.protocol.common.custom.CustomPacketPayload>();var viewer=TestActors.creative(h.getLevel());viewer.setPos(start(c,m));
+  viewer.connection=new net.minecraft.server.network.ServerGamePacketListenerImpl(h.getLevel().getServer(),new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND),viewer,net.minecraft.server.network.CommonListenerCookie.createInitial(viewer.getGameProfile(),false)){
+   @Override public void send(net.minecraft.network.protocol.Packet<?> packet){if(packet instanceof net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket cp)packets.add(cp.payload());}
+  };h.getLevel().players().add(viewer);c.tryActivate(viewer);c.modules().tick(c);
+  h.runAfterDelay(4,()->{
+   var sounds=packets.stream().filter(p->p instanceof ModuleNetworking.ModuleSound v&&!v.stop()&&!v.module().equals(m.id())).map(p->(ModuleNetworking.ModuleSound)p).toList();
+   h.assertTrue(packets.stream().filter(p->p instanceof ModuleNetworking.ModuleSound v&&!v.stop()&&v.module().equals(m.id())).count()==1,"Volley replayed launch sound per blade");
+   h.assertTrue(sounds.size()==2&&sounds.stream().map(ModuleNetworking.ModuleSound::module).distinct().count()==2&&sounds.stream().noneMatch(p->p.module().equals(m.id())),"Flying blades shared/restarted launch audio");
+   var motion=packets.stream().filter(p->p instanceof SoundMotionPacket v&&!v.stop()).map(p->(SoundMotionPacket)p).toList();
+   for(var sound:sounds)h.assertTrue(motion.stream().filter(p->p.source().equals(sound.module())).map(SoundMotionPacket::position).distinct().count()>=3,"Sound did not travel with blade");
+   m.clearMarks();
+  });
+  h.runAfterDelay(16,()->{
+   var starts=packets.stream().filter(p->p instanceof ModuleNetworking.ModuleSound v&&!v.stop()&&!v.module().equals(m.id())).map(p->((ModuleNetworking.ModuleSound)p).module()).toList();
+   for(var id:starts)h.assertTrue(packets.stream().anyMatch(p->p instanceof SoundMotionPacket v&&v.stop()&&v.source().equals(id)),"Flight end did not stop independent sound");
+   h.getLevel().players().remove(viewer);h.succeed();
+  });
+ }
+
 }

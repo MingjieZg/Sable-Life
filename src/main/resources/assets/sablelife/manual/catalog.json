@@ -1,5 +1,5 @@
 {
-  "revision": 89,
+  "revision": 115,
   "entries": [
     {
       "id": "getting_started",
@@ -935,6 +935,44 @@
         ]
       },
       "module": "health_adjustment"
+    },
+    {
+      "id": "visual_shockwave",
+      "title": "dashboard.sablelife.type_visual_shockwave",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_visual_shockwave"
+        ],
+        "settings": [
+          "manual.sablelife.visual_shockwave.settings"
+        ],
+        "example": [
+          "manual.sablelife.visual_shockwave.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.visual_shockwave.troubleshooting"
+        ]
+      },
+      "module": "visual_shockwave"
+    },
+    {
+      "id": "distortion_trail",
+      "title": "dashboard.sablelife.type_distortion_trail",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_distortion_trail"
+        ],
+        "settings": [
+          "manual.sablelife.distortion_trail.settings"
+        ],
+        "example": [
+          "manual.sablelife.distortion_trail.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.distortion_trail.troubleshooting"
+        ]
+      },
+      "module": "distortion_trail"
     }
   ]
 }

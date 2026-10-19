@@ -40,11 +40,12 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         tag.putString("name", heart.creatureName()); tag.putFloat("health", heart.health().maximum());
         tag.putDouble("delay", heart.health().deathDelay() / 20.); tag.putInt("xp", heart.displayedExperience());tag.putBoolean("xpLevels",heart.deathExperienceLevels());tag.putInt("xpPoints",heart.deathExperience());
         tag.putBoolean("explosion", heart.allowExplosion()); tag.putBoolean("breaking", heart.allowBreaking()); tag.putBoolean("bossbar", heart.showBossBar());
-        tag.putBoolean("survivalInteraction",heart.allowSurvivalInteraction());tag.putBoolean("lifeAttacks",heart.allowLifeAttacks());tag.putInt("bossbarColor",heart.bossBarColor().ordinal());
+        tag.putBoolean("killHeal",heart.killHeal());tag.putBoolean("survivalInteraction",heart.allowSurvivalInteraction());tag.putBoolean("lifeAttacks",heart.allowLifeAttacks());tag.putInt("bossbarColor",heart.bossBarColor().ordinal());
         tag.putInt("voidDeathHeight",heart.voidDeathHeight());tag.putBoolean("VoidDeathDefault",heart.defaultVoidDeathHeight());
         tag.putBoolean("forceChunkLoading",heart.forceChunkLoading());tag.putBoolean("ChunkLoadingEditable",heart.canEditChunkLoading(viewer));
         tag.putString("ChunkLoadingStatus",dev.sablelife.ownership.CoreChunkLoading.status(heart));tag.putInt("ChunkLoadingCount",dev.sablelife.ownership.CoreChunkLoading.count(heart));
         tag.putDouble("regenPercent",heart.regenPercentPerSecond());tag.putDouble("regen",heart.regenPerSecond()); tag.putDouble("regenDelay",heart.regenDelay()/20.);
+        tag.putDouble("knockbackResistance",heart.knockbackResistance());
         var defense=heart.adaptiveDefense();tag.putBoolean("defenseEnabled",defense.enabled());tag.putDouble("defenseThreshold",defense.threshold());tag.putDouble("defenseMaximum",defense.maximum());tag.putDouble("defenseWindow",defense.window()/20.);tag.putDouble("DefenseDps",defense.dps());tag.putDouble("DefenseReduction",defense.reduction()*100);
         tag.putString("State", heart.health().state().name());
         for (var key : java.util.List.of("deathParticle", "deathSound", "deathSoundLast")) tag.putString(key, heart.deathPresentation().text(key));

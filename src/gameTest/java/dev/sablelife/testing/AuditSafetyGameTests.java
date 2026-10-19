@@ -168,10 +168,10 @@ public final class AuditSafetyGameTests {
     public static void LargeSnapshotKeepsSelectedDetailsAndCompactsUnselectedModules(GameTestHelper h) {
         var core=fixture(h,3);var p=author(h,true);p.setPos(dev.sablelife.compat.sable.SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter()));
         var item=new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.PAPER);var custom=new CompoundTag();custom.putString("model_data","x".repeat(12000));item.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,net.minecraft.world.item.component.CustomData.of(custom));
-        for(int i=0;i<HeartModules.LIMIT;i++)core.modules().add("item_display").projectileItem(item,h.getLevel().registryAccess());
+        for(int i=0;i<HeartModules.authoringLimit();i++)core.modules().add("item_display").projectileItem(item,h.getLevel().registryAccess());
         var selected=core.modules().all().get(17);DashboardSelection.set(core,p.getUUID(),selected.id());var menu=new HeartDashboardMenu(1,p.getInventory(),core);var snapshot=menu.snapshot();
         h.assertTrue(snapshot.getBoolean("PartialAuthoring")&&!snapshot.getBoolean("AuthoringOversized")&&snapshot.sizeInBytes()<1_000_000,"Large snapshot was not bounded");
-        var rows=snapshot.getList("Modules",10);h.assertTrue(rows.size()==HeartModules.LIMIT,"Compaction hid sidebar modules");
+        var rows=snapshot.getList("Modules",10);h.assertTrue(rows.size()==HeartModules.authoringLimit(),"Compaction hid sidebar modules");
         for(var value:rows){var row=(CompoundTag)value;h.assertTrue(row.getUUID("Id").equals(selected.id())?!row.getCompound("ProjectileItem").isEmpty():!row.contains("ProjectileItem"),"Selected configuration was lost or unselected deep data remained");}h.succeed();
     }
     @GameTest(template="combat",batch="audit_projectile_quota")

@@ -27,15 +27,20 @@ public final class ParticlePattern {
             local = local.lerp(module.anchors().get(1).position(body).getCenter(), .5);
             half = dev.sablelife.module.ModuleCombat.halfSize(heart, module);
         } else local = local.add(Vec3.atLowerCornerOf(anchor.face().getNormal()).scale(.55));
+        if(module.value("particlePattern")<=1){half=expandedHalf(module,half,forward);local=local.add(forward.scale(module.value("particleExpandLength")/2));}
         var center = body.logicalPose().transformPosition(local).add(ContactBox.rotate(rotation, forward).scale(module.value("startDistance")));
         return new Frame(center, rotation, half, forward);
     }
+    /** Same forward/right/up full-dimension extension as Melee; length grows ahead. */
+    public static Vec3 expandedHalf(VirtualModule m,Vec3 base,Vec3 forward){return MeleeGeometry.expandedHalf(base,forward,m.value("particleExpandLength"),m.value("particleExpandWidth"),m.value("particleExpandHeight"));}
+    public static boolean expanded(VirtualModule m){return m.value("particleExpandLength")>0||m.value("particleExpandWidth")>0||m.value("particleExpandHeight")>0;}
     public static Vec3 side(Vec3 forward) {
         return forward.cross(Math.abs(forward.y) > .9 ? new Vec3(0,0,1) : new Vec3(0,1,0)).normalize();
     }
     public static boolean visibleField(VirtualModule m, String key) {
         int shape=(int)m.value("particlePattern");
         return switch(key) {
+            case "particleExpandLength","particleExpandWidth","particleExpandHeight" -> shape<=1;
             case "particleRadius" -> shape==3||shape==4;
             case "particleRingHeight" -> shape==3;
             case "particleLength" -> shape==2;
@@ -43,7 +48,7 @@ public final class ParticlePattern {
             case "particleFill" -> shape==4&&!travels(m);
             case "particlePropagation" -> shape>=2;
             case "particleSpeed" -> travels(m);
-            case "particleDistribution" -> shape!=1&&!(shape==2&&travels(m));
+            case "particleDistribution" -> (shape!=1||expanded(m))&&!(shape==2&&travels(m));
             case "drift" -> !travels(m);
             default -> true;
         };
@@ -61,7 +66,7 @@ public final class ParticlePattern {
         double distance=shape==2?m.value("particleLength"):m.value("particleRadius");
         int ticks=Math.clamp((int)Math.ceil(distance/m.value("particleSpeed")),1,12800);
         int life=particle.ticks()==0?ticks+1:Math.min(particle.ticks(),ticks+1);
-        return new ParticleTravelPacket(particle.id(),reverse?edge:origin,reverse?origin:edge,ticks,life,particle.size());
+        return new ParticleTravelPacket(particle.id(),reverse?edge:origin,reverse?origin:edge,ticks,life,particle.size(),particle.color());
     }
     public static void emit(net.minecraft.server.level.ServerLevel level,VirtualModule m,ModuleParticles.Entry particle,Vec3 center,Quaterniond rotation,Vec3 forward,int index,int count,RandomSource random,ServerPlayer only){
         if(travels(m)){
@@ -72,12 +77,12 @@ public final class ParticlePattern {
         }
         var position=center.add(ContactBox.rotate(rotation,sample(m,Vec3.ZERO,forward,index,count,random)));
         var velocity=velocity(m,rotation,forward,random);
-        if(only!=null)net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(only,new ModuleNetworking.ParticleVisual(particle.id(),position,0,velocity,1,particle.ticks(),particle.size()));
+        if(only!=null)net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(only,new ModuleNetworking.ParticleVisual(particle.id(),position,0,velocity,1,particle.ticks(),particle.size(),particle.color()));
         else ModuleParticles.send(level,particle,position.x,position.y,position.z,0,velocity.x,velocity.y,velocity.z,1);
     }
     public static double sweepRadius(VirtualModule m, Frame frame) {
         return switch ((int) m.value("particlePattern")) {
-            case 0 -> frame.half.length(); case 2 -> travels(m)&&m.value("particlePropagation")!=2 ? 0 : m.value("particleLength");
+            case 0,1 -> frame.half.length(); case 2 -> travels(m)&&m.value("particlePropagation")!=2 ? 0 : m.value("particleLength");
             case 3 -> Math.hypot(m.value("particleRadius"),m.value("particleRingHeight"));
             case 4 -> m.value("particleRadius"); default -> 0;
         };
@@ -88,7 +93,8 @@ public final class ParticlePattern {
         double fraction = (index + .5) / Math.max(1, count);
         double angle = stochastic ? random.nextDouble() * Math.PI * 2 : index * Math.PI * (3 - Math.sqrt(5));
         int shape = (int) m.value("particlePattern");
-        if (shape == 0) {
+        if(shape==1&&half.lengthSqr()==0)return Vec3.ZERO;
+        if (shape == 0 || shape == 1) {
             if (stochastic) return new Vec3((random.nextDouble()*2-1)*half.x, (random.nextDouble()*2-1)*half.y, (random.nextDouble()*2-1)*half.z);
             // Low-discrepancy samples fill the box without concentrating on a single diagonal.
             return new Vec3((fraction*2-1)*half.x, (((index+.5)*.61803398875%1)*2-1)*half.y, (((index+.5)*.41421356237%1)*2-1)*half.z);
@@ -112,7 +118,7 @@ public final class ParticlePattern {
     public static ModuleParticles.Entry emissionStyle(VirtualModule m, ModuleParticles.Entry original) {
         if (!spray(m)) return original;
         int limit = Math.clamp((int)Math.ceil(m.value("particleLength")/m.value("particleSpeed")),1,1200);
-        return new ModuleParticles.Entry(original.id(), original.ticks() == 0 ? limit : Math.min(original.ticks(),limit), original.size());
+        return new ModuleParticles.Entry(original.id(), original.ticks() == 0 ? limit : Math.min(original.ticks(),limit), original.size(),original.color());
     }
     public static Vec3 velocity(VirtualModule m, Quaterniond rotation, Vec3 forward, RandomSource random) {
         double drift=m.value("drift");
@@ -126,7 +132,7 @@ public final class ParticlePattern {
     public static void preview(ServerPlayer player, HeartBlockEntity heart, VirtualModule m) {
         var frame=frame(heart,m); var forward=frame.forward; var side=side(forward); var up=side.cross(forward).normalize();
         int shape=(int)m.value("particlePattern");double radius=m.value("particleRadius");
-        if(shape==0) {
+        if(shape==0||shape==1&&expanded(m)) {
             for(int axis=0;axis<3;axis++)for(int a=-1;a<=1;a+=2)for(int b=-1;b<=1;b+=2)for(int step=0;step<=8;step++) {
                 double[] v={frame.half.x,frame.half.y,frame.half.z};v[axis]*=(step/4.-1);v[(axis+1)%3]*=a;v[(axis+2)%3]*=b;
                 outline(player,frame.center.add(ContactBox.rotate(frame.rotation,new Vec3(v[0],v[1],v[2]))));
@@ -155,7 +161,7 @@ public final class ParticlePattern {
             if(travels(m)){emit((net.minecraft.server.level.ServerLevel)player.level(),m,original,frame.center,frame.rotation,forward,i,count,random,player);continue;}
             var position=frame.center.add(ContactBox.rotate(frame.rotation,sample(m,frame.half,forward,i,count,random)));
             var velocity=velocity(m,frame.rotation,forward,random);var style=emissionStyle(m,original);
-            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,new ModuleNetworking.ParticleVisual(style.id(),position,0,velocity,1,style.ticks(),style.size()));
+            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,new ModuleNetworking.ParticleVisual(style.id(),position,0,velocity,1,style.ticks(),style.size(),style.color()));
         }
         player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.particle_pattern_help"),true);
     }

@@ -26,13 +26,13 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
     private String leftSelection = "", rightSelection = "", lastRight = "";
     private int leftPage, rightPage, rows, column;
     private EditBox search, duration, level;
-    private Button add, remove, durationApply, levelApply, leftPrev, leftNext, rightPrev, rightNext;
+    private Button color,add, remove, durationApply, levelApply, leftPrev, leftNext, rightPrev, rightNext;
     public EffectSelectionScreen(EffectSelectionMenu menu, Inventory inventory, Component title) { super(menu, inventory, title); }
     @SubscribeEvent public static void register(RegisterMenuScreensEvent event) { event.register(SableLife.EFFECT_MENU.get(), EffectSelectionScreen::new); }
     private boolean particlesMode,arenaBuffMode;
     private Component tr(String key) { if(arenaBuffMode&&(key.equals("title")||key.equals("selected")))return Component.translatable("arena_buffs.sablelife.effect_"+key);return Component.translatable((particlesMode ? "particles.sablelife." : "effects.sablelife.") + key); }
     private Component name(String id) {
-        if (particlesMode) return Component.literal(ResourceLocation.parse(id).getPath().replace('_', ' '));
+        if (particlesMode) {var text=Component.literal(ResourceLocation.parse(id).getPath().replace('_', ' '));return ModuleParticles.colorable(id)?text.append(" ").append(tr("colorable")):text;}
         var effect = BuiltInRegistries.MOB_EFFECT.get(ResourceLocation.parse(id));
         return effect == null ? Component.literal(id) : effect.getDisplayName();
     }
@@ -49,15 +49,16 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         return addRenderableWidget(LifeUiStyle.button(label, leftPos + x, topPos + y, w, 16, action));
     }
     @Override protected void init() {
+        String query=search==null?"":search.getValue();
         imageWidth = Math.max(320, Math.min(420, width - 16)); imageHeight = Math.max(230, Math.min(310, height - 16));
         super.init(); availableRows.clear(); selectedRows.clear(); column = (imageWidth - 30) / 2;
         rows = Math.max(4, (imageHeight - 132) / 18);
-        particlesMode = false;
-        available = BuiltInRegistries.MOB_EFFECT.keySet().stream().map(Object::toString).filter(ModuleEffects::valid)
+        particlesMode = menu.snapshot().getBoolean("ParticleMode");
+        available = (particlesMode?BuiltInRegistries.PARTICLE_TYPE.keySet():BuiltInRegistries.MOB_EFFECT.keySet()).stream().map(Object::toString).filter(id->particlesMode?ModuleParticles.valid(id):ModuleEffects.valid(id))
                 .sorted(Comparator.comparing(id -> name(id).getString())).toList();
         button(tr("back"), imageWidth - 65, 8, 55, () -> minecraft.gameMode.handleInventoryButtonClick(menu.containerId, 0));
         search = addRenderableWidget(new EditBox(font, leftPos + 10, topPos + 32, column, 16, tr("search")));
-        search.setMaxLength(80); search.setHint(tr("search")); search.setResponder(value -> leftPage = 0);
+        search.setMaxLength(80); search.setHint(tr("search")); search.setResponder(value -> leftPage = 0);search.setValue(query);
         for (int i = 0; i < rows; i++) {
             final int row = i;
             availableRows.add(button(Component.empty(), 10, 54 + i * 18, column, () -> {
@@ -85,7 +86,22 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         duration.setTooltip(Tooltip.create(tr("duration_help"))); level.setTooltip(Tooltip.create(tr("level_help")));
         durationApply = button(Component.literal("\u2713"), rightX + 59, imageHeight - 26, 22, () -> apply(false));
         levelApply = button(Component.literal("\u2713"), rightX + column - 26, imageHeight - 26, 22, () -> apply(true));
+        color=button(Component.empty(),10,imageHeight-26,70,this::pickColor);
+        color.setTooltip(Tooltip.create(Component.translatable("particles.sablelife.color_help")));
         sync();
+    }
+    private void pickColor(){
+        if(current()==null||particleModule==null||!color.active)return;
+        String id=rightSelection;var entry=particleModule.particleEntry(id);int initial=entry.color()<0?0xFFFFFF:entry.color();
+        minecraft.setScreen(new ColorPickerScreen(this,Component.translatable("particles.sablelife.color"),initial,0xFFFFFF,(custom,rgb)->send("color",custom?rgb:-1,id)));
+    }
+    private void layoutProperties(){
+        int y=topPos+imageHeight-26;
+        if(particlesMode){int group=(imageWidth-32)/3;int lifeX=leftPos+16+group,sizeX=leftPos+22+group*2;
+            color.setPosition(leftPos+10,y);color.setWidth(group);
+            duration.setPosition(lifeX,y);duration.setWidth(group-26);durationApply.setPosition(lifeX+group-22,y);
+            level.setPosition(sizeX,y);level.setWidth(group-26);levelApply.setPosition(sizeX+group-22,y);
+        }else{int rightX=leftPos+20+column;duration.setPosition(rightX,y);duration.setWidth(56);durationApply.setPosition(rightX+59,y);level.setPosition(rightX+column-60,y);level.setWidth(30);levelApply.setPosition(rightX+column-26,y);}
     }
     private void apply(boolean amplifier) {
         if (current() == null || arenaBuffMode&&!amplifier) return;
@@ -111,6 +127,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
             duration.setTooltip(Tooltip.create(tr("duration_help"))); level.setTooltip(Tooltip.create(tr("level_help")));
             search.setHint(tr("search")); add.setMessage(tr("add")); remove.setMessage(tr("remove"));
         }
+        layoutProperties();color.visible=particlesMode;
         particleModule = particlesMode ? VirtualModule.load(module) : null;
         selected = particlesMode ? ModuleParticles.load(module.getList("Particles", 8)).stream().map(id -> new ModuleEffects.Entry(id, 0, 1)).toList()
                 : ModuleEffects.load(module.getList("Effects", 10));
@@ -137,6 +154,8 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         boolean active = editable && current() != null;
         for (var box : List.of(duration, level)) { box.active = active; box.setEditable(active); if (!active) box.setFocused(false); }
         durationApply.active=active&&!arenaBuffMode;duration.active=active&&!arenaBuffMode;duration.setEditable(duration.active);levelApply.active=active;
+        color.active=particlesMode&&active&&ModuleParticles.colorable(rightSelection);
+        if(particlesMode){var entry=particleModule.particleEntry(rightSelection);color.setMessage(entry.color()<0?tr("color_default"):Component.literal(String.format(Locale.ROOT,"#%06X",entry.color())));}
         var e = current(); boolean changed = !rightSelection.equals(lastRight);
         if (changed && e != null) rightPage = selected.indexOf(e) / rows;
         if (changed || !duration.isFocused()) duration.setValue(e == null ? "" : String.format(Locale.ROOT, "%.2f", (particlesMode ? particleModule.particleEntry(e.id()).ticks() : e.ticks()) / 20.));
@@ -188,7 +207,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         g.fill(leftPos - 2, topPos - 2, leftPos + imageWidth + 2, topPos + imageHeight + 2, 0xFF19151D);
         g.fill(leftPos, topPos, leftPos + imageWidth, topPos + imageHeight, 0xFF9B614E);
         g.fill(leftPos + 3, topPos + 3, leftPos + imageWidth - 3, topPos + imageHeight - 3, 0xFF242632);
-        g.fill(leftPos + 14 + column, topPos + 30, leftPos + 16 + column, topPos + imageHeight - 8, 0xFFAA79C8);
+        g.fill(leftPos + 14 + column, topPos + 30, leftPos + 16 + column, topPos + imageHeight - (particlesMode?44:8), 0xFFAA79C8);
     }
     @Override protected void renderLabels(GuiGraphics g, int x, int y) {
         g.drawString(font, tr("title"), 10, 12, 0xE6D8EA, false);
@@ -196,6 +215,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
         int pager = imageHeight - 68;
         g.drawCenteredString(font, (leftPage + 1) + " / " + Math.max(1, (filtered().size() + rows - 1) / rows), 10 + column / 2, pager, 0xBDA5D0);
         g.drawCenteredString(font, (rightPage + 1) + " / " + Math.max(1, (selected.size() + rows - 1) / rows), 20 + column + column / 2, pager, 0xBDA5D0);
+        if(particlesMode){int group=(imageWidth-32)/3;g.drawString(font,tr("color"),10,imageHeight-35,0xBDC5D4,false);g.drawString(font,tr("duration_label"),16+group,imageHeight-35,0xBDC5D4,false);g.drawString(font,tr("size_label"),22+group*2,imageHeight-35,0xBDC5D4,false);return;}
         g.drawString(font, arenaBuffMode?Component.translatable("arena_buffs.sablelife.fixed_duration"):particlesMode ? tr("duration_label") : Component.literal("s ≤60"), 20 + column, imageHeight - 35, 0xBDC5D4, false);
         g.drawString(font, particlesMode ? tr("size_label") : Component.literal("Lv ≤5"), 20 + 2 * column - 60, imageHeight - 35, 0xBDC5D4, false);
         g.drawString(font, tr("editing_help"), 10, imageHeight - 22, 0xBDA5D0, false);

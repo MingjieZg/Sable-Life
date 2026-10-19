@@ -53,12 +53,23 @@ public final class MoveSetClientPreview {
             data.edit("action_start",1,"0|1",modules);data.edit("action_start",3,"0|2",modules);data.edit("action_duration",1.5,"0|2",modules);
             var inventory=new Inventory(null);var menu=new HeartDashboardMenu(1,inventory);
             var tag=modules.save();tag.putBoolean("Editable",true);tag.putBoolean("Ready",true);
+            var diagnosticRows=new net.minecraft.nbt.ListTag();var row=new net.minecraft.nbt.CompoundTag();row.putUUID("Id",data.get(0).config().id());row.putString("Status","unavailable");var issues=new net.minecraft.nbt.ListTag();
+            var refs=java.util.List.of(arrow,flame,gun);var reasons=java.util.List.of("disabled","unmarked","trigger");
+            for(int i=0;i<3;i++){var issue=new net.minecraft.nbt.CompoundTag();issue.putUUID("Module",refs.get(i).id());issue.putInt("Action",i+1);issue.putString("Reason",reasons.get(i));issues.add(issue);}row.put("Problems",issues);diagnosticRows.add(row);var runtime=new net.minecraft.nbt.CompoundTag();runtime.put("Rows",diagnosticRows);tag.getList("Modules",10).getCompound(3).put("MoveSetRuntime",runtime);
             var stack=new ItemStack(Items.PAPER);stack.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));menu.getSlot(0).set(stack);
             panel=new MoveSetScreen(menu,inventory,title,table.id());panel.init(minecraft,width,height);
+            try{
+                var details=MoveSetScreen.class.getDeclaredMethod("problemDetails",MoveSet.Move.class);details.setAccessible(true);var text=((Component)details.invoke(panel,data.get(0))).getString();
+                for(String expected:java.util.List.of("Arrow battery #1","Flame sweep #2","Long named cannon / upper deck #3","Disabled","Not marked","Trigger: move set"))if(!text.contains(expected))throw new AssertionError("Missing diagnostic text: "+expected+" / "+text);
+                var help=MoveSetScreen.class.getDeclaredField("statusHelp");help.setAccessible(true);if(!((net.minecraft.client.gui.components.Button)help.get(panel)).visible)throw new AssertionError("Missing question mark");
+                row.put("Problems",new net.minecraft.nbt.ListTag());stack.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));menu.getSlot(0).set(stack);var sync=MoveSetScreen.class.getDeclaredMethod("sync");sync.setAccessible(true);sync.invoke(panel);
+                if(((net.minecraft.client.gui.components.Button)help.get(panel)).visible)throw new AssertionError("Stale question mark after repair");
+                row.put("Problems",issues);stack.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));menu.getSlot(0).set(stack);sync.invoke(panel);System.out.println("Move diagnostics tooltip identity/reasons and repair refresh passed");
+            }catch(ReflectiveOperationException e){throw new IllegalStateException(e);}
         }
         void tab(boolean rules)throws Exception{var f=MoveSetScreen.class.getDeclaredField(rules?"tabRules":"tabActions");f.setAccessible(true);((net.minecraft.client.gui.components.Button)f.get(panel)).onPress();}
         void picker()throws Exception{var f=MoveSetScreen.class.getDeclaredField("actionAdd");f.setAccessible(true);((net.minecraft.client.gui.components.Button)f.get(panel)).onPress();}
-        @Override public void render(GuiGraphics graphics,int x,int y,float partial){panel.render(graphics,-100,-100,partial);}
+        @Override public void render(GuiGraphics graphics,int x,int y,float partial){try{var f=MoveSetScreen.class.getDeclaredField("statusHelp");f.setAccessible(true);var help=(net.minecraft.client.gui.components.Button)f.get(panel);panel.render(graphics,help.getX()+2,help.getY()+2,partial);if(help.visible){var current=MoveSetScreen.class.getDeclaredMethod("current");current.setAccessible(true);var details=MoveSetScreen.class.getDeclaredMethod("problemDetails",MoveSet.Move.class);details.setAccessible(true);graphics.renderTooltip(minecraft.font,java.util.Arrays.stream(((Component)details.invoke(panel,current.invoke(panel))).getString().split("\n")).<Component>map(Component::literal).toList(),java.util.Optional.empty(),help.getX()+2,help.getY()+2);}}catch(ReflectiveOperationException e){throw new IllegalStateException(e);}}
     }
 }
 

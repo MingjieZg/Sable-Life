@@ -19,6 +19,19 @@ import java.util.*;
 @GameTestHolder("sablelife_control_tests")
 @PrefixGameTestTemplate(false)
 public final class MoveSetGameTests {
+    @GameTest(template="combat",batch="moveset_diagnostics")
+    public static void DiagnosticsIdentifyEveryBrokenReferenceAndClearAfterRepair(GameTestHelper h){
+        var heart=fixture(h);var disabled=heart.modules().add("wireless_redstone");var unmarked=heart.modules().add("melee");var wrong=heart.modules().add("wireless_redstone");var deleted=heart.modules().add("wireless_redstone");var valid=heart.modules().add("wireless_redstone");var table=heart.modules().add("move_set");
+        table.moveSet().edit("add",0,"",heart.modules());
+        for(var m:List.of(disabled,unmarked,wrong,deleted,valid,disabled))table.moveSet().edit("action_add",0,"0|"+m.id(),heart.modules());
+        disabled.edit("enabled",0,"");wrong.edit("trigger",0,"");heart.modules().remove(deleted.id());
+        var runtime=new ModuleMoveSet();var problems=runtime.snapshot(table,heart).getList("Rows",10).getCompound(0).getList("Problems",10);
+        h.assertTrue(problems.size()==4,"Diagnostics duplicated references or included valid module");
+        var ids=List.of(disabled.id(),unmarked.id(),wrong.id(),deleted.id());var reasons=List.of("disabled","unmarked","trigger","missing");
+        for(int i=0;i<4;i++)h.assertTrue(problems.getCompound(i).getUUID("Module").equals(ids.get(i))&&problems.getCompound(i).getString("Reason").equals(reasons.get(i))&&problems.getCompound(i).getInt("Action")==i+1,"Incorrect diagnostic identity/reason/action index "+i);
+        disabled.edit("enabled",1,"");wrong.edit("trigger",4,"");table.moveSet().edit("action_delete",0,"0|3",heart.modules());table.moveSet().edit("action_delete",0,"0|1",heart.modules());
+        h.assertTrue(runtime.snapshot(table,heart).getList("Rows",10).getCompound(0).getList("Problems",10).isEmpty(),"Repaired move retained stale diagnostics");h.succeed();
+    }
     @GameTest(template="combat",batch="moveset_rules_migration")
     public static void LegacyMoveRowConfigMigratesWithoutStandaloneDispatcher(GameTestHelper h){
         var heart=fixture(h);var out=heart.modules().add("wireless_redstone");out.edit("trigger",4,"");var table=heart.modules().add("move_set");var rules=new MoveRules();rules.edit("name",0,"Migrated move");rules.edit("dispatchWeight",37,"");rules.edit("dispatchCooldown",85,"");rules.edit("dispatchBusy",120,"");rules.edit("dispatchRest",15,"");rules.edit("dispatchNear",2.5,"");rules.edit("dispatchFar",19,"");rules.edit("phaseLower",15,"");rules.edit("phaseUpper",70,"");rules.edit("dispatchCone",125,"");rules.edit("dispatchFront",2,"");rules.edit("lineOfSight",1,"");rules.edit("dispatchRepeat",1,"");

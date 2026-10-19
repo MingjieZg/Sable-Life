@@ -19,5 +19,9 @@ public final class QuakeGeometry {
         }
         return (low + high) / 2;
     }
+    /** Fourfold angular symmetry, with denser bounded sampling on large rings. */
+    public static int ringSamples(double radius){return Math.clamp((int)Math.ceil(Math.PI*radius)*4,8,256);}
+    /** Spread a limited number of displays across the complete ordered circumference. */
+    public static int[] evenSamples(int total,int budget){int count=Math.min(total,Math.max(0,budget));int[] result=new int[count];for(int i=0;i<count;i++)result[i]=(int)((i+.5)*total/count);return result;}
     private QuakeGeometry() {}
 }

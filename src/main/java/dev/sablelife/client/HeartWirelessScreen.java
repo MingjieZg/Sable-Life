@@ -30,7 +30,8 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
     private boolean showTimeline;
     private int deleteUntil, deleteChannel = -1, deleteCount;
     private Button enabled, loop, master, picker, mode, add, previous, next, remove, nameApply, back;
-    private EditBox nameInput;
+    private EditBox nameInput, latchReset;
+    private Button latch, latchResetApply;
     public HeartWirelessScreen(HeartWirelessMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title); imageWidth = 360; imageHeight = 234;
     }
@@ -41,8 +42,8 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
     @Override protected void init() {
         imageWidth = Math.max(300, Math.min(480, width - 14)); imageHeight = Math.max(200, height - 14);
         detailX = Math.min(155, Math.max(103, Math.round(imageWidth * .32f))); detailWidth = imageWidth - detailX - 10;
-        inputX = detailX + Math.round(detailWidth * .45f); showTimeline = imageHeight >= 250;
-        fieldPitch = Math.clamp((imageHeight - (showTimeline ? 89 : 55) - 96) / 4, 12, 30);
+        inputX = detailX + Math.round(detailWidth * .45f); showTimeline = imageHeight >= 300;
+        fieldPitch = Math.clamp((imageHeight - (showTimeline ? 89 : 55) - 96) / 6, 13, 30);
         sidebarPitch = Math.max(14, (int)Math.ceil(font.lineHeight * LifeUiStyle.scale()) + 8);
         requestedRows = Math.clamp((imageHeight - 51 - 34 - 5) / sidebarPitch, 1, HeartWirelessMenu.PAGE_SIZE);
         menu.layoutSlots(detailX + 35, detailX + 91, 60);
@@ -78,6 +79,12 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
             editButtons.add(button(Component.literal("✓"), imageWidth - 28, y, 18, () -> apply(parameter)));
         }
         for (var control : editButtons) control.setHeight(fieldPitch - 2);
+        latch=button(Component.empty(),inputX,96+4*fieldPitch,imageWidth-inputX-10,()->send(menu.selected(),15,menu.setting(menu.selected(),7)==0?1:0));latch.setHeight(fieldPitch-2);
+        LifeUiStyle.reverse(latch,latch::onPress);latch.setTooltip(Tooltip.create(tr("latch_help")));
+        latchReset=addRenderableWidget(new EditBox(font,leftPos+inputX,topPos+96+5*fieldPitch,imageWidth-inputX-34,fieldPitch-2,tr("latch_reset")));
+        latchReset.setFilter(v->v.matches("[0-9]{0,5}"));latchReset.setMaxLength(5);latchReset.setTooltip(Tooltip.create(tr("latch_help")));
+        latchResetApply=button(Component.literal("✓"),imageWidth-28,96+5*fieldPitch,18,this::applyLatchReset);latchResetApply.setHeight(fieldPitch-2);
+
         int third = (detailWidth - 8) / 3;
         enabled = button(Component.empty(), detailX, imageHeight - 28, third, () -> toggle(0));
         mode = button(Component.empty(), detailX, imageHeight - 52, detailWidth, () -> send(menu.selected(), 9, (menu.setting(menu.selected(), 6) + 1) % 5));
@@ -101,6 +108,12 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
     private void send(int channel, int field, int raw) {
         if (minecraft != null && minecraft.gameMode != null)
             minecraft.gameMode.handleInventoryButtonClick(menu.containerId, field << 16 | Math.clamp(raw, 0, 65535));
+    }
+    private void applyLatchReset(){
+        if(!latchReset.active)return;
+        try{int value=Integer.parseInt(latchReset.getValue());if(value<0||value>menu.count()||value==menu.selected()+1){latchReset.setTextColor(0xFF7777);return;}
+            send(menu.selected(),16,value);latchReset.setTextColor(0xE0E0E0);latchReset.setFocused(false);
+        }catch(NumberFormatException ignored){latchReset.setTextColor(0xFF7777);}
     }
     private void rename() {
         if (!nameInput.active) return;
@@ -151,6 +164,13 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         }
         for (Button control : editButtons) { control.active = editable && exists; control.visible = exists; }
         boolean receiving = menu.setting(selected, 6) == 1;
+        latch.visible=latchReset.visible=latchResetApply.visible=exists;
+        latch.active=exists&&editable&&!receiving;latch.setMessage(tr(menu.setting(selected,7)==0?"latch_off":"latch_on"));
+        latchReset.active=exists&&editable&&!receiving&&menu.setting(selected,7)!=0;latchReset.setEditable(latchReset.active);latchResetApply.active=latchReset.active;
+        if(lastSelected!=selected||!latchReset.active)latchReset.setFocused(false);
+        if(!latchReset.isFocused())latchReset.setValue(Integer.toString(menu.setting(selected,8)));
+        latchReset.setTextColor(latchReset.active?0xE0E0E0:0x666666);
+
         boolean automatic = receiving || menu.setting(selected, 6) >= 3;
         for (int i = 0; i < 12; i++) editButtons.get(i).active = editable && exists && !automatic;
         loop.active = editable && exists && !automatic;
@@ -170,6 +190,11 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
     }
     @Override protected void containerTick() { super.containerTick(); tickCount++; sync(); }
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+        if(vertical!=0&&latchReset.active&&latchReset.isMouseOver(mouseX,mouseY)){
+            int v;try{v=Integer.parseInt(latchReset.getValue());}catch(NumberFormatException ignored){v=menu.setting(menu.selected(),8);}
+            int nextValue=Math.clamp(v+(int)Math.signum(vertical),0,menu.count());if(nextValue==menu.selected()+1)nextValue=Math.clamp(nextValue+(int)Math.signum(vertical),0,menu.count());
+            latchReset.setValue(Integer.toString(nextValue));applyLatchReset();latchReset.setFocused(true);return true;
+        }
         if (vertical != 0) for (int i = 0; i < inputs.size(); i++) {
             var input = inputs.get(i);
             if (!input.visible || !input.active || !input.isMouseOver(mouseX, mouseY)) continue;
@@ -185,6 +210,9 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
+        if(latchReset.visible&&latchReset.active&&latchReset.isFocused()){
+            if(key==257||key==335){applyLatchReset();return true;}if(key!=256){latchReset.keyPressed(key,scan,modifiers);return true;}
+        }
         if (nameInput.visible && nameInput.active && nameInput.isFocused()) {
             if (key == 257 || key == 335) { rename(); return true; }
             if (key != 256) { nameInput.keyPressed(key, scan, modifiers); return true; }
@@ -218,7 +246,7 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         g.fill(x, y, x + width, y + 7, 0xFF151B24);
         for (int pixel = 0; pixel < width; pixel++) {
             long t = (long) pixel * horizon / width;
-            boolean active = t >= delay && (menu.setting(channel, 5) != 0 ? (t - delay) % Math.max(1, on + off) < on : t - delay < on);
+            boolean active = t >= delay && (menu.setting(channel,7)!=0 || (menu.setting(channel, 5) != 0 ? (t - delay) % Math.max(1, on + off) < on : t - delay < on));
             if (active) g.fill(x + pixel, y + 1, x + pixel + 1, y + 6, 0xFFAA79C8);
         }
         if (menu.value(HeartWirelessMenu.ALIVE) != 0 && menu.elapsed() <= horizon) {
@@ -240,6 +268,8 @@ public final class HeartWirelessScreen extends AbstractContainerScreen<HeartWire
         text(g, tr("red"), detailX + 5, 66, 26, 0xEF8B89);
         text(g, tr("blue"), detailX + 61, 66, 26, 0x83B6EE);
         for (int field = 1; field <= 4; field++) text(g, tr("field_" + field), detailX, 96 + (field - 1) * fieldPitch + 3, inputX - detailX - 6, 0xE6D8EA);
+        text(g,tr("latch"),detailX,96+4*fieldPitch+2,inputX-detailX-6,0xE6D8EA);
+        text(g,tr("latch_reset"),detailX,96+5*fieldPitch+2,inputX-detailX-6,0xE6D8EA);
         if (showTimeline) text(g, menu.setting(menu.selected(), 6) == 1 ? Component.translatable("wireless.sablelife.receive_power", menu.value(HeartWirelessMenu.SELECTED_INPUT)) : tr(menu.setting(menu.selected(), 6) >= 3 ? "program_timeline" : "timeline"), detailX, imageHeight - 83, detailWidth, 0xBDA5D0);
     }
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {

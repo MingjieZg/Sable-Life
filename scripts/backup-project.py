@@ -1,16 +1,22 @@
 """Create a recoverable snapshot without Gradle caches or generated runtime logs."""
 from pathlib import Path
-import hashlib, json, zipfile
+import hashlib, json, zipfile, argparse
 from datetime import datetime, timezone, timedelta
 root = Path(__file__).resolve().parents[1]
 out = root / "backups"
 out.mkdir(exist_ok=True)
 version = next((s.split("=",1)[1].strip() for s in (root/"gradle.properties").read_text().splitlines() if s.startswith("mod_version=")), "unknown")
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--date",help="Client-local date YYYY-MM-DD, when different from the host")
+args=parser.parse_args()
 created=datetime.now(timezone(timedelta(hours=8)))
+if args.date:
+    day=datetime.strptime(args.date,"%Y-%m-%d")
+    created=created.replace(year=day.year,month=day.month,day=day.day)
 stable_file=root/"docs/STABLE_VERSION.json"
 stable=stable_file.exists() and json.loads(stable_file.read_text(encoding="utf-8")).get("version")==version
 archive = out / ("Sable-Life-"+version+("-stable" if stable else "")+"-"+created.strftime("%Y%m%d-%H%M%S")+".zip")
-roots = ["src", "docs", "scripts", "gradle", ".git", ".dev/mods", ".dev/compile-libs", ".dev/test-mods", ".dev/epicfight", ".dev/cleanup-mods", ".dev/iron-spells-review", ".dev/iron-spells-testmods", "config", "defaultconfigs", "mods", "exports/stable-"+version, "build/libs/sablelife-"+version+".jar"]
+roots = ["src", "docs", "scripts", "gradle", ".git", ".dev/mods", ".dev/compile-libs", ".dev/test-mods", ".dev/epicfight", ".dev/cleanup-mods", ".dev/iron-spells-review", ".dev/iron-spells-testmods", "config", "defaultconfigs", "mods", "exports/stable-"+version, "exports/development-"+version, "releases/development-"+version, "build/libs/sablelife-"+version+".jar"]
 # Optional compatibility regressions need their pinned private runtime and replay fixtures.
 roots += [".dev/arena-addon-mods", ".dev/mounted-cleanup-mods", ".dev/dragon-replay-mods", ".dev/dragon-toolgun.jar", ".dev/dragon-template.nbt", ".dev/arena-replay/template.nbt"]
 for runtime in ["client", "server", "gametest"]:

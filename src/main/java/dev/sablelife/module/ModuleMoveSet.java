@@ -74,7 +74,16 @@ public final class ModuleMoveSet {
             var row = new CompoundTag(); var id = move.config().id(); row.putUUID("Id", id);
             String status = status(move, heart);
             if (status.equals("ready") && !move.config().targetPresent(heart)) status = "conditions";
-            row.putString("Status", status); row.putInt("Cooldown", state == null ? 0 : (int)Math.max(0, state.cooldown.getOrDefault(id, 0L) - now)); rows.add(row);
+            row.putString("Status", status); row.putInt("Cooldown", state == null ? 0 : (int)Math.max(0, state.cooldown.getOrDefault(id, 0L) - now));
+            var problems = new ListTag(); var seen = new HashSet<UUID>();
+            for (int i=0;i<move.actions().size();i++) {
+                var action=move.actions().get(i); if(!seen.add(action.module()))continue;
+                var target=heart.modules().find(action.module());
+                String reason=target==null?"missing":!MoveSet.TARGETS.contains(target.type())?"unsupported":!target.enabled()?"disabled":HeartModules.status(target,heart);
+                if(reason.equals("valid"))reason=target.value("trigger")!=4?"trigger":"";
+                if(!reason.isEmpty()) {var issue=new CompoundTag();issue.putUUID("Module",action.module());issue.putInt("Action",i+1);issue.putString("Reason",reason);problems.add(issue);}
+            }
+            row.put("Problems",problems); rows.add(row);
         }
         tag.put("Rows", rows); return tag;
     }

@@ -6,7 +6,7 @@ import org.joml.Quaterniond;
 import org.joml.Vector3d;
 import java.util.*;
 
-/** Signal-controlled rigid-machine rotation. Translation wins; active manual input wins over target facing. */
+/** Signal-controlled rigid-machine rotation. Travel can steer; Teleport wins; active manual input wins over target facing. */
 public final class ModuleSignalTurn {
     public static final List<String> DIRECTIONS=List.of("turnLeft","turnRight","turnUp","turnDown","turnClockwise","turnCounterclockwise");
     private final Map<UUID,String> states=new HashMap<>();
@@ -18,7 +18,8 @@ public final class ModuleSignalTurn {
         int channel=(int)module.value(direction+"Channel")-1;
         return module.value(direction+"Source")==0?heart.wireless().output(channel):heart.wireless().input(channel);
     }
-    public boolean tick(HeartBlockEntity heart,boolean movementBusy){
+    public boolean tick(HeartBlockEntity heart,boolean movementBusy){return tick(heart,movementBusy,false);}
+    public boolean tick(HeartBlockEntity heart,boolean movementBusy,boolean preserveTranslation){
         if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()){clear();return false;}
         if(lastTick==level.getGameTime())return controlled;lastTick=level.getGameTime();controlled=false;var keep=new HashSet<UUID>();
         for(var module:heart.modules().all()){
@@ -46,8 +47,9 @@ public final class ModuleSignalTurn {
                 if(2*Math.acos(Math.min(1,Math.abs(turn.w)))<1e-6){states.put(module.id(),CollisionWorkBudget.exhausted(level)?"budget":"blocked");continue;}
             }
             for(var body:AutoFacingGeometry.rotated(bodies,pivot,turn)){
-                var velocity=new Vector3d(body.body().latestLinearVelocity);physics.getPipeline().resetVelocity(body.body());physics.getPipeline().teleport(body.body(),body.position(),body.rotation());physics.getPipeline().addLinearAndAngularVelocity(body.body(),velocity,new Vector3d());
+                var velocity=(preserveTranslation?physics.getPipeline().getLinearVelocity(body.body(),new Vector3d()):new Vector3d(body.body().latestLinearVelocity));physics.getPipeline().resetVelocity(body.body());physics.getPipeline().teleport(body.body(),body.position(),body.rotation());physics.getPipeline().addLinearAndAngularVelocity(body.body(),velocity,new Vector3d());
             }
+            heart.modules().movementTurned(heart,pivot,turn);
             dev.sablelife.ownership.LoadedCoreIndex.geometryChanged(level);
             states.put(module.id(),partial?"partial":"turning");
         }

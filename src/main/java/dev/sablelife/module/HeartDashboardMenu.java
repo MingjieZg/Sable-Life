@@ -58,7 +58,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     public boolean action(Player player, int revision, UUID id, String operation, String key, double value, String text) {
         if (heart == null || !stillValid(player)) return false;
         if(heart.isControlCore()){
-            if(!java.util.Set.of("add","add_preset","projectile","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","move_set","sound_editor").contains(operation))return false;
+            if(!java.util.Set.of("add","add_preset","projectile","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","copy","move_set","sound_editor").contains(operation))return false;
             if((operation.equals("add")||operation.equals("add_preset"))&&!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(key))return false;
             var existing=heart.modules().find(id);if(!operation.equals("add")&&!operation.equals("add_preset")&&!operation.equals("wireless")&&(existing==null||!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(existing.type())))return false;
             if(operation.equals("edit")&&(key.startsWith("hurt")||existing!=null&&dev.sablelife.heart.RedstoneCorePolicy.disabledField(existing,key)||key.equals("trigger")&&(value<0||value>4)))return false;
@@ -140,6 +140,10 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             case "add" -> {
                 if(key.equals("command")&&!player.canUseGameMasterBlocks()||!VirtualModule.AVAILABLE_TYPES.contains(key))return false;
                 var added=heart.modules().add(key);result=added!=null;if(added!=null)DashboardSelection.set(heart,player.getUUID(),added.id());
+            }
+            case "copy" -> {
+                if(module==null||module.type().equals("command")&&!player.canUseGameMasterBlocks())return false;
+                var added=heart.modules().copy(id);result=added!=null;if(added!=null)DashboardSelection.set(heart,player.getUUID(),added.id());
             }
             case "commands" -> {
                 if (!player.canUseGameMasterBlocks() || module == null || !module.type().equals("command")) return false;

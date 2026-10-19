@@ -115,4 +115,25 @@ public final class ParticlePatternGameTests {
         }
         h.succeed();
     }
+    @GameTest(template="combat",batch="particle_expand")
+    public static void AreaAndPointExpandForwardFromOriginalBoundsForAllFaces(GameTestHelper h){
+        var c=fixture(h);
+        for(var face:Direction.values())for(int shape:new int[]{0,1}){
+            var m=new VirtualModule("particles");m.edit("particlePattern",shape,"");var a=ModuleAnchor.create(c,c.getBlockPos(),face);m.anchors(shape==0?List.of(a,ModuleAnchor.create(c,c.getBlockPos().east(),face)):List.of(a));
+            var base=ParticlePattern.frame(c,m);h.assertTrue(shape==0||base.half().equals(Vec3.ZERO),"Point default no longer a point");m.edit("particleExpandLength",8,"");var grown=ParticlePattern.frame(c,m);var forward=ContactBox.rotate(base.rotation(),base.forward());
+            h.assertTrue(grown.center().distanceTo(base.center().add(forward.scale(4)))<1e-7&&Math.abs(grown.half().subtract(base.half()).length()-4)<1e-7,"Length did not extend one-sided from original mark: "+face+"/"+shape);
+            m.edit("particleExpandWidth",4,"");m.edit("particleExpandHeight",2,"");var frame=ParticlePattern.frame(c,m);
+            h.assertTrue(frame.center().distanceTo(grown.center())<1e-7&&frame.half().x>0&&frame.half().y>0&&frame.half().z>0,"Width/height shifted center or collapsed dimensions");
+            boolean outside=false;for(int distribution:new int[]{0,1}){m.edit("particleDistribution",distribution,"");for(int n=0;n<128;n++){var point=ParticlePattern.sample(m,frame.half(),frame.forward(),n,128,RandomSource.create(n));h.assertTrue(Math.abs(point.x)<=frame.half().x&&Math.abs(point.y)<=frame.half().y&&Math.abs(point.z)<=frame.half().z,"Expanded particle escaped bounds");if(point.length()>base.half().length())outside=true;}}
+            h.assertTrue(outside&&ParticlePattern.sweepRadius(m,frame)>=frame.half().length(),"Expanded region/trail still used old bounds");
+            var loaded=VirtualModule.load(m.save());h.assertTrue(loaded.value("particleExpandLength")==8&&loaded.value("particleExpandWidth")==4&&loaded.value("particleExpandHeight")==2&&ParticlePattern.frame(c,loaded).half().equals(frame.half()),"Expanded geometry lost on reload");
+        }h.succeed();
+    }
+    @GameTest(template="combat",batch="particle_expand_visibility")
+    public static void PointDefaultsAndOtherPatternsRemainUnchanged(GameTestHelper h){
+        var m=new VirtualModule("particles");m.edit("particlePattern",1,"");h.assertTrue(ParticlePattern.sample(m,Vec3.ZERO,new Vec3(0,0,1),0,1,RandomSource.create(1)).equals(Vec3.ZERO)&&!ParticlePattern.visibleField(m,"particleDistribution"),"Zero-expansion point changed");
+        m.edit("particleExpandWidth",5,"");h.assertTrue(ParticlePattern.visibleField(m,"particleDistribution"),"Expanded point cannot select distribution");
+        for(int shape=0;shape<5;shape++){m.edit("particlePattern",shape,"");h.assertTrue(ParticlePattern.visibleField(m,"particleExpandLength")== (shape<=1),"Expansion controls leaked into other pattern");}h.succeed();
+    }
+
 }

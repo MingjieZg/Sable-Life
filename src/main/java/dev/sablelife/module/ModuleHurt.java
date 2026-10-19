@@ -44,6 +44,7 @@ public final class ModuleHurt {
     }
     private static long onceTicks(VirtualModule m) {
         return Math.max(1,(long)Math.ceil(switch(m.type()) {
+            case "distortion_trail" -> m.value("trailLife")+1;
             case "slash" -> m.value("range")/m.value("slashSpeed")*20+3;
             case "sphere_blast" -> m.value("chargeTime")+2;
             case "laser" -> m.value("chargeTime")+m.value("beamHits")*m.value("hitInterval")+2;

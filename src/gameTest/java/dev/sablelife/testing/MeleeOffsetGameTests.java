@@ -19,6 +19,34 @@ public final class MeleeOffsetGameTests {
     private static HeartBlockEntity fixture(GameTestHelper h){var l=h.getLevel();var p=h.absolutePos(new BlockPos(4,6,4));l.setBlockAndUpdate(p,SableLife.HEART.get().defaultBlockState());l.setBlockAndUpdate(p.east(),Blocks.IRON_BLOCK.defaultBlockState());var b=SubLevelAssemblyHelper.assembleBlocks(l,p,List.of(p,p.east()),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+1,p.getY(),p.getZ()));return (HeartBlockEntity)l.getBlockEntity(b.getPlot().getCenterBlock());}
     private static VirtualModule melee(HeartBlockEntity heart){var m=heart.modules().add("melee");var a=ModuleAnchor.create(heart,heart.getBlockPos().east(),Direction.EAST);m.anchors(List.of(a,a));m.edit("damage",3,"");m.edit("knockback",0,"");m.edit("interval",3,"");return m;}
     private static net.minecraft.world.entity.animal.Cow cow(GameTestHelper h,Vec3 point){var c=net.minecraft.world.entity.EntityType.COW.create(h.getLevel());c.setNoAi(true);c.setNoGravity(true);c.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(100);c.setHealth(100);c.setPos(point.add(0,-.5,0));h.getLevel().getChunk(BlockPos.containing(point));h.getLevel().addFreshEntity(c);return c;}
+    @GameTest(template="combat",batch="melee_extension_geometry")
+    public static void ExtensionsPreserveRearFaceAndWorkForEveryMarkedDirection(GameTestHelper h){
+        var heart=fixture(h);var m=melee(heart);
+        for(var face:Direction.values()){
+            var a=ModuleAnchor.create(heart,heart.getBlockPos().east(),face);m.anchors(List.of(a,a));
+            for(String key:List.of("meleeLength","meleeWidth","meleeHeight","startDistance","meleeHorizontal","meleeVertical"))m.edit(key,0,"");
+            var base=MeleeGeometry.frame(heart,m);m.edit("meleeLength",8,"");m.edit("meleeWidth",2,"");m.edit("meleeHeight",4,"");m.edit("startDistance",3,"");m.edit("meleeHorizontal",35,"");m.edit("meleeVertical",20,"");
+            var box=MeleeGeometry.frame(heart,m);var forward=Vec3.atLowerCornerOf(face.getNormal());
+            var rotated=ContactBox.rotate(box.rotation(),forward);
+            h.assertTrue(box.center().distanceTo(base.center().add(rotated.scale(7)))<1e-6,"Length/offset center incorrect for "+face);
+            double baseAlong=Math.abs(forward.x)*base.half().x+Math.abs(forward.y)*base.half().y+Math.abs(forward.z)*base.half().z;
+            double along=Math.abs(forward.x)*box.half().x+Math.abs(forward.y)*box.half().y+Math.abs(forward.z)*box.half().z;
+            h.assertTrue(Math.abs(along-baseAlong-4)<1e-6,"Length grew along wrong axis for "+face);
+            h.assertTrue(box.center().subtract(rotated.scale(along)).distanceTo(base.center().add(rotated.scale(3-baseAlong)))<1e-6,"Extension moved rear face for "+face);
+            h.assertTrue(Math.abs(box.half().x+box.half().y+box.half().z-8.5)<1e-6,"Width/height full dimensions incorrect");
+        }
+        var loaded=VirtualModule.load(m.save());h.assertTrue(loaded.value("meleeLength")==8&&loaded.value("meleeWidth")==2&&loaded.value("meleeHeight")==4,"Extensions did not persist");
+        var legacy=m.save();for(String key:List.of("meleeLength","meleeWidth","meleeHeight"))legacy.getCompound("Settings").remove(key);
+        var old=VirtualModule.load(legacy);h.assertTrue(old.value("meleeLength")==0&&old.value("meleeWidth")==0&&old.value("meleeHeight")==0,"Old marks gained extensions");h.succeed();
+    }
+    @GameTest(template="combat",batch="melee_extension_damage")
+    public static void ExtendedBladeDealsDamageAtTipButNotBehindHilt(GameTestHelper h){
+        var heart=fixture(h);var m=melee(heart);m.edit("meleeLength",8,"");m.edit("meleeHitLimit",1,"");heart.tryActivate(FakePlayerFactory.getMinecraft(h.getLevel()));
+        var box=MeleeGeometry.frame(heart,m);var forward=ContactBox.rotate(box.rotation(),new Vec3(1,0,0));
+        var tip=cow(h,box.center().add(forward.scale(3.8)));var rear=cow(h,box.center().subtract(forward.scale(5.5)));
+        heart.modules().tick(heart);h.assertTrue(tip.getHealth()==97,"Extended tip did not damage target: "+tip.getHealth());h.assertTrue(rear.getHealth()==100,"Length extension leaked behind hilt");
+        m.edit("enabled",0,"");tip.discard();rear.discard();h.succeed();
+    }
     @GameTest(template="combat",batch="melee_config")
     public static void OffsetAnglesKeepSizeAndDefaultsAndPersist(GameTestHelper h){var heart=fixture(h);var m=melee(heart);var original=MeleeGeometry.frame(heart,m);h.assertTrue(m.value("meleeHitLimit")==0&&m.value("meleeHorizontal")==0&&m.value("meleeVertical")==0,"Legacy defaults changed");
         var anchors=m.anchors();m.edit("startDistance",3,"");m.edit("meleeHorizontal",90,"");var shifted=MeleeGeometry.frame(heart,m);var forward=Vec3.atLowerCornerOf(anchors.getFirst().face().getNormal());var localTurn=ContactBox.rotate(MeleeGeometry.angles(forward,90,0),forward);var expected=ContactBox.rotate(original.bodyRotation(),localTurn).scale(3);

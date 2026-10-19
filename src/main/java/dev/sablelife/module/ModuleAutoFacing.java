@@ -11,7 +11,7 @@ import org.joml.Quaterniond;
 import org.joml.Vector3d;
 import java.util.*;
 
-/** One active facing controller per connected machine, paused during direct movement. */
+/** One active facing controller per connected machine, shared with Travel; Teleport keeps exclusive pose ownership. */
 public final class ModuleAutoFacing {
     private final Map<UUID,String> states=new HashMap<>();private long tick=Long.MIN_VALUE;
     public void clear(){states.clear();tick=Long.MIN_VALUE;}
@@ -29,7 +29,8 @@ public final class ModuleAutoFacing {
                 .filter(e->!sight||dev.sablelife.sense.SensorGeometry.visible(level,heart.creatureId(),pivot,e.getBoundingBox().getCenter(),e instanceof ModuleTargets.LifeTarget?e.getUUID():null,ownBodies))
                 .min(Comparator.<LivingEntity>comparingDouble(e->e.getBoundingBox().getCenter().distanceToSqr(pivot)).thenComparing(e->e.getUUID().toString())).orElse(null);
     }
-    public void tick(HeartBlockEntity heart,boolean movementBusy){
+    public void tick(HeartBlockEntity heart,boolean movementBusy){tick(heart,movementBusy,false);}
+    public void tick(HeartBlockEntity heart,boolean movementBusy,boolean preserveTranslation){
         if(!(heart.getLevel() instanceof ServerLevel level))return;
         if(!heart.operational()||!heart.wireless().master()){clear();return;}
         if(tick==level.getGameTime())return;tick=level.getGameTime();boolean controlled=false;var keep=new HashSet<UUID>();
@@ -60,7 +61,8 @@ public final class ModuleAutoFacing {
             var physics=dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem.get(level);
             if(!clear||physics==null){states.put(module.id(),CollisionWorkBudget.exhausted(level)?"budget":"blocked");continue;}
             var rotated=AutoFacingGeometry.rotated(bodies,pivot,turn);
-            for(var body:rotated){var velocity=new Vector3d(body.body().latestLinearVelocity);physics.getPipeline().resetVelocity(body.body());physics.getPipeline().teleport(body.body(),body.position(),body.rotation());physics.getPipeline().addLinearAndAngularVelocity(body.body(),velocity,new Vector3d());}
+            for(var body:rotated){var velocity=(preserveTranslation?physics.getPipeline().getLinearVelocity(body.body(),new Vector3d()):new Vector3d(body.body().latestLinearVelocity));physics.getPipeline().resetVelocity(body.body());physics.getPipeline().teleport(body.body(),body.position(),body.rotation());physics.getPipeline().addLinearAndAngularVelocity(body.body(),velocity,new Vector3d());}
+            heart.modules().movementTurned(heart,pivot,turn);
             dev.sablelife.ownership.LoadedCoreIndex.geometryChanged(level);
             states.put(module.id(),verticalBlocked?"vertical_blocked":"tracking");
         }states.keySet().retainAll(keep);

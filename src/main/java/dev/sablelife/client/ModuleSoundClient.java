@@ -22,6 +22,16 @@ public final class ModuleSoundClient {
     private static final Map<UUID, List<Voice>> voices = new HashMap<>();
     private static long tick;
     private static net.minecraft.client.multiplayer.ClientLevel world;
+    private record Moving(net.minecraft.world.phys.Vec3 point,long seen){}
+    private static final Map<UUID,Moving> moving=new LinkedHashMap<>();
+    public static void motion(dev.sablelife.module.SoundMotionPacket p){
+        var mc=Minecraft.getInstance();if(mc.level==null||!p.valid()||!mc.level.dimension().location().equals(p.dimension()))return;
+        if(world!=mc.level){clear();world=mc.level;}
+        if(p.stop()){stopMoving(p.source());return;}
+        if(!moving.containsKey(p.source())&&moving.size()>=2048)stopMoving(moving.keySet().iterator().next());
+        moving.put(p.source(),new Moving(p.position(),tick));
+    }
+    private static void stopMoving(UUID source){moving.remove(source);receive(new ModuleNetworking.ModuleSound(source,"",true,net.minecraft.world.phys.Vec3.ZERO,0,1,0,0,0,true));}
     public static void receive(ModuleNetworking.ModuleSound packet) {
         var mc = Minecraft.getInstance(); if (mc.level == null) return;
         if (world != mc.level) { clear(); world = mc.level; }
@@ -45,10 +55,12 @@ public final class ModuleSoundClient {
     }
     private static final class RadiusSound extends AbstractTickableSoundInstance {
         private final float gain, radius;
+        private final UUID source;
         private final long started=tick;
         private final int duration, fade;
         RadiusSound(ResourceLocation id, ModuleNetworking.ModuleSound packet) {
             super(net.minecraft.sounds.SoundEvent.createVariableRangeEvent(id), SoundSource.HOSTILE, RandomSource.create());
+            source=packet.module();looping=moving.containsKey(source);delay=0;
             gain = Math.clamp(packet.volume(), 0F, 4F); radius = Float.isFinite(packet.radius()) && packet.radius()>0 ? Math.clamp(packet.radius(), 1F, 256F) : 0;
             duration=packet.duration(); fade=packet.fade();
             x = packet.position().x; y = packet.position().y; z = packet.position().z;
@@ -57,6 +69,7 @@ public final class ModuleSoundClient {
         }
         @Override public boolean canStartSilent() { return true; }
         @Override public void tick() {
+            var position=moving.get(source);if(position!=null){x=position.point.x;y=position.point.y;z=position.point.z;}
             var player = Minecraft.getInstance().player;
             if (player == null) { stop(); return; }
             float envelope=dev.sablelife.sound.SoundFade.gain(ModuleSoundClient.tick-started,duration,fade);
@@ -69,10 +82,11 @@ public final class ModuleSoundClient {
         if (mc.level == null || world != mc.level) { clear(); world = mc.level; return; }
         if (mc.isPaused()) return;
         tick++;
+        for(var id:new ArrayList<>(moving.keySet()))if(tick-moving.get(id).seen>40)stopMoving(id);
         pending.drain(tick).forEach(ModuleSoundClient::receive);
         voices.values().forEach(list -> list.removeIf(v -> { if(tick>=v.stopAt){mc.getSoundManager().stop(v.sound);return true;}return tick - v.started > 20 && !mc.getSoundManager().isActive(v.sound); }));
         voices.values().removeIf(List::isEmpty);
     }
-    private static void clear() { voices.values().forEach(list -> list.forEach(v -> Minecraft.getInstance().getSoundManager().stop(v.sound))); voices.clear(); pending.clear(); }
+    private static void clear() { voices.values().forEach(list -> list.forEach(v -> Minecraft.getInstance().getSoundManager().stop(v.sound))); voices.clear(); pending.clear(); moving.clear(); }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut event) { clear(); world = null; }
 }

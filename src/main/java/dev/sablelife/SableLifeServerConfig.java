@@ -5,13 +5,14 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 /** Resource limits are server-owned. Existing saved channel numbers are never truncated. */
 public final class SableLifeServerConfig {
     public static final ModConfigSpec SPEC;
-    private static final ModConfigSpec.IntValue CHANNELS, PARTICLES, CLEANUP;
+    private static final ModConfigSpec.IntValue CHANNELS, PARTICLES, CLEANUP, MODULES;
     private static final ModConfigSpec.IntValue PROJECTILES, CREATURE_PROJECTILES;
     private static final ModConfigSpec.IntValue COLLISION, ARENA_CAPTURE_SCAN, ARENA_BLOCKS, ARENA_BLOCK_ENTITIES, ARENA_TEMPLATE_BYTES, ARENA_WORLD_BYTES;
     static {
         var builder = new ModConfigSpec.Builder();
         CHANNELS = builder.comment("Maximum newly authored wireless channels per core. Existing saves keep their channels.")
                 .defineInRange("maximumWirelessChannels", 256, 1, 65535);
+        MODULES=builder.comment("Maximum newly authored virtual modules per core; existing saved modules are retained up to the storage limit of 256.").defineInRange("maximumModulesPerCreature",128,16,256);
         PARTICLES = builder.comment("Visual particle points per player per server tick. Damage and timing are unaffected.")
                 .defineInRange("particlePointsPerPlayerTick", 8192, 256, 65536);
         CLEANUP = builder.comment("Fallback block removals per server tick, shared across death jobs and dimensions. An eligible whole-body native removal is atomic and may exceed this block count.")
@@ -30,6 +31,7 @@ public final class SableLifeServerConfig {
         ARENA_WORLD_BYTES=builder.comment("Total uncompressed estimated bytes permitted across world Arena templates.").defineInRange("arenaWorldTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.WORLD_TEMPLATE_BYTES,1048576,536870912);
         SPEC = builder.build();
     }
+    public static int maximumModulesPerCreature(){return SPEC.isLoaded()?MODULES.get():128;}
     public static int maximumWirelessChannels() { return SPEC.isLoaded() ? CHANNELS.get() : 256; }
     public static int particlePointsPerPlayerTick() { return SPEC.isLoaded() ? PARTICLES.get() : 8192; }
     public static int deathCleanupBlocksPerTick() { return SPEC.isLoaded() ? CLEANUP.get() : 256; }

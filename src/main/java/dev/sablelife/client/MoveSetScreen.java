@@ -23,7 +23,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
     private boolean rules, picking;
     private String searchText="", pickerText="";
     private EditBox search, name, pickerSearch;
-    private Button enabled, moveEnabled, addMove, copyMove, deleteMove, movePrev, moveNext, up, down, tabActions, tabRules, actionAdd, actionPrev, actionNext;
+    private Button enabled, moveEnabled, addMove, copyMove, deleteMove, movePrev, moveNext, up, down, tabActions, tabRules, actionAdd, actionPrev, actionNext, statusHelp;
     private final List<Button> moveButtons=new ArrayList<>(), actionButtons=new ArrayList<>(), deletes=new ArrayList<>(), actionUps=new ArrayList<>(), actionDowns=new ArrayList<>(), pickerButtons=new ArrayList<>();
     private final List<EditBox> starts=new ArrayList<>(), durations=new ArrayList<>(), ruleInputs=new ArrayList<>();
     private final List<Button> ruleChoices=new ArrayList<>(), applyButtons=new ArrayList<>();
@@ -67,6 +67,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         applyButtons.add(button(Component.literal("✓"),imageWidth-35,32,25,18,()->{send("name",0,name.getValue());name.setFocused(false);}));
         tabActions=button(tr("actions"),rightX,54,rightWidth/2-2,18,()->{rules=false;picking=false;rebuildWidgets();});
         tabRules=button(tr("rules"),rightX+rightWidth/2+2,54,rightWidth/2-2,18,()->{rules=true;picking=false;rebuildWidgets();});
+        statusHelp=button(Component.literal("?"),imageWidth-23,imageHeight-18,13,13,()->{});
         if(picking)initPicker();else if(rules)initRules();else initActions();sync();
     }
     private void initActions(){
@@ -109,6 +110,9 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         for(int i=0;i<list.size();i++){var tag=list.getCompound(i);var m=VirtualModule.load(tag);loaded.add(m);if(m.id().equals(tableId)){table=m;runtime=tag.getCompound("MoveSetRuntime");}}
         modules=List.copyOf(loaded);moves=table==null?List.of():table.moveSet().moves();if(current()==null)selected=moves.isEmpty()?null:moves.getFirst().config().id();
         boolean editable=snapshot.getBoolean("Editable")&&table!=null;var current=current();
+        var details=current==null?null:problemDetails(current);
+        statusHelp.visible=!picking&&details!=null;statusHelp.active=statusHelp.visible;
+        if(details!=null){statusHelp.setTooltip(Tooltip.create(details));var label=moveStatus(current);float scale=Math.min(.8f,Math.max(.3f,(rightWidth-18)/(float)Math.max(1,font.width(label))));statusHelp.setX(leftPos+rightX+Math.min(rightWidth-13,(int)Math.ceil(font.width(label)*scale)+4));}
         enabled.active=editable;enabled.setMessage(tr(table!=null&&table.enabled()?"enabled":"disabled"));
         addMove.active=editable&&moves.size()<MoveSet.LIMIT;copyMove.active=addMove.active&&current!=null;deleteMove.active=editable&&current!=null;deleteMove.setMessage(tr(deleteUntil>ticks?"confirm":"delete"));up.active=down.active=editable&&current!=null;
         moveEnabled.active=editable&&current!=null;moveEnabled.setMessage(Component.literal(current!=null&&current.config().enabled()?"✓":"—"));moveEnabled.setTooltip(Tooltip.create(tr("toggle_move")));
@@ -131,6 +135,23 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         }
     }
     private String seconds(double ticks){return String.format(Locale.ROOT,"%.2f",ticks/20.);}
+    private Component problemDetails(MoveSet.Move move){
+        var details=Component.empty();boolean any=false;
+        if(table!=null&&!table.enabled()){details.append(tr("table_disabled"));any=true;}
+        if(!move.config().enabled()){if(any)details.append("\n");details.append(tr("move_disabled"));any=true;}
+        if(move.actions().isEmpty()){if(any)details.append("\n");details.append(tr("empty"));any=true;}
+        var rows=runtime.getList("Rows",10);
+        for(int i=0;i<rows.size();i++){var row=rows.getCompound(i);if(!row.hasUUID("Id")||!row.getUUID("Id").equals(move.config().id()))continue;
+            var problems=row.getList("Problems",10);
+            for(int j=0;j<problems.size();j++){var issue=problems.getCompound(j);if(any)details.append("\n");any=true;
+                var m=issue.hasUUID("Module")?target(issue.getUUID("Module")):null;
+                details.append(Component.translatable("moveset.sablelife.problem_action",issue.getInt("Action"))).append(" · ");
+                if(m!=null)details.append(moduleName(m)).append(" #"+(modules.indexOf(m)+1));else details.append(tr("missing"));
+                String reason=issue.getString("Reason");details.append(" — ").append(reason.equals("trigger")?tr("trigger"):reason.equals("missing")?tr("problem_missing"):reason.equals("unsupported")?tr("problem_unsupported"):Component.translatable("dashboard.sablelife.status_"+reason));
+            }
+        }
+        return any?details:null;
+    }
     private Component moveStatus(MoveSet.Move move){
         if(table==null||!table.enabled())return tr("disabled");if(runtime.hasUUID("Current")&&runtime.getUUID("Current").equals(move.config().id()))return tr("running");
         var rows=runtime.getList("Rows",10);for(int i=0;i<rows.size();i++){var r=rows.getCompound(i);if(r.hasUUID("Id")&&r.getUUID("Id").equals(move.config().id())){if(!r.getString("Status").equals("ready"))return tr(r.getString("Status"));if(r.getInt("Cooldown")>0)return Component.translatable("moveset.sablelife.cooldown_left",seconds(r.getInt("Cooldown")));}}return tr("ready");
@@ -154,7 +175,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
             for(int i=0;i<actionSlots;i++){int n=actionPage*actionSlots+i;if(n>=current.actions().size())break;var a=current.actions().get(n);var target=target(a.module());int pitch=Math.max(3,(ch-5)/actionSlots),y=cy+3+i*pitch,x=cx+(int)(cw*a.start()/(double)length),end=cx+(int)(cw*a.end()/(double)length);g.fill(x,y,Math.max(x+2,end),y+Math.max(2,pitch-2),target==null?0xFF777777:ModuleCategory.of(target.type()).color);}
             if(runtime.hasUUID("Current")&&runtime.getUUID("Current").equals(selected)){int x=cx+(int)(cw*Math.min(1,runtime.getInt("Elapsed")/(double)length));g.fill(x,cy,x+1,cy+ch,0xFFFFFFFF);}
         }
-        text(g,moveStatus(current),leftPos+rightX,topPos+imageHeight-15,rightWidth,0x81DDAE);
+        text(g,moveStatus(current),leftPos+rightX,topPos+imageHeight-15,statusHelp.visible?rightWidth-18:rightWidth,0x81DDAE);
     }
     @Override protected void renderLabels(GuiGraphics g,int x,int y){}
     @Override public void render(GuiGraphics g,int x,int y,float partial){super.render(g,x,y,partial);renderTooltip(g,x,y);}

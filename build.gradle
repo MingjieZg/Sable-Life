@@ -155,14 +155,33 @@ neoForge {
             systemProperty 'sablelife.spherePreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
+        shockwavePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file("runs/shockwave-preview")
+            systemProperty "sablelife.shockwavePreview", "true"
+            systemProperty "sablelife.shockwaveWorldPreview", providers.gradleProperty("shockwaveWorldPreview").getOrElse("false")
+            programArguments.addAll "--width", "1280", "--height", "720"
+        }
         adaptiveDashboardPreview {
             client()
             sourceSet = sourceSets.gameTest
             loadedMods = [mods.sablelife, mods.sablelife_tests]
             gameDirectory = file('runs/adaptive-dashboard-preview')
             systemProperty 'sablelife.adaptiveDashboardPreview', 'true'
+            systemProperty 'sablelife.particleExpandPreview', providers.gradleProperty('particleExpandPreview').getOrElse('false')
+            systemProperty 'sablelife.moduleManagementPreview', providers.gradleProperty('moduleManagementPreview').getOrElse('false')
+            systemProperty 'sablelife.multiOriginPreview', providers.gradleProperty('multiOriginPreview').getOrElse('false')
+            systemProperty 'sablelife.armorWholePreview', providers.gradleProperty('armorWholePreview').getOrElse('false')
+            systemProperty 'sablelife.trailDashboardPreview', providers.gradleProperty('trailDashboardPreview').getOrElse('false')
             systemProperty 'sablelife.gyroPreview', providers.gradleProperty('gyroPreview').getOrElse('false')
             systemProperty 'sablelife.pulseVisualPreview', providers.gradleProperty('pulseVisualPreview').getOrElse('false')
+            systemProperty 'sablelife.shockwaveDashboardPreview', providers.gradleProperty('shockwaveDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.gravityTravelPreview', providers.gradleProperty('gravityTravelPreview').getOrElse('false')
+            systemProperty 'sablelife.projectileAimPreview', providers.gradleProperty('projectileAimPreview').getOrElse('false')
+            systemProperty 'sablelife.linearInputPreview', providers.gradleProperty('linearInputPreview').getOrElse('false')
+            systemProperty 'sablelife.moduleCapacityPreview', providers.gradleProperty('moduleCapacityPreview').getOrElse('false')
             systemProperty 'sablelife.healthModulesPreview', providers.gradleProperty('healthModulesPreview').getOrElse('false')
             systemProperty 'sablelife.hoverAnchorPreview', providers.gradleProperty('hoverAnchorPreview').getOrElse('false')
             systemProperty 'sablelife.internalRedstonePreview', providers.gradleProperty('internalRedstonePreview').getOrElse('false')
@@ -246,6 +265,14 @@ neoForge {
             loadedMods = [mods.sablelife, mods.sablelife_tests]
             gameDirectory = file('runs/core-effects-preview')
             systemProperty 'sablelife.coreEffectsPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        particleColorPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/particle-color-preview')
+            systemProperty 'sablelife.particleColorPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
         defensePreview {

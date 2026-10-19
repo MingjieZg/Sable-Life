@@ -184,11 +184,15 @@ public final class ModuleEvents {
         return dev.sablelife.attack.ContactBox.rotate(new org.joml.Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation()), Vec3.atLowerCornerOf(face.getNormal()));
     }
     public static boolean contact(ServerLevel level, HeartBlockEntity heart, VirtualModule module) {
+        return contactHit(level,heart,module)!=null;
+    }
+    /** Shared contact probe for sound and spatial effects; excludes the creature itself. */
+    public static BlockHitResult contactHit(ServerLevel level,HeartBlockEntity heart,VirtualModule module){
         var start = contactStart(heart, module);
         var hit = level.clip(new ClipContext(start, start.add(contactDirection(heart, module).scale(module.value("contactDistance"))),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, (net.minecraft.world.entity.Entity) null));
         return hit.getType() == HitResult.Type.BLOCK
-                && !heart.creatureId().equals(dev.sablelife.ownership.BodyOwnership.get(level).owner(hit.getBlockPos()));
+                && !heart.creatureId().equals(dev.sablelife.ownership.BodyOwnership.get(level).owner(hit.getBlockPos())) ? hit : null;
     }
     public void hurt(HeartBlockEntity heart) {
         if(heart.isControlCore())return;

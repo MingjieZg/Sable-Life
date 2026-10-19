@@ -8,12 +8,12 @@ import java.util.ArrayList;
 
 /** Persistent authoring settings shared by the dashboard and validated server runtime. */
 public final class VirtualModule {
-    public static final List<String> TYPES = List.of("move_set", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
+    public static final List<String> TYPES = List.of("move_set", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
     /** New-module catalog grouped by sidebar color: signal, weapon, function. */
     public static final List<String> AVAILABLE_TYPES = List.of(
             "move_set", "health_phase", "hit_counter", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation",
             "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse",
-            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
+            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
     private final java.util.Map<String,VirtualModule> movementParticles = new java.util.HashMap<>();
     public VirtualModule movementParticles(String stage) { return movementParticles.get(stage); }
     public static String particleStage(String key){if(key.startsWith("pulse")&&key.endsWith("Particles"))return key.substring(5,key.length()-9);if(key.startsWith("move")&&key.endsWith("Particles"))return key.substring(4,key.length()-9);if(key.startsWith("sphere")&&key.endsWith("Particles"))return key.substring(6,key.length()-9);return null;}
@@ -81,7 +81,7 @@ public final class VirtualModule {
     }
     public boolean hasRedBlue() { return !redBlue.isEmpty(); }
     private CompoundTag lootSamples = new CompoundTag();
-    public boolean coreModule() { return List.of("bgm", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "move_set", "command").contains(type); }
+    public boolean coreModule() { return type.equals("armor")&&value("armorWholeBody")==1||List.of("bgm", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "move_set", "command").contains(type); }
     public boolean area() { return type.equals("melee") || type.equals("particles") && value("particlePattern") == 0; }
     private final List<String> particles = new ArrayList<>();
     public List<String> particles() { return List.copyOf(particles); }
@@ -93,11 +93,15 @@ public final class VirtualModule {
         if (!(type.equals("particles") || type.equals("flame") || type.equals("quake") || type.equals("ground_strike") || type.equals("pull") || type.equals("laser") || type.equals("slash") || List.of("arrow", "gun", "mortar", "homing").contains(type)) || !ModuleParticles.valid(particle)) return false;
         if (!Double.isFinite(value)) return false;
         if (operation.equals("remove")) { particleProperties.remove(particle); return particles.remove(particle); }
+        if(particles.contains(particle)&&operation.equals("color")){
+            if(!ModuleParticles.colorable(particle)||value!=Math.rint(value)||value< -1||value>0xFFFFFF)return false;
+            var old=particleEntry(particle);particleProperties.put(particle,new ModuleParticles.Entry(particle,old.ticks(),old.size(),(int)value));return true;
+        }
         if (particles.contains(particle) && (operation.equals("duration") || operation.equals("size"))) {
             var old = particleEntry(particle);
             particleProperties.put(particle, new ModuleParticles.Entry(particle,
                     operation.equals("duration") ? (int) Math.round((value <= 0 ? 0 : Math.clamp(value, .05, 60)) * 20) : old.ticks(),
-                    operation.equals("size") ? (float) Math.clamp(value, .1, 4) : old.size())); return true;
+                    operation.equals("size") ? (float) Math.clamp(value, .1, 4) : old.size(),old.color())); return true;
         }
         if (!operation.equals("add") || particles.contains(particle) || particles.size() >= ModuleParticles.LIMIT) return false;
         particles.add(particle); return true;
@@ -275,6 +279,7 @@ public final class VirtualModule {
     public boolean edit(String key, double value, String text) {
         if (!known() || !Double.isFinite(value)) return false;
         if(type.equals("health_phase")&&HealthPhaseRules.FIELDS.contains(key)){if(healthPhaseRules.rows().isEmpty())healthPhaseRules.add();return healthPhaseRules.rows().getFirst().edit(key,value);}
+        if(type.equals("armor")&&key.equals("armorWholeBody")&&value!=Math.rint(value))return false;
         if(type.equals("armor")&&List.of("damageModifier","reduction","armorWhen").contains(key))return false;
         if(type.equals("slash")&&List.of("slashRed","slashGreen","slashBlue").contains(key)){edit("slashColorRgb",1,"");key="slashColor"+key.substring(5);}
         switch (key) {

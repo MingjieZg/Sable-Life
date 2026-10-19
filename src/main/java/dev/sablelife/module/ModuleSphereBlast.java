@@ -13,7 +13,7 @@ import java.util.*;
 /** A frozen spherical telegraph, followed by one hit per eligible target. No projectile or travel damage. */
 public final class ModuleSphereBlast {
     public static final double BURST_SPEED=12;
-    private static final class State {long due,fire,lastCharge=Long.MIN_VALUE;Vec3 point;VirtualModule cast;}
+    private static final class State {long due,fire,lastCharge=Long.MIN_VALUE;List<Vec3> points=List.of();VirtualModule cast;}
     private final Map<UUID,State> states=new HashMap<>();
     private ServerLevel level;
     public void clear(){if(level!=null)states.keySet().forEach(id->ModuleAudio.stop(level,id));states.clear();level=null;}
@@ -24,13 +24,13 @@ public final class ModuleSphereBlast {
     public static List<ParticleTravelPacket> chargeParticles(VirtualModule m,Vec3 point,long remaining){
         var entries=m.movementParticles("Charge").particleEntries();if(remaining<=0||entries.isEmpty())return List.of();
         double radius=m.value("blastRadius"),distance=radius;int ticks=Math.max(1,(int)Math.ceil(distance*20/m.value("sphereChargeSpeed")));var result=new ArrayList<ParticleTravelPacket>();
-        for(int i=0;i<96;i++){var entry=entries.get(i%entries.size());var from=shell(point,radius,i,96);var to=point;int life=(int)Math.max(1,Math.min(remaining,entry.ticks()>0?entry.ticks():ticks+1));result.add(new ParticleTravelPacket(entry.id(),from,to,ticks,life,entry.size()));}
+        for(int i=0;i<96;i++){var entry=entries.get(i%entries.size());var from=shell(point,radius,i,96);var to=point;int life=(int)Math.max(1,Math.min(remaining,entry.ticks()>0?entry.ticks():ticks+1));result.add(new ParticleTravelPacket(entry.id(),from,to,ticks,life,entry.size(),entry.color()));}
         return List.copyOf(result);
     }
     /** Both selected stages burst from the gathered center out to the configured sphere boundary. */
     public static List<ParticleTravelPacket> burstParticles(VirtualModule m,Vec3 point){
         var entries=new ArrayList<ModuleParticles.Entry>(m.movementParticles("Charge").particleEntries());entries.addAll(m.movementParticles("Blast").particleEntries());if(entries.isEmpty())return List.of();double radius=m.value("blastRadius");int ticks=Math.max(1,(int)Math.ceil(radius*20/BURST_SPEED));var result=new ArrayList<ParticleTravelPacket>();
-        for(int i=0;i<96;i++){var entry=entries.get(i%entries.size());var to=shell(point,radius,i,96);result.add(new ParticleTravelPacket(entry.id(),point,to,ticks,Math.max(ticks+1,entry.ticks()),entry.size()));}return List.copyOf(result);
+        for(int i=0;i<96;i++){var entry=entries.get(i%entries.size());var to=shell(point,radius,i,96);result.add(new ParticleTravelPacket(entry.id(),point,to,ticks,Math.max(ticks+1,entry.ticks()),entry.size(),entry.color()));}return List.copyOf(result);
     }
     private static void charge(ServerLevel level,VirtualModule m,Vec3 point,long remaining,ServerPlayer viewer){sendTravel(level,chargeParticles(m,point,remaining),point,viewer);}
     private static void sendTravel(ServerLevel level,List<ParticleTravelPacket> packets,Vec3 point,ServerPlayer viewer){
@@ -42,12 +42,12 @@ public final class ModuleSphereBlast {
             if(!m.type().equals("sphere_blast")||!HeartModules.triggered(m,heart))continue;
             keep.add(m.id());var s=states.computeIfAbsent(m.id(),id->new State());
             if(s.cast==null){
-                var point=center(heart,m);if(point==null||now<s.due||!server.hasChunkAt(BlockPos.containing(point))||!heart.modules().hurtTriggers.start(m))continue;
-                s.cast=VirtualModule.load(m.save());s.point=point;s.fire=now+(long)m.value("chargeTime");s.due=now+(long)m.value("interval");ModuleAudio.play(server,s.cast,"chargeSound",s.point);charge(server,s.cast,s.point,s.fire-now,null);s.lastCharge=now;
+                var points=TargetCastOrigin.targeted(m)?TargetCastOrigin.points(heart,m):List.of(center(heart,m));if(points.isEmpty()||now<s.due||points.stream().noneMatch(p->server.hasChunkAt(BlockPos.containing(p)))||!heart.modules().hurtTriggers.start(m))continue;
+                s.cast=VirtualModule.load(m.save());s.points=points.stream().filter(p->server.hasChunkAt(BlockPos.containing(p))).toList();s.fire=now+(long)m.value("chargeTime");s.due=now+(long)m.value("interval");for(var point:s.points){ModuleAudio.play(server,s.cast,"chargeSound",point);charge(server,s.cast,point,s.fire-now,null);}s.lastCharge=now;
             }
-            if(now<s.fire){if(now%5==0&&s.lastCharge!=now){charge(server,s.cast,s.point,s.fire-now,null);s.lastCharge=now;}continue;}
+            if(now<s.fire){if(now%5==0&&s.lastCharge!=now){for(var point:s.points)charge(server,s.cast,point,s.fire-now,null);s.lastCharge=now;}continue;}
             // Never generate or load remote terrain merely to execute an attack.
-            if(server.hasChunkAt(BlockPos.containing(s.point)))detonate(server,heart,s.cast,s.point);
+            for(var point:s.points)if(server.hasChunkAt(BlockPos.containing(point)))detonate(server,heart,s.cast,point);
             s.cast=null;heart.modules().hurtTriggers.completed(m);
         }
         for(var id:List.copyOf(states.keySet()))if(!keep.contains(id)){if(states.get(id).cast!=null)ModuleAudio.stop(server,id);states.remove(id);}
@@ -67,10 +67,11 @@ public final class ModuleSphereBlast {
         ModuleAudio.play(level,m,"blastSound",point);
     }
     public static void preview(ServerPlayer player,HeartBlockEntity heart,VirtualModule m){
-        var level=(ServerLevel)heart.getLevel();var start=start(heart,m);var end=center(heart,m);if(end==null){player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.no_cast_target"),true);return;}var dust=new DustParticleOptions(new org.joml.Vector3f(1,.15F,.15F),1);
-        int count=Math.clamp((int)Math.ceil(start.distanceTo(end)*4),1,256);
+        var level=(ServerLevel)heart.getLevel();var start=start(heart,m);var points=TargetCastOrigin.targeted(m)?TargetCastOrigin.points(heart,m):List.of(center(heart,m));if(points.isEmpty()){player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.no_cast_target"),true);return;}var dust=new DustParticleOptions(new org.joml.Vector3f(1,.15F,.15F),1);
+        for(var end:points){int count=Math.clamp((int)Math.ceil(start.distanceTo(end)*4),1,256);
         for(int i=0;i<=count;i++){var p=start.lerp(end,(double)i/count);level.sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);}
         charge(level,m,end,(long)m.value("chargeTime"),player);
         for(int i=0;i<128;i++){var p=shell(end,m.value("blastRadius"),i,128);level.sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);}
+        }
     }
 }

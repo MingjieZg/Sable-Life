@@ -18,7 +18,7 @@ public final class ModuleDamage {
                 .getHolderOrThrow(key), projectile, null);
     }
     public static boolean hurt(LivingEntity target, DamageSource source, float amount,dev.sablelife.heart.HeartBlockEntity heart,dev.sablelife.module.VirtualModule module){
-        float before=target.getHealth();boolean hit=hurt(target,source,amount);if(hit)heart.modules().hitCounter.record(heart,module.id(),Math.max(0,before-target.getHealth()));return hit;
+        float before=target.getHealth();boolean hit=hurt(target,named(source,heart),amount);if(hit)heart.modules().hitCounter.record(heart,module.id(),Math.max(0,before-target.getHealth()));return hit;
     }
     public static boolean hurt(LivingEntity target, DamageSource source, float amount) {
         int previous = target.invulnerableTime;
@@ -31,12 +31,18 @@ public final class ModuleDamage {
     }
     public static final String ATTACK_NAME="SableLifeAttackName";
     /** Keep native damage type, entities and source position; customize only death attribution. */
-    public static DamageSource named(DamageSource source, dev.sablelife.heart.HeartBlockEntity heart){return named(source,heart.creatureName());}
+    public static DamageSource named(DamageSource source, dev.sablelife.heart.HeartBlockEntity heart){
+        if(source instanceof BodyMeleeSource body)return body.owner(heart.creatureId());
+        return new NamedSource(source,heart.creatureName(),heart.creatureId());
+    }
     public static DamageSource named(DamageSource source,String raw){
-        var killer=dev.sablelife.heart.CreatureNames.killer(raw);
-        return new DamageSource(source.typeHolder(),source.getDirectEntity(),source.getEntity(),source.sourcePositionRaw()){
-            @Override public net.minecraft.network.chat.Component getLocalizedDeathMessage(LivingEntity victim){return deathMessage(victim,killer);}
-        };
+        return new NamedSource(source,raw,source instanceof CreatureAttackSource owner?owner.creatureOwner():null);
+    }
+    private static final class NamedSource extends DamageSource implements CreatureAttackSource {
+        private final java.util.UUID owner;private final net.minecraft.network.chat.Component killer;
+        private NamedSource(DamageSource source,String name,java.util.UUID owner){super(source.typeHolder(),source.getDirectEntity(),source.getEntity(),source.sourcePositionRaw());this.owner=owner;killer=dev.sablelife.heart.CreatureNames.killer(name);}
+        @Override public java.util.UUID creatureOwner(){return owner;}
+        @Override public net.minecraft.network.chat.Component getLocalizedDeathMessage(LivingEntity victim){return deathMessage(victim,killer);}
     }
     public static net.minecraft.network.chat.Component deathMessage(LivingEntity victim,net.minecraft.network.chat.Component killer){
         return net.minecraft.network.chat.Component.translatable("death.attack.sablelife.creature",victim.getDisplayName(),killer.copy());

@@ -18,7 +18,7 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
             ENABLED_ROWS = INPUT + PAGE_SIZE, RECEIVE = ENABLED_ROWS + PAGE_SIZE, MASTER = RECEIVE + PAGE_SIZE,
             CLOCK_LOW = MASTER + 1, CLOCK_HIGH = MASTER + 2, SELECTED = MASTER + 3, EDITABLE = MASTER + 4,
             ALIVE = MASTER + 5, COUNT = MASTER + 6, PAGE = MASTER + 7, SELECTED_INPUT = MASTER + 8,
-            CHANNEL_LIMIT = MASTER + 9, ROWS = MASTER + 10, DATA_COUNT = MASTER + 11;
+            CHANNEL_LIMIT = MASTER + 9, ROWS = MASTER + 10, LATCH = MASTER + 11, LATCH_RESET = MASTER + 12, DATA_COUNT = MASTER + 13;
     private final HeartBlockEntity heart;
     private final Player viewer;
     private int selected, page, rowCount = DEFAULT_ROWS;
@@ -42,6 +42,8 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
                 if (index < RECEIVE) return index - ENABLED_ROWS < rowCount ? heart.wireless().channel(page * rowCount + index - ENABLED_ROWS).value(0) : 0;
                 if (index < MASTER) return index - RECEIVE < rowCount ? heart.wireless().channel(page * rowCount + index - RECEIVE).value(6) : 0;
                 return switch (index) {
+                    case LATCH -> heart.wireless().channel(selected).value(7);
+                    case LATCH_RESET -> heart.wireless().channel(selected).value(8);
                     case COUNT -> heart.wireless().size();
                     case ROWS -> rowCount;
                     case CHANNEL_LIMIT -> heart.wireless().limit();
@@ -102,7 +104,7 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
     public int rowPower(int row) { return value((value(RECEIVE + row) == 1 ? INPUT : OUTPUT) + row); }
     public long elapsed() { return (value(CLOCK_LOW) & 0xffffL) | ((value(CLOCK_HIGH) & 0xffffL) << 16); }
     public int setting(int channel, int field) {
-        if (channel == selected()) return value(field);
+        if (channel == selected()) return value(field==7?LATCH:field==8?LATCH_RESET:field) & (field==8?0xffff:-1);
         int row = channel - page() * pageSize();
         if (row < 0 || row >= pageSize()) return 0;
         return field == 0 ? value(ENABLED_ROWS + row) : field == 6 ? value(RECEIVE + row) : 0;
@@ -161,7 +163,11 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
         if (heart.wireless().size() == 0 && field != 7) return false;
         channel = selected;
         if (field == 7) heart.wireless().master(raw != 0);
-        else if (!heart.wireless().channel(channel).set(field == 9 ? 6 : field, raw)) return false;
+        else {
+            if(field==16&&(raw>heart.wireless().size()||raw==selected+1))return false;
+            if((field==15||field==16)&&heart.wireless().channel(channel).receiving())return false;
+            if (!heart.wireless().channel(channel).set(field==15?7:field==16?8:field == 9 ? 6 : field, raw)) return false;
+        }
         heart.wireless().configurationChanged(); heart.setChanged(); broadcastChanges(); return true;
     }
     @Override public void clicked(int slot, int button, ClickType type, Player player) {

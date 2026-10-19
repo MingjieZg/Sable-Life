@@ -52,6 +52,9 @@ public final class ModuleQuake {
         double r = m.value("quakeRange") + m.value("quakeWidth");
         return ModuleTargets.query(level, heart.creatureId(), new AABB(origin, origin).inflate(r, 64, r), e -> eligible(e, m));
     }
+    private static Vec3 targetFloor(ServerLevel level,HeartBlockEntity heart,LivingEntity target) {
+        return ModuleGroundStrike.floor(level,heart,target.position(),target instanceof ModuleTargets.LifeTarget?target.getUUID():null);
+    }
     public static List<LivingEntity> detectTargets(ServerLevel level, HeartBlockEntity heart, VirtualModule m, Vec3 origin) {
         double radius = m.value("quakeDetectRange");
         return ModuleTargets.query(level, heart.creatureId(), new AABB(origin, origin).inflate(radius), e -> eligible(e, m))
@@ -97,7 +100,7 @@ public final class ModuleQuake {
         List<Vec3> centers = List.of(origin);
         if (module.value("quakeOrigin") == 1) {
             centers = detectTargets(level, heart, module, origin).stream()
-                    .map(e -> ModuleGroundStrike.floor(level, heart, e.position())).filter(Objects::nonNull)
+                    .map(e -> targetFloor(level, heart, e)).filter(Objects::nonNull)
                     .distinct().limit(module.value("targetMultiple") == 1 ? 64 : 1).toList();
             if (centers.isEmpty()) return false;
         }
@@ -109,12 +112,18 @@ public final class ModuleQuake {
         s.hit.clear(); s.columns.clear(); s.sounding = false;
         s.areas = centers.stream().map(point -> new Area(point,
                 targets(level, heart, module, point).stream().filter(e -> path(module, s.direction, e.position().subtract(point), 0, module.value("quakeRange")))
-                .limit(64).map(e -> ModuleGroundStrike.floor(level, heart, e.position())).filter(Objects::nonNull).toList())).toList();
+                .limit(64).map(e -> targetFloor(level, heart, e)).filter(Objects::nonNull).toList())).toList();
         ModuleAudio.play(level,module,"warningSound",origin);
         return true;
     }
     private void visual(HeartBlockEntity heart, State s, int wave, Vec3 point) {
-        var floor = ModuleGroundStrike.floor(level, heart, point); if (floor == null) return;
+        var floor = ModuleGroundStrike.floor(level, heart, point); if (floor != null) visualAtFloor(s,wave,floor,true);
+    }
+    private boolean liftable(Vec3 floor){
+        var block=level.getBlockState(BlockPos.containing(floor.add(0,-.1,0)));
+        return !block.isAir()&&!block.hasBlockEntity()&&block.getFluidState().isEmpty()&&block.getRenderShape()==net.minecraft.world.level.block.RenderShape.MODEL;
+    }
+    private void visualAtFloor(State s,int wave,Vec3 floor,boolean lift){
         var blockPos = BlockPos.containing(floor.add(0, -.1, 0));
         if (!s.columns.add(wave + ":" + blockPos.asLong())) return;
         var m = s.cast; dot(level, null, color(m), floor);
@@ -123,7 +132,7 @@ public final class ModuleQuake {
             if (particle != null) ModuleParticles.send(level, particle, floor.x, floor.y + .2, floor.z, 1, .15, .1, .15, .03);
         }
         var block = level.getBlockState(blockPos);
-        if (m.value("quakeRise") <= 0 || states.values().stream().mapToInt(state -> state.visuals.size()).sum() >= MAX_VISUALS || block.isAir() || block.hasBlockEntity()
+        if (!lift || m.value("quakeRise") <= 0 || states.values().stream().mapToInt(state -> state.visuals.size()).sum() >= MAX_VISUALS || block.isAir() || block.hasBlockEntity()
                 || !block.getFluidState().isEmpty() || block.getRenderShape() != net.minecraft.world.level.block.RenderShape.MODEL) return;
         var display = new QuakeGroundBlock(level, blockPos, block, m.value("quakeRise"));
         if (level.addFreshEntity(display)) s.visuals.add(display);
@@ -140,7 +149,7 @@ public final class ModuleQuake {
             if (hits.contains(victim.getUUID())) continue;
             var delta = victim.position().subtract(s.origin);
             if (!path(m, s.direction, delta, previous, current)) continue;
-            var floor = ModuleGroundStrike.floor(level, heart, victim.position());
+            var floor = targetFloor(level, heart, victim);
             if (floor == null || Math.abs(victim.getY() - floor.y) > m.value("quakeReach")) continue;
             // Teleported or modded entities can stand on a collision surface before onGround updates.
             // Rising motion is excluded so the very first tick of a jump already evades the wave.
@@ -149,9 +158,8 @@ public final class ModuleQuake {
             hits.add(victim.getUUID());
             if (m.value("damage") > 0) ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"),heart,m);
             var outward = m.value("quakeMode") != 0 ? new Vec3(delta.x, 0, delta.z).normalize() : s.direction;
-            victim.push(outward.x * m.value("quakePush"), 0, outward.z * m.value("quakePush"));
             var velocity = victim.getDeltaMovement();
-            victim.setDeltaMovement(velocity.x, Math.max(velocity.y, QuakeGeometry.launchSpeed(m.value("quakeLaunch"))), velocity.z);
+            ModuleTargets.attackPush(victim,new Vec3(outward.x*m.value("quakePush"),Math.max(0,QuakeGeometry.launchSpeed(m.value("quakeLaunch"))-velocity.y),outward.z*m.value("quakePush")));
             victim.hurtMarked = true;
         }
         if (m.value("quakeMode") == 2) {
@@ -160,11 +168,21 @@ public final class ModuleQuake {
             for (double x = -range; x <= range; x += spacing) for (double z = -range; z <= range; z += spacing)
                 if (x*x + z*z <= range*range) visual(heart, s, wave, s.origin.add(x, 0, z));
         } else if (m.value("quakeMode") != 0) {
-            int samples = Math.clamp((int) Math.ceil(Math.PI * 2 * current), 8, 64);
-            for (int i = 0; i < samples; i++) {
-                double angle = Math.PI * 2 * i / samples;
-                visual(heart, s, wave, s.origin.add(Math.cos(angle) * current, 0, Math.sin(angle) * current));
+            // Prepare the entire circumference before assigning the remaining display budget.
+            // Sequential spawning used to exhaust the cap halfway around a ring.
+            int samples=QuakeGeometry.ringSamples(current);
+            var floors=new LinkedHashMap<Long,Vec3>();
+            for(int i=0;i<samples;i++){
+                double angle=Math.PI*2*(i+.5)/samples;
+                var floor=ModuleGroundStrike.floor(level,heart,s.origin.add(Math.cos(angle)*current,0,Math.sin(angle)*current));
+                if(floor==null)continue;long key=BlockPos.containing(floor.add(0,-.1,0)).asLong();
+                if(!s.columns.contains(wave+":"+key))floors.putIfAbsent(key,floor);
             }
+            var points=new ArrayList<>(floors.values());var candidates=new ArrayList<Integer>();
+            if(m.value("quakeRise")>0)for(int i=0;i<points.size();i++)if(liftable(points.get(i)))candidates.add(i);
+            int remaining=Math.max(0,MAX_VISUALS-states.values().stream().mapToInt(state->state.visuals.size()).sum());
+            var chosen=new HashSet<Integer>();for(int index:QuakeGeometry.evenSamples(candidates.size(),remaining))chosen.add(candidates.get(index));
+            for(int i=0;i<points.size();i++)visualAtFloor(s,wave,points.get(i),chosen.contains(i));
         } else {
             var side = new Vec3(-s.direction.z, 0, s.direction.x);
             int samples = Math.max(1, (int) Math.ceil(m.value("quakeWidth")));

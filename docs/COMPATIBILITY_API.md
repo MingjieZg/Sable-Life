@@ -1,3 +1,7 @@
+# 待最终验收：附属 Mod 统一伤害接口（2026-10-19）
+
+用户要求最终交付明确的公共伤害桥接接口及接入说明，供其他作者开发附属。规范入口、命中资料/坐标、归属、攻击窗口去重、结构化结果与统一伤害结算责任；附属不直接改核心血量。必须提供可编译示例与接口级验证，区分已支持/未支持能力。详见 [最终验收要求](FINAL_ACCEPTANCE_DAMAGE_API.md)。现有 COMPATIBILITY_API.md 中的实验接口不等于最终稳定契约；本次仅记录，不改代码、Jar或稳定状态。
+
 # 0.1.205 circular region and native area adapters
 
 `BodySphereQuery.queryRegion(level, center, visibilityOrigin, radius, limit)` intersects a real collision sphere with an exact AttackVolume limit for native circular area height/box rules. It shares loaded-chunk checks and collision budgets, rejects invalid geometry, and returns at most one candidate per creature.

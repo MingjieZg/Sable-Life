@@ -13,8 +13,8 @@ public final class SlashVisualClient {
   int samples=Math.clamp((int)Math.ceil(length/.12),12,64);
   for(int i=0;i<=samples;i++)for(int band=0;band<3;band++){
    double t=2.*i/samples-1;var offset=right.scale(t*length/2).add(forward.scale(-width*t*t-width*.28*(1-t*t)*band));var a=p.from().add(offset);var b=p.to().add(offset);
-   var entry=entries.isEmpty()?null:entries.get((i*3+band)%entries.size());var type=p.custom()?ModuleParticles.type(entry.id()):dust;
-   var particle=mc.particleEngine.createParticle(type,a.x,a.y,a.z,0,0,0);if(particle!=null){particle.scale(p.custom()?entry.size():1);((ParticleTravel)particle).sablelife$travel(a,b,1,p.custom()&&entry.ticks()>0?entry.ticks():2);}
+   var entry=entries.isEmpty()?null:entries.get((i*3+band)%entries.size());var type=p.custom()?ModuleParticles.options(entry):dust;
+   var particle=mc.particleEngine.createParticle(type,a.x,a.y,a.z,0,0,0);if(particle!=null){if(p.custom())ParticleVisualClient.color(particle,entry);particle.scale(p.custom()?entry.size():1);((ParticleTravel)particle).sablelife$travel(a,b,1,p.custom()&&entry.ticks()>0?entry.ticks():2);}
   }
  }
  private SlashVisualClient(){}

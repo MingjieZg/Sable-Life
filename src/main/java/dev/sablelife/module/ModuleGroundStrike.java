@@ -40,14 +40,23 @@ public final class ModuleGroundStrike {
         return ModuleTargets.matches(entity,module);
     }
     static Vec3 floor(ServerLevel level, HeartBlockEntity heart, Vec3 point) {
+        return floor(level, heart, point, null);
+    }
+    /** A life target's own voxels are not the terrain supporting its feet. */
+    static Vec3 floor(ServerLevel level, HeartBlockEntity heart, Vec3 point, UUID target) {
         var start = point.add(0, 4, 0); var end = point.add(0, -64, 0);
         for (int i = 0; i < 64; i++) {
             if (!level.hasChunkAt(net.minecraft.core.BlockPos.containing(start))) return null;
             var hit = level.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, (net.minecraft.world.entity.Entity) null));
             if (hit.getType() != HitResult.Type.BLOCK) return null;
             var position = SableBodyProbe.toWorld(level, hit.getLocation());
-            if (!heart.creatureId().equals(dev.sablelife.ownership.BodyOwnership.get(level).owner(hit.getBlockPos()))) return position.add(0, .06, 0);
-            start = position.add(0, -1.01, 0); if (start.y <= end.y) return null;
+            var owner=dev.sablelife.ownership.BodyOwnership.get(level).owner(hit.getBlockPos());
+            if (!heart.creatureId().equals(owner) && (target==null || !target.equals(owner))) return position.add(0, .06, 0);
+            var body=dev.ryanhcode.sable.Sable.HELPER.getContaining(level,hit.getBlockPos());
+            var rotation=body==null?new org.joml.Quaterniond():new org.joml.Quaterniond(body.logicalPose().orientation());
+            var next=dev.sablelife.sense.SensorGeometry.leaveVoxel(position,SableBodyProbe.toWorld(level,hit.getBlockPos().getCenter()),new Vec3(0,-1,0),rotation);
+            if(next.y>=start.y-.001 || next.y<=end.y)return null;
+            start=next;
         }
         return null;
     }

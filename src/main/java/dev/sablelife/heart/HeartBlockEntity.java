@@ -43,12 +43,17 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     private boolean allowBreaking;
     private boolean allowExplosion;
     private boolean allowLifeAttacks = true;
+    private double knockbackResistance;
+    public double knockbackResistance(){return knockbackResistance;}
+    private boolean killHeal;
+    public boolean killHeal(){return killHeal;}
+    public boolean healFromPlayerKill(){return killHeal&&!isControlCore()&&health.state()==HeartState.ALIVE&&operational()&&adjustOwnHealth(health.maximum(),false);}
     private boolean allowSurvivalInteraction;
     public boolean allowSurvivalInteraction(){return allowSurvivalInteraction;}
     private final AdaptiveDefense adaptiveDefense=new AdaptiveDefense();
     public AdaptiveDefense adaptiveDefense(){return adaptiveDefense;}
     private CompoundTag defenseConfiguration(){var tag=new CompoundTag();tag.putBoolean("Enabled",adaptiveDefense.enabled());tag.putDouble("Threshold",adaptiveDefense.threshold());tag.putDouble("Maximum",adaptiveDefense.maximum());tag.putInt("Window",adaptiveDefense.window());return tag;}
-    private void loadDefense(CompoundTag parent){var tag=parent.getCompound("AdaptiveDefense");double threshold=tag.contains("Threshold")?tag.getDouble("Threshold"):100,maximum=tag.contains("Maximum")?tag.getDouble("Maximum"):80;int window=tag.contains("Window")?tag.getInt("Window"):20;
+    private void loadDefense(CompoundTag parent){double resistance=parent.getDouble("KnockbackResistance");knockbackResistance=Double.isFinite(resistance)?Math.clamp(resistance,0,100):0;var tag=parent.getCompound("AdaptiveDefense");double threshold=tag.contains("Threshold")?tag.getDouble("Threshold"):100,maximum=tag.contains("Maximum")?tag.getDouble("Maximum"):80;int window=tag.contains("Window")?tag.getInt("Window"):20;
         if(!adaptiveDefense.configure(tag.getBoolean("Enabled"),threshold,maximum,window))adaptiveDefense.configure(false,100,80,20);adaptiveDefense.reset();}
     private float regenPerSecond;
     private double regenPercentPerSecond;
@@ -176,7 +181,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     public CompoundTag copyConfiguration() {
         var saved = saveWithoutMetadata(level.registryAccess()); var result = new CompoundTag();
         result.putInt("Version", 1);
-        for (String key : java.util.List.of("MaxHealth", "DeathDelay", "RegenPerSecond", "RegenPercentPerSecond", "RegenDelay", "AdaptiveDefense", "VoidDeathHeight", "ForceChunkLoading", "AllowBreaking", "AllowExplosion", "AllowLifeAttacks", "AllowSurvivalInteraction", "DeathChances", "DeathWeights", "DeathWeighted", "DeathRolls", "ShowBossBar", "BossBarColor", "CreatureName", "DeathLoot", "DeathExperience", "DeathExperienceLevels", "DeathTemplateMode", "DeathTemplates", "Wireless"))
+        for (String key : java.util.List.of("MaxHealth", "DeathDelay", "RegenPerSecond", "RegenPercentPerSecond", "RegenDelay", "AdaptiveDefense", "KnockbackResistance", "VoidDeathHeight", "ForceChunkLoading", "AllowBreaking", "AllowExplosion", "AllowLifeAttacks", "AllowSurvivalInteraction", "KillHeal", "DeathChances", "DeathWeights", "DeathWeighted", "DeathRolls", "ShowBossBar", "BossBarColor", "CreatureName", "DeathLoot", "DeathExperience", "DeathExperienceLevels", "DeathTemplateMode", "DeathTemplates", "Wireless"))
             if (saved.contains(key)) result.put(key, saved.get(key).copy());
         result.getCompound("Wireless").putLong("Elapsed", 0);
         result.put("DeathPresentation", deathPresentation.save());
@@ -219,7 +224,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         health = new HeartHealth(maximum, Math.clamp(data.getInt("DeathDelay"), 0, HeartHealth.MAX_DEATH_DELAY));
         combatMusicHits = 0;
         loadRegen(data); loadDefense(data); regenWait=regenDelay; regenProgress=0;
-        allowSurvivalInteraction=data.getBoolean("AllowSurvivalInteraction");
+        allowSurvivalInteraction=data.getBoolean("AllowSurvivalInteraction");killHeal=data.getBoolean("KillHeal");
         allowLifeAttacks = !data.contains("AllowLifeAttacks") || data.getBoolean("AllowLifeAttacks"); loadDeathRules(data);
         creatureName = name; loadVoidDeathHeight(data); forceChunkLoading=data.getBoolean("ForceChunkLoading"); allowBreaking = data.getBoolean("AllowBreaking"); allowExplosion = data.getBoolean("AllowExplosion"); showBossBar = data.getBoolean("ShowBossBar");loadBossBarColor(data);
         deathLoot = loot == null ? ResourceLocation.withDefaultNamespace("empty") : loot;
@@ -250,6 +255,10 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             if(!canEditChunkLoading(player)||(value!=0&&value!=1))return false;
             forceChunkLoading=value==1;LifeLifecycle.get(((ServerLevel)level).getServer()).deathLoading(creatureId,forceChunkLoading);if(!forceChunkLoading)dev.sablelife.ownership.CoreChunkLoading.release(this);else dev.sablelife.ownership.CoreChunkLoading.observe(this);changed();return true;
         }
+        if(key.equals("killHeal")){
+            if(isControlCore()||!canToggleBreaking(player)||(value!=0&&value!=1))return false;
+            killHeal=value==1;changed();return true;
+        }
         if(key.equals("survivalInteraction")){
             if(!canToggleBreaking(player)||(value!=0&&value!=1))return false;
             allowSurvivalInteraction=value==1;
@@ -261,6 +270,9 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             String name = text.trim();
             if (name.codePointCount(0, name.length()) > 64 || name.codePoints().anyMatch(Character::isISOControl)) return false;
             creatureName = name;
+        } else if(key.equals("knockbackResistance")){
+            if(!canToggleBreaking(player)||!Double.isFinite(value)||value<0||value>100)return false;
+            knockbackResistance=value;
         } else if(key.startsWith("defense")) {
             if(!canToggleBreaking(player)||!Double.isFinite(value))return false;
             boolean enabled=adaptiveDefense.enabled();double threshold=adaptiveDefense.threshold(),maximum=adaptiveDefense.maximum();int window=adaptiveDefense.window();
@@ -624,9 +636,9 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         tag.putFloat("Health", health.current());
         tag.putInt("DeathDelay", health.deathDelay());
         tag.putDouble("RegenPercentPerSecond",regenPercentPerSecond);tag.putFloat("RegenPerSecond",regenPerSecond); tag.putInt("RegenDelay",regenDelay);
-        tag.put("AdaptiveDefense",defenseConfiguration());tag.putInt("RegenWait",regenWait); tag.putInt("RegenProgress",regenProgress);
+        tag.putDouble("KnockbackResistance",knockbackResistance);tag.put("AdaptiveDefense",defenseConfiguration());tag.putInt("RegenWait",regenWait); tag.putInt("RegenProgress",regenProgress);
         tag.putInt("RemainingDeathTicks", health.remainingDeathTicks());
-        tag.putBoolean("AllowLifeAttacks",allowLifeAttacks);tag.putBoolean("AllowSurvivalInteraction",allowSurvivalInteraction);
+        tag.putBoolean("AllowLifeAttacks",allowLifeAttacks);tag.putBoolean("AllowSurvivalInteraction",allowSurvivalInteraction);tag.putBoolean("KillHeal",killHeal);
         tag.putIntArray("DeathChances",deathChances); tag.putIntArray("DeathWeights",deathWeights); tag.putBoolean("DeathWeighted",deathWeighted); tag.putInt("DeathRolls",deathRolls);
         if(customVoidDeathHeight!=null)tag.putInt("VoidDeathHeight",customVoidDeathHeight);
         tag.putBoolean("ForceChunkLoading",forceChunkLoading);
@@ -670,7 +682,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         forceChunkLoading=tag.getBoolean("ForceChunkLoading");
         allowBreaking = tag.contains("AllowBreaking") && tag.getBoolean("AllowBreaking");
         allowExplosion = tag.getBoolean("AllowExplosion");
-        allowSurvivalInteraction=tag.getBoolean("AllowSurvivalInteraction");
+        allowSurvivalInteraction=tag.getBoolean("AllowSurvivalInteraction");killHeal=tag.getBoolean("KillHeal");
         allowLifeAttacks = !tag.contains("AllowLifeAttacks") || tag.getBoolean("AllowLifeAttacks"); loadDeathRules(tag);
         showBossBar = tag.getBoolean("ShowBossBar");loadBossBarColor(tag);
         creatureName = tag.getString("CreatureName");

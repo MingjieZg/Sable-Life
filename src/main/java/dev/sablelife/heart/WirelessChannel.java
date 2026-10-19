@@ -20,6 +20,8 @@ public final class WirelessChannel {
         name = value.trim(); return true;
     }
     private int mode;
+    private boolean latch;
+    private int resetChannel;
     public boolean receiving() { return mode == 1; }
     public boolean programmed() { return mode >= 3; }
     public boolean transmitting() { return mode == 2 || mode == 4; }
@@ -28,7 +30,7 @@ public final class WirelessChannel {
     public ItemStack second() { return second.copy(); }
     public int value(int field) {
         return switch (field) { case 0 -> enabled ? 1 : 0; case 1 -> delay; case 2 -> on;
-            case 3 -> off; case 4 -> strength; case 5 -> loop ? 1 : 0; case 6 -> mode; default -> 0; };
+            case 3 -> off; case 4 -> strength; case 5 -> loop ? 1 : 0; case 6 -> mode; case 7 -> latch ? 1 : 0; case 8 -> resetChannel; default -> 0; };
     }
     public boolean set(int field, int value) {
         switch (field) {
@@ -39,6 +41,8 @@ public final class WirelessChannel {
             case 4 -> strength = Math.clamp(value, 1, 15);
             case 5 -> loop = value != 0;
             case 6 -> mode = Math.clamp(value, 0, 4);
+            case 7 -> latch = value != 0;
+            case 8 -> resetChannel = Math.clamp(value,0,HeartWireless.CHANNELS);
             default -> { return false; }
         }
         changed.run(); return true;
@@ -59,6 +63,7 @@ public final class WirelessChannel {
         if (!name.isEmpty()) tag.putString("Name", name);
         if (!first.isEmpty()) tag.put("First", first.save(registries));
         if (!second.isEmpty()) tag.put("Second", second.save(registries));
+        tag.putBoolean("Latch",latch); tag.putInt("LatchReset",resetChannel);
         tag.putBoolean("Enabled", enabled); tag.putBoolean("Loop", loop);
         tag.putBoolean("Receiving", receiving()); tag.putInt("Mode", mode);
         tag.putInt("Delay", delay); tag.putInt("On", on); tag.putInt("Off", off); tag.putInt("Strength", strength);
@@ -77,6 +82,7 @@ public final class WirelessChannel {
         channel.set(4, tag.contains("Strength") ? tag.getInt("Strength") : 15);
         channel.set(5, !tag.contains("Loop") || tag.getBoolean("Loop") ? 1 : 0);
         channel.set(6, tag.contains("Mode") ? tag.getInt("Mode") : tag.getBoolean("Receiving") ? 1 : 2);
+        channel.set(7,tag.getBoolean("Latch")?1:0); channel.set(8,tag.getInt("LatchReset"));
         return channel;
     }
 }

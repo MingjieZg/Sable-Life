@@ -24,7 +24,9 @@ public final class MarkingSessions {
     private record Preview(HeartBlockEntity heart, UUID module, long expires) {}
     private static final Map<UUID, Preview> previews = new HashMap<>();
     public static void showPreview(ServerPlayer player, HeartBlockEntity heart, VirtualModule module) {
+        if(module.type().equals("visual_shockwave"))ModuleShockwave.preview(player,heart,module);
         previews.put(player.getUUID(), new Preview(heart, module.id(), player.level().getGameTime() + 100));
+        if(module.type().equals("visual_shockwave"))previewModule(player,heart,module);
         player.closeContainer();
     }
     public static boolean start(Player player, HeartBlockEntity heart, VirtualModule module) {
@@ -93,7 +95,7 @@ public final class MarkingSessions {
             if (hit.getType() != HitResult.Type.BLOCK || !hit.getBlockPos().equals(pos)) return;
         }
         // Reach/occlusion was checked above. A ray to the block center is not the clicked face.
-        select(player, pos, List.of("wireless_redstone", "particles", "melee").contains(module.type()) ? event.getFace() : hit.getDirection());
+        select(player, pos, List.of("wireless_redstone", "particles", "melee", "distortion_trail").contains(module.type()) ? event.getFace() : hit.getDirection());
     }
     /** Call only after a server-authoritative reach/shape ray; package API also supports integration tests. */
     public static boolean select(Player player, BlockPos pos, Direction face) {
@@ -148,6 +150,7 @@ public final class MarkingSessions {
                 player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + (module.type().equals("arena") ? "arena_point" : List.of("auto_facing","signal_turn").contains(module.type()) ? "auto_facing_point" : module.type().equals("navigation") ? "navigation_point" : module.area()
                         ? session.points.isEmpty() ? "first" : "second" : "point")), true);
                 preview(player, session.heart, session.points);
+                if(module.type().equals("visual_shockwave")&&session.points.isEmpty())previewModule(player,session.heart,module);
             }
         }
     }
@@ -171,6 +174,19 @@ public final class MarkingSessions {
         }
     }
     private static void previewModule(ServerPlayer player, HeartBlockEntity heart, VirtualModule module) {
+        if(module.type().equals("distortion_trail")){ModuleDistortionTrail.preview(player,heart,module);return;}
+        if(module.type().equals("visual_shockwave")){
+            if(!List.of("valid","disabled").contains(HeartModules.status(module,heart)))return;
+            var anchor=module.anchors().getFirst();
+            preview(player,heart,List.of(anchor,anchor));
+            if(module.value("shockContact")==1){
+                var start=ModuleEvents.contactStart(heart,module);
+                var end=start.add(ModuleEvents.contactDirection(heart,module).scale(module.value("contactDistance")));
+                var level=(ServerLevel)player.level();
+                for(int i=0;i<=20;i++)particle(level,player,start.lerp(end,i/20.));
+            }
+            return;
+        }
         if (module.type().equals("gyroscope") && List.of("valid","disabled").contains(HeartModules.status(module,heart))) { preview(player,heart,List.of(module.anchors().getFirst(),module.anchors().getFirst())); ModuleGyroscope.preview(player,heart,module); return; }
         if (List.of("wireless_redstone", "sensor").contains(module.type()) && HeartModules.status(module, heart).equals("valid")) {
             var anchor = module.anchors().getFirst(); var body = anchor.body(heart);
@@ -239,11 +255,18 @@ public final class MarkingSessions {
             }
             return;
         }
+        if(module.type().equals("pulse")&&TargetCastOrigin.targeted(module)){
+            var centers=TargetCastOrigin.points(heart,module);if(centers.isEmpty()){player.displayClientMessage(Component.translatable("dashboard.sablelife.no_cast_target"),true);return;}
+            for(var center:centers)for(int plane=0;plane<3;plane++)for(int i=0;i<48;i++){
+                double angle=Math.PI*2*i/48,a=Math.cos(angle)*module.value("radius"),b=Math.sin(angle)*module.value("radius");
+                particle(player.serverLevel(),player,center.add(switch(plane){case 0->new Vec3(a,b,0);case 1->new Vec3(a,0,b);default->new Vec3(0,a,b);}));
+            }return;
+        }
         if (module.anchors().isEmpty() || !module.anchors().getFirst().status(heart).equals("valid")) return;
         var level = (ServerLevel) player.level();
         if (module.type().equals("melee")) {
             var anchor = module.anchors().getFirst(); var body = anchor.body(heart); var geometry=MeleeGeometry.frame(heart,module);var center=geometry.center();
-            var size = ModuleCombat.halfSize(heart, module); double[] half = {size.x, size.y, size.z};
+            var size = geometry.half(); double[] half = {size.x, size.y, size.z};
             for (int axis = 0; axis < 3; axis++) for (int a : new int[]{-1, 1}) for (int b : new int[]{-1, 1}) for (int step = 0; step <= 20; step++) {
                 double[] delta = new double[3]; delta[axis] = -half[axis] + 2 * half[axis] * step / 20.;
                 delta[(axis + 1) % 3] = a * half[(axis + 1) % 3]; delta[(axis + 2) % 3] = b * half[(axis + 2) % 3];
@@ -324,7 +347,9 @@ public final class MarkingSessions {
                 dev.sablelife.attack.ShotTrajectory.ring(level, player, flight.landing(), module.value("blastRadius"), dev.sablelife.module.ModuleColors.packed(module,"mortarWarningColor"));
             }
         } else if (module.type().equals("flame") || module.type().equals("arrow") || module.type().equals("gun")) {
-            var start = ModuleCombat.nozzle(heart, module); var direction = ModuleCombat.direction(heart, module);
+            var start = ModuleCombat.nozzle(heart, module);
+            var directions=module.type().equals("flame")?List.of(ModuleCombat.direction(heart,module)):ProjectileAim.directions(heart,module,start);
+            for(var direction:directions) {
             double range = module.type().equals("flame") ? module.value("range") : module.type().equals("gun") ? module.value("range") : 8;
             double width = module.type().equals("flame") ? module.value("width") : module.value("endRadius") * range / 8;
             if(module.type().equals("flame"))PacketDistributor.sendToPlayer(player,new ModuleNetworking.FlameJet(start,direction,module.value("flameSpeed"),range,width,0,1F,module.id().getLeastSignificantBits()^level.getGameTime(),module.particleEntries()));
@@ -333,6 +358,7 @@ public final class MarkingSessions {
             for (int ring = 1; ring <= 3; ring++) for (int i = 0; i < 32; i++) {
                 double angle = Math.PI * 2 * i / 32, t = ring / 3.;
                 particle(level, player, start.add(direction.scale(range * t)).add(side.scale(width * t * Math.cos(angle))).add(up.scale(width * t * Math.sin(angle))));
+            }
             }
         } else preview(player, heart, module.anchors());
     }

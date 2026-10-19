@@ -26,6 +26,9 @@ public final class ModuleHoverAnchor {
     private Settings settings;
     public boolean active(){return joint!=null;}
     public boolean active(UUID id){return joint!=null && id.equals(moduleId);}
+    public boolean locksRotation(){return active() && settings!=null && settings.rotation;}
+    /** Rotate around the marked point's current position, preserving elastic/free-axis displacement. */
+    public Vec3 rotationPivot(HeartBlockEntity heart){return active() && anchor!=null?anchor.world(heart,false):null;}
     private void removeJoint(){
         // Shutdown destroys the entire physics scene; do not call a retired native scene.
         if(joint!=null && level!=null && level.getServer().isRunning() && joint.isValid()) joint.remove();

@@ -34,5 +34,13 @@ public final class ParticleTravelClientCheck {
         for(int i=1;i<=4;i++){tick.invoke(mc.particleEngine,jet);if(jet.position().distanceTo(new Vec3(Math.min(8,.5+2*i),0,0))>1e-9)throw new AssertionError("Native particle did not retain flame jet speed/range");}
         if(jet.isAlive())throw new AssertionError("Jet remained alive past range");
         System.out.println("Particle engine: 8-block forward/reverse travel and native-particle isolation passed");
+        var pull=new dev.sablelife.module.VirtualModule("pull");pull.edit("pullRadius",32,"");
+        for(var packet:dev.sablelife.module.PullVisual.particles(pull,new Vec3(3,4,5),new Vec3(3,4,5),60,0)){
+            var particle=new NativeParticle(packet.from());((ParticleTravel)(Object)particle).sablelife$travel(packet.from(),packet.to(),packet.ticks(),packet.life());
+            double previous=packet.from().distanceTo(packet.to());
+            for(int n=1;n<=packet.ticks();n++){tick.invoke(mc.particleEngine,particle);double distance=particle.position().distanceTo(packet.to());if(distance>previous+1e-8)throw new AssertionError("Attraction stream moved outward");previous=distance;}
+            if(previous>1e-8||!particle.isAlive())throw new AssertionError("Attraction stream failed to reach center");
+        }
+        System.out.println("Attraction inflow: all spherical directions reached center through native engine ticks");
     }
 }

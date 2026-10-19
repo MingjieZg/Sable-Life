@@ -57,13 +57,14 @@ public final class ModuleCombat {
                 case "particles" -> particles(world, heart, module, state);
                 case "melee" -> melee(world, heart, module, state);
                 case "flame" -> flame(world, heart, module, state);
-                case "gun", "mortar" -> { if (ready(world, heart, module, state)) shots(world, heart, module); }
-                case "arrow" -> { if (ready(world, heart, module, state)) arrows(world, heart, module); }
+                case "mortar" -> { if (ready(world, heart, module, state)) shots(world, heart, module, List.of()); }
+                case "gun", "arrow" -> { if(world.getGameTime()>=state.due){var directions=ProjectileAim.directions(heart,module,nozzle(heart,module));if(!directions.isEmpty()&&ready(world,heart,module,state)){if(module.type().equals("gun"))shots(world,heart,module,directions);else arrows(world,heart,module,directions);}} }
                 case "pulse" -> {
-                    var targets = pulseTargets(world, heart, module); state.pulseTarget = !targets.isEmpty();
-                    // Trigger is the master permission; presence is an additional emission gate.
-                    // Do not reset cooldown on exit/re-entry, which would allow pulse spam.
-                    if ((module.value("pulseStart") == 0 || state.pulseTarget) && ready(world, heart, module, state)) pulse(world, heart, module, targets);
+                    var centers=TargetCastOrigin.targeted(module)?TargetCastOrigin.points(heart,module):List.of(origin(heart,module,false));
+                    var groups=centers.stream().map(center->pulseTargets(world,heart,module,center)).toList();state.pulseTarget=groups.stream().anyMatch(group->!group.isEmpty());
+                    // A whole batch shares one cooldown; no target means no target-position cast.
+                    if(!centers.isEmpty()&&(module.value("pulseStart")==0||state.pulseTarget)&&ready(world,heart,module,state))
+                        for(int i=0;i<centers.size();i++)pulse(world,heart,module,centers.get(i),groups.get(i));
                 }
             }
         }
@@ -93,7 +94,7 @@ public final class ModuleCombat {
     private void particles(ServerLevel world, HeartBlockEntity heart, VirtualModule module, State state) {
         var frame = ParticlePattern.frame(heart, module);
         var center = frame.center(); var rotation = frame.rotation();
-        String signature = module.anchors().toString() + ":" + module.value("particlePattern") + ":" + module.value("startDistance") + ":" + module.value("direction") + ":" + module.value("particleRadius") + ":" + module.value("particleLength");
+        String signature = module.anchors().toString() + ":" + module.value("particlePattern") + ":" + module.value("startDistance") + ":" + module.value("direction") + ":" + module.value("particleRadius") + ":" + module.value("particleLength")+":"+module.value("particleExpandLength")+":"+module.value("particleExpandWidth")+":"+module.value("particleExpandHeight");
         if (!signature.equals(state.particleSignature)) { state.center = null; state.particleSignature = signature; }
         long now = world.getGameTime();
         if (state.center == null || now != state.tick + 1 || state.center.distanceToSqr(center) > 64) {
@@ -230,9 +231,10 @@ public final class ModuleCombat {
         }
         if(state.flames.isEmpty()) heart.modules().hurtTriggers.completed(module);
     }
-    private void arrows(ServerLevel world, HeartBlockEntity heart, VirtualModule module) {
-        var direction = direction(heart, module); var origin = nozzle(heart, module);
+    private void arrows(ServerLevel world, HeartBlockEntity heart, VirtualModule module, List<Vec3> directions) {
+        var origin = nozzle(heart, module);
         fireSound(world, module, origin);
+        for(var direction:directions) {
         var side = direction.cross(Math.abs(direction.y) > .9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize(); var up = side.cross(direction).normalize();
         int count = (int) module.value("arrows"); double phase = world.random.nextDouble() * Math.PI * 2;
         for (int i = 0; i < count; i++) {
@@ -247,11 +249,12 @@ public final class ModuleCombat {
             arrow.setBaseDamage(module.value("damage")); arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
             arrow.shoot(shot.x, shot.y, shot.z, (float) module.value("speed"), 0); world.addFreshEntity(arrow);
         }
+        }
     }
     private void fireSound(ServerLevel world, VirtualModule module, Vec3 origin) {
         ModuleAudio.play(world,module,"fireSound",origin);
     }
-    private void shots(ServerLevel world, HeartBlockEntity heart, VirtualModule module) {
+    private void shots(ServerLevel world, HeartBlockEntity heart, VirtualModule module, List<Vec3> directions) {
         var origin = nozzle(heart, module);
         if (module.type().equals("mortar")) {
             var velocities = ShotTrajectory.firingVelocities(world, heart, module);
@@ -264,7 +267,7 @@ public final class ModuleCombat {
             return;
         }
         fireSound(world, module, origin);
-        var direction = direction(heart, module);
+        for(var direction:directions) {
         var side = direction.cross(Math.abs(direction.y) > .9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize();
         var up = side.cross(direction).normalize(); int count = (int) module.value("arrows");
         double phase = world.random.nextDouble() * Math.PI * 2;
@@ -273,19 +276,20 @@ public final class ModuleCombat {
             var velocity = direction.scale(8).add(side.scale(radius * Math.cos(angle))).add(up.scale(radius * Math.sin(angle))).normalize().scale(module.value("speed"));
             world.addFreshEntity(new ModuleShot(world, origin, velocity, module, heart));
         }
+        }
     }
-    private List<LivingEntity> pulseTargets(ServerLevel world, HeartBlockEntity heart, VirtualModule module) {
-        var center = origin(heart, module, false); double radius = module.value("radius");
+    private List<LivingEntity> pulseTargets(ServerLevel world, HeartBlockEntity heart, VirtualModule module,Vec3 center) {
+        double radius = module.value("radius");
         return ModuleTargets.query(world, heart.creatureId(), new AABB(center, center).inflate(radius + 2), entity -> {
             if (!target(entity)) return false;
             if (!ModuleTargets.matches(entity,module)) return false;
             var point = SableBodyProbe.toWorld(world, entity.getBoundingBox().getCenter()); var delta = point.subtract(center);
-            return delta.lengthSqr() <= radius * radius && delta.lengthSqr() >= .0001
+            return delta.lengthSqr() <= radius * radius && (TargetCastOrigin.targeted(module)||delta.lengthSqr() >= .0001)
                     && ModuleTargets.visible(world,heart.creatureId(),center.add(delta.normalize().scale(.55)),entity);
         });
     }
-    private void pulse(ServerLevel world, HeartBlockEntity heart, VirtualModule module, List<LivingEntity> targets) {
-        var center = origin(heart, module, false); double radius = module.value("radius");
+    private void pulse(ServerLevel world, HeartBlockEntity heart, VirtualModule module, Vec3 center,List<LivingEntity> targets) {
+        double radius = module.value("radius");
         ModuleAudio.play(world,module,"sound",center);
         PulseVisual.send(world,module,center);
         for (var victim : targets) {

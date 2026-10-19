@@ -18,6 +18,49 @@ import java.util.List;
 @GameTestHolder("sablelife_quake_tests")
 @PrefixGameTestTemplate(false)
 public final class QuakeGameTests {
+    @GameTest(template="combat", batch="quake_life_ground", timeoutTicks=60)
+    public static void GroundedLifeTakesRingQuakeDamage(GameTestHelper h) {
+        var heart=fixture(h);var level=h.getLevel();var center=origin(heart);
+        var p=BlockPos.containing(center.add(3,0,0));
+        level.setBlockAndUpdate(p,SableLife.HEART.get().defaultBlockState());
+        level.setBlockAndUpdate(p.above(),Blocks.IRON_BLOCK.defaultBlockState());
+        var body=SubLevelAssemblyHelper.assembleBlocks(level,p,List.of(p,p.above()),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX(),p.getY()+1,p.getZ()));
+        var other=(HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());
+        var author=TestActors.creative(level);other.tryActivate(author);
+        var m=quake(heart);m.edit("target",3,"");m.edit("quakePush",0,"");m.edit("quakeLaunch",0,"");
+        h.runAfterDelay(14,()->{
+            var target=ModuleTargets.resolve(level,other.creatureId(),heart.creatureId());
+            h.assertTrue(other.health().current()==94,"Grounded life was filtered before damage: HP="+other.health().current()+" pos="+target.position()+" velocity="+target.getDeltaMovement());
+            h.assertTrue(heart.health().current()==100,"Quake hit its owner");
+            m.edit("enabled",0,"");heart.modules().tick(heart);h.succeed();
+        });
+    }
+    @GameTest(template="combat", batch="quake_life_air", timeoutTicks=30)
+    public static void AirborneLifeObeysGroundedReachAndLifeDamageGate(GameTestHelper h) {
+        var heart=fixture(h);var level=h.getLevel();var p=BlockPos.containing(origin(heart).add(3,1,0));
+        level.setBlockAndUpdate(p,SableLife.HEART.get().defaultBlockState());
+        var body=SubLevelAssemblyHelper.assembleBlocks(level,p,List.of(p),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX(),p.getY(),p.getZ()));
+        var other=(HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());var author=TestActors.creative(level);other.tryActivate(author);
+        var m=quake(heart);m.edit("target",3,"");m.edit("quakeMode",2,"");m.edit("warningTime",1,"");m.edit("quakePush",0,"");m.edit("quakeLaunch",0,"");
+        var engine=new ModuleQuake();engine.tick(heart);
+        h.runAfterDelay(1,()->{
+            engine.tick(heart);h.assertTrue(engine.phase(m.id()).equals("wave"),"Test never reached damage phase");engine.clear();
+            h.assertTrue(other.health().current()==100,"Grounded-only quake hit airborne life");
+            m.edit("quakeGrounded",1,"");m.edit("quakeReach",.25,"");engine.tick(heart);
+        });
+        h.runAfterDelay(2,()->{
+            engine.tick(heart);engine.clear();h.assertTrue(other.health().current()==100,"Air-enabled quake ignored vertical reach");
+            m.edit("quakeReach",2,"");other.editCore(author,"lifeAttacks",0,"");engine.tick(heart);
+        });
+        h.runAfterDelay(3,()->{
+            engine.tick(heart);engine.clear();h.assertTrue(other.health().current()==100,"Quake bypassed life attack immunity");
+            other.editCore(author,"lifeAttacks",1,"");m.edit("quakeOrigin",1,"");engine.tick(heart);
+        });
+        h.runAfterDelay(4,()->{
+            engine.tick(heart);engine.clear();h.assertTrue(other.health().current()==94,"Target-origin quake failed airborne life with ground check disabled: "+other.health().current());
+            h.assertTrue(level.getEntity(other.creatureId())==null,"Life target adapter spawned into world");m.edit("enabled",0,"");h.succeed();
+        });
+    }
     @GameTest(template="combat", batch="quake_light", timeoutTicks=30)
     public static void SmallLiftUsesSurfaceLightingAndNeverSavesTerrain(GameTestHelper h) {
         var level = h.getLevel(); var base = h.absolutePos(new BlockPos(4, 3, 4));
@@ -645,4 +688,25 @@ public final class QuakeGameTests {
             h.succeed();
         });
     }
+    @GameTest(template="combat",batch="quake_ring_budget")
+    public static void RingDistributesLimitedGroundModelsAroundEntireCircumference(GameTestHelper h)throws Exception{
+        var heart=fixture(h);var module=quake(heart);module.edit("damage",0,"");module.edit("quakeRange",8,"");var center=origin(heart);
+        var stateType=Class.forName("dev.sablelife.module.ModuleQuake$State");var constructor=stateType.getDeclaredConstructor();constructor.setAccessible(true);
+        var draw=ModuleQuake.class.getDeclaredMethod("waveAt",HeartBlockEntity.class,stateType,int.class,double.class,double.class);draw.setAccessible(true);
+        for(int budget:new int[]{13,17,31}){
+            var renderer=new ModuleQuake();var state=constructor.newInstance();
+            for(var setting:java.util.Map.of("cast",VirtualModule.load(module.save()),"origin",center,"direction",new Vec3(0,0,1)).entrySet()){var f=stateType.getDeclaredField(setting.getKey());f.setAccessible(true);f.set(state,setting.getValue());}
+            var levelField=ModuleQuake.class.getDeclaredField("level");levelField.setAccessible(true);levelField.set(renderer,h.getLevel());
+            var statesField=ModuleQuake.class.getDeclaredField("states");statesField.setAccessible(true);((java.util.Map)statesField.get(renderer)).put(module.id(),state);
+            var visualsField=stateType.getDeclaredField("visuals");visualsField.setAccessible(true);var visuals=(java.util.List<QuakeGroundBlock>)visualsField.get(state);
+            var base=BlockPos.containing(center.add(0,-1,0));for(int i=0;i<192-budget;i++)visuals.add(new QuakeGroundBlock(h.getLevel(),base,Blocks.STONE.defaultBlockState(),.8));
+            int previous=visuals.size();draw.invoke(renderer,heart,state,0,5.,6.);
+            h.assertTrue(visuals.size()==192,"Ring did not respect/use remaining budget: "+budget+" -> "+visuals.size());
+            int[] quadrants=new int[4];var angles=new java.util.ArrayList<Double>();
+            for(int i=previous;i<visuals.size();i++){var block=visuals.get(i);double dx=block.getX()+.5-center.x,dz=block.getZ()+.5-center.z;double angle=Math.atan2(dz,dx);if(angle<0)angle+=Math.PI*2;angles.add(angle);quadrants[Math.min(3,(int)(angle/(Math.PI/2))) ]++;h.assertTrue(h.getLevel().getBlockState(BlockPos.containing(block.position().add(0,-.01,0))).is(Blocks.STONE),"Visual altered real terrain");}
+            for(int count:quadrants)h.assertTrue(count>=2,"Display budget filled one side of ring: "+java.util.Arrays.toString(quadrants));angles.sort(Double::compare);double maxGap=0;for(int i=0;i<angles.size();i++){double next=i+1<angles.size()?angles.get(i+1):angles.getFirst()+Math.PI*2;maxGap=Math.max(maxGap,next-angles.get(i));}h.assertTrue(maxGap<Math.PI/2,"Ring left an entire quadrant empty");renderer.clear();
+        }
+        h.assertTrue(QuakeGeometry.ringSamples(16)>64&&QuakeGeometry.ringSamples(64)<=256&&QuakeGeometry.ringSamples(16)%4==0,"Ring sampling is sparse, unbounded or asymmetric");h.succeed();
+    }
+
 }

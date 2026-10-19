@@ -12,6 +12,14 @@ public final class MeleeGeometry {
         public Quaterniond rotation(){return new Quaterniond(bodyRotation).mul(angleRotation);}
     }
     public record Sample(Vec3 center,Quaterniond rotation) {}
+    /** Added full dimensions in the marked face's local forward/right/up basis. */
+    public static Vec3 expandedHalf(Vec3 base, Vec3 forward, double length, double width, double height){
+        var right=forward.cross(new Vec3(0,1,0));if(right.lengthSqr()<.001)right=new Vec3(1,0,0);
+        right=right.normalize();var up=right.cross(forward).normalize();
+        return base.add((Math.abs(forward.x)*length+Math.abs(right.x)*width+Math.abs(up.x)*height)/2,
+            (Math.abs(forward.y)*length+Math.abs(right.y)*width+Math.abs(up.y)*height)/2,
+            (Math.abs(forward.z)*length+Math.abs(right.z)*width+Math.abs(up.z)*height)/2);
+    }
     public static Quaterniond angles(Vec3 forward,double horizontal,double vertical){
         var right=forward.cross(new Vec3(0,1,0));if(right.lengthSqr()<.001)right=new Vec3(1,0,0);
         right=right.normalize();var up=right.cross(forward).normalize();
@@ -24,8 +32,8 @@ public final class MeleeGeometry {
         var rotation=new Quaterniond(body.logicalPose().orientation());var pos=body.logicalPose().position();var position=new Vec3(pos.x(),pos.y(),pos.z());
         var center=body.logicalPose().transformPosition(a.lerp(b,.5));
         var local=ContactBox.rotate(new Quaterniond(rotation).conjugate(),center.subtract(position))
-            .add(ContactBox.rotate(angle,forward).scale(module.value("startDistance")));
-        var half=ModuleCombat.halfSize(heart,module);
+            .add(ContactBox.rotate(angle,forward).scale(module.value("startDistance")+module.value("meleeLength")/2));
+        var half=expandedHalf(ModuleCombat.halfSize(heart,module),forward,module.value("meleeLength"),module.value("meleeWidth"),module.value("meleeHeight"));
         String signature=module.anchors().toString()+":"+half+":"+module.value("startDistance")+":"+module.value("meleeHorizontal")+":"+module.value("meleeVertical");
         return new Frame(position,rotation,local,angle,half,signature);
     }

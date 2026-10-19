@@ -11,9 +11,13 @@ public final class NumericWheelSteps {
         if(dev.sablelife.module.ModuleColors.parent(type,key)!=null)return 1;
         // Explicit user choices: angles ±5, hit limit ±1; sound mixes keep their own policy.
         if(type.equals("signal_turn")&&key.endsWith("Channel"))return 1;
+        if(type.equals("linear_movement")&&key.equals("travelSpeed"))return 1;
         if(key.equals("turnSpeed"))return 5;
         if(key.equals("hoverStrength"))return 5;
-        if(key.equals("healthAmount"))return 5;
+        if(key.equals("shockZoom")||key.equals("shockRadius")||key.equals("shockRange"))return 1;
+        if(Set.of("shockDistortion","shockBlur","shockShake").contains(key))return .05;
+        if(key.equals("healthAmount")||key.equals("armorWholeModifier"))return 5;
+        if(key.equals("armorWholeChannel"))return 1;
         if(key.startsWith("displayRot")||ModuleFields.angle(key)||key.equals("damageModifier"))return 5;
         if(type.equals("arena")&&key.equals("arenaRespawnDelay"))return 1;
         if(scale!=1)return .1;
@@ -23,7 +27,7 @@ public final class NumericWheelSteps {
         return .1;
     }
     public static double core(String key){
-        if(key.equals("health")||key.equals("defenseThreshold")||key.equals("regen")||key.equals("regenPercent"))return 5;
+        if(key.equals("knockbackResistance")||key.equals("health")||key.equals("defenseThreshold")||key.equals("regen")||key.equals("regenPercent"))return 5;
         if(key.equals("voidDeathHeight")||key.equals("regenDelay")||key.equals("deathEffectRadius"))return 1;
         if(key.equals("xp")||key.equals("defenseMaximum")||key.endsWith("Count"))return 1;
         return .1;

@@ -25,10 +25,24 @@ public final class HeartWireless {
     private java.util.Map<Integer, Integer> programOutputs = java.util.Map.of();
     public record ModuleOutput(net.minecraft.world.item.ItemStack red, net.minecraft.world.item.ItemStack blue, int power) {}
     private final java.util.Map<java.util.UUID,Transmitter> moduleTransmitters=new java.util.HashMap<>();
-    private int powerAt(int index, long time) {
+    private static final class Latch { int held; boolean armed=true;
+        void sample(int raw,boolean reset){if(reset){held=0;armed=raw==0;return;}if(raw==0)armed=true;else if(armed){held=raw;armed=false;}}
+    }
+    private final java.util.Map<Integer,Latch> latches=new java.util.HashMap<>();
+    private java.util.List<Integer> latchChannels;
+    private int powerAt(int index,long time){var c=channels.get(index);if(c.value(7)!=0&&!c.receiving())return c.configured()?latches.containsKey(index)?latches.get(index).held:0:0;return rawPowerAt(index,time);}
+    private int rawPowerAt(int index, long time) {
         var channel = channels.get(index);
         if (channel.programmed()) return channel.configured() ? programOutputs.getOrDefault(index, 0) : 0;
         return channel.powerAt(time);
+    }
+    /** Snapshot reset inputs before sampling: no recursive channel evaluation or order-dependent reset chains. */
+    private void refreshLatches(long time){
+        if(!master||!heart.operational()){latches.clear();return;}
+        if(latchChannels==null)latchChannels=java.util.stream.IntStream.range(0,size()).filter(i->channels.get(i).configured()&&!channels.get(i).receiving()&&channels.get(i).value(7)!=0).boxed().toList();
+        var resets=new boolean[latchChannels.size()];
+        for(int n=0;n<resets.length;n++){int reset=channels.get(latchChannels.get(n)).value(8)-1;resets[n]=reset>=0&&reset<size()&&(channels.get(reset).receiving()?input(reset):powerAt(reset,time))>0;}
+        for(int n=0;n<resets.length;n++){int i=latchChannels.get(n);latches.computeIfAbsent(i,k->new Latch()).sample(rawPowerAt(i,time),resets[n]);}
     }
     public void programOutputs(String source, java.util.Map<Integer, Integer> outputs) {
         var next = new java.util.HashMap<Integer, Integer>();
@@ -37,6 +51,7 @@ public final class HeartWireless {
         });
         programSources.set(source, next);
         programOutputs = programSources.combined();
+        refreshLatches(Math.max(0,elapsed-1));
         for (var entry : transmitters.entrySet()) {
             var transmitter = entry.getValue(); int power = powerAt(entry.getKey(), Math.max(0, elapsed - 1));
             if (transmitter.power != power) { transmitter.power = power; Create.REDSTONE_LINK_NETWORK_HANDLER.updateNetworkOf(transmitter.level, transmitter); }
@@ -80,11 +95,12 @@ public final class HeartWireless {
     public int size() { return channels.size(); }
     public WirelessChannel channel(int index) { return index >= 0 && index < channels.size() ? channels.get(index) : new WirelessChannel(); }
     public int limit() { return dev.sablelife.SableLifeServerConfig.maximumWirelessChannels(); }
-    public int add() { if (channels.size() >= limit()) return -1; var channel=new WirelessChannel();channel.onChange(this::configurationChanged);channels.add(channel);configuredChannels=null; heart.setChanged(); return channels.size() - 1; }
+    public int add() { if (channels.size() >= limit()) return -1; var channel=new WirelessChannel();channel.onChange(this::configurationChanged);channels.add(channel);configuredChannels=null;latchChannels=null; heart.setChanged(); return channels.size() - 1; }
     public boolean remove(int index) {
         if (index < 0 || index >= channels.size()) return false;
         stop(); channels.remove(index);
-        configuredChannels=null;
+        for(var c:channels){int reset=c.value(8);if(reset==index+1)c.set(8,0);else if(reset>index+1)c.set(8,reset-1);}
+        configuredChannels=null;latchChannels=null;
         boolean changed = false;
         for (var module : heart.modules().all()) changed |= module.wirelessChannelDeleted(index);
         if (changed) heart.modules().changed();
@@ -97,12 +113,12 @@ public final class HeartWireless {
             var channel = channels.get(i);
             if (!channel.name().isEmpty() || !channel.first().isEmpty() || !channel.second().isEmpty() || channel.value(0) != 0
                     || channel.value(1) != 0 || channel.value(2) != 20 || channel.value(3) != 20
-                    || channel.value(4) != 15 || channel.value(5) != 1 || channel.receiving()) keep = i + 1;
+                    || channel.value(4) != 15 || channel.value(5) != 1 || channel.value(7)!=0 || channel.value(8)!=0 || channel.receiving()) keep = i + 1;
         }
         for (var module : heart.modules().all()) if (module.value("trigger") >= 2)
             keep = Math.max(keep, Math.min(channels.size(), (int) module.value("channel") + 1));
         while (channels.size() > keep) channels.removeLast();
-        configuredChannels=null;legacyChannels = false;
+        configuredChannels=null;latchChannels=null;legacyChannels = false;
     }
     public boolean master() { return master; }
     public void master(boolean value) { master = value; if (!value) { stop(); heart.modules().hurtTriggers.clear(); } }
@@ -122,6 +138,7 @@ public final class HeartWireless {
         lastTick = level.getGameTime();
         if (configuredChannels == null) configuredChannels = java.util.stream.IntStream.range(0, channels.size())
                 .filter(i -> channels.get(i).configured()).boxed().toList();
+        refreshLatches(elapsed);
         for (int i : configuredChannels) {
             if (!master || !channels.get(i).configured()) continue;
             if (channels.get(i).receiving()) {
@@ -147,8 +164,9 @@ public final class HeartWireless {
         if (elapsed < Long.MAX_VALUE - 1) elapsed++;
         heart.setChanged();
     }
-    public void configurationChanged() { configuredChannels=null; stop(); }
+    public void configurationChanged() { configuredChannels=null;latchChannels=null; stop(); }
     public void stop() {
+        latches.clear();
         programSources.clear();
         programOutputs = java.util.Map.of();
         moduleTransmitters.values().forEach(this::removeModuleTransmitter); moduleTransmitters.clear();
@@ -179,7 +197,7 @@ public final class HeartWireless {
         var list = tag.getList("Channels", 10);
         legacyChannels = !tag.getBoolean("DynamicChannels");
         channels.clear();
-        configuredChannels=null;
+        configuredChannels=null;latchChannels=null;
         // Old saves retain all 16 numbers, including disabled slots referenced by modules.
         int count = tag.getBoolean("DynamicChannels") ? list.size() : list.isEmpty() ? 0 : Math.max(16, list.size());
         for (int i = 0; i < Math.min(CHANNELS, count); i++) { var channel=i < list.size() ? WirelessChannel.load(list.getCompound(i), registries) : new WirelessChannel(); channel.onChange(this::configurationChanged);channels.add(channel); }

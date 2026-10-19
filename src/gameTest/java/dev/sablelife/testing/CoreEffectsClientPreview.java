@@ -41,7 +41,7 @@ public final class CoreEffectsClientPreview {
         HeartSettingsScreen panel;Preview(){super(Component.empty());}
         @Override protected void init(){
             var inv=new Inventory(null);var menu=new HeartSettingsMenu(1,inv);var tag=new CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("ReleaseAllowed",true);tag.putBoolean("Editable",true);tag.putBoolean("LiveControls",true);tag.putString("State","DORMANT");
-            tag.putInt("bossbarColor",net.minecraft.world.BossEvent.BossBarColor.RED.ordinal());tag.putBoolean("forceChunkLoading",true);tag.putBoolean("ChunkLoadingEditable",true);tag.putString("ChunkLoadingStatus","active");tag.putInt("ChunkLoadingCount",4);
+            tag.putBoolean("killHeal",true);tag.putInt("bossbarColor",net.minecraft.world.BossEvent.BossBarColor.RED.ordinal());tag.putBoolean("forceChunkLoading",true);tag.putBoolean("ChunkLoadingEditable",true);tag.putString("ChunkLoadingStatus","active");tag.putInt("ChunkLoadingCount",4);
             tag.putInt("voidDeathHeight",-64);tag.putBoolean("VoidDeathDefault",true);tag.putDouble("health",1000);tag.putDouble("delay",3);tag.putInt("xp",levels?100:30970);tag.putInt("xpPoints",30970);tag.putBoolean("xpLevels",levels);
             tag.putDouble("deathEffectRadius",0);tag.putDouble("deathCount",80);tag.putDouble("deathSpread",.8);tag.putDouble("deathPattern",0);tag.putDouble("vanishCount",6);tag.putDouble("vanishSpread",.35);tag.putDouble("vanishPattern",5);tag.putInt("DeathParticleCount",2);tag.putInt("VanishParticleCount",1);tag.putInt("deathSoundCount",1);
             var stack=new ItemStack(Items.PAPER);stack.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));menu.getSlot(0).set(stack);panel=new HeartSettingsScreen(menu,inv,title);

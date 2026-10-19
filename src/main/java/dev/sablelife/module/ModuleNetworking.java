@@ -23,13 +23,14 @@ public final class ModuleNetworking {
         @Override public Type<MarkState> type() { return TYPE; }
     }
     public record ParticleVisual(String id, net.minecraft.world.phys.Vec3 position, int count, net.minecraft.world.phys.Vec3 spread,
-                                 double speed, int ticks, float size) implements CustomPacketPayload {
+                                 double speed, int ticks, float size,int color) implements CustomPacketPayload {
+        public ParticleVisual(String id,net.minecraft.world.phys.Vec3 position,int count,net.minecraft.world.phys.Vec3 spread,double speed,int ticks,float size){this(id,position,count,spread,speed,ticks,size,-1);}
         public static final Type<ParticleVisual> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(SableLife.MOD_ID, "particle_visual"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ParticleVisual> CODEC = StreamCodec.of((b,p) -> {
             b.writeUtf(p.id,80); b.writeDouble(p.position.x); b.writeDouble(p.position.y); b.writeDouble(p.position.z); b.writeVarInt(p.count);
-            b.writeDouble(p.spread.x); b.writeDouble(p.spread.y); b.writeDouble(p.spread.z); b.writeDouble(p.speed); b.writeVarInt(p.ticks); b.writeFloat(p.size);
+            b.writeDouble(p.spread.x); b.writeDouble(p.spread.y); b.writeDouble(p.spread.z); b.writeDouble(p.speed); b.writeVarInt(p.ticks); b.writeFloat(p.size);b.writeInt(p.color);
         }, b -> new ParticleVisual(b.readUtf(80), new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble()), b.readVarInt(),
-                new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble()), b.readDouble(),b.readVarInt(),b.readFloat()));
+                new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble()), b.readDouble(),b.readVarInt(),b.readFloat(),b.readInt()));
         @Override public Type<ParticleVisual> type() { return TYPE; }
     }
     /** Describes births at the nozzle; existing particles advance locally, rather than re-drawing a trail. */
@@ -46,7 +47,7 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("13");
+        var registrar = event.registrar("21");
         registrar.playToServer(Action.TYPE, Action.CODEC, (p, ctx) -> {
             if (p.operation.equals("cancel")) { MarkingSessions.cancel(ctx.player()); return; }
             if (!AuthoringRateLimit.allow(ctx.player(), p.operation.equals("add_preset") ? 20 : 1)) return;
@@ -74,6 +75,9 @@ public final class ModuleNetworking {
             else if (ctx.player().containerMenu instanceof dev.sablelife.heart.HeartSettingsMenu menu && menu.containerId == p.container && p.operation.equals("core"))
                 menu.action(ctx.player(), p.key, p.value, p.text);
         });
+        registrar.playToClient(DistortionTrailPacket.TYPE,DistortionTrailPacket.CODEC,(p,ctx)->dev.sablelife.client.DistortionTrailClient.receive(p));
+        registrar.playToClient(ShockwaveZoomPacket.TYPE,ShockwaveZoomPacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
+        registrar.playToClient(ShockwavePacket.TYPE,ShockwavePacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ItemDisplayPacket.TYPE,ItemDisplayPacket.CODEC,(p,ctx)->dev.sablelife.client.ModuleItemDisplayClient.receive(p));
         registrar.playToClient(FlameJet.TYPE,FlameJet.CODEC,(p,ctx)->dev.sablelife.client.FlameJetParticle.receive(p));
         registrar.playToClient(ParticleVisual.TYPE, ParticleVisual.CODEC, (p, ctx) -> dev.sablelife.client.ParticleVisualClient.receive(p));
@@ -81,6 +85,7 @@ public final class ModuleNetworking {
         registrar.playToClient(ParticleTravelPacket.TYPE,ParticleTravelPacket.CODEC,(p,ctx)->dev.sablelife.client.ParticleVisualClient.receive(p));
         registrar.playToClient(MarkState.TYPE, MarkState.CODEC, (p, ctx) -> dev.sablelife.client.HeartDashboardScreen.marking = p.active);
         registrar.playToClient(BattleMusic.TYPE, BattleMusic.CODEC, (p, ctx) -> dev.sablelife.client.BattleMusicClient.receive(p));
+        registrar.playToClient(SoundMotionPacket.TYPE, SoundMotionPacket.CODEC, (p, ctx) -> dev.sablelife.client.ModuleSoundClient.motion(p));
         registrar.playToClient(ModuleSound.TYPE, ModuleSound.CODEC, (p, ctx) -> dev.sablelife.client.ModuleSoundClient.receive(p));
     }
     public record BattleMusic(UUID module, String sound, boolean playing, boolean restart, float volume, int fade, net.minecraft.nbt.CompoundTag timeline, net.minecraft.world.phys.Vec3 position) implements CustomPacketPayload {
