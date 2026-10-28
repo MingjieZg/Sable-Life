@@ -24,6 +24,7 @@ public final class MarkingSessions {
     private record Preview(HeartBlockEntity heart, UUID module, long expires) {}
     private static final Map<UUID, Preview> previews = new HashMap<>();
     public static void showPreview(ServerPlayer player, HeartBlockEntity heart, VirtualModule module) {
+        if(module.type().equals("surface_field"))return;
         if(module.type().equals("visual_shockwave"))ModuleShockwave.preview(player,heart,module);
         previews.put(player.getUUID(), new Preview(heart, module.id(), player.level().getGameTime() + 100));
         if(module.type().equals("visual_shockwave"))previewModule(player,heart,module);

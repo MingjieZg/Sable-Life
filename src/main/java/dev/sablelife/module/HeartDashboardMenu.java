@@ -113,7 +113,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         if(operation.equals("sound_editor"))return dev.sablelife.sound.SoundTimelineMenu.open(player,heart,id,key,"module");
         if (operation.equals("preview") && player instanceof net.minecraft.server.level.ServerPlayer server) {
             var module = heart.modules().find(id);
-            if (module == null) return false;
+            if (module == null||module.type().equals("surface_field")) return false;
             if (module.invalidated()) return false;
             if(!module.type().equals("bgm")&&!TargetCastOrigin.targeted(module)&&module.arenaCenter()==null&&module.anchors().isEmpty())return false;
             MarkingSessions.showPreview(server, heart, module); return true;
@@ -162,7 +162,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             case "reorder" -> result=Double.isFinite(value)&&(value==-1||value==1)&&heart.modules().reorder(id,(int)value);
             case "remove" -> { if(module!=null&&module.type().equals("command")&&!player.canUseGameMasterBlocks())return false;result=heart.modules().remove(id); }
             case "mark" -> { return module != null && module.known() && MarkingSessions.start(player, heart, module); }
-            case "edit" -> { if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; if(module!=null&&module.type().equals("hit_counter")&&key.equals("hitSource")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleHitCounter.ATTACKS.contains(source.type()))return false;module.hitSource(source==null?null:source.id(),(int)value);result=true;}else result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
+            case "edit" -> { if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; if(module!=null&&ModuleSurfaceField.impactAttack(module)&&key.equals("impactArea")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var config=value==0?null:heart.modules().all().get((int)value-1);if(config!=null&&!config.type().equals("surface_field"))return false;module.impactField(config==null?null:config.id());result=true;}else if(module!=null&&module.type().equals("hit_counter")&&key.equals("hitSource")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleHitCounter.ATTACKS.contains(source.type()))return false;module.hitSource(source==null?null:source.id(),(int)value);result=true;}else result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
             default -> { return false; }
         }
         if (result) { heart.setChanged(); refresh(); broadcastChanges(); }

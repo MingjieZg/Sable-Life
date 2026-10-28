@@ -23,6 +23,9 @@ public final class ModuleArrow extends Arrow {
     private static final EntityDataAccessor<Boolean> EDGE_STUCK = SynchedEntityData.defineId(ModuleArrow.class, EntityDataSerializers.BOOLEAN);
     private java.util.List<dev.sablelife.module.ModuleParticles.Entry> trail = java.util.List.of();
     private int residueTicks = 200, residueAge;
+    private VirtualModule impactConfig;
+    private boolean fieldBlockSpent;
+    private final java.util.Set<java.util.UUID> fieldVictims=new java.util.HashSet<>();
     private dev.sablelife.sound.SoundTimeline landingSound = new dev.sablelife.sound.SoundTimeline();
     private boolean customLandingSound, suppressNativeLanding;
     private net.minecraft.core.BlockPos edgeBlock;
@@ -31,6 +34,7 @@ public final class ModuleArrow extends Arrow {
         this(SableLife.MODULE_ARROW.get(), level); setPos(x, y, z);
     }
     public void configure(VirtualModule module) {
+        impactConfig=module.impactFieldId()==null?null:VirtualModule.load(module.save());fieldBlockSpent=false;fieldVictims.clear();
         entityData.set(APPEARANCE, module.projectileItem(level().registryAccess()));
         entityData.set(HITBOX, (float) module.value("arrowHitbox"));
         entityData.set(SIZE, (float) module.value("projectileSize")); refreshDimensions();
@@ -95,6 +99,8 @@ public final class ModuleArrow extends Arrow {
     }
     @Override public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
+        if(impactConfig!=null)tag.put("ImpactConfig",impactConfig.save());
+        tag.putBoolean("FieldBlockSpent",fieldBlockSpent);var victims=new net.minecraft.nbt.ListTag();fieldVictims.stream().limit(64).forEach(id->victims.add(net.minecraft.nbt.NbtUtils.createUUID(id)));tag.put("FieldVictims",victims);
         if (!appearance().isEmpty()) tag.put("ModuleAppearance", appearance().save(level().registryAccess()));
         tag.putFloat("ModuleHitbox", hitbox()); tag.putFloat("ModuleSize", visualSize());
         tag.put("ModuleTrail", dev.sablelife.module.ModuleParticles.save(trail.stream().map(dev.sablelife.module.ModuleParticles.Entry::id).toList())); tag.put("ModuleTrailProperties", dev.sablelife.module.ModuleParticles.saveEntries(trail)); tag.putInt("ModuleResidueTicks", residueTicks); tag.putInt("ModuleResidueAge", residueAge);
@@ -103,6 +109,8 @@ public final class ModuleArrow extends Arrow {
     }
     @Override public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        impactConfig=tag.contains("ImpactConfig")?VirtualModule.load(tag.getCompound("ImpactConfig")):null;fieldBlockSpent=tag.getBoolean("FieldBlockSpent");fieldVictims.clear();
+        var victims=tag.getList("FieldVictims",11);for(int i=0;i<Math.min(64,victims.size());i++)try{fieldVictims.add(net.minecraft.nbt.NbtUtils.loadUUID(victims.get(i)));}catch(IllegalArgumentException ignored){}
         entityData.set(APPEARANCE, ItemStack.parseOptional(level().registryAccess(), tag.getCompound("ModuleAppearance")));
         entityData.set(HITBOX, tag.contains("ModuleHitbox") ? Math.clamp(tag.getFloat("ModuleHitbox"), .05F, 2F) : .25F);
         entityData.set(SIZE, tag.contains("ModuleSize") ? Math.clamp(tag.getFloat("ModuleSize"), .1F, 8F) : 1F); refreshDimensions();
@@ -118,7 +126,15 @@ public final class ModuleArrow extends Arrow {
         if (customLandingSound && level() instanceof ServerLevel world)
             dev.sablelife.module.ModuleAudio.play(world, getUUID(), landingSound, SableBodyProbe.toWorld(world, hit.getLocation()));
     }
+    /** Accepted explosive block impacts also call this before they discard the arrow. */
+    public void emitSurfaceField(HitResult hit){
+        if(impactConfig==null||impactConfig.impactFieldId()==null||!(level() instanceof ServerLevel))return;
+        if(hit instanceof BlockHitResult){if(fieldBlockSpent)return;fieldBlockSpent=true;}
+        else if(hit instanceof EntityHitResult entity){if(fieldVictims.size()>=64||!fieldVictims.add(entity.getEntity().getUUID()))return;}
+        dev.sablelife.module.SurfaceFieldImpact.projectile(this,impactConfig,hit,getDeltaMovement());
+    }
     @Override protected void onHitBlock(BlockHitResult hit) {
+        emitSurfaceField(hit);
         suppressNativeLanding = customLandingSound;
         try { super.onHitBlock(hit); }
         finally { suppressNativeLanding = false; }
@@ -129,6 +145,7 @@ public final class ModuleArrow extends Arrow {
         super.playSound(sound, volume, pitch);
     }
     @Override protected void onHitEntity(EntityHitResult hit) {
+        emitSurfaceField(hit);
         if (hit.getEntity() instanceof LivingEntity target) {
             float before=target.getHealth();
             int previous = target.invulnerableTime;

@@ -6,6 +6,8 @@ import net.neoforged.neoforge.gametest.*;
 /** Discovery must not load optional API types before the namespace/dependency check. */
 @GameTestHolder("sablelife_epicfight_tests") @PrefixGameTestTemplate(false)
 public final class EpicFightGameTests {
+    @GameTest(template="combat",batch="epic_slash_guard_option")
+    public static void SlashOptionSupportsNativeGuardsAndRearHits(GameTestHelper h){EpicFightTestScenarios.SlashOptionSupportsNativeGuardsAndRearHits(h);}
     @GameTest(template="combat",batch="epic_module_guard_interval")
     public static void ActualMeleeModuleBlocksWithoutEveryTickStaminaDrain(GameTestHelper h){EpicFightTestScenarios.ActualMeleeModuleBlocksWithoutEveryTickStaminaDrain(h);}
     @GameTest(template="combat",batch="epic_arrow_guard_rules")

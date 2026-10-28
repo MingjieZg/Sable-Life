@@ -18,7 +18,7 @@ import java.util.*;
 public final class ModuleGroundStrike {
     private record Strike(Vec3 point, long warning, long falling, long impact, double height, double radius, float damage, DustParticleOptions dust,
                           net.minecraft.world.item.ItemStack item, float size, List<ModuleParticles.Entry> particles, dev.sablelife.sound.SoundTimeline fallSound, dev.sablelife.sound.SoundTimeline impactSound,
-                          dev.sablelife.attack.ModuleShot[] visual) {}
+                          dev.sablelife.attack.ModuleShot[] visual, VirtualModule impactConfig) {}
     private static final class State { long due; final List<Strike> pending = new ArrayList<>(); }
     private final Map<UUID, State> states = new HashMap<>();
     private ServerLevel currentLevel;
@@ -128,7 +128,7 @@ public final class ModuleGroundStrike {
                     long warning = now + delay, falling = warning + (long) module.value("warningTime");
                     long flight = Math.max(1, (long) Math.ceil(module.value("strikeHeight") / module.value("strikeSpeed")));
                     state.pending.add(new Strike(p, warning, falling, falling + flight, module.value("strikeHeight"), module.value("strikeRadius"), (float) module.value("damage"), color(module),
-                            module.projectileItem(level.registryAccess()), (float) module.value("projectileHitbox"), module.particleEntries(), module.soundTimeline("fallSound"), module.soundTimeline("impactSound"), new dev.sablelife.attack.ModuleShot[1]));
+                            module.projectileItem(level.registryAccess()), (float) module.value("projectileHitbox"), module.particleEntries(), module.soundTimeline("fallSound"), module.soundTimeline("impactSound"), new dev.sablelife.attack.ModuleShot[1],module.impactFieldId()==null?null:VirtualModule.load(module.save())));
                 }
                 state.due = now + (long) module.value("interval");
             }
@@ -162,6 +162,7 @@ public final class ModuleGroundStrike {
         for (UUID id : List.copyOf(states.keySet())) if (!active.contains(id)) cancel(id, states.remove(id));
     }
     private static void impact(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Strike strike) {
+        if(strike.impactConfig!=null)heart.modules().surfaceFields.impact(heart,strike.impactConfig,strike.point,new Vec3(0,1,0),new Vec3(0,-1,0));
         ring(level, strike.point, strike.radius, strike.dust);
         dev.sablelife.module.ModuleParticles.send(level, ParticleTypes.EXPLOSION, strike.point.x, strike.point.y + .2, strike.point.z, Math.clamp((int) (strike.radius * 3), 2, 32), strike.radius * .3, .2, strike.radius * .3, 0);
         ModuleAudio.play(level,module.id(),strike.impactSound,strike.point);

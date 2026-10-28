@@ -1,5 +1,5 @@
 {
-  "revision": 115,
+  "revision": 120,
   "entries": [
     {
       "id": "getting_started",
@@ -494,6 +494,25 @@
         ]
       },
       "module": "mortar"
+    },
+    {
+      "id": "surface_field",
+      "module": "surface_field",
+      "title": "manual.sablelife.chapter.surface_field",
+      "sections": {
+        "usage": [
+          "manual.sablelife.surface_field.usage"
+        ],
+        "settings": [
+          "manual.sablelife.surface_field.settings"
+        ],
+        "example": [
+          "manual.sablelife.surface_field.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.surface_field.troubleshooting"
+        ]
+      }
     },
     {
       "id": "homing",

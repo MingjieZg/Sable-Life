@@ -24,6 +24,10 @@ public final class ModuleSlash {
  public static boolean intersects(Vec3 from,Vec3 to,Frame f,double length,double width,AABB target){return ContactBox.intersects(from.lerp(to,.5).subtract(f.direction.scale(width/2)),new Vec3(length/2,.18,width/2+from.distanceTo(to)/2),f.rotation(),target);}
  private static SlashVisualPacket packet(Blade b,Vec3 a,Vec3 end){var m=b.cast;var styles=new net.minecraft.nbt.CompoundTag();styles.put("Ids",ModuleParticles.save(m.particles()));styles.put("Properties",ModuleParticles.saveEntries(m.particleEntries()));var rgb=ModuleColors.vector(m,"slashColor");int color=(Math.round(rgb.x*255)<<16)|(Math.round(rgb.y*255)<<8)|Math.round(rgb.z*255);return new SlashVisualPacket(a,end,b.frame.direction,b.frame.right,(float)m.value("slashLength"),(float)m.value("slashWidth"),color,m.value("slashVisual")==1,styles);}
  public static final int MAX_FLYING=256;
+ /** Use the incoming direction, not the blade center: a wide or fast blade may already be behind its victim. */
+ public static net.minecraft.world.damagesource.DamageSource hitSource(ServerLevel level,net.minecraft.world.entity.LivingEntity victim,Vec3 incoming,String name,VirtualModule cast){
+  return cast.value("slashBlockable")==1?new BodyMeleeSource(level,victim.getBoundingBox().getCenter().subtract(incoming.normalize().scale(2)),name):ModuleDamage.physical(level);
+ }
  public void tick(HeartBlockEntity heart){
   if(!(heart.getLevel() instanceof ServerLevel server))return;level=server;long now=server.getGameTime();if(tick==now)return;tick=now;
   if(!heart.operational()){clear();return;}
@@ -46,8 +50,20 @@ public final class ModuleSlash {
     var bounds=new AABB(from,end).inflate(b.cast.value("slashLength")/2+b.cast.value("slashWidth"));
     for(var victim:ModuleTargets.query(server,heart.creatureId(),bounds,e->ModuleTargets.matches(e,b.cast)&&!b.hits.contains(e.getUUID()))){
      if(!intersects(from,end,b.frame,b.cast.value("slashLength"),b.cast.value("slashWidth"),victim.getBoundingBox())||!ModuleTargets.visible(server,heart.creatureId(),from,victim))continue;
-     b.hits.add(victim.getUUID());if(b.cast.value("damage")==0||ModuleDamage.hurt(victim,ModuleDamage.named(ModuleDamage.physical(server),heart),(float)b.cast.value("damage"),heart,b.cast))ModuleEffects.apply(victim,b.cast.effects(),null);
+     b.hits.add(victim.getUUID());
+     var contact=dev.sablelife.combat.SegmentBoxContact.closest(from,end,victim.getBoundingBox(),new Vec3(1,1,1)).point();
+     var source=hitSource(server,victim,b.frame.direction,heart.creatureName(),b.cast);
+     boolean accepted;
+     if(b.cast.value("damage")==0){
+      accepted=!(source instanceof BodyMeleeSource body)||(!victim.isDamageSourceBlocked(source)&&!(net.neoforged.fml.ModList.get().isLoaded("epicfight")&&dev.sablelife.compat.epicfight.EpicFightBodyGuard.blockEffectOnly(victim,body)));
+     }else accepted=ModuleDamage.hurt(victim,source,(float)b.cast.value("damage"),heart,b.cast);
+     if(accepted){
+      SurfaceFieldImpact.entity(heart,b.cast,contact,b.frame.direction,victim.getUUID());
+      ModuleEffects.apply(victim,b.cast.effects(),null);
+      if(b.cast.value("slashIgnite")==1&&b.cast.value("burn")>0&&!(victim instanceof ModuleTargets.LifeTarget))victim.igniteForSeconds((int)b.cast.value("burn"));
+     }
     }
+    if(blocked)SurfaceFieldImpact.terrainEnd(heart,b.cast,end,b.frame.direction);
     var visual=packet(b,from,end);for(var player:server.players())if(player.position().distanceToSqr(end)<256*256&&VisualBudget.allow(player,3*(Math.clamp((int)Math.ceil(b.cast.value("slashLength")/.12),12,64)+1)))net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,visual);
     flightSound(server,b,end);b.age++;b.distance=next;if(blocked||next>=b.cast.value("range")){stopSound(server,b);iterator.remove();}
    }

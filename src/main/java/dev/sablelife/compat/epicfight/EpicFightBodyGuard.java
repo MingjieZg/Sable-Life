@@ -12,6 +12,15 @@ import yesman.epicfight.registry.entries.EpicFightSounds;
  * Native listeners still decide holding, weapon availability and front/rear eligibility.
  */
 public final class EpicFightBodyGuard {
+ /** Effect-only slashes still pass native guard listeners, without manufacturing HP damage. */
+ public static boolean blockEffectOnly(net.minecraft.world.entity.LivingEntity victim,BodyMeleeSource source){
+    if(!(victim instanceof net.minecraft.server.level.ServerPlayer player))return false;
+    var patch=yesman.epicfight.world.capabilities.EpicFightCapabilities.getServerPlayerPatch(player);
+    if(patch==null||!patch.isEpicFightMode()||!patch.isHoldingAny())return false;
+    var event=new TakeDamageEvent.Income(patch,source,0);
+    yesman.epicfight.api.event.EpicFightEventHooks.Entity.TAKE_DAMAGE_INCOME.postWithListener(event,patch.getEventListener());
+    return event.isCanceled()||source.wasBlocked();
+ }
  public static void guard(GuardSkill skill,SkillContainer container,CapabilityItem item,ServerPlayerPatch patch,
         TakeDamageEvent.Income event,float knockback,float impact,boolean advanced,int parryWindow) {
     var source=(BodyMeleeSource)event.getDamageSource();var access=(EpicFightGuardAccess)skill;

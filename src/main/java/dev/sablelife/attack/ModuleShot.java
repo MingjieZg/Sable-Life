@@ -24,6 +24,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     private java.util.List<dev.sablelife.module.ModuleParticles.Entry> trail = java.util.List.of();
     private int mortarWarningColor;
     private CompoundTag blast = new CompoundTag();
+    private VirtualModule impactConfig;
     private float damage;
     private double range = 64, traveled;
     private int age;
@@ -130,6 +131,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         entityData.set(HITBOX, (float) module.value(mortar() ? "projectileHitbox" : "bulletHitbox")); refreshDimensions();
         setPos(origin); setDeltaMovement(velocity); damage = (float) module.value("damage");
         mortarWarningColor = dev.sablelife.module.ModuleColors.packed(module,"mortarWarningColor");
+        if(dev.sablelife.module.ModuleSurfaceField.impactAttack(module)&&module.impactFieldId()!=null)impactConfig=VirtualModule.load(module.save());
         range = mortar() ? 2048 : module.value("range"); blast = ModuleBlast.settings(module); trail = module.particleEntries(); owner = heart.creatureId();
         getPersistentData().putUUID("SableLifeAttackOwner", owner);
         ModuleDamage.nameProjectile(this,heart);AttackHitCredit.attach(this,heart,module);blast.putString(ModuleDamage.ATTACK_NAME,heart.creatureName());
@@ -203,6 +205,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
                 stop = stop.add(net.minecraft.world.phys.Vec3.atLowerCornerOf(block.getDirection().getNormal()).scale(.03));
             }
             if (entity != null || block.getType() == HitResult.Type.BLOCK) {
+                if(impactConfig!=null)dev.sablelife.module.SurfaceFieldImpact.projectile(this,impactConfig,entity!=null?entity:block,velocity);
                 setPos(stop); if(homingProjectile()) homingSound(world,"impactSound"); ModuleBlast.explode(world, this, stop, blast); discard(); return;
             }
             traveled += start.distanceTo(end);
@@ -217,6 +220,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         tag.putFloat("Hitbox", entityData.get(HITBOX)); tag.putInt("Kind", entityData.get(KIND)); tag.putFloat("Damage", damage); tag.putDouble("Range", range);
         tag.putDouble("Traveled", traveled); tag.putInt("Age", age); tag.put("Blast", blast.copy());
         tag.putInt("MortarWarningColor", mortarWarningColor);
+        if(impactConfig!=null)tag.put("ImpactConfig",impactConfig.save());
         tag.putInt("VisualLife", visualLife); tag.put("Trail", dev.sablelife.module.ModuleParticles.save(trail.stream().map(dev.sablelife.module.ModuleParticles.Entry::id).toList())); tag.put("TrailProperties", dev.sablelife.module.ModuleParticles.saveEntries(trail));
         if (owner != null) tag.putUUID("Owner", owner);
         if(homingConfig!=null) {
@@ -235,6 +239,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         range = Math.clamp(tag.getDouble("Range"), 1, 2048); int savedColor=tag.getInt("MortarWarningColor");mortarWarningColor=savedColor>=0x1000000&&savedColor<=0x1FFFFFF?savedColor:Math.clamp(savedColor,0,6);
         traveled = Math.max(0, tag.getDouble("Traveled"));
         trail = dev.sablelife.module.ModuleParticles.loadEntries(tag.getList("TrailProperties", 10), dev.sablelife.module.ModuleParticles.load(tag.getList("Trail", 8))); age = Math.clamp(tag.getInt("Age"), 0, 1400); blast = tag.getCompound("Blast").copy();
+        impactConfig=tag.contains("ImpactConfig")?VirtualModule.load(tag.getCompound("ImpactConfig")):null;
         owner = tag.hasUUID("Owner") ? tag.getUUID("Owner") : null;
         if (owner != null) getPersistentData().putUUID("SableLifeAttackOwner", owner);
         if(homingProjectile() && tag.contains("HomingConfig")) {

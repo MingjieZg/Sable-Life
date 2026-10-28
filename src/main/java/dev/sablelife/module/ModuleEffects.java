@@ -14,7 +14,7 @@ import java.util.List;
 /** Bounded, registry-validated effect snapshots shared by every supported attack. */
 public final class ModuleEffects {
     public static final int LIMIT = 128;
-    public static final List<String> TYPES = List.of("sphere_blast", "slash", "melee", "flame", "pulse", "arrow", "gun", "mortar", "homing");
+    public static final List<String> TYPES = List.of("surface_field", "sphere_blast", "slash", "melee", "flame", "pulse", "arrow", "gun", "mortar", "homing");
     public record Entry(String id, int ticks, int level) {
         public MobEffectInstance instance() {
             var key = ResourceLocation.tryParse(id);

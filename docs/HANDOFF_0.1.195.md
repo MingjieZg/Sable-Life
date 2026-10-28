@@ -1,3 +1,27 @@
+# 最新开发版 0.1.284（2026-10-28）
+
+修复Sable schematic放置后攻击的持续范围伤害引用显示区域已删除：HeartBlueprintMapper把Settings.ImpactFieldId加入原生放置UUID映射，与模板新ID一致。八类攻击、模板前后顺序、重复放置/再导出隔离均验证，实际命中可生成区域。62项相关原生GameTests通过，手册仍120。原schematic可重新放置；已失效世界副本需重选引用或重放。见 DEVELOPMENT_0.1.284.md / exports/development-0.1.284/manifest.json。稳定243、移动273/272不变，未上传或修改原实例。
+
+# 开发版 0.1.283（2026-10-28）
+
+Slash新增“可被格挡”勾选，默认关闭以保留原无法格挡行为。开启后按飞行来袭方向允许正面原版盾牌及Epic Fight三种原生防御/招架，背面照常命中；成功格挡不触发点燃/药水/命中区域或计数，零伤害效果斩击同样受控。在途快照、单目标一次判定保留。78项攻击/持续范围与9项Epic Fight原生测试、16组GUI及手册120通过。见 DEVELOPMENT_0.1.283.md / exports/development-0.1.283/manifest.json。稳定243、移动273/272不变，未上传或修改原实例。
+
+# 开发版 0.1.282（2026-10-28）
+
+surface_field显示持续范围伤害，成为纯命中模板：固定fieldRelease=0，无Mark/Preview/独立Trigger/目标释放/直接Move Set，删除运行时自主释放。旧Mark状态忽略，ID/引用保留。四项滚轮步长1（尺寸格、持续时间秒）。homing加入IMPACT_ATTACKS，真实命中走既有入口，同来源模板同点只刷新、不叠伤/重置伤害时钟。Slash追加slashIgnite勾选与burn秒数（默认关、3秒），独立于区域燃烧。206项相关GameTests、32组GUI、手册119通过。详见 DEVELOPMENT_0.1.282.md / exports/development-0.1.282/manifest.json。稳定243和移动273/272不变，未上传或改原实例。
+
+# 开发版 0.1.281（2026-10-28）
+
+命中区域扩展到Gun/Arrow/Slash/Laser/GroundStrike，共七种；ModuleSurfaceField.IMPACT_ATTACKS为共享白名单，SurfaceFieldImpact适配实际地形面与实体向下地面投射。箭快照/消耗状态随实体保存，爆炸箭事件取消插地前也触发；激光仅发射接触、斩击真实命中、地面落击时生成。不改原无引用攻击行为。202项GameTests、16组UI、手册118通过，详见 DEVELOPMENT_0.1.281.md / exports/development-0.1.281/manifest.json。稳定243和移动273/272保留，未上传或修改原实例。
+
+# 开发版 0.1.280（2026-10-28）
+
+持续区域与残留火焰已合并。攻击模块仅impactArea引用，模板fieldBurn勾选控制burn（离开后燃烧秒数，默认3）；每刻接触刷新先于命中冷却，直接伤害沿用绕过普通无敌帧的ModuleDamage，燃烧伤害不吞区域伤害。移除impactFire字段和独立火焰运行分支。详见 DEVELOPMENT_0.1.280.md，58项相关GameTests、16组GUI、手册117及Jar验证通过。稳定243和移动273/272保留，未上传或修改原实例。
+
+# 开发版 0.1.279（2026-10-28）
+
+Mortar / Flamethrower 命中残留火焰和持续区域为两个独立设置；后者选择 surface_field 模板（UUID引用）。范围支持圆形/旋转长方形，贴合静态地面/墙面，区域独立计时，重叠伤害共享时钟，附近命中刷新，最多64个/核心。总开关、死亡、卸载及来源/模板删除或停用清理；不改地形。详见 DEVELOPMENT_0.1.279.md 和 exports/development-0.1.279/manifest.json。185项相关GameTests、16组GUI、最终13项区域保存回归通过，手册116。稳定243与移动273/272观察保持原状。未上传、未动原实例。
+
 # 开发版快照 0.1.278（2026-10-19）
 
 本次备份并同步0.1.278源码及Jar，包含粒子单点/双点范围扩展、模块搜索/Copy、Slash发动/持续飞行音效、多目标范围释放，以及前序开发变更。最新测试记录见 releases/development-0.1.278/manifest.json。

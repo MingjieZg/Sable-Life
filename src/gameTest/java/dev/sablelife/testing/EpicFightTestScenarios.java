@@ -20,6 +20,26 @@ import yesman.epicfight.world.capabilities.entitypatch.LivingEntityPatch;
 import java.util.*;
 
 public final class EpicFightTestScenarios {
+    public static void SlashOptionSupportsNativeGuardsAndRearHits(GameTestHelper h) {
+        var level=h.getLevel();var core=SlashGuardGameTests.core(h);var module=SlashGuardGameTests.slash(core);var pos=SlashGuardGameTests.position(h,core,module);
+        var player=new SlashGuardGameTests.Defender(level);player.setPos(pos);player.tickCount=100;player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,new ItemStack(Items.DIAMOND_SWORD));level.addNewPlayer(player);
+        var patch=EpicFightCapabilities.getServerPlayerPatch(player);patch.toEpicFightMode(false);
+        patch.updateHeldItem(EpicFightCapabilities.getItemStackCapability(ItemStack.EMPTY),EpicFightCapabilities.getItemStackCapability(player.getMainHandItem()),ItemStack.EMPTY,player.getMainHandItem(),net.minecraft.world.InteractionHand.MAIN_HAND);
+        var slot=patch.getSkill(yesman.epicfight.skill.SkillSlots.GUARD);core.tryActivate(TestActors.creative(level));
+        try {
+            for(var guard:List.of(yesman.epicfight.registry.entries.EpicFightSkills.GUARD.get(),yesman.epicfight.registry.entries.EpicFightSkills.PARRYING.get(),yesman.epicfight.registry.entries.EpicFightSkills.IMPACT_GUARD.get()))
+            for(boolean option:new boolean[]{false,true})for(boolean front:new boolean[]{true,false})for(int damage:new int[]{0,2}) {
+                patch.resetHolding();slot.setSkill(guard,true);patch.setStamina(patch.getMaxStamina());h.assertTrue(patch.startSkillHolding(guard),"Cannot hold guard");
+                if(guard instanceof yesman.epicfight.skill.guard.ParryingSkill)slot.getDataManager().setData(yesman.epicfight.registry.entries.EpicFightSkillDataKeys.LAST_ACTIVE,player.tickCount);
+                player.setPos(pos);player.setHealth(20);player.clearFire();player.removeAllEffects();player.setYRot(front?180:0);player.setYHeadRot(front?180:0);module.edit("slashBlockable",option?1:0,"");module.edit("damage",damage,"");core.modules().surfaceFields.clear();
+                float stamina=patch.getStamina();var runtime=new dev.sablelife.module.ModuleSlash();runtime.tick(core);boolean blocked=option&&front;
+                h.assertTrue(player.getHealth()==(blocked?20:20-damage),"Slash guard HP wrong: "+guard.getClass().getSimpleName()+" option="+option+" front="+front+" damage="+damage+" HP="+player.getHealth());
+                h.assertTrue(player.isOnFire()!=blocked&&player.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN)!=blocked&&core.modules().surfaceFields.count()==(blocked?0:1),"Blocked Slash leaked effects/area or accepted hit lost effects");
+                if(blocked)h.assertTrue(patch.getStamina()<stamina,"Guard did not consume stamina");float after=patch.getStamina();runtime.tick(core);h.assertTrue(patch.getStamina()==after,"Same blade repeated guard cost");runtime.clear();
+            }
+            module.edit("enabled",0,"");h.succeed();
+        } finally {patch.resetHolding();level.removePlayerImmediately(player,net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);}
+    }
     public static void NativeSwordAnimationHitsBodyOnlyOnceAndNextPhaseCanHitAgain(GameTestHelper h)throws Exception {
         nativeWeapon(h,Items.DIAMOND_SWORD,Animations.SWORD_AUTO1);
     }

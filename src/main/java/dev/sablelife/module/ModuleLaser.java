@@ -180,13 +180,18 @@ public final class ModuleLaser {
                 if (!s.firing) {
                     ModuleParticles.send(level, color(m), start.x, start.y, start.z, 3, .15, .15, .15, 0); continue;
                 }
+                if(end.distanceToSqr(endpoint)>1e-6)SurfaceFieldImpact.terrainEnd(heart,m,end,dir);
                 if (!hit) continue;
                 double radius = m.value("beamWidth") / 2;
                 for (var victim : ModuleTargets.query(level, heart.creatureId(), new AABB(start, end).inflate(radius), e -> eligible(e, m))) {
                     var box = victim.getBoundingBox().inflate(radius);
                     if (!box.contains(start) && box.clip(start, end).isEmpty()) continue;
                     if (!ModuleTargets.visible(level, heart.creatureId(), start, victim)) continue;
-                    if (damaged.add(victim.getUUID())) ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"),heart,m);
+                    if (damaged.add(victim.getUUID())) {
+                        var contact=dev.sablelife.combat.SegmentBoxContact.closest(start,end,victim.getBoundingBox(),new Vec3(1,1,1)).point();
+                        SurfaceFieldImpact.entity(heart,m,contact,dir,victim.getUUID());
+                        ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"),heart,m);
+                    }
                 }
             }
         }

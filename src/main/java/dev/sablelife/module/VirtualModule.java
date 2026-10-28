@@ -8,11 +8,11 @@ import java.util.ArrayList;
 
 /** Persistent authoring settings shared by the dashboard and validated server runtime. */
 public final class VirtualModule {
-    public static final List<String> TYPES = List.of("move_set", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
+    public static final List<String> TYPES = List.of("move_set", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse", "surface_field", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
     /** New-module catalog grouped by sidebar color: signal, weapon, function. */
     public static final List<String> AVAILABLE_TYPES = List.of(
             "move_set", "health_phase", "hit_counter", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation",
-            "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse",
+            "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "pulse", "surface_field",
             "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
     private final java.util.Map<String,VirtualModule> movementParticles = new java.util.HashMap<>();
     public VirtualModule movementParticles(String stage) { return movementParticles.get(stage); }
@@ -81,7 +81,7 @@ public final class VirtualModule {
     }
     public boolean hasRedBlue() { return !redBlue.isEmpty(); }
     private CompoundTag lootSamples = new CompoundTag();
-    public boolean coreModule() { return type.equals("armor")&&value("armorWholeBody")==1||List.of("bgm", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "move_set", "command").contains(type); }
+    public boolean coreModule() { return type.equals("surface_field")||type.equals("armor")&&value("armorWholeBody")==1||List.of("bgm", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "move_set", "command").contains(type); }
     public boolean area() { return type.equals("melee") || type.equals("particles") && value("particlePattern") == 0; }
     private final List<String> particles = new ArrayList<>();
     public List<String> particles() { return List.copyOf(particles); }
@@ -90,7 +90,7 @@ public final class VirtualModule {
     public ModuleParticles.Entry particleEntry(String id) { return particleProperties.getOrDefault(id, new ModuleParticles.Entry(id, 0, 1F)); }
     public boolean editParticle(String operation, String particle) { return editParticle(operation, particle, 0); }
     public boolean editParticle(String operation, String particle, double value) {
-        if (!(type.equals("particles") || type.equals("flame") || type.equals("quake") || type.equals("ground_strike") || type.equals("pull") || type.equals("laser") || type.equals("slash") || List.of("arrow", "gun", "mortar", "homing").contains(type)) || !ModuleParticles.valid(particle)) return false;
+        if (!(type.equals("surface_field") || type.equals("particles") || type.equals("flame") || type.equals("quake") || type.equals("ground_strike") || type.equals("pull") || type.equals("laser") || type.equals("slash") || List.of("arrow", "gun", "mortar", "homing").contains(type)) || !ModuleParticles.valid(particle)) return false;
         if (!Double.isFinite(value)) return false;
         if (operation.equals("remove")) { particleProperties.remove(particle); return particles.remove(particle); }
         if(particles.contains(particle)&&operation.equals("color")){
@@ -148,6 +148,7 @@ public final class VirtualModule {
         this.id = id; this.type = type;
         for(var f:ModuleFields.HURT_FIELDS) settings.putDouble(f.key(),f.initial());
         ModuleFields.forType(type).forEach(f -> settings.putDouble(f.key(), f.initial()));
+        if(type.equals("surface_field"))particles.add("minecraft:effect");
         if(type.equals("flame"))particles.add("minecraft:flame");
         if (type.equals("linear_movement")) {
             trigger=1;
@@ -239,11 +240,14 @@ public final class VirtualModule {
         else {var frequencies=new CompoundTag();for(var key:List.of("Red","Blue"))if(redBlue.contains(key))frequencies.put(key,redBlue.get(key).copy());redBlue=frequencies;}
         if(!type.equals("loot"))lootSamples=new CompoundTag();
         else {var samples=new CompoundTag();for(int i=0;i<27;i++)for(var prefix:List.of("Slot","Chance","Weight")){var key=prefix+i;if(lootSamples.contains(key))samples.put(key,lootSamples.get(key).copy());}lootSamples=samples;}
+        impactField(null);
         if(type.equals("hit_counter")){settings.putDouble("hitChannel",0);hitSource(null,0);}
         if(type.equals("wireless_redstone"))settings.putDouble("redstoneChannel",0);
         arenaBuffs.unbind();armorRules.unbind();healthPhaseRules.unbind();
         movementParticles.values().forEach(VirtualModule::sanitizeImportedAuthoring);
     }
+    public UUID impactFieldId(){return settings.hasUUID("ImpactFieldId")?settings.getUUID("ImpactFieldId"):null;}
+    public void impactField(UUID id){if(id==null)settings.remove("ImpactFieldId");else settings.putUUID("ImpactFieldId",id);}
     public UUID hitSourceId(){return settings.hasUUID("HitSourceId")?settings.getUUID("HitSourceId"):null;}
     public void hitSource(UUID id,int index){if(id==null)settings.remove("HitSourceId");else settings.putUUID("HitSourceId",id);settings.putDouble("hitSource",index);}
     public String text(String key) { return settings.getString(key); }
@@ -364,6 +368,7 @@ public final class VirtualModule {
             if (tag.contains(nbt)) module.edit(key, tag.getDouble(nbt), "");
         }
         var saved = tag.getCompound("Settings");
+        if(ModuleSurfaceField.impactAttack(module)&&saved.hasUUID("ImpactFieldId"))module.impactField(saved.getUUID("ImpactFieldId"));
         if(module.type.equals("hit_counter")&&saved.hasUUID("HitSourceId"))module.settings.putUUID("HitSourceId",saved.getUUID("HitSourceId"));
         if(module.type.equals("health_phase")){
             if(tag.contains("HealthPhaseRules",9))module.healthPhaseRules.load(tag.getList("HealthPhaseRules",10));
@@ -403,7 +408,7 @@ public final class VirtualModule {
         if(module.type.equals("linear_movement")||module.type.equals("sphere_blast")||module.type.equals("pulse")){var stages=tag.getCompound("MovementParticles");for(String stage:module.type.equals("pulse")?List.of("Center","Wave"):module.type.equals("sphere_blast")?List.of("Charge","Blast"):List.of("Charge","Departure","Arrival"))if(stages.contains(stage)){var child=stages.getCompound(stage).copy();child.putString("Type","particles");child.remove("MovementParticles");module.movementParticles.put(stage,VirtualModule.load(child));}}
         module.lootSamples = tag.getCompound("LootSamples").copy();
         module.importData = tag.getCompound("ImportData").copy();
-        if(module.type.equals("flame"))module.particles.clear();
+        if(module.type.equals("flame")||module.type.equals("surface_field"))module.particles.clear();
         module.particles.addAll(ModuleParticles.load(tag.getList("Particles", 8)));
         for (var e : ModuleParticles.loadEntries(tag.getList("ParticleProperties", 10), module.particles)) module.particleProperties.put(e.id(), e);
         if(module.type.equals("flame")&&!tag.contains("FlameParticleSelectionVersion")){

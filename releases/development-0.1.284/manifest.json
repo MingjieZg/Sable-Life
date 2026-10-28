@@ -1,0 +1,14 @@
+{
+  "version": "0.1.284",
+  "date": "2026-10-28",
+  "stableVersion": "0.1.243",
+  "file": "sablelife-0.1.284.jar",
+  "bytes": 1631026,
+  "sha256": "9317c67ed7199b60cc37c90cf6ed2d8e02287f4b21157c2c7072bc1ec5f826d3",
+  "networkProtocol": 21,
+  "manualRevision": 120,
+  "relatedGameTests": 62,
+  "movementObservationVersion": "0.1.273",
+  "movementComparisonVersion": "0.1.272",
+  "validation": "62 native surface/audit/blueprint plot-cache GameTests passed. Actual export/decode/placement preserves all 8 attack impact references, multiple templates in either list order, independent copies and recapture, unchanged original settings and actual impact area spawn. Jar/manual verified. Full suite/JUnit/GUI/original instance not rerun. Not uploaded."
+}

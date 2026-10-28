@@ -196,7 +196,9 @@ public final class ModuleCombat {
         while (iterator.hasNext()) {
             var flame = iterator.next(); var previous = flame.point;
             var intended = previous.add(flame.direction.scale(Math.min(speed, range - flame.distance)));
-            var end = clip(world, previous, intended);
+            var terrainHit=world.clip(new ClipContext(previous,intended,ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,(net.minecraft.world.entity.Entity)null));
+            var end=terrainHit.getType()==HitResult.Type.MISS?intended:SableBodyProbe.toWorld(world,terrainHit.getLocation());
+            if(terrainHit.getType()==HitResult.Type.BLOCK)heart.modules().surfaceFields.impact(heart,module,end,Vec3.atLowerCornerOf(terrainHit.getDirection().getNormal()),flame.direction);
             double radius = .25 + (width - .25) * Math.min(1, (flame.distance + speed) / range);
             for (var victim : ModuleTargets.query(world, heart.creatureId(), new AABB(previous, end).inflate(radius + 1), this::target)) {
                 if (victim instanceof ModuleTargets.LifeTarget || victim.fireImmune() || state.hits.containsKey(victim.getUUID())) continue;

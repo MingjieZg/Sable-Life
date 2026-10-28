@@ -1,4 +1,4 @@
-> Latest development snapshot: **0.1.278** (2026-10-19). Stable remains **0.1.243**. [Development Jar](releases/development-0.1.278/sablelife-0.1.278.jar) · [Snapshot notes](docs/DEVELOPMENT_SNAPSHOT_0.1.278.md) · [Final damage API acceptance requirements](docs/FINAL_ACCEPTANCE_DAMAGE_API.md). Movement changes remain under observation.
+> Latest development snapshot: **0.1.284** (2026-10-28). [Development Jar](releases/development-0.1.284/sablelife-0.1.284.jar) · [Development notes](docs/DEVELOPMENT_0.1.284.md). Stable remains **0.1.243**; movement changes remain under observation. [Final damage API acceptance requirements](docs/FINAL_ACCEPTANCE_DAMAGE_API.md).
 
 # Current stable: 0.1.243
 

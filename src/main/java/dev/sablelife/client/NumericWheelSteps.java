@@ -20,6 +20,7 @@ public final class NumericWheelSteps {
         if(key.equals("armorWholeChannel"))return 1;
         if(key.startsWith("displayRot")||ModuleFields.angle(key)||key.equals("damageModifier"))return 5;
         if(type.equals("arena")&&key.equals("arenaRespawnDelay"))return 1;
+        if(type.equals("surface_field")&&Set.of("fieldRadius","fieldLength","fieldWidth","fieldDuration").contains(key))return 1;
         if(scale!=1)return .1;
         if(WHOLE.contains(key)||BLOCKS.contains(key)||key.endsWith("Radius")&&minimum>=1)return 1;
         if(Set.of("pullStrength","homingTracking","laserFollow","particleSpeed","drift").contains(key))return .01;
