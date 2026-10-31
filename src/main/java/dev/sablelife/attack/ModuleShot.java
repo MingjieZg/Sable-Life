@@ -21,6 +21,16 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     private static final EntityDataAccessor<ItemStack> ITEM = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.ITEM_STACK);
     private static final EntityDataAccessor<Integer> KIND = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> HITBOX = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Boolean> FALLING_FIXED = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<org.joml.Vector3f> FALLING_ROTATION = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Float> FALLING_SIZE = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.FLOAT);
+    public boolean fallingProjectile(){return entityData.get(KIND)==2;}
+    public float fallingItemSize(){return entityData.get(FALLING_SIZE);}
+    @Override public AABB getBoundingBoxForCulling(){return fallingProjectile()?new AABB(position(),position()).inflate(fallingItemSize()):super.getBoundingBoxForCulling();}
+    public boolean fixedFallingItem(){return entityData.get(KIND)==2&&entityData.get(FALLING_FIXED);}
+    public org.joml.Vector3f fallingItemAngles(){return new org.joml.Vector3f(entityData.get(FALLING_ROTATION));}
+    public org.joml.Quaternionf fallingItemRotation(){var r=fallingItemAngles();return new org.joml.Quaternionf().rotationXYZ((float)Math.toRadians(r.x),(float)Math.toRadians(r.y),(float)Math.toRadians(r.z));}
+    private static float visualAngle(float v){return Float.isFinite(v)?Math.clamp(v,-180,180):0;}
     private java.util.List<dev.sablelife.module.ModuleParticles.Entry> trail = java.util.List.of();
     private int mortarWarningColor;
     private CompoundTag blast = new CompoundTag();
@@ -140,6 +150,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     public static ModuleShot fallingVisual(ServerLevel level, Vec3 origin, double speed, int lifetime, VirtualModule module) {
         var shot = new ModuleShot(SableLife.MODULE_SHOT.get(), level);
         shot.entityData.set(KIND, 2); shot.entityData.set(ITEM, module.projectileItem(level.registryAccess()));
+        shot.entityData.set(FALLING_SIZE,(float)module.value("strikeItemSize"));shot.entityData.set(FALLING_FIXED,module.value("strikeItemMode")==1);shot.entityData.set(FALLING_ROTATION,new org.joml.Vector3f((float)module.value("strikeItemX"),(float)module.value("strikeItemY"),(float)module.value("strikeItemZ")));
         shot.entityData.set(HITBOX, (float) module.value("projectileHitbox"));
         shot.visualLife = lifetime; shot.setPos(origin); shot.setDeltaMovement(0, -speed, 0);
         return shot;
@@ -151,7 +162,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     }
     @Override public void refreshDimensions() { super.refreshDimensions(); setBoundingBox(makeBoundingBox()); }
     @Override public ItemStack getItem() { return entityData.get(ITEM).isEmpty() ? new ItemStack(homingProjectile() ? Items.AIR : entityData.get(KIND) != 0 ? Items.FIRE_CHARGE : Items.IRON_NUGGET) : entityData.get(ITEM).copy(); }
-    @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(ITEM, ItemStack.EMPTY); builder.define(KIND, 0); builder.define(HITBOX, .2F); }
+    @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(ITEM, ItemStack.EMPTY); builder.define(KIND, 0); builder.define(HITBOX, .2F); builder.define(FALLING_SIZE,.5F);builder.define(FALLING_FIXED,false);builder.define(FALLING_ROTATION,new org.joml.Vector3f()); }
     @Override public EntityDimensions getDimensions(Pose pose) { float size = entityData.get(HITBOX); return EntityDimensions.fixed(size, size); }
     @Override public void onSyncedDataUpdated(EntityDataAccessor<?> key) { super.onSyncedDataUpdated(key); if (key.equals(HITBOX)) refreshDimensions(); }
     private BlockHitResult blockHit(ServerLevel world, Vec3 start, Vec3 end) {
@@ -201,7 +212,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
                 }
             } else if (block.getType() == HitResult.Type.BLOCK) {
                 var heart = SableBodyProbe.findActivatedHeart(world, block.getBlockPos());
-                if (heart != null && heart.acceptsLifeAttack(owner)){float before=heart.health().current();if(heart.damageAt(block.getBlockPos(), damage))AttackHitCredit.record(this,Math.max(0,before-heart.health().current()));}
+                if (heart != null && heart.acceptsLifeAttack(owner)){float before=heart.health().current();if(heart.damageAt(block.getBlockPos(), damage)){AttackHitCredit.record(this,Math.max(0,before-heart.health().current()));CombatEventHooks.killed(this,heart);}}
                 stop = stop.add(net.minecraft.world.phys.Vec3.atLowerCornerOf(block.getDirection().getNormal()).scale(.03));
             }
             if (entity != null || block.getType() == HitResult.Type.BLOCK) {
@@ -217,6 +228,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     }
     @Override protected void addAdditionalSaveData(CompoundTag tag) {
         if (!entityData.get(ITEM).isEmpty()) tag.put("Item", entityData.get(ITEM).save(level().registryAccess()));
+        tag.putFloat("FallingItemSize",fallingItemSize());tag.putBoolean("FallingFixed",entityData.get(FALLING_FIXED));var rotation=fallingItemAngles();tag.putFloat("FallingItemX",rotation.x);tag.putFloat("FallingItemY",rotation.y);tag.putFloat("FallingItemZ",rotation.z);
         tag.putFloat("Hitbox", entityData.get(HITBOX)); tag.putInt("Kind", entityData.get(KIND)); tag.putFloat("Damage", damage); tag.putDouble("Range", range);
         tag.putDouble("Traveled", traveled); tag.putInt("Age", age); tag.put("Blast", blast.copy());
         tag.putInt("MortarWarningColor", mortarWarningColor);
@@ -234,8 +246,10 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     }
     @Override protected void readAdditionalSaveData(CompoundTag tag) {
         entityData.set(ITEM, ItemStack.parseOptional(level().registryAccess(), tag.getCompound("Item")));
+        entityData.set(FALLING_FIXED,tag.getBoolean("FallingFixed"));entityData.set(FALLING_ROTATION,new org.joml.Vector3f(visualAngle(tag.getFloat("FallingItemX")),visualAngle(tag.getFloat("FallingItemY")),visualAngle(tag.getFloat("FallingItemZ"))));
         entityData.set(KIND, Math.clamp(tag.getInt("Kind"), 0, 3)); visualLife = Math.clamp(tag.getInt("VisualLife"), 1, 640); damage = Math.clamp(tag.getFloat("Damage"), 0F, 1000F);
         entityData.set(HITBOX, tag.contains("Hitbox") ? Math.clamp(tag.getFloat("Hitbox"), .05F, 2F) : mortar() ? .15F : .2F); refreshDimensions();
+        float savedSize=tag.contains("FallingItemSize")?tag.getFloat("FallingItemSize"):entityData.get(HITBOX);entityData.set(FALLING_SIZE,Float.isFinite(savedSize)?Math.clamp(savedSize,.1F,32F):.5F);
         range = Math.clamp(tag.getDouble("Range"), 1, 2048); int savedColor=tag.getInt("MortarWarningColor");mortarWarningColor=savedColor>=0x1000000&&savedColor<=0x1FFFFFF?savedColor:Math.clamp(savedColor,0,6);
         traveled = Math.max(0, tag.getDouble("Traveled"));
         trail = dev.sablelife.module.ModuleParticles.loadEntries(tag.getList("TrailProperties", 10), dev.sablelife.module.ModuleParticles.load(tag.getList("Trail", 8))); age = Math.clamp(tag.getInt("Age"), 0, 1400); blast = tag.getCompound("Blast").copy();

@@ -25,16 +25,18 @@ public final class EpicFightTestScenarios {
         var player=new SlashGuardGameTests.Defender(level);player.setPos(pos);player.tickCount=100;player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,new ItemStack(Items.DIAMOND_SWORD));level.addNewPlayer(player);
         var patch=EpicFightCapabilities.getServerPlayerPatch(player);patch.toEpicFightMode(false);
         patch.updateHeldItem(EpicFightCapabilities.getItemStackCapability(ItemStack.EMPTY),EpicFightCapabilities.getItemStackCapability(player.getMainHandItem()),ItemStack.EMPTY,player.getMainHandItem(),net.minecraft.world.InteractionHand.MAIN_HAND);
+        int output=core.wireless().add();core.wireless().channel(output).set(6,3);core.wireless().channel(output).set(0,1);var listener=core.modules().add("combat_event");var rule=listener.signalRules().rows().getFirst();rule.edit("eventKind",2);rule.edit("eventFilter",2);rule.edit("eventChannel",output+1);rule.edit("eventCooldown",0);rule.source(module.id());
         var slot=patch.getSkill(yesman.epicfight.skill.SkillSlots.GUARD);core.tryActivate(TestActors.creative(level));
         try {
             for(var guard:List.of(yesman.epicfight.registry.entries.EpicFightSkills.GUARD.get(),yesman.epicfight.registry.entries.EpicFightSkills.PARRYING.get(),yesman.epicfight.registry.entries.EpicFightSkills.IMPACT_GUARD.get()))
             for(boolean option:new boolean[]{false,true})for(boolean front:new boolean[]{true,false})for(int damage:new int[]{0,2}) {
                 patch.resetHolding();slot.setSkill(guard,true);patch.setStamina(patch.getMaxStamina());h.assertTrue(patch.startSkillHolding(guard),"Cannot hold guard");
                 if(guard instanceof yesman.epicfight.skill.guard.ParryingSkill)slot.getDataManager().setData(yesman.epicfight.registry.entries.EpicFightSkillDataKeys.LAST_ACTIVE,player.tickCount);
-                player.setPos(pos);player.setHealth(20);player.clearFire();player.removeAllEffects();player.setYRot(front?180:0);player.setYHeadRot(front?180:0);module.edit("slashBlockable",option?1:0,"");module.edit("damage",damage,"");core.modules().surfaceFields.clear();
+                core.modules().combatEvents.clear();player.setPos(pos);player.setHealth(20);player.clearFire();player.removeAllEffects();player.setYRot(front?180:0);player.setYHeadRot(front?180:0);module.edit("slashBlockable",option?1:0,"");module.edit("damage",damage,"");core.modules().surfaceFields.clear();
                 float stamina=patch.getStamina();var runtime=new dev.sablelife.module.ModuleSlash();runtime.tick(core);boolean blocked=option&&front;
                 h.assertTrue(player.getHealth()==(blocked?20:20-damage),"Slash guard HP wrong: "+guard.getClass().getSimpleName()+" option="+option+" front="+front+" damage="+damage+" HP="+player.getHealth());
                 h.assertTrue(player.isOnFire()!=blocked&&player.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN)!=blocked&&core.modules().surfaceFields.count()==(blocked?0:1),"Blocked Slash leaked effects/area or accepted hit lost effects");
+                core.modules().combatEvents.tick(core);h.assertTrue(core.wireless().output(output)==(blocked?15:0),"Guard event does not match actual Slash block");
                 if(blocked)h.assertTrue(patch.getStamina()<stamina,"Guard did not consume stamina");float after=patch.getStamina();runtime.tick(core);h.assertTrue(patch.getStamina()==after,"Same blade repeated guard cost");runtime.clear();
             }
             module.edit("enabled",0,"");h.succeed();

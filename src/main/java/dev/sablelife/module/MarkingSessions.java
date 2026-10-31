@@ -208,6 +208,7 @@ public final class MarkingSessions {
             player.displayClientMessage(Component.translatable(module.type().equals("sensor") ? "dashboard.sablelife.sensor_output_help" : "dashboard.sablelife.redstone_help"), true);
             if (module.type().equals("wireless_redstone")) return;
         }
+        if(module.type().equals("summoned_weapon")&&!module.anchors().isEmpty()&&module.anchors().getFirst().status(heart).equals("valid")){ModuleSummonedWeapon.preview(player,heart,module);return;}
         if(module.type().equals("item_display")&&!module.anchors().isEmpty()&&module.anchors().getFirst().status(heart).equals("valid")){ModuleItemDisplay.preview(player,heart,module);return;}
         if (module.type().equals("particles")) {
             if (!HeartModules.status(module, heart).equals("valid") && !HeartModules.status(module, heart).equals("disabled")) return;
@@ -240,6 +241,8 @@ public final class MarkingSessions {
             return;
         }
         if(module.type().equals("slash")&&HeartModules.status(module,heart).equals("valid")){ModuleSlash.preview(player,heart,module);return;}
+        if(module.type().equals("grab")&&HeartModules.status(module,heart).equals("valid")){ModuleGrab.preview(player,heart,module);return;}
+        if(module.type().equals("freeze")&&HeartModules.status(module,heart).equals("valid")){ModuleFreeze.preview(player,heart,module);return;}
         if(module.type().equals("sphere_blast")&&HeartModules.status(module,heart).equals("valid")){ModuleSphereBlast.preview(player,heart,module);return;}
         if (module.type().equals("linear_movement") && HeartModules.status(module,heart).equals("valid")) {ModuleLinearMovement.preview(player,heart,module);return;}
         if (module.type().equals("homing") && HeartModules.status(module, heart).equals("valid")) { ModuleHoming.preview(player, heart, module); return; }

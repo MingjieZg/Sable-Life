@@ -32,7 +32,7 @@ public final class EffectSelectionScreen extends AbstractContainerScreen<EffectS
     private boolean particlesMode,arenaBuffMode;
     private Component tr(String key) { if(arenaBuffMode&&(key.equals("title")||key.equals("selected")))return Component.translatable("arena_buffs.sablelife.effect_"+key);return Component.translatable((particlesMode ? "particles.sablelife." : "effects.sablelife.") + key); }
     private Component name(String id) {
-        if (particlesMode) {var text=Component.literal(ResourceLocation.parse(id).getPath().replace('_', ' '));return ModuleParticles.colorable(id)?text.append(" ").append(tr("colorable")):text;}
+        if (particlesMode) {var text=ModuleParticles.BUNDLED.contains(id)?Component.translatable("particle."+id.replace(':','.')):Component.literal(ResourceLocation.parse(id).getPath().replace('_', ' '));return ModuleParticles.colorable(id)?text.append(" ").append(tr("colorable")):text;}
         var effect = BuiltInRegistries.MOB_EFFECT.get(ResourceLocation.parse(id));
         return effect == null ? Component.literal(id) : effect.getDisplayName();
     }

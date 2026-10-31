@@ -17,12 +17,29 @@ import java.util.*;
 public final class ModuleItemDisplayClient {
     private record Display(UUID id,ModuleAnchor anchor,ItemStack item,float size,Vec3 offset,org.joml.Quaternionf rotation){}
     private record Core(UUID creature,List<Display> displays,long expires){}
+    private record Preview(net.minecraft.world.entity.Display.ItemDisplay entity,long expires){}
+    private static final Map<UUID,List<Preview>> previews=new LinkedHashMap<>();
     private static final Map<BlockPos,Core> cores=new LinkedHashMap<>();
     private static net.minecraft.client.multiplayer.ClientLevel previous;
-    @SubscribeEvent public static void tick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event){if(Minecraft.getInstance().level==null){cores.clear();previous=null;}}
+    @SubscribeEvent public static void tick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event){if(Minecraft.getInstance().level==null){cores.clear();previews.clear();previous=null;}}
     public static void receive(ItemDisplayPacket packet){
-        var level=Minecraft.getInstance().level;if(level==null)return;if(level!=previous){cores.clear();previous=level;}
-        var list=new ArrayList<Display>();if(packet.displays()==null)return;
+        var level=Minecraft.getInstance().level;if(level==null)return;if(level!=previous){cores.clear();previews.clear();previous=level;}
+        if(packet.displays()==null)return;
+        if(packet.displays().contains("SummonPreview")){
+            var rows=new ArrayList<Preview>();
+            for(var value:packet.displays().getList("SummonPreview",10)){
+                if(rows.size()>=32)break;var row=(net.minecraft.nbt.CompoundTag)value;var item=ItemStack.parseOptional(level.registryAccess(),row.getCompound("Item"));if(item.isEmpty())continue;
+                var entity=new net.minecraft.world.entity.Display.ItemDisplay(net.minecraft.world.entity.EntityType.ITEM_DISPLAY,level);
+                var tag=new net.minecraft.nbt.CompoundTag();tag.put("item",row.getCompound("Item").copy());tag.putString("item_display","fixed");entity.load(tag);
+                entity.setPos(row.getDouble("X"),row.getDouble("Y"),row.getDouble("Z"));
+                var rotation=new org.joml.Quaternionf((float)row.getDouble("QX"),(float)row.getDouble("QY"),(float)row.getDouble("QZ"),(float)row.getDouble("QW"));
+                ((dev.sablelife.mixin.RespawnDisplayAccess)(Object)entity).sablelife$transform(new com.mojang.math.Transformation(new org.joml.Vector3f(),rotation,new org.joml.Vector3f(row.getFloat("Size")),new org.joml.Quaternionf()));
+                // Build vanilla render state without adding a collidable/networked world entity.
+                entity.tick();rows.add(new Preview(entity,level.getGameTime()+60));
+            }
+            previews.put(packet.creature(),List.copyOf(rows));while(previews.size()>16)previews.remove(previews.keySet().iterator().next());return;
+        }
+        var list=new ArrayList<Display>();
         for(var value:packet.displays().getList("Displays",10)){
             if(list.size()>=64)break;var row=(net.minecraft.nbt.CompoundTag)value;var anchor=ModuleAnchor.load(row.getCompound("Anchor"));var item=ItemStack.parseOptional(level.registryAccess(),row.getCompound("Item"));if(anchor==null||item.isEmpty()||!row.hasUUID("Id"))continue;
             var rotation=new org.joml.Quaternionf().rotationXYZ((float)Math.toRadians(row.getFloat("displayRotX")),(float)Math.toRadians(row.getFloat("displayRotY")),(float)Math.toRadians(row.getFloat("displayRotZ")));
@@ -33,8 +50,11 @@ public final class ModuleItemDisplayClient {
     }
     @SubscribeEvent public static void render(RenderLevelStageEvent event){
         if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_ENTITIES)return;var mc=Minecraft.getInstance();var level=mc.level;
-        if(level==null||level!=previous){cores.clear();previous=level;return;}cores.entrySet().removeIf(e->e.getValue().expires<level.getGameTime());
+        if(level==null||level!=previous){cores.clear();previews.clear();previous=level;return;}cores.entrySet().removeIf(e->e.getValue().expires<level.getGameTime());
+        previews.entrySet().removeIf(e->e.getValue().isEmpty()||e.getValue().getFirst().expires<level.getGameTime());
         var pose=event.getPoseStack();var camera=event.getCamera().getPosition();var buffers=mc.renderBuffers().bufferSource();int count=0;
+        // Use the actual ItemDisplay renderer, including its extra Y half-turn and model pivot.
+        for(var group:previews.values())for(var preview:group){var entity=preview.entity;var world=entity.position();if(world.distanceToSqr(camera)>256*256)continue;mc.getEntityRenderDispatcher().render(entity,world.x-camera.x,world.y-camera.y,world.z-camera.z,0,1,pose,buffers,15728880);}
         for(var entry:cores.entrySet()){
             if(!(level.getBlockEntity(entry.getKey()) instanceof HeartBlockEntity core)||!core.creatureId().equals(entry.getValue().creature))continue;
             for(var display:entry.getValue().displays){

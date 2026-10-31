@@ -19,7 +19,7 @@ public final class ProjectileItemMenu extends AbstractContainerMenu {
         super(SableLife.PROJECTILE_MENU.get(), id); this.heart = heart; this.module = module;
         data = heart == null ? new SimpleContainerData(2) : new ContainerData() {
             public int getCount() { return 2; } public void set(int i, int v) {}
-            public int get(int i) { return i==1?(module.type().equals("item_display")?1:0):heart.canEdit(inventory.player) ? 1 : 0; }
+            public int get(int i) { return i==1?((module.type().equals("item_display")||module.type().equals("summoned_weapon"))?1:0):heart.canEdit(inventory.player) ? 1 : 0; }
         }; addDataSlots(data);
         addSlot(new Slot(sample, 0, 82, 40) {
             @Override public boolean mayPlace(ItemStack stack) { return false; }

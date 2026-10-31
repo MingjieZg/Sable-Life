@@ -22,12 +22,13 @@ public final class ModuleSurfaceField {
     private final Map<HitKey,Long> hits=new HashMap<>();
     public int count(){return fields.size();}
     public void clear(){fields.clear();hits.clear();}
+    private static boolean sourceEnabled(HeartBlockEntity heart,VirtualModule source){return source!=null&&(source.enabled()||heart.modules().summonedWeapons.using(source.id()));}
     public static boolean impactAttack(VirtualModule m){return m!=null&&IMPACT_ATTACKS.contains(m.type());}
     /** One shared impact entry point; targets without a world surface are projected to ground. */
     public void impact(HeartBlockEntity heart,VirtualModule attack,Vec3 point,Vec3 normal,Vec3 incoming){
         if(!impactAttack(attack)||attack.impactFieldId()==null)return;
         if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()||!impactAttack(attack)||!attack.enabled())return;
-        var source=heart.modules().find(attack.id());if(source==null||!source.enabled())return;
+        var source=heart.modules().find(attack.id());if(!sourceEnabled(heart,source))return;
         var config=heart.modules().find(attack.impactFieldId());
         if(config!=null&&config.enabled()&&config.type().equals("surface_field"))spawn(level,attack.id(),config.id(),config,point,normal,incoming);
     }
@@ -44,7 +45,7 @@ public final class ModuleSurfaceField {
     public void tick(HeartBlockEntity heart){
         if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()||heart.health().state()!=HeartState.ALIVE){clear();return;}
         long now=level.getGameTime();
-        fields.removeIf(f->{var source=heart.modules().find(f.source);var template=heart.modules().find(f.template);return now>=f.expires||source==null||!source.enabled()||template==null||!template.enabled();});
+        fields.removeIf(f->{var source=heart.modules().find(f.source);var template=heart.modules().find(f.template);return now>=f.expires||!sourceEnabled(heart,source)||template==null||!template.enabled();});
         hits.entrySet().removeIf(e->e.getValue()<=now);
         int visuals=192;
         for(int index=0;index<fields.size();index++){
@@ -68,7 +69,7 @@ public final class ModuleSurfaceField {
             for(var hit:dev.sablelife.combat.BodySphereQuery.query(level,center.add(frame.normal().scale(.1)),center.add(frame.normal().scale(.1)),Math.min(128,radius+3))){
                 if(!hit.core().acceptsLifeAttack(heart.creatureId())||!frame.contains(hit.point())||f.samples.stream().noneMatch(p->p.distanceToSqr(hit.point())<.75*.75))continue;
                 var key=new HitKey(f.source,f.template,hit.core().creatureId());if(hits.containsKey(key)||f.config.value("damage")<=0)continue;
-                hits.put(key,now+(long)f.config.value("hitInterval"));float before=hit.core().health().current();if(hit.core().damageAt(hit.block(),(float)f.config.value("damage")))heart.modules().hitCounter.record(heart,f.source,Math.max(0,before-hit.core().health().current()));
+                hits.put(key,now+(long)f.config.value("hitInterval"));float before=hit.core().health().current();if(hit.core().damageAt(hit.block(),(float)f.config.value("damage"))){heart.modules().hitCounter.record(heart,f.source,Math.max(0,before-hit.core().health().current()));dev.sablelife.attack.CombatEventHooks.killed(heart,f.source,hit.core());}
             }
         }
     }

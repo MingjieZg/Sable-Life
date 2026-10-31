@@ -36,6 +36,28 @@ public final class SableLife {
             PARTICLES.register("flame_jet",()->new net.minecraft.core.particles.SimpleParticleType(true));
     public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> SOUL_FLAME_JET =
             PARTICLES.register("soul_flame_jet",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> ARC =
+            PARTICLES.register("arc",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> SMOKE =
+            PARTICLES.register("smoke",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> ENERGY_MOTE =
+            PARTICLES.register("energy_mote",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> BRANCHING_ARC =
+            PARTICLES.register("branching_arc",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> SPARK =
+            PARTICLES.register("spark",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> LIGHT_RING =
+            PARTICLES.register("light_ring",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> INWARD_RING =
+            PARTICLES.register("inward_ring",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> CRESCENT =
+            PARTICLES.register("crescent",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> SOFT_FOG =
+            PARTICLES.register("soft_fog",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> STARBURST =
+            PARTICLES.register("starburst",()->new net.minecraft.core.particles.SimpleParticleType(true));
+    public static final DeferredHolder<net.minecraft.core.particles.ParticleType<?>,net.minecraft.core.particles.SimpleParticleType> RANDOM_STARBURST =
+            PARTICLES.register("random_starburst",()->new net.minecraft.core.particles.SimpleParticleType(true));
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MOD_ID);
     public static final DeferredRegister<CreativeModeTab> TABS =
@@ -59,6 +81,8 @@ public final class SableLife {
             MENUS.register("projectile_item", () -> new MenuType<>(dev.sablelife.module.ProjectileItemMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.ModuleFrequencyMenu>> MODULE_FREQUENCY_MENU =
             MENUS.register("module_frequency", () -> new MenuType<>(dev.sablelife.module.ModuleFrequencyMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
+    public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.SignalRuleMenu>> SIGNAL_RULE_MENU =
+            MENUS.register("signal_rules", () -> new MenuType<>(dev.sablelife.module.SignalRuleMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.HealthPhaseRuleMenu>> HEALTH_PHASE_RULE_MENU =
             MENUS.register("health_phase_rules", () -> new MenuType<>(dev.sablelife.module.HealthPhaseRuleMenu::new, net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS));
     public static final DeferredHolder<MenuType<?>, MenuType<dev.sablelife.module.ArmorRuleMenu>> ARMOR_RULE_MENU =

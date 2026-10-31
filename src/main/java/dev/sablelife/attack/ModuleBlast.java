@@ -29,6 +29,7 @@ public final class ModuleBlast {
             tag.putFloat("SoundVolume", (float)module.value("blastSoundVolume"));
             tag.putFloat("SoundRadius", (float)module.value("blastSoundRadius"));
         }
+        if(module.type().equals("mortar"))tag.put("ImpactVisual",dev.sablelife.module.ImpactVisual.of(module,module.value("blastRadius")).save());
         return tag;
     }
     public static void configure(Entity arrow, VirtualModule module) { var tag=settings(module);if(arrow.getPersistentData().contains(ModuleDamage.ATTACK_NAME))tag.putString(ModuleDamage.ATTACK_NAME,arrow.getPersistentData().getString(ModuleDamage.ATTACK_NAME));arrow.getPersistentData().put(KEY, tag); }
@@ -58,10 +59,18 @@ public final class ModuleBlast {
                     && (!tag.hasUUID("EffectVictim") || !tag.getUUID("EffectVictim").equals(victim.getUUID())))
                 dev.sablelife.module.ModuleEffects.apply(victim, effects, source);
         }
-        world.explode(source, null, new ExplosionDamageCalculator() {
+        var visual=dev.sablelife.module.ImpactVisual.load(tag.getCompound("ImpactVisual"));
+        var calculator=new ExplosionDamageCalculator() {
             @Override public boolean shouldDamageEntity(Explosion explosion, Entity entity) { return false; }
             @Override public float getKnockbackMultiplier(Entity entity) { return 0; }
-        }, point.x, point.y, point.z, radius / 2, false,
+        };
+        var interaction=tag.getBoolean("Blocks") ? Level.ExplosionInteraction.TNT : Level.ExplosionInteraction.NONE;
+        if(visual.custom()){
+            // Keep the native server explosion/protection hooks, suppress its client explosion packet.
+            world.explode(source,null,calculator,point.x,point.y,point.z,radius/2,false,interaction,false,net.minecraft.core.particles.ParticleTypes.EXPLOSION,net.minecraft.core.particles.ParticleTypes.EXPLOSION_EMITTER,net.minecraft.sounds.SoundEvents.GENERIC_EXPLODE);
+            if(!tag.contains("Sound"))world.playSound(null,point.x,point.y,point.z,net.minecraft.sounds.SoundEvents.GENERIC_EXPLODE.value(),net.minecraft.sounds.SoundSource.BLOCKS,4,(1+(world.random.nextFloat()-world.random.nextFloat())*.2F)*.7F);
+            visual.emit(world,point);
+        }else world.explode(source,null,calculator,point.x,point.y,point.z,radius/2,false,
                 tag.getBoolean("Blocks") ? Level.ExplosionInteraction.TNT : Level.ExplosionInteraction.NONE,
                 net.minecraft.core.particles.ParticleTypes.EXPLOSION, net.minecraft.core.particles.ParticleTypes.EXPLOSION_EMITTER,
                 tag.contains("Sound") ? net.minecraft.core.Holder.direct(net.minecraft.sounds.SoundEvents.EMPTY) : net.minecraft.sounds.SoundEvents.GENERIC_EXPLODE);
@@ -71,6 +80,7 @@ public final class ModuleBlast {
         }
         else if (tag.contains("Sound")) dev.sablelife.module.ModuleAudio.play(world, java.util.UUID.randomUUID(), tag.getString("Sound"), point,
                 tag.getFloat("SoundVolume"), tag.getFloat("SoundRadius"));
+        if(visual.custom())return;
         waves.add(new Wave(world, point, radius, world.getGameTime()));
         dev.sablelife.module.ModuleParticles.send(world, net.minecraft.core.particles.ParticleTypes.EXPLOSION, point.x, point.y + .2, point.z,
                 Math.clamp((int) (radius * 4), 4, 64), radius * .4, .4, radius * .4, 0);

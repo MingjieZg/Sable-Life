@@ -3,7 +3,7 @@ import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 public final class ModuleAudio {
-    public static void play(ServerLevel level,VirtualModule module,String key,Vec3 point){ play(level,module.id(),module.soundTimeline(key),point); }
+    public static void play(ServerLevel level,VirtualModule module,String key,Vec3 point){ play(level,module.audioId(),module.soundTimeline(key),point); }
     public static void play(ServerLevel level,UUID id,dev.sablelife.sound.SoundTimeline timeline,Vec3 point){
         for(var row:timeline.rows()) if(row.enabled()&&row.volume()>0) for(var player:level.players())
             if(dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,player.position()).distanceToSqr(point)<=row.radius()*row.radius())

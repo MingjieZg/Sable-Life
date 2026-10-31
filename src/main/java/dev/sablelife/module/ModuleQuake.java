@@ -16,6 +16,7 @@ import java.util.*;
 
 /** Each cast freezes its center, heading and warning circles; moving or jumping can evade a front. */
 public final class ModuleQuake {
+ private UUID emitterAudio;private UUID audio(UUID id){return emitterAudio==null?id:emitterAudio;}
     private static final int MAX_VISUALS = 192;
     private record Area(Vec3 origin, List<Vec3> warnings) {}
     private static final class State {
@@ -38,7 +39,7 @@ public final class ModuleQuake {
         state.visuals.forEach(QuakeGroundBlock::discard);
         if (level != null) for (var player : level.players())
             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
-                    new ModuleNetworking.ModuleSound(id, "", true, Vec3.ZERO, 0, 1));
+                    new ModuleNetworking.ModuleSound(audio(id), "", true, Vec3.ZERO, 0, 1));
     }
     public void clear() { states.forEach(this::stop); states.clear(); level = null; }
     private static boolean eligible(LivingEntity e, VirtualModule m) {
@@ -95,17 +96,17 @@ public final class ModuleQuake {
         player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.quake_help"), true);
     }
     private boolean begin(HeartBlockEntity heart, VirtualModule module, State s, long now) {
-        var origin = ModuleGroundStrike.floor(level, heart, module.anchors().getFirst().world(heart, false).add(direction(heart, module).scale(module.value("startDistance"))));
+        var origin = ModuleGroundStrike.floor(level, heart, module.emitter()!=null?module.emitter().position():module.anchors().getFirst().world(heart,false).add(direction(heart,module).scale(module.value("startDistance"))));
         if (origin == null) return false;
         List<Vec3> centers = List.of(origin);
-        if (module.value("quakeOrigin") == 1) {
+        if (module.emitter()==null&&module.value("quakeOrigin") == 1) {
             centers = detectTargets(level, heart, module, origin).stream()
                     .map(e -> targetFloor(level, heart, e)).filter(Objects::nonNull)
                     .distinct().limit(module.value("targetMultiple") == 1 ? 64 : 1).toList();
             if (centers.isEmpty()) return false;
         }
         origin = centers.getFirst();
-        s.cast = VirtualModule.load(module.save()); s.origin = origin; s.direction = direction(heart, module);
+        s.cast = EmitterRuntime.copy(module); s.origin = origin; s.direction = direction(heart, module);
         s.start = now + (long) module.value("warningTime");
         long travel = module.value("quakeMode") == 2 ? 0 : (long) Math.ceil(module.value("quakeRange") / module.value("quakeSpeed"));
         s.finish = s.start + travel + ((long) module.value("quakeWaves") - 1) * (long) module.value("quakeGap") + 15;
@@ -190,19 +191,21 @@ public final class ModuleQuake {
                     s.origin.add(s.direction.scale(current)).add(side.scale(m.value("quakeWidth") * (i / (double) samples - .5))));
         }
     }
-    public void tick(HeartBlockEntity heart) {
+    public void tick(HeartBlockEntity heart){tick(heart,heart.modules().all());}
+ public void tickEmitter(HeartBlockEntity heart,VirtualModule module){emitterAudio=module.audioId();tick(heart,List.of(module));}
+ private void tick(HeartBlockEntity heart,List<VirtualModule> modules){
         if (!(heart.getLevel() instanceof ServerLevel server)) return;
         level = server; long now = level.getGameTime(); var active = new HashSet<UUID>();
-        for (var module : heart.modules().all()) {
+        for (var module : modules) {
             if (!module.type().equals("quake")) continue;
-            if (heart.health().state() != HeartState.ALIVE || !heart.wireless().master() || !HeartModules.status(module, heart).equals("valid")) continue;
+            if (module.emitter()==null&&(heart.health().state() != HeartState.ALIVE || !heart.wireless().master() || !HeartModules.status(module, heart).equals("valid"))) continue;
             active.add(module.id()); var s = states.computeIfAbsent(module.id(), ignored -> new State());
             s.visuals.removeIf(QuakeGroundBlock::isRemoved);
-            if (s.cast == null && now >= s.due && HeartModules.triggered(module, heart) && heart.modules().hurtTriggers.start(module)) {
+            if (s.cast == null && now >= s.due && EmitterRuntime.active(module, heart) && EmitterRuntime.start(module,heart)) {
                 if (!begin(heart, module, s, now)) { s.due = now + 10; continue; }
             }
             if (s.cast == null) continue;
-            if (now >= s.finish) { stop(module.id(), s); heart.modules().hurtTriggers.completed(module); s.cast = null; s.due = now + (long) module.value("interval"); continue; }
+            if (now >= s.finish) { stop(module.id(), s); EmitterRuntime.completed(module,heart); s.cast = null; s.due = now + (long) module.value("interval"); continue; }
             var m = s.cast;
             if (now < s.start) {
                 if (now % 4 == 0) for (var area : s.areas) warning(level, null, m, area.origin(), s.direction, area.warnings());
@@ -210,7 +213,7 @@ public final class ModuleQuake {
             }
             if (!s.sounding) {
                 stop(module.id(), s); s.sounding = true;
-                ModuleAudio.play(level,module.id(),m.soundTimeline("quakeSound"),s.origin);
+                ModuleAudio.play(level,module.audioId(),m.soundTimeline("quakeSound"),s.origin);
             }
             for (int wave = 0; wave < (int) m.value("quakeWaves"); wave++) {
                 long age = now - s.start - wave * (long) m.value("quakeGap");

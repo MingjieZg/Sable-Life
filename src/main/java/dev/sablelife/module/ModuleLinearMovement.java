@@ -127,6 +127,8 @@ public final class ModuleLinearMovement {
                 }
                 // Step is independent from gravity. Its lift is added to the route, never counted as travel distance.
                 var stepDirection=GravityTravel.horizontal(s.direction).normalize();
+                if(heart.terrainBreaker().advance(heart,s.bodies,s.direction.scale(module.value("travelSpeed")/20))){s.status="travelling";continue;}
+                if(heart.terrainBreaker().brokeThisTick(now))s.stepping.clear();
                 var stepping=GravityTravel.step(level,module,s.bodies,stepDirection,module.value("travelSpeed"),s.stepping);
                 if(!stepping.valid()){finish(heart,module,s,"blocked");continue;}
                 if(stepping.lift()>0){

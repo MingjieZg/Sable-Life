@@ -4,33 +4,47 @@ import dev.sablelife.heart.*;
 import net.minecraft.nbt.CompoundTag;
 import java.util.*;
 
-/** Core damage event producer, published with all other internal and external signal sources. */
+/** Both modes share attributed actual HP loss and the existing internal/external publication pass. */
 public final class ModuleDamageAccumulation {
-    private record State(double threshold,DamageAccumulator counter){}
-    private final Map<UUID,State> states=new HashMap<>();
-    private HeartBlockEntity owner;
-    private State state(VirtualModule module){return states.compute(module.id(),(id,old)->old!=null&&old.threshold==module.value("accumThreshold")?old:new State(module.value("accumThreshold"),new DamageAccumulator()));}
+    private static final class State {
+        final boolean timed,invert,repeat;final double threshold;final int duration;
+        final DamageAccumulator counter=new DamageAccumulator();final TimedDamageWindow window=new TimedDamageWindow();boolean high;
+        State(VirtualModule m){timed=m.value("accumMode")==1;invert=m.value("accumInvert")==1;repeat=m.value("accumRepeat")==1;threshold=m.value(timed?"accumRequired":"accumThreshold");duration=(int)m.value("accumWindow");}
+        boolean matches(VirtualModule m){boolean mode=m.value("accumMode")==1;return timed==mode&&threshold==m.value(mode?"accumRequired":"accumThreshold")&&(!timed||duration==(int)m.value("accumWindow")&&repeat==(m.value("accumRepeat")==1)&&invert==(m.value("accumInvert")==1));}
+    }
+    private final Map<UUID,State> states=new HashMap<>();private HeartBlockEntity owner;
+    private State state(VirtualModule m){return states.compute(m.id(),(id,old)->old!=null&&old.matches(m)?old:new State(m));}
+    private static boolean active(VirtualModule m,HeartBlockEntity heart){return heart.health().state()==HeartState.ALIVE&&heart.wireless().master()&&HeartModules.triggered(m,heart);}
+    private static boolean outputReady(VirtualModule m,HeartBlockEntity heart){return channelStatus(m,heart).equals("ready")||m.hasRedBlue();}
+    private static boolean advance(State s,VirtualModule m,HeartBlockEntity heart){return s.window.tick(heart.getLevel().getGameTime(),active(m,heart)&&outputReady(m,heart),s.duration,s.threshold,s.repeat,s.invert,(int)m.value("accumPulse"));}
     public void record(HeartBlockEntity heart,double actualLoss){
         if(!Double.isFinite(actualLoss)||actualLoss<=0||heart.health().state()!=HeartState.ALIVE||!heart.wireless().master())return;
         owner=heart;
-        for(var module:heart.modules().all())if(module.type().equals("damage_accumulation")&&HeartModules.triggered(module,heart))state(module).counter.add(actualLoss,module.value("accumThreshold"));
+        for(var m:heart.modules().all())if(m.type().equals("damage_accumulation")&&HeartModules.triggered(m,heart)){
+            var s=state(m);if(s.timed){s.high=advance(s,m,heart);s.window.add(actualLoss);}else s.counter.add(actualLoss,s.threshold);
+        }
     }
-    public static String channelStatus(VirtualModule module,HeartBlockEntity heart){return ModuleHealthPhase.channelStatus(module,heart,"accumChannel");}
+    public static String channelStatus(VirtualModule m,HeartBlockEntity heart){return ModuleHealthPhase.channelStatus(m,heart,"accumChannel");}
     public void tick(HeartBlockEntity heart,Map<UUID,HeartWireless.ModuleOutput> external){
         owner=heart;var retained=new HashSet<UUID>();var internal=new HashMap<Integer,Integer>();
-        if(heart.health().state()==HeartState.ALIVE)for(var module:heart.modules().all()){
-            if(!module.type().equals("damage_accumulation"))continue;retained.add(module.id());var counter=state(module).counter;
-            boolean ready=channelStatus(module,heart).equals("ready"),active=heart.wireless().master()&&HeartModules.triggered(module,heart);
-            boolean high=counter.tick(heart.getLevel().getGameTime(),active&&(ready||module.hasRedBlue()),(int)module.value("accumPulse"));
-            int power=active&&(high!=(module.value("accumInvert")==1))?(int)module.value("accumPower"):0;
-            if(ready&&power>0)internal.merge((int)module.value("accumChannel")-1,power,Math::max);
-            if(module.hasRedBlue())external.put(module.id(),new HeartWireless.ModuleOutput(module.redBlue(false,heart.getLevel().registryAccess()),module.redBlue(true,heart.getLevel().registryAccess()),power));
+        if(heart.health().state()==HeartState.ALIVE)for(var m:heart.modules().all()){
+            if(!m.type().equals("damage_accumulation"))continue;retained.add(m.id());var s=state(m);
+            boolean ready=channelStatus(m,heart).equals("ready"),enabled=active(m,heart);
+            s.high=s.timed?advance(s,m,heart):s.counter.tick(heart.getLevel().getGameTime(),enabled&&(ready||m.hasRedBlue()),(int)m.value("accumPulse"));
+            boolean powered=s.timed?s.high:s.high!=(m.value("accumInvert")==1);
+            int power=enabled&&powered?(int)m.value("accumPower"):0;
+            if(ready&&power>0)internal.merge((int)m.value("accumChannel")-1,power,Math::max);
+            if(m.hasRedBlue())external.put(m.id(),new HeartWireless.ModuleOutput(m.redBlue(false,heart.getLevel().registryAccess()),m.redBlue(true,heart.getLevel().registryAccess()),power));
         }
         states.keySet().retainAll(retained);heart.wireless().programOutputs("damage_accumulation",internal);
     }
-    public CompoundTag snapshot(VirtualModule module,HeartBlockEntity heart){
-        var tag=new CompoundTag();var s=states.get(module.id());if(s!=null&&s.threshold==module.value("accumThreshold")){tag.putDouble("Accumulated",s.counter.accumulated());tag.putLong("Pending",s.counter.pending());tag.putBoolean("High",s.counter.high());}
-        tag.putString("ChannelStatus",channelStatus(module,heart));return tag;
+    public CompoundTag snapshot(VirtualModule m,HeartBlockEntity heart){
+        var tag=new CompoundTag();var s=states.get(m.id());boolean timed=m.value("accumMode")==1;tag.putBoolean("Timed",timed);
+        if(s!=null&&s.matches(m)){
+            tag.putDouble("Accumulated",timed?s.window.damage():s.counter.accumulated());tag.putLong("Pending",timed?0:s.counter.pending());tag.putBoolean("High",timed?s.high:s.counter.high());
+            if(timed){tag.putBoolean("Running",s.window.running());tag.putBoolean("Completed",s.window.completed());tag.putBoolean("Met",s.window.met());tag.putDouble("LastDamage",s.window.lastDamage());tag.putInt("Remaining",s.window.remaining(heart.getLevel().getGameTime()));}
+        }
+        tag.putString("ChannelStatus",channelStatus(m,heart));return tag;
     }
     public void reset(UUID id){states.remove(id);}
     public void clear(){states.clear();if(owner!=null)owner.wireless().programOutputs("damage_accumulation",Map.of());owner=null;}

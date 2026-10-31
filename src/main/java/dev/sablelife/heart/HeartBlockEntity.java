@@ -45,6 +45,10 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     private boolean allowLifeAttacks = true;
     private double knockbackResistance;
     public double knockbackResistance(){return knockbackResistance;}
+    private final TerrainBreakSettings terrainSettings=new TerrainBreakSettings();
+    private final TerrainBreaker terrainBreaker=new TerrainBreaker();
+    public TerrainBreakSettings terrainSettings(){return terrainSettings;}
+    public TerrainBreaker terrainBreaker(){return terrainBreaker;}
     private boolean killHeal;
     public boolean killHeal(){return killHeal;}
     public boolean healFromPlayerKill(){return killHeal&&!isControlCore()&&health.state()==HeartState.ALIVE&&operational()&&adjustOwnHealth(health.maximum(),false);}
@@ -181,7 +185,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     public CompoundTag copyConfiguration() {
         var saved = saveWithoutMetadata(level.registryAccess()); var result = new CompoundTag();
         result.putInt("Version", 1);
-        for (String key : java.util.List.of("MaxHealth", "DeathDelay", "RegenPerSecond", "RegenPercentPerSecond", "RegenDelay", "AdaptiveDefense", "KnockbackResistance", "VoidDeathHeight", "ForceChunkLoading", "AllowBreaking", "AllowExplosion", "AllowLifeAttacks", "AllowSurvivalInteraction", "KillHeal", "DeathChances", "DeathWeights", "DeathWeighted", "DeathRolls", "ShowBossBar", "BossBarColor", "CreatureName", "DeathLoot", "DeathExperience", "DeathExperienceLevels", "DeathTemplateMode", "DeathTemplates", "Wireless"))
+        for (String key : java.util.List.of("MaxHealth", "DeathDelay", "RegenPerSecond", "RegenPercentPerSecond", "RegenDelay", "AdaptiveDefense", "KnockbackResistance", "VoidDeathHeight", "ForceChunkLoading", "AllowBreaking", "AllowExplosion", "AllowLifeAttacks", "AllowSurvivalInteraction", "KillHeal", "TerrainBreaking", "DeathChances", "DeathWeights", "DeathWeighted", "DeathRolls", "ShowBossBar", "BossBarColor", "CreatureName", "DeathLoot", "DeathExperience", "DeathExperienceLevels", "DeathTemplateMode", "DeathTemplates", "Wireless"))
             if (saved.contains(key)) result.put(key, saved.get(key).copy());
         result.getCompound("Wireless").putLong("Elapsed", 0);
         result.put("DeathPresentation", deathPresentation.save());
@@ -213,7 +217,12 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         }
         for (int i = 0; i < copiedModules.size(); i++) {
             var copied = dev.sablelife.module.VirtualModule.load(copiedModules.getCompound(i));
-            if (copied.type().equals("move_set")) { copied.moveSet().remap(copiedIds); copiedModules.set(i, copied.save()); }
+            if (copied.type().equals("move_set")) copied.moveSet().remap(copiedIds);
+            if(copied.impactFieldId()!=null)copied.impactField(copiedIds.getOrDefault(copied.impactFieldId(),copied.impactFieldId()));
+            if(copied.summonAttackId()!=null)copied.summonAttack(copiedIds.getOrDefault(copied.summonAttackId(),copied.summonAttackId()));
+            if(copied.hitSourceId()!=null)copied.hitSource(copiedIds.getOrDefault(copied.hitSourceId(),copied.hitSourceId()),0);
+            if(dev.sablelife.module.SignalRules.supported(copied.type()))for(var row:copied.signalRules().rows())if(row.source()!=null)row.source(copiedIds.getOrDefault(row.source(),row.source()));
+            copiedModules.set(i,copied.save());
         }
         var moduleData = new CompoundTag(); moduleData.put("Modules", copiedModules); moduleData.putInt("Revision", modules.revision() + 1);
         var templates = net.minecraft.core.NonNullList.withSize(27, net.minecraft.world.item.ItemStack.EMPTY);
@@ -223,6 +232,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         var loot = ResourceLocation.tryParse(data.getString("DeathLoot"));
         health = new HeartHealth(maximum, Math.clamp(data.getInt("DeathDelay"), 0, HeartHealth.MAX_DEATH_DELAY));
         combatMusicHits = 0;
+        terrainSettings.load(data.getCompound("TerrainBreaking"));terrainBreaker.clear();
         loadRegen(data); loadDefense(data); regenWait=regenDelay; regenProgress=0;
         allowSurvivalInteraction=data.getBoolean("AllowSurvivalInteraction");killHeal=data.getBoolean("KillHeal");
         allowLifeAttacks = !data.contains("AllowLifeAttacks") || data.getBoolean("AllowLifeAttacks"); loadDeathRules(data);
@@ -245,6 +255,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     }
     public boolean editCore(Player player, String key, double value, String text) {
         if(isControlCore())return false;
+        if(key.startsWith("crush")){if(!canToggleBreaking(player)||!terrainSettings.edit(key,value,text))return false;terrainBreaker.clear();changed();return true;}
         if(key.equals("voidDeathHeight")||key.equals("voidDeathDefault")){
             if(!canToggleBreaking(player)||!Double.isFinite(value))return false;
             if(key.equals("voidDeathHeight")){if(value<MIN_VOID_DEATH_HEIGHT||value>MAX_VOID_DEATH_HEIGHT||value!=Math.rint(value))return false;customVoidDeathHeight=(int)value;}
@@ -518,7 +529,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         dev.sablelife.ownership.ArenaRespawns.release(this);
         dev.sablelife.ownership.CoreChunkLoading.release(this);
         wireless.stop();
-        modules.clearRuntime();
+        modules.clearRuntime();terrainBreaker.clear();
         for (var dimension : ((ServerLevel) level).getServer().getAllLevels()) BodyOwnership.get(dimension).release(creatureId);
         LifeLifecycle.get(((ServerLevel) level).getServer()).cancel(creatureId);
         clearBossBar();
@@ -558,7 +569,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         heart.updateBossBar((ServerLevel) level);
         heart.wireless.tick((ServerLevel) level);
         heart.adaptiveDefense.tick(level.getGameTime());
-        heart.modules.tick(heart);
+        heart.modules.tick(heart);heart.terrainBreaker.tick(heart);
         if (!heart.ownershipCaptured && heart.health.state() != HeartState.DORMANT) {
             BodyOwnership.get((ServerLevel) level).capture(heart);
             LifeLifecycle.get(((ServerLevel) level).getServer()).setBreakable(heart.creatureId, heart.allowBreaking);
@@ -598,8 +609,8 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     private void clearBossBar() {
         if (bossBar != null) { bossBar.removeAllPlayers(); bossBar = null; }
     }
-    @Override public void invalidate() { dev.sablelife.module.ModuleSignals.forget(this);dev.sablelife.ownership.LoadedCoreIndex.remove(this);wireless.stop(); modules.clearRuntime(); adaptiveDefense.reset(); clearBossBar(); super.invalidate();dev.sablelife.compat.sable.SableBodyProbe.invalidate(level); }
-    @Override public void onChunkUnloaded() { dev.sablelife.module.ModuleSignals.forget(this);dev.sablelife.ownership.LoadedCoreIndex.remove(this);clearBossBar();wireless.stop(); modules.clearRuntime(); adaptiveDefense.reset(); super.onChunkUnloaded();dev.sablelife.compat.sable.SableBodyProbe.invalidate(level); }
+    @Override public void invalidate() { dev.sablelife.module.ModuleSignals.forget(this);dev.sablelife.ownership.LoadedCoreIndex.remove(this);wireless.stop(); modules.clearRuntime();terrainBreaker.clear(); adaptiveDefense.reset(); clearBossBar(); super.invalidate();dev.sablelife.compat.sable.SableBodyProbe.invalidate(level); }
+    @Override public void onChunkUnloaded() { dev.sablelife.module.ModuleSignals.forget(this);dev.sablelife.ownership.LoadedCoreIndex.remove(this);clearBossBar();wireless.stop(); modules.clearRuntime();terrainBreaker.clear(); adaptiveDefense.reset(); super.onChunkUnloaded();dev.sablelife.compat.sable.SableBodyProbe.invalidate(level); }
 
     /** Restore an active creature after an Arena reset; never revive a dying core. */
     public void restoreFullHealth() {
@@ -638,7 +649,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         tag.putDouble("RegenPercentPerSecond",regenPercentPerSecond);tag.putFloat("RegenPerSecond",regenPerSecond); tag.putInt("RegenDelay",regenDelay);
         tag.putDouble("KnockbackResistance",knockbackResistance);tag.put("AdaptiveDefense",defenseConfiguration());tag.putInt("RegenWait",regenWait); tag.putInt("RegenProgress",regenProgress);
         tag.putInt("RemainingDeathTicks", health.remainingDeathTicks());
-        tag.putBoolean("AllowLifeAttacks",allowLifeAttacks);tag.putBoolean("AllowSurvivalInteraction",allowSurvivalInteraction);tag.putBoolean("KillHeal",killHeal);
+        tag.putBoolean("AllowLifeAttacks",allowLifeAttacks);tag.putBoolean("AllowSurvivalInteraction",allowSurvivalInteraction);tag.putBoolean("KillHeal",killHeal);tag.put("TerrainBreaking",terrainSettings.save());
         tag.putIntArray("DeathChances",deathChances); tag.putIntArray("DeathWeights",deathWeights); tag.putBoolean("DeathWeighted",deathWeighted); tag.putInt("DeathRolls",deathRolls);
         if(customVoidDeathHeight!=null)tag.putInt("VoidDeathHeight",customVoidDeathHeight);
         tag.putBoolean("ForceChunkLoading",forceChunkLoading);
@@ -682,7 +693,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         forceChunkLoading=tag.getBoolean("ForceChunkLoading");
         allowBreaking = tag.contains("AllowBreaking") && tag.getBoolean("AllowBreaking");
         allowExplosion = tag.getBoolean("AllowExplosion");
-        allowSurvivalInteraction=tag.getBoolean("AllowSurvivalInteraction");killHeal=tag.getBoolean("KillHeal");
+        allowSurvivalInteraction=tag.getBoolean("AllowSurvivalInteraction");killHeal=tag.getBoolean("KillHeal");terrainSettings.load(tag.getCompound("TerrainBreaking"));terrainBreaker.clear();
         allowLifeAttacks = !tag.contains("AllowLifeAttacks") || tag.getBoolean("AllowLifeAttacks"); loadDeathRules(tag);
         showBossBar = tag.getBoolean("ShowBossBar");loadBossBarColor(tag);
         creatureName = tag.getString("CreatureName");

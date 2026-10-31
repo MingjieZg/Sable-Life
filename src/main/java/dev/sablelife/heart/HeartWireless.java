@@ -121,7 +121,7 @@ public final class HeartWireless {
         configuredChannels=null;latchChannels=null;legacyChannels = false;
     }
     public boolean master() { return master; }
-    public void master(boolean value) { master = value; if (!value) { stop(); heart.modules().hurtTriggers.clear(); } }
+    public void master(boolean value) { master = value; if (!value) { stop(); heart.modules().hurtTriggers.clear();heart.modules().signalLogic.clear();heart.modules().combatEvents.clear(); } }
     public long elapsed() { return elapsed; }
     public int output(int index) {
         if (!master || !heart.operational() || index < 0 || index >= size()) return 0;

@@ -70,9 +70,17 @@ public final class ModuleCombat {
         }
         states.keySet().retainAll(active);
     }
+    /** A summon owns this engine; the referenced module's trigger, Marks and aim are not consulted. */
+    public void tickEmitter(HeartBlockEntity heart,VirtualModule module){
+        if(!(heart.getLevel() instanceof ServerLevel world)||module.emitter()==null)return;
+        var state=states.computeIfAbsent(module.id(),ignored->new State());
+        if(module.type().equals("pulse")){var center=module.emitter().position();var targets=pulseTargets(world,heart,module,center);state.pulseTarget=!targets.isEmpty();if((module.value("pulseStart")==0||state.pulseTarget)&&ready(world,heart,module,state))pulse(world,heart,module,center,targets);}
+        else if(module.type().equals("flame"))flame(world,heart,module,state);
+        else if(ready(world,heart,module,state)){var directions=List.of(module.emitter().direction());if(module.type().equals("arrow"))arrows(world,heart,module,directions);else if(module.type().equals("gun"))shots(world,heart,module,directions);}
+    }
     private boolean ready(ServerLevel world, HeartBlockEntity heart, VirtualModule module, State state) {
         if (world.getGameTime() < state.due) return false;
-        if (!module.type().equals("flame") && !heart.modules().hurtTriggers.start(module)) return false;
+        if (module.emitter()==null && !module.type().equals("flame") && !heart.modules().hurtTriggers.start(module)) return false;
         state.due = world.getGameTime() + Math.max(1, (int) module.value("interval")); return true;
     }
     private boolean target(LivingEntity entity) { return entity.isAlive() && !entity.isSpectator() && !(entity instanceof Player p && p.isCreative()); }
@@ -161,19 +169,22 @@ public final class ModuleCombat {
     }
     private void effect(LivingEntity victim, VirtualModule module) { ModuleEffects.apply(victim, module.effects(), null); }
     public static Vec3 direction(HeartBlockEntity heart, VirtualModule module) {
+        if(module.emitter()!=null)return module.emitter().direction();
         var anchor = module.anchors().getFirst(); var body = anchor.body(heart); int configured = (int) module.value("direction");
         var face = configured == 0 ? anchor.face() : Direction.byName(ModuleFields.find(module.type(), "direction").choices().get(configured));
         return ContactBox.rotate(new Quaterniond(body.logicalPose().orientation()), Vec3.atLowerCornerOf(face.getNormal())).normalize();
     }
     /** Moves the attack origin outward, in the current body-relative emission direction. */
     public static Vec3 offsetStart(HeartBlockEntity heart, VirtualModule module, Vec3 origin) {
+        if(module.emitter()!=null)return origin;
         double distance = module.value("startDistance");
         return distance == 0 ? origin : origin.add(direction(heart, module).scale(distance));
     }
+    public static Vec3 baseOrigin(HeartBlockEntity heart,VirtualModule module){return module.emitter()!=null?module.emitter().position():module.anchors().getFirst().world(heart,false);}
     public static Vec3 origin(HeartBlockEntity heart, VirtualModule module, boolean surface) {
-        return offsetStart(heart, module, module.anchors().getFirst().world(heart, surface));
+        return module.emitter()!=null?module.emitter().position():offsetStart(heart, module, module.anchors().getFirst().world(heart, surface));
     }
-    public static Vec3 nozzle(HeartBlockEntity heart, VirtualModule module) { return origin(heart, module, false).add(direction(heart, module).scale(.55)); }
+    public static Vec3 nozzle(HeartBlockEntity heart, VirtualModule module) { return module.emitter()!=null?module.emitter().position():origin(heart, module, false).add(direction(heart, module).scale(.55)); }
     private static Vec3 clip(ServerLevel world, Vec3 start, Vec3 end) {
         var hit = world.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, (net.minecraft.world.entity.Entity) null));
         return hit.getType() == HitResult.Type.MISS ? end : SableBodyProbe.toWorld(world, hit.getLocation());
@@ -188,7 +199,7 @@ public final class ModuleCombat {
         var start = nozzle(heart, module); var direction = direction(heart, module);
         double range = module.value("range"), width = module.value("width"), speed = module.value("flameSpeed");
         int emissionPeriod = Math.max(2, (int) Math.ceil(.4 / speed));
-        boolean emitted=(ModuleHurt.once(module) || world.getGameTime() % emissionPeriod == 0) && heart.modules().hurtTriggers.start(module);
+        boolean emitted=(ModuleHurt.once(module) || world.getGameTime() % emissionPeriod == 0) && (module.emitter()!=null||heart.modules().hurtTriggers.start(module));
         if(emitted)state.flames.add(new FlameFront(start,direction));
         if (ready(world, heart, module, state)) fireSound(world, module, start);
         state.hits.entrySet().removeIf(e -> e.getValue() <= world.getGameTime());
@@ -220,6 +231,7 @@ public final class ModuleCombat {
                 var id=hit.core().creatureId();if(state.hits.containsKey(id))continue;
                 float before=hit.core().health().current();
                 if(hit.core().damageAt(hit.block(),(float)module.value("damage"))){
+                    dev.sablelife.attack.CombatEventHooks.killed(heart,module.id(),hit.core());
                     heart.modules().hitCounter.record(heart,module.id(),Math.max(0,before-hit.core().health().current()));
                     state.hits.put(id,world.getGameTime()+Math.max(1,(int)module.value("interval")));}
             }
@@ -231,7 +243,7 @@ public final class ModuleCombat {
             for(var player:world.players())if(player.position().distanceToSqr(start)<=128*128&&VisualBudget.allow(player,1))
                 net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);
         }
-        if(state.flames.isEmpty()) heart.modules().hurtTriggers.completed(module);
+        if(state.flames.isEmpty()&&module.emitter()==null) heart.modules().hurtTriggers.completed(module);
     }
     private void arrows(ServerLevel world, HeartBlockEntity heart, VirtualModule module, List<Vec3> directions) {
         var origin = nozzle(heart, module);

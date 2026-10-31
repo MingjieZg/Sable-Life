@@ -38,14 +38,15 @@ public final class ModuleShotRenderer extends EntityRenderer<ModuleShot> {
         }
         var item = shot.getItem();
         pose.pushPose();
-        if(shot.homingProjectile()) {
+        if(shot.fixedFallingItem()) pose.mulPose(shot.fallingItemRotation());
+        else if(shot.homingProjectile()) {
             var velocity=shot.getDeltaMovement();
             float heading=velocity.lengthSqr()>.000001 ? (float)Math.toDegrees(Math.atan2(velocity.x,velocity.z)) : shot.getYRot();
             float pitch=velocity.lengthSqr()>.000001 ? (float)Math.toDegrees(Math.atan2(velocity.y,Math.hypot(velocity.x,velocity.z))) : shot.getXRot();
             pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(heading)); pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(-pitch));
             pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(-90)); pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(-45));
         } else pose.mulPose(entityRenderDispatcher.cameraOrientation());
-        ProjectileItemRenderer.render(items,item,shot.level(),shot.getId(),shot.projectileDiameter(),pose,buffers,15728880);
+        ProjectileItemRenderer.render(items,item,shot.level(),shot.getId(),shot.fallingProjectile()?shot.fallingItemSize():shot.projectileDiameter(),pose,buffers,15728880);
         pose.popPose(); super.render(shot, yaw, partial, pose, buffers, light);
     }
     @Override public ResourceLocation getTextureLocation(ModuleShot shot) { return TextureAtlas.LOCATION_BLOCKS; }

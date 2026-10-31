@@ -85,6 +85,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
             else module.putUUID("Id", UUID.randomUUID());
             var hitSettings=module.getCompound("Settings");if(module.getString("Type").equals("hit_counter")&&hitSettings.hasUUID("HitSourceId"))hitSettings.putUUID("HitSourceId",context.allocateMappedUuid(hitSettings.getUUID("HitSourceId")));
             // References must share the placement UUID map with their target modules, even when the target appears later.
+            if(hitSettings.hasUUID("SummonAttackId"))hitSettings.putUUID("SummonAttackId",context.allocateMappedUuid(hitSettings.getUUID("SummonAttackId")));
             if(hitSettings.hasUUID("ImpactFieldId"))hitSettings.putUUID("ImpactFieldId",context.allocateMappedUuid(hitSettings.getUUID("ImpactFieldId")));
             if (module.getString("Type").equals("command")) module.putBoolean("CommandApprovalRequired", true);
             for (var moveValue : module.getList("Moves", 10)) {
@@ -96,6 +97,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
                     if (action.hasUUID("Module")) action.putUUID("Module", context.allocateMappedUuid(action.getUUID("Module")));
                 }
             }
+            for(var value:module.getList("SignalRules",10)){var row=(CompoundTag)value;if(row.hasUUID("Source"))row.putUUID("Source",context.allocateMappedUuid(row.getUUID("Source")));}
             module.remove("RewardOwner"); module.remove("Detached"); module.remove("Invalidated");
             for (String key : java.util.List.of("Anchors", "ParticleAreaAnchors", "ParticlePointAnchors")) {
                 if (!module.contains(key)) continue;

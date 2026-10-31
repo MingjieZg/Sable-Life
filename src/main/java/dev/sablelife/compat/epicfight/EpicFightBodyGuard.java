@@ -42,7 +42,7 @@ public final class EpicFightBodyGuard {
     // Impact guard's advanced burst expects an attacker Entity; only that visual is omitted.
     // For this ordinary physical source, advanced does not change its damage/block result.
     skill.dealEvent(patch,event,skill instanceof ImpactGuardSkill?false:advanced);
-    if(event.isCanceled()){source.blocked();
+    if(event.isCanceled()){source.blocked(type==GuardSkill.BlockType.GUARD_BREAK?0:2);
         var point=player.getEyePosition().add(player.getLookAngle().scale(.5));
         dev.sablelife.module.ModuleParticles.send(player.serverLevel(),net.minecraft.core.particles.ParticleTypes.CRIT,point.x,point.y,point.z,5,.1,.1,.1,.02);
     }

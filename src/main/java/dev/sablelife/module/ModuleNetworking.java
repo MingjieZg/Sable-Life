@@ -47,7 +47,7 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("21");
+        var registrar = event.registrar("25");
         registrar.playToServer(Action.TYPE, Action.CODEC, (p, ctx) -> {
             if (p.operation.equals("cancel")) { MarkingSessions.cancel(ctx.player()); return; }
             if (!AuthoringRateLimit.allow(ctx.player(), p.operation.equals("add_preset") ? 20 : 1)) return;
@@ -62,6 +62,8 @@ public final class ModuleNetworking {
                 menu.action(ctx.player(),p.revision,p.module,p.key,p.value,p.text);
             else if(ctx.player().containerMenu instanceof VirtualLootMenu menu&&menu.containerId==p.container&&p.operation.equals("loot_edit"))
                 menu.action(ctx.player(),p.revision,p.module,p.key,p.value,p.text);
+            else if(ctx.player().containerMenu instanceof SignalRuleMenu menu&&menu.containerId==p.container&&p.operation.equals("signal_rule_edit"))
+                menu.action(ctx.player(),p.revision,p.module,p.key,p.value);
             else if(ctx.player().containerMenu instanceof HealthPhaseRuleMenu menu&&menu.containerId==p.container&&p.operation.equals("phase_rule_edit"))
                 menu.action(ctx.player(),p.revision,p.module,p.key,p.value);
             else if(ctx.player().containerMenu instanceof ArmorRuleMenu menu&&menu.containerId==p.container&&p.operation.equals("armor_rule_edit"))
@@ -75,6 +77,8 @@ public final class ModuleNetworking {
             else if (ctx.player().containerMenu instanceof dev.sablelife.heart.HeartSettingsMenu menu && menu.containerId == p.container && p.operation.equals("core"))
                 menu.action(ctx.player(), p.key, p.value, p.text);
         });
+        registrar.playToClient(FreezeStatePacket.TYPE,FreezeStatePacket.CODEC,(p,ctx)->dev.sablelife.client.FreezeClient.receive(p));
+        registrar.playToClient(TerrainDebrisPacket.TYPE,TerrainDebrisPacket.CODEC,(p,ctx)->dev.sablelife.client.TerrainDebrisClient.receive(p));
         registrar.playToClient(DistortionTrailPacket.TYPE,DistortionTrailPacket.CODEC,(p,ctx)->dev.sablelife.client.DistortionTrailClient.receive(p));
         registrar.playToClient(ShockwaveZoomPacket.TYPE,ShockwaveZoomPacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ShockwavePacket.TYPE,ShockwavePacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));

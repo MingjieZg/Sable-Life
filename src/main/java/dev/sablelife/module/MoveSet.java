@@ -6,8 +6,8 @@ import java.util.*;
 /** Named moves with stable module references. Timings are server ticks, not wireless channels. */
 public final class MoveSet {
     public static final int LIMIT = 32, ACTION_LIMIT = 16, MAX_TICKS = 12000;
-    public static final Set<String> TARGETS = Set.of("sphere_blast", "slash", "arrow", "flame", "gun", "mortar", "homing", "laser",
-            "ground_strike", "quake", "pull", "pulse", "melee", "armor", "particles", "item_display", "damage_accumulation", "trigger_sound", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sequence", "health_adjustment", "sensor", "navigation", "sound", "bgm");
+    public static final Set<String> TARGETS = Set.of("signal_logic","combat_event","sphere_blast", "slash", "arrow", "flame", "gun", "mortar", "homing", "laser",
+            "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "melee", "armor", "particles", "item_display", "damage_accumulation", "trigger_sound", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sequence", "health_adjustment", "sensor", "navigation", "sound", "bgm");
     public record Action(UUID module, int start, int duration) {
         public Action {
             Objects.requireNonNull(module);

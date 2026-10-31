@@ -16,15 +16,16 @@ import java.util.*;
 
 /** Telegraphs are frozen world positions; target movement can evade an already advertised strike. */
 public final class ModuleGroundStrike {
+ private UUID emitterAudio;private UUID audio(UUID id){return emitterAudio==null?id:emitterAudio;}
     private record Strike(Vec3 point, long warning, long falling, long impact, double height, double radius, float damage, DustParticleOptions dust,
-                          net.minecraft.world.item.ItemStack item, float size, List<ModuleParticles.Entry> particles, dev.sablelife.sound.SoundTimeline fallSound, dev.sablelife.sound.SoundTimeline impactSound,
-                          dev.sablelife.attack.ModuleShot[] visual, VirtualModule impactConfig) {}
+                          net.minecraft.world.item.ItemStack item, float size, float itemSize, int itemMode, org.joml.Vector3f itemRotation, List<ModuleParticles.Entry> particles, dev.sablelife.sound.SoundTimeline fallSound, dev.sablelife.sound.SoundTimeline impactSound,
+                          dev.sablelife.attack.ModuleShot[] visual, ImpactVisual impactVisual, VirtualModule impactConfig) {}
     private static final class State { long due; final List<Strike> pending = new ArrayList<>(); }
     private final Map<UUID, State> states = new HashMap<>();
     private ServerLevel currentLevel;
     private void cancel(UUID id, State state) {
         for (var strike : state.pending) if (strike.visual[0] != null) strike.visual[0].discard();
-        if (currentLevel != null) for (var player : currentLevel.players()) net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, new ModuleNetworking.ModuleSound(id, "", true, Vec3.ZERO, 0, 1));
+        if (currentLevel != null) for (var player : currentLevel.players()) net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, new ModuleNetworking.ModuleSound(audio(id), "", true, Vec3.ZERO, 0, 1));
     }
     public void clear() { states.forEach(this::cancel); states.clear(); currentLevel = null; }
     public static DustParticleOptions color(VirtualModule module) {
@@ -61,7 +62,7 @@ public final class ModuleGroundStrike {
         return null;
     }
     public static List<Vec3> pattern(ServerLevel level, HeartBlockEntity heart, VirtualModule module) {
-        var origin = module.anchors().getFirst().world(heart, false); var result = new ArrayList<Vec3>();
+        var origin = ModuleCombat.baseOrigin(heart,module); var result = new ArrayList<Vec3>();
         if (module.value("strikeMode") == 3) {
             double start = module.value("strikeStart"), range = module.value("strikeRange");
             if (start > range) return result;
@@ -110,15 +111,17 @@ public final class ModuleGroundStrike {
         for (var player : level.players()) if (player.position().distanceToSqr(point) <= 64 * 64)
             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, new ModuleNetworking.ModuleSound(module, sound, false, point, 1, 1));
     }
-    public void tick(HeartBlockEntity heart) {
+    public void tick(HeartBlockEntity heart){tick(heart,heart.modules().all());}
+ public void tickEmitter(HeartBlockEntity heart,VirtualModule module){emitterAudio=module.audioId();tick(heart,List.of(module));}
+ private void tick(HeartBlockEntity heart,List<VirtualModule> modules){
         if (!(heart.getLevel() instanceof ServerLevel level)) return;
         currentLevel = level;
         var active = new HashSet<UUID>(); long now = level.getGameTime();
-        for (var module : heart.modules().all()) {
-            if (!module.type().equals("ground_strike") || !HeartModules.triggered(module, heart)) continue;
+        for (var module : modules) {
+            if (!module.type().equals("ground_strike") || !EmitterRuntime.active(module, heart)) continue;
             active.add(module.id()); var state = states.computeIfAbsent(module.id(), ignored -> new State());
-            if (now >= state.due && state.pending.isEmpty() && heart.modules().hurtTriggers.start(module)) {
-                var points = pattern(level, heart, module); var origin = module.anchors().getFirst().world(heart, false);
+            if (now >= state.due && state.pending.isEmpty() && EmitterRuntime.start(module,heart)) {
+                var points = pattern(level, heart, module); var origin = ModuleCombat.baseOrigin(heart,module);
                 int randomIndex = 0;
                 for (var p : points) {
                     double distance = ModuleArena.horizontalDistance(p, origin);
@@ -128,7 +131,7 @@ public final class ModuleGroundStrike {
                     long warning = now + delay, falling = warning + (long) module.value("warningTime");
                     long flight = Math.max(1, (long) Math.ceil(module.value("strikeHeight") / module.value("strikeSpeed")));
                     state.pending.add(new Strike(p, warning, falling, falling + flight, module.value("strikeHeight"), module.value("strikeRadius"), (float) module.value("damage"), color(module),
-                            module.projectileItem(level.registryAccess()), (float) module.value("projectileHitbox"), module.particleEntries(), module.soundTimeline("fallSound"), module.soundTimeline("impactSound"), new dev.sablelife.attack.ModuleShot[1],module.impactFieldId()==null?null:VirtualModule.load(module.save())));
+                            module.projectileItem(level.registryAccess()), (float) module.value("projectileHitbox"), (float)module.value("strikeItemSize"), (int)module.value("strikeItemMode"), new org.joml.Vector3f((float)module.value("strikeItemX"),(float)module.value("strikeItemY"),(float)module.value("strikeItemZ")), module.particleEntries(), module.soundTimeline("fallSound"), module.soundTimeline("impactSound"), new dev.sablelife.attack.ModuleShot[1],ImpactVisual.of(module,module.value("strikeRadius")),module.impactFieldId()==null?null:EmitterRuntime.copy(module)));
                 }
                 state.due = now + (long) module.value("interval");
             }
@@ -142,8 +145,9 @@ public final class ModuleGroundStrike {
                         // Capture each cast's appearance instead of reading later edits.
                         var appearance = new VirtualModule("ground_strike");
                         appearance.projectileItem(strike.item, level.registryAccess()); appearance.edit("projectileHitbox", strike.size, "");
+                        appearance.edit("strikeItemSize",strike.itemSize,"");appearance.edit("strikeItemMode",strike.itemMode,"");appearance.edit("strikeItemX",strike.itemRotation.x,"");appearance.edit("strikeItemY",strike.itemRotation.y,"");appearance.edit("strikeItemZ",strike.itemRotation.z,"");
                         strike.visual[0] = dev.sablelife.attack.ModuleShot.fallingVisual(level, strike.point.add(0, strike.height, 0), strike.height / (strike.impact - strike.falling), (int) (strike.impact - now), appearance);
-                        level.addFreshEntity(strike.visual[0]); ModuleAudio.play(level, module.id(), strike.fallSound, strike.point);
+                        level.addFreshEntity(strike.visual[0]); ModuleAudio.play(level, module.audioId(), strike.fallSound, strike.point);
                     }
                     double t = (double) (now - strike.falling) / (strike.impact - strike.falling);
                     double y = strike.point.y + strike.height * (1 - t), length = Math.min(strike.height, 1 + strike.height / (strike.impact - strike.falling));
@@ -157,15 +161,16 @@ public final class ModuleGroundStrike {
                     }
                 }
             }
-            if (state.pending.isEmpty()) heart.modules().hurtTriggers.completed(module);
+            if (state.pending.isEmpty()) EmitterRuntime.completed(module,heart);
         }
         for (UUID id : List.copyOf(states.keySet())) if (!active.contains(id)) cancel(id, states.remove(id));
     }
     private static void impact(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Strike strike) {
         if(strike.impactConfig!=null)heart.modules().surfaceFields.impact(heart,strike.impactConfig,strike.point,new Vec3(0,1,0),new Vec3(0,-1,0));
         ring(level, strike.point, strike.radius, strike.dust);
-        dev.sablelife.module.ModuleParticles.send(level, ParticleTypes.EXPLOSION, strike.point.x, strike.point.y + .2, strike.point.z, Math.clamp((int) (strike.radius * 3), 2, 32), strike.radius * .3, .2, strike.radius * .3, 0);
-        ModuleAudio.play(level,module.id(),strike.impactSound,strike.point);
+        if(strike.impactVisual.custom())strike.impactVisual.emit(level,strike.point);
+        else dev.sablelife.module.ModuleParticles.send(level, ParticleTypes.EXPLOSION, strike.point.x, strike.point.y + .2, strike.point.z, Math.clamp((int) (strike.radius * 3), 2, 32), strike.radius * .3, .2, strike.radius * .3, 0);
+        ModuleAudio.play(level,module.audioId(),strike.impactSound,strike.point);
         for (var victim : ModuleTargets.query(level, heart.creatureId(), new AABB(strike.point, strike.point).inflate(strike.radius), e -> eligible(e, module))) {
             var box = victim.getBoundingBox();
             var nearest = new Vec3(Math.clamp(strike.point.x, box.minX, box.maxX), Math.clamp(strike.point.y, box.minY, box.maxY), Math.clamp(strike.point.z, box.minZ, box.maxZ));

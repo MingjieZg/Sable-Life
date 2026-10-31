@@ -76,6 +76,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         if (operation.equals("settings")) { heart.openSettings(player); return true; }
         if (operation.equals("wireless")) { heart.openWireless(player); return true; }
         if (operation.equals("loot")) { heart.openDeathLootMenu(player); return true; }
+        if(operation.equals("signal_rules")){var module=heart.modules().find(id);if(module==null||!SignalRules.supported(module.type()))return false;SignalRuleMenu.open(player,heart,module,null);return true;}
         if(operation.equals("phase_rules")){var module=heart.modules().find(id);if(module==null||!module.type().equals("health_phase"))return false;HealthPhaseRuleMenu.open(player,heart,module,null);return true;}
         if(operation.equals("armor_rules")){var module=heart.modules().find(id);if(module==null||!module.type().equals("armor"))return false;ArmorRuleMenu.open(player,heart,module,null);return true;}
         if(operation.equals("arena_buffs")){var module=heart.modules().find(id);if(module==null||!module.type().equals("arena"))return false;ArenaBuffMenu.open(player,heart,module,null);return true;}
@@ -86,22 +87,22 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         }
         if (operation.equals("effects")) {
             var module = heart.modules().find(id);
-            if(module!=null&&(module.type().equals("linear_movement")||module.type().equals("sphere_blast")||module.type().equals("pulse"))&&VirtualModule.particleStage(key)!=null){
+            if(module!=null&&(module.type().equals("summoned_weapon")||module.type().equals("linear_movement")||module.type().equals("sphere_blast")||module.type().equals("pulse")||module.type().equals("mortar")||module.type().equals("ground_strike"))&&VirtualModule.particleStage(key)!=null){
                 String stage=VirtualModule.particleStage(key);if(module.movementParticles(stage)==null)return false;
                 player.openMenu(new net.minecraft.world.SimpleMenuProvider((container,inventory,ignored)->EffectSelectionMenu.movement(container,inventory,heart,module,stage),net.minecraft.network.chat.Component.translatable("effects.sablelife.title")));return true;
             }
-            if (module == null || !module.known() || !(ModuleEffects.TYPES.contains(module.type()) || (module.type().equals("particles") || module.type().equals("quake") || module.type().equals("ground_strike") || module.type().equals("pull") || module.type().equals("laser")))) return false;
+            if (module == null || !module.known() || !(key.equals("particles") ? VirtualModule.supportsParticles(module.type()) : key.equals("effects") && ModuleEffects.TYPES.contains(module.type()))) return false;
             player.openMenu(new net.minecraft.world.SimpleMenuProvider((container, inventory, ignored) -> new EffectSelectionMenu(container, inventory, heart, module, key.equals("particles")),
                     net.minecraft.network.chat.Component.translatable("effects.sablelife.title"))); return true;
         }
         if (operation.equals("projectile")) {
             var module = heart.modules().find(id);
-            if (module == null || !module.known() || !java.util.List.of("arrow", "gun", "mortar", "ground_strike", "homing", "item_display").contains(module.type())) return false;
+            if (module == null || !module.known() || !java.util.List.of("arrow", "gun", "mortar", "ground_strike", "homing", "item_display", "summoned_weapon").contains(module.type())) return false;
             player.openMenu(new net.minecraft.world.SimpleMenuProvider((container, inventory, ignored) -> new ProjectileItemMenu(container, inventory, heart, module),
                     net.minecraft.network.chat.Component.translatable("projectile.sablelife.title"))); return true;
         }
         if(operation.equals("frequency")) {
-            var module=heart.modules().find(id);if(module==null||!java.util.List.of("wireless_redstone","damage_accumulation","sensor").contains(module.type()))return false;
+            var module=heart.modules().find(id);if(module==null||!java.util.List.of("wireless_redstone","damage_accumulation","sensor","hit_counter").contains(module.type()))return false;
             player.openMenu(new net.minecraft.world.SimpleMenuProvider((container,inventory,ignored)->new ModuleFrequencyMenu(container,inventory,heart,module),net.minecraft.network.chat.Component.translatable("frequency.sablelife.title")));return true;
         }
         if (operation.equals("samples")) {
@@ -162,7 +163,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             case "reorder" -> result=Double.isFinite(value)&&(value==-1||value==1)&&heart.modules().reorder(id,(int)value);
             case "remove" -> { if(module!=null&&module.type().equals("command")&&!player.canUseGameMasterBlocks())return false;result=heart.modules().remove(id); }
             case "mark" -> { return module != null && module.known() && MarkingSessions.start(player, heart, module); }
-            case "edit" -> { if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; if(module!=null&&ModuleSurfaceField.impactAttack(module)&&key.equals("impactArea")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var config=value==0?null:heart.modules().all().get((int)value-1);if(config!=null&&!config.type().equals("surface_field"))return false;module.impactField(config==null?null:config.id());result=true;}else if(module!=null&&module.type().equals("hit_counter")&&key.equals("hitSource")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleHitCounter.ATTACKS.contains(source.type()))return false;module.hitSource(source==null?null:source.id(),(int)value);result=true;}else result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
+            case "edit" -> { if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; if(module!=null&&ModuleSurfaceField.impactAttack(module)&&key.equals("impactArea")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var config=value==0?null:heart.modules().all().get((int)value-1);if(config!=null&&!config.type().equals("surface_field"))return false;module.impactField(config==null?null:config.id());result=true;}else if(module!=null&&module.type().equals("summoned_weapon")&&key.equals("summonAttack")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleSummonedWeapon.ATTACKS.contains(source.type()))return false;module.summonAttack(source==null?null:source.id());result=true;}else if(module!=null&&module.type().equals("hit_counter")&&key.equals("hitSource")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleHitCounter.ATTACKS.contains(source.type()))return false;module.hitSource(source==null?null:source.id(),(int)value);result=true;}else result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
             default -> { return false; }
         }
         if (result) { heart.setChanged(); refresh(); broadcastChanges(); }

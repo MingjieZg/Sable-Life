@@ -23,7 +23,7 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
     }
     public HeartSettingsMenu(int id, Inventory inventory, HeartBlockEntity heart, int page) {
         super(SableLife.SETTINGS_MENU.get(), id); this.heart = heart; viewer = inventory.player;
-        initialPage = Math.clamp(page, 0, 4);
+        initialPage = Math.clamp(page, 0, 5);
         addSlot(new Slot(snapshot, 0, -10000, -10000) {
             @Override public boolean mayPlace(ItemStack stack) { return false; }
             @Override public boolean mayPickup(Player player) { return false; }
@@ -46,6 +46,7 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         tag.putString("ChunkLoadingStatus",dev.sablelife.ownership.CoreChunkLoading.status(heart));tag.putInt("ChunkLoadingCount",dev.sablelife.ownership.CoreChunkLoading.count(heart));
         tag.putDouble("regenPercent",heart.regenPercentPerSecond());tag.putDouble("regen",heart.regenPerSecond()); tag.putDouble("regenDelay",heart.regenDelay()/20.);
         tag.putDouble("knockbackResistance",heart.knockbackResistance());
+        var crush=heart.terrainSettings();tag.put("Crush",crush.save());tag.putBoolean("crushEnabled",crush.enabled());tag.putBoolean("crushFloor",crush.floor());tag.putBoolean("crushDebris",crush.debris());tag.putBoolean("crushDrops",crush.drops());tag.putDouble("crushDelay",crush.delay()/20.);
         var defense=heart.adaptiveDefense();tag.putBoolean("defenseEnabled",defense.enabled());tag.putDouble("defenseThreshold",defense.threshold());tag.putDouble("defenseMaximum",defense.maximum());tag.putDouble("defenseWindow",defense.window()/20.);tag.putDouble("DefenseDps",defense.dps());tag.putDouble("DefenseReduction",defense.reduction()*100);
         tag.putString("State", heart.health().state().name());
         for (var key : java.util.List.of("deathParticle", "deathSound", "deathSoundLast")) tag.putString(key, heart.deathPresentation().text(key));
@@ -69,7 +70,7 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         if (heart == null || !stillValid(player)) return false;
         if(key.equals("release"))return CoreRelease.release(heart,player);
         if(key.equals("viewPage")){
-            if(!Double.isFinite(value)||value<0||value>4||value!=Math.rint(value))return false;
+            if(!Double.isFinite(value)||value<0||value>5||value!=Math.rint(value))return false;
             dev.sablelife.module.CoreEditorPosition.remember(heart,player.getUUID(),dev.sablelife.module.CoreEditorPosition.Section.SETTINGS,(int)value);return true;
         }
         if(key.equals("deathPreview")||key.equals("vanishPreview")){

@@ -83,7 +83,8 @@ public final class ModuleTargets {
         @Override public boolean isAlive() { return heart!=null && !heart.isRemoved() && heart.health().state()==HeartState.ALIVE; }
         @Override public float getHealth() { return heart==null ? super.getHealth() : heart.health().current(); }
         @Override public boolean hurt(net.minecraft.world.damagesource.DamageSource source,float amount) {
-            return isAlive() && heart.acceptsLifeAttack(attacker) && heart.damageAt(heart.getBlockPos(),amount);
+            boolean alive=isAlive();boolean hit=alive&&heart.acceptsLifeAttack(attacker)&&heart.damageAt(heart.getBlockPos(),amount);
+            if(hit&&!isAlive()&&level() instanceof ServerLevel server)dev.sablelife.attack.CombatEventHooks.emit(server,source,0,2,heart.creatureId());return hit;
         }
     }
     private ModuleTargets() {}

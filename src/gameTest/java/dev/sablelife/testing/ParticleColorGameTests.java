@@ -12,10 +12,15 @@ public final class ParticleColorGameTests {
     @GameTest(template="combat")
     public static void ColorSettingsPersistIndependentlyAndValidate(GameTestHelper h){
         var m=new VirtualModule("particles");
-        for(String id:List.of("minecraft:effect","minecraft:instant_effect","minecraft:entity_effect","minecraft:dust"))h.assertTrue(ModuleParticles.valid(id)&&ModuleParticles.colorable(id)&&m.editParticle("add",id),"Colorable particle unavailable: "+id);
+        for(String id:List.of("minecraft:effect","minecraft:instant_effect","minecraft:entity_effect","minecraft:dust","sablelife:arc","sablelife:smoke","sablelife:energy_mote"))h.assertTrue(ModuleParticles.valid(id)&&ModuleParticles.colorable(id)&&m.editParticle("add",id),"Colorable particle unavailable: "+id);
         h.assertTrue(m.editParticle("color","minecraft:effect",0x32CD32)&&m.editParticle("duration","minecraft:effect",2)&&m.editParticle("size","minecraft:effect",2),"Color/life/size edit rejected");
         var loaded=VirtualModule.load(m.save());var preset=ModulePreset.create(m.save());
         h.assertTrue(loaded.particleEntry("minecraft:effect").color()==0x32CD32&&loaded.particleEntry("minecraft:effect").ticks()==40&&loaded.particleEntry("minecraft:effect").size()==2&&preset.particleEntry("minecraft:effect").color()==0x32CD32,"Color lost through save/preset or life/size edit");
+        for(String id:ModuleParticles.BUNDLED) {
+            h.assertTrue(ModuleParticles.valid(id)&&(m.particles().contains(id)||m.editParticle("add",id))&&m.editParticle("color",id,0x123456)&&m.editParticle("duration",id,3)&&m.editParticle("size",id,2),"Bundled particle edits rejected: "+id);
+            var restored=VirtualModule.load(m.save()).particleEntry(id);
+            h.assertTrue(restored.color()==0x123456&&restored.ticks()==60&&restored.size()==2&&ModulePreset.create(m.save()).particleEntry(id).equals(restored),"Bundled style lost in NBT/preset");
+        }
         h.assertTrue(loaded.particleEntry("minecraft:instant_effect").color()==-1,"Color leaked into another selected particle");
         m.editParticle("add","minecraft:flame");h.assertTrue(!m.editParticle("color","minecraft:flame",0xFF0000)&&!m.editParticle("color","minecraft:effect",0x1000000)&&!m.editParticle("color","minecraft:effect",1.5)&&!m.editParticle("color","minecraft:effect",Double.NaN),"Invalid/unsupported color accepted");
         h.assertTrue(m.editParticle("color","minecraft:effect",-1)&&m.particleEntry("minecraft:effect").color()==-1,"Restore original failed");

@@ -34,7 +34,8 @@
     "AuthoritativePlotChunkReadMixin",
     "CreateBodyConfigurationMixin",
     "ProtectedBodyContainerClickMixin",
-    "CreateBodyContraptionInteractionMixin"
+    "CreateBodyContraptionInteractionMixin",
+    "FreezeMovementMixin"
   ],
   "client": [
     "ProtectedBodyMiningMixin",

@@ -1,5 +1,5 @@
 {
-  "revision": 120,
+  "revision": 141,
   "entries": [
     {
       "id": "getting_started",
@@ -648,6 +648,44 @@
       "module": "pull"
     },
     {
+      "id": "freeze",
+      "title": "dashboard.sablelife.type_freeze",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_freeze"
+        ],
+        "settings": [
+          "manual.sablelife.freeze.settings"
+        ],
+        "example": [
+          "manual.sablelife.freeze.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.freeze.troubleshooting"
+        ]
+      },
+      "module": "freeze"
+    },
+    {
+      "id": "grab",
+      "title": "dashboard.sablelife.type_grab",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_grab"
+        ],
+        "settings": [
+          "manual.sablelife.grab.settings"
+        ],
+        "example": [
+          "manual.sablelife.grab.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.grab.troubleshooting"
+        ]
+      },
+      "module": "grab"
+    },
+    {
       "id": "pulse",
       "title": "dashboard.sablelife.type_pulse",
       "sections": {
@@ -992,6 +1030,63 @@
         ]
       },
       "module": "distortion_trail"
+    },
+    {
+      "id": "signal_logic",
+      "title": "dashboard.sablelife.type_signal_logic",
+      "module": "signal_logic",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_signal_logic"
+        ],
+        "settings": [
+          "manual.sablelife.signal_logic.settings"
+        ],
+        "example": [
+          "manual.sablelife.signal_logic.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.signal_logic.troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "combat_event",
+      "title": "dashboard.sablelife.type_combat_event",
+      "module": "combat_event",
+      "sections": {
+        "usage": [
+          "dashboard.sablelife.description_combat_event"
+        ],
+        "settings": [
+          "manual.sablelife.combat_event.settings"
+        ],
+        "example": [
+          "manual.sablelife.combat_event.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.combat_event.troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "summoned_weapon",
+      "module": "summoned_weapon",
+      "title": "manual.sablelife.chapter.summoned_weapon",
+      "sections": {
+        "usage": [
+          "manual.sablelife.summoned_weapon.usage"
+        ],
+        "settings": [
+          "manual.sablelife.summoned_weapon.settings"
+        ],
+        "example": [
+          "manual.sablelife.summoned_weapon.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.summoned_weapon.troubleshooting"
+        ]
+      }
     }
   ]
 }

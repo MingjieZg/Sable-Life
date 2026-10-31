@@ -18,7 +18,9 @@ public final class ModuleDamage {
                 .getHolderOrThrow(key), projectile, null);
     }
     public static boolean hurt(LivingEntity target, DamageSource source, float amount,dev.sablelife.heart.HeartBlockEntity heart,dev.sablelife.module.VirtualModule module){
-        float before=target.getHealth();boolean hit=hurt(target,named(source,heart),amount);if(hit)heart.modules().hitCounter.record(heart,module.id(),Math.max(0,before-target.getHealth()));return hit;
+        source=named(source,heart);if(source instanceof BodyMeleeSource body)body.module(module.id());else source=new NamedSource(source,heart.creatureName(),heart.creatureId(),module.id());
+        float before=target.getHealth();boolean hit=hurt(target,source,amount);
+        if(source instanceof BodyMeleeSource body&&body.wasBlocked())CombatEventHooks.blocked(target,body);if(hit)heart.modules().hitCounter.record(heart,module.id(),Math.max(0,before-target.getHealth()));return hit;
     }
     public static boolean hurt(LivingEntity target, DamageSource source, float amount) {
         int previous = target.invulnerableTime;
@@ -39,9 +41,11 @@ public final class ModuleDamage {
         return new NamedSource(source,raw,source instanceof CreatureAttackSource owner?owner.creatureOwner():null);
     }
     private static final class NamedSource extends DamageSource implements CreatureAttackSource {
-        private final java.util.UUID owner;private final net.minecraft.network.chat.Component killer;
-        private NamedSource(DamageSource source,String name,java.util.UUID owner){super(source.typeHolder(),source.getDirectEntity(),source.getEntity(),source.sourcePositionRaw());this.owner=owner;killer=dev.sablelife.heart.CreatureNames.killer(name);}
+        private final java.util.UUID owner,module;private final net.minecraft.network.chat.Component killer;
+        private NamedSource(DamageSource source,String name,java.util.UUID owner){this(source,name,owner,source instanceof CreatureAttackSource c?c.creatureModule():null);}
+        private NamedSource(DamageSource source,String name,java.util.UUID owner,java.util.UUID module){super(source.typeHolder(),source.getDirectEntity(),source.getEntity(),source.sourcePositionRaw());this.owner=owner;this.module=module;killer=dev.sablelife.heart.CreatureNames.killer(name);}
         @Override public java.util.UUID creatureOwner(){return owner;}
+        @Override public java.util.UUID creatureModule(){return module;}
         @Override public net.minecraft.network.chat.Component getLocalizedDeathMessage(LivingEntity victim){return deathMessage(victim,killer);}
     }
     public static net.minecraft.network.chat.Component deathMessage(LivingEntity victim,net.minecraft.network.chat.Component killer){

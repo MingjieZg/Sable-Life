@@ -1,4 +1,7 @@
-> Latest development snapshot: **0.1.284** (2026-10-28). [Development Jar](releases/development-0.1.284/sablelife-0.1.284.jar) · [Development notes](docs/DEVELOPMENT_0.1.284.md). Stable remains **0.1.243**; movement changes remain under observation. [Final damage API acceptance requirements](docs/FINAL_ACCEPTANCE_DAMAGE_API.md).
+> Latest local development build: **0.1.308** (2026-10-31): summoned weapon previews share the native live-item display renderer, matching model pose and location; lifecycle media moved to the end of settings. [Development notes](docs/DEVELOPMENT_0.1.308.md). Protocol **25**, update both sides together. Stable **0.1.243**, movement **0.1.273/0.1.272**, last GitHub **0.1.308**. No new patches per user preference.
+
+
+
 
 # Current stable: 0.1.243
 

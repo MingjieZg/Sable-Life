@@ -88,7 +88,9 @@ public final class GravityTravel {
         var root=dev.ryanhcode.sable.Sable.HELPER.getContaining(level,heart.getBlockPos());
         var reference=bodies.stream().filter(b->b.body()==root).findFirst().orElse(bodies.getFirst());
         var common=driveDelta(new Vector3d(reference.body().latestLinearVelocity),direction,speed);
-        if(!step(level,m,bodies,direction,speed,session).valid())return false;
+        boolean clearing=heart.terrainBreaker().advance(heart,bodies,direction.scale(speed/20));
+        if(heart.terrainBreaker().brokeThisTick(level.getGameTime()))session.clear();
+        if(!clearing&&!step(level,m,bodies,direction,speed,session).valid())return false;
         for(var body:bodies)physics.getPipeline().addLinearAndAngularVelocity(body.body(),common,new Vector3d());
         return true;
     }

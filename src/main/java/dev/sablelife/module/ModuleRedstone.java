@@ -43,6 +43,7 @@ public final class ModuleRedstone {
         heart.wireless().programOutputs("sensor",sensorInternal);
         heart.wireless().programOutputs("wireless_redstone",internal);
         heart.modules().damageAccumulation.tick(heart,external);
+        heart.modules().hitCounter.publish(heart,external);
         heart.wireless().moduleFrequencies(external);
     }
 }

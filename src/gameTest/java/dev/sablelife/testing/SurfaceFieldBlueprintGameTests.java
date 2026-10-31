@@ -15,13 +15,15 @@ import java.util.*;
 public final class SurfaceFieldBlueprintGameTests {
  @GameTest(template="combat",batch="surface_blueprint_references",timeoutTicks=100)
  public static void NativeExportAndRepeatedPlacementKeepLocalImpactTemplates(GameTestHelper h){
-  var source=SlashGuardGameTests.core(h);var first=source.modules().add("surface_field");first.edit("name",0,"before");
+  var source=SlashGuardGameTests.core(h);source.terrainSettings().edit("crushEnabled",1,"");source.terrainSettings().edit("crushDelay",.25,"");source.terrainSettings().edit("crushProtectAdd",0,"minecraft:stone");var first=source.modules().add("surface_field");first.edit("name",0,"before");
   var attacks=new ArrayList<VirtualModule>();
   for(String type:List.of("mortar","flame","gun","arrow","slash","laser","ground_strike","homing")){
    var m=source.modules().add(type);m.anchors(List.of(ModuleAnchor.create(source,source.getBlockPos(),Direction.SOUTH)));attacks.add(m);
   }
   var last=source.modules().add("surface_field");last.edit("name",0,"after");last.edit("fieldShape",1,"");last.edit("fieldLength",5,"");last.edit("fieldWidth",.5,"");last.edit("fieldAngle",90,"");
   for(int i=0;i<attacks.size();i++)attacks.get(i).impactField(i%2==0?first.id():last.id());
+  var events=source.modules().add("combat_event");events.signalRules().rows().getFirst().source(attacks.get(4).id());events.signalRules().rows().getFirst().edit("eventChannel",4);
+  var logic=source.modules().add("signal_logic");logic.signalRules().rows().getFirst().edit("signalInput",4);logic.edit("logicChannel",5,"");
   source.modules().add("gun"); // No reference must remain unconfigured.
   var center=ModuleArena.corePosition(source);var template=PhotomancyRespawnBridge.capture(source,center);
   var a=place(h,template.copy(),center.add(20,0,0));var b=place(h,template.copy(),center.add(40,0,0));
@@ -43,10 +45,12 @@ public final class SurfaceFieldBlueprintGameTests {
   return (HeartBlockEntity)h.getLevel().getBlockEntity(body.getPlot().getCenterBlock());
  }
  private static void verify(GameTestHelper h,HeartBlockEntity from,HeartBlockEntity placed){
+  h.assertTrue(placed.terrainSettings().enabled()&&placed.terrainSettings().delay()==5&&placed.terrainSettings().protects(Blocks.STONE.defaultBlockState()),"Blueprint lost terrain breaking settings");
   var old=from.modules().all();var fresh=placed.modules().all();h.assertTrue(old.size()==fresh.size(),"Placement lost modules");
   var priorIds=old.stream().map(VirtualModule::id).collect(java.util.stream.Collectors.toSet());
   for(int i=0;i<old.size();i++){
    var original=old.get(i);var mapped=fresh.get(i);h.assertTrue(!priorIds.contains(mapped.id()),"Placement reused another creature's module ID");
+   if(SignalRules.supported(original.type())){var oldRow=original.signalRules().rows().getFirst();var freshRow=mapped.signalRules().rows().getFirst();if(oldRow.source()!=null){int at=-1;for(int j=0;j<old.size();j++)if(old.get(j).id().equals(oldRow.source()))at=j;h.assertTrue(at>=0&&freshRow.source().equals(fresh.get(at).id()),"Event attack source did not remap");}h.assertTrue(oldRow.value("signalInput")==freshRow.value("signalInput")&&oldRow.value("eventChannel")==freshRow.value("eventChannel"),"Signal channel config changed in blueprint");}
    if(original.impactFieldId()==null){h.assertTrue(mapped.impactFieldId()==null,"Placement invented an impact reference");continue;}
    int target=-1;for(int j=0;j<old.size();j++)if(old.get(j).id().equals(original.impactFieldId()))target=j;
    h.assertTrue(target>=0&&mapped.impactFieldId()!=null&&mapped.impactFieldId().equals(fresh.get(target).id()),"Impact template reference is stale: "+mapped.type());

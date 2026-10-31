@@ -1,0 +1,14 @@
+{
+  "version": "0.1.308",
+  "date": "2026-10-31",
+  "file": "sablelife-0.1.308.jar",
+  "bytes": 1839028,
+  "sha256": "829ea43e087f380b32f7b914d5e5c55c3165b63ad896c42a0af8946ad3c8cc15",
+  "networkProtocol": 25,
+  "manualRevision": 141,
+  "relatedGameTests": 27,
+  "nativeClientDisplays": 10,
+  "previewPoseComparisons": 2,
+  "patchGenerated": false,
+  "uploaded": false
+}

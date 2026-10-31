@@ -15,6 +15,7 @@ import java.util.*;
 
 /** Warning sphere stays fixed for each cast. Only victims still inside at activation are captured. */
 public final class ModulePull {
+ private UUID emitterAudio;private UUID audio(UUID id){return emitterAudio==null?id:emitterAudio;}
     private static final int MAX_TARGETS = 64;
     private static final class State {
         final PullCycle clock = new PullCycle();
@@ -27,12 +28,12 @@ public final class ModulePull {
     public String phase(UUID id) { var s = states.get(id); return s == null ? "waiting" : s.clock.phase().name().toLowerCase(Locale.ROOT); }
     public int victims(UUID id) { var s = states.get(id); return s == null ? 0 : s.victims.size(); }
     public void clear() { if (level != null) states.keySet().forEach(this::stop); states.clear(); level = null; }
-    private void stop(UUID id) { sound(id, "", Vec3.ZERO, true); }
+    private void stop(UUID id) { sound(audio(id), "", Vec3.ZERO, true); }
     private void sound(UUID id, String sound, Vec3 point, boolean stop) {
         if (!stop && sound.isEmpty()) return;
         for (var player : level.players()) if (stop || player.position().distanceToSqr(point) <= 128 * 128)
             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
-                    new ModuleNetworking.ModuleSound(id, sound, stop, point, 1, 1));
+                    new ModuleNetworking.ModuleSound(audio(id), sound, stop, point, 1, 1));
     }
     public static Vec3 destination(HeartBlockEntity heart, VirtualModule module) {
         if(TargetCastOrigin.targeted(module))return TargetCastOrigin.point(heart,module);
@@ -91,24 +92,26 @@ public final class ModulePull {
         for(var point:points)draw((ServerLevel) player.level(), player, module, point, point, false, (long)module.value("pullWarning"));
         player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.pull_preview_help"), true);
     }
-    public void tick(HeartBlockEntity heart) {
+    public void tick(HeartBlockEntity heart){tick(heart,heart.modules().all());}
+ public void tickEmitter(HeartBlockEntity heart,VirtualModule module){emitterAudio=module.audioId();tick(heart,List.of(module));}
+ private void tick(HeartBlockEntity heart,List<VirtualModule> modules){
         if (!(heart.getLevel() instanceof ServerLevel server)) return;
         level = server.getServer().getLevel(server.dimension()); if (level == null) return;
         long now = level.getGameTime(); var active = new HashSet<UUID>();
-        for (var module : heart.modules().all()) {
+        for (var module : modules) {
             if (!module.type().equals("pull")) continue;
-            if (heart.health().state() == HeartState.ALIVE && !module.detached() && HeartModules.status(module, heart).equals("disconnected")) { module.detach(); heart.setChanged(); }
-            if (!HeartModules.triggered(module, heart)) continue;
+            if (module.emitter()==null && heart.health().state() == HeartState.ALIVE && !module.detached() && HeartModules.status(module, heart).equals("disconnected")) { module.detach(); heart.setChanged(); }
+            if (!EmitterRuntime.active(module, heart)) continue;
             active.add(module.id()); var state = states.computeIfAbsent(module.id(), ignored -> new State());
             var before=state.clock.phase();
             var points=before==PullCycle.Phase.WAITING?(TargetCastOrigin.targeted(module)?TargetCastOrigin.points(heart,module):List.of(destination(heart,module))):state.centers;
             if(points.isEmpty())continue;
             boolean canStart=false;
             if(state.clock.ready(now)&&now>=state.nextScan){
-                canStart=points.stream().anyMatch(p->!targets(level,heart,module,p,p).isEmpty())&&heart.modules().hurtTriggers.start(module);state.nextScan=now+5;
+                canStart=points.stream().anyMatch(p->!targets(level,heart,module,p,p).isEmpty())&&EmitterRuntime.start(module,heart);state.nextScan=now+5;
             }
             var phase=state.clock.tick(now,(int)module.value("pullWarning"),(int)module.value("pullDuration"),(int)module.value("interval"),canStart);
-            if(phase==PullCycle.Phase.WAITING){if(before!=phase){stop(module.id());heart.modules().hurtTriggers.completed(module);state.victims.clear();}continue;}
+            if(phase==PullCycle.Phase.WAITING){if(before!=phase){stop(module.id());EmitterRuntime.completed(module,heart);state.victims.clear();}continue;}
             if(before==PullCycle.Phase.WAITING){state.centers=List.copyOf(points);for(var point:points)ModuleAudio.play(level,module,"warningSound",point);}
             var destinations=TargetCastOrigin.targeted(module)?state.centers:List.of(destination(heart,module));
             if(phase==PullCycle.Phase.PULLING&&before!=phase){

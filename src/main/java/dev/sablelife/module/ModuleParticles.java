@@ -44,7 +44,8 @@ public final class ModuleParticles {
         for (var player : level.players()) if(player.position().distanceToSqr(x,y,z)<=512*512&&VisualBudget.allow(player,Math.max(1,count)))
             level.sendParticles(player, particle, true, x, y, z, count, dx, dy, dz, speed);
     }
-    public static boolean colorable(String id){return Set.of("minecraft:effect","minecraft:instant_effect","minecraft:entity_effect","minecraft:dust").contains(id);}
+    public static final java.util.Set<String> BUNDLED = Set.of("sablelife:arc","sablelife:smoke","sablelife:energy_mote","sablelife:branching_arc","sablelife:spark","sablelife:light_ring","sablelife:inward_ring","sablelife:crescent","sablelife:soft_fog","sablelife:starburst","sablelife:random_starburst");
+    public static boolean colorable(String id){return BUNDLED.contains(id)||Set.of("minecraft:effect","minecraft:instant_effect","minecraft:entity_effect","minecraft:dust").contains(id);}
     public static net.minecraft.core.particles.ParticleOptions options(Entry entry){
         int color=entry.color()<0?0xFFFFFF:entry.color();
         if(entry.id().equals("minecraft:entity_effect"))return net.minecraft.core.particles.ColorParticleOption.create(net.minecraft.core.particles.ParticleTypes.ENTITY_EFFECT,0xFF000000|color);
