@@ -6,20 +6,15 @@
 
 **Give your creations life.**
 
-Sable Life is a Minecraft 1.21.1 NeoForge mod built on top of **Create** and **Sable**, designed to work with **Create: Aeronautics** and turn physical contraptions into configurable living constructs.
+Sable Life is a Minecraft 1.21.1 NeoForge mod built on top of **Create** and **Sable**, designed to work with **Create: Aeronautics** and turn physical structures into configurable living constructs.
 
 Instead of spawning a traditional Minecraft entity, Sable Life gives life directly to the physical structure you build. The blocks themselves form the body and receive damage, while you decide how the construct moves, reacts, attacks, and behaves.
 
 ## Current Version
 
-**0.1.313 — Public Beta Candidate**
+**0.1.313**
 
-- Minecraft: **1.21.1**
-- Loader: **NeoForge**
-- Java: **21**
-- Protocol: **26**
-
-Detailed development and validation notes are available in [docs/STATUS.md](docs/STATUS.md).
+Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
 ## Requirements
 
@@ -74,8 +69,6 @@ Currently supported combat integrations include:
 
 Other mods using standard Minecraft damage or block interaction mechanics may work without additional integration, but compatibility is not guaranteed. Even supported integrations may not cover every weapon, spell, addon, or special damage mechanic.
 
-Technical compatibility notes are available in [docs/COMPATIBILITY_API.md](docs/COMPATIBILITY_API.md).
-
 ## Building From Source
 
 Sable Life requires **Java 21**.
@@ -99,17 +92,6 @@ On Windows PowerShell:
 The compiled JAR is generated under `build/libs/`.
 
 Optional compatibility test environments use the setup scripts in `scripts/` and are not bundled into the Sable Life release JAR.
-
-## Development Documentation
-
-This repository contains detailed development and validation records under `docs/`. Useful starting points include:
-
-- [Current status](docs/STATUS.md)
-- [Development notes](docs/DEVELOPMENT.md)
-- [Compatibility API notes](docs/COMPATIBILITY_API.md)
-- [Current playtest checklist](docs/PLAYTEST_CURRENT.md)
-
-Historical version-specific notes are retained for development reference and are not the primary user documentation.
 
 ## License
 
