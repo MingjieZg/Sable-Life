@@ -37,7 +37,7 @@ public final class BundledParticleWorldPreview {
         int group=p instanceof BundledParticles.Arc?0:p instanceof BundledParticles.Smoke?1:p instanceof BundledParticles.Mote?2:-1;
         if(p instanceof BundledParticles.Shape){var k=BundledParticles.Shape.class.getDeclaredField("kind");k.setAccessible(true);group=3+k.getInt(p);}
         if(group<0||!observed.add(p))return;
-        if(!p.getRenderType().toString().equals("SABLE_SOFT_PARTICLE"))throw new AssertionError("Bundled particle still uses hard alpha cutoff");
+        if(Boolean.getBoolean("sablelife.shaderParticleTests")?p.getRenderType()!=ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT:!p.getRenderType().toString().equals("SABLE_SOFT_PARTICLE"))throw new AssertionError("Bundled particle still uses hard alpha cutoff");
         if(group==2||group>=5){if(vertices(p,.5F).size()!=4)throw new AssertionError("Shape still consists of a coplanar fan");}
         if(group==10&&field(p,BundledParticles.Shape.class,"angle")==0)throw new AssertionError("Random starburst is fixed");
         if(group==9&&field(p,BundledParticles.Shape.class,"angle")!=0)throw new AssertionError("Repeated starburst orientation is randomized");
@@ -59,6 +59,15 @@ public final class BundledParticleWorldPreview {
         if(!ready)return;ticks++;
         if(ticks==25)mc.getSingleplayerServer().execute(()->{
             var level=mc.getSingleplayerServer().overworld();
+            if(Boolean.getBoolean("sablelife.shaderParticleTests")) {
+                var label=net.minecraft.world.entity.EntityType.TEXT_DISPLAY.create(level);
+                label.setPos(0,80,3);
+                var access=(dev.sablelife.mixin.RespawnTextDisplayAccess)(Object)label;
+                access.sablelife$text(net.minecraft.network.chat.Component.translatable("arena_respawn.sablelife.countdown",3).append("\n").append(net.minecraft.network.chat.Component.literal("■".repeat(10)+"□".repeat(10)).withStyle(net.minecraft.ChatFormatting.YELLOW)));
+                access.sablelife$flags((byte)3);access.sablelife$background(0xAA101018);
+                ((dev.sablelife.mixin.RespawnDisplayAccess)(Object)label).sablelife$billboard(net.minecraft.world.entity.Display.BillboardConstraints.CENTER);
+                level.addFreshEntity(label);
+            }
             for(int i=0;i<ids.length;i++) {
                 ModuleParticles.send(level,new ModuleParticles.Entry(ids[i],80,2,colors[i]),(i%5-2)*2,85-(i/5)*3,3,1,0,0,0,0);
                 ModuleParticles.send(level,new ModuleParticles.Entry(ids[i],0,1), (i%5-2)*2,76-(i/5)*3,3,1,0,0,0,0);
@@ -66,7 +75,8 @@ public final class BundledParticleWorldPreview {
         });
         if(ticks>=25&&ticks<40){for(var key:List.of("particles","particlesToAdd")){var f=ParticleEngine.class.getDeclaredField(key);f.setAccessible(true);var data=f.get(mc.particleEngine);if(data instanceof Map<?,?> map){for(var queue:map.values())for(var p:(Collection<?>)queue)observe((Particle)p);}else for(var p:(Collection<?>)data)observe((Particle)p);}}
         if(ticks==40){
-            BundledParticleGpuCheck.run(mc);
+            if(!Boolean.getBoolean("sablelife.shaderParticleTests"))BundledParticleGpuCheck.run(mc);
+            else if(!((boolean)Class.forName("net.irisshaders.iris.api.v0.IrisApi").getMethod("isShaderPackInUse").invoke(Class.forName("net.irisshaders.iris.api.v0.IrisApi").getMethod("getInstance").invoke(null))))throw new AssertionError("Shader pack was not active");
             for(var p:observed)if(p.isAlive()&&(p instanceof BundledParticles.Arc||p instanceof BundledParticles.Shape&&field(p,BundledParticles.Shape.class,"kind")==0)){
                 var array=p.getClass().getDeclaredField(p instanceof BundledParticles.Arc?"py":"bolts");array.setAccessible(true);float[] first=((float[])array.get(p)).clone();
                 var tick=ParticleEngine.class.getDeclaredMethod("tickParticle",Particle.class);tick.setAccessible(true);tick.invoke(mc.particleEngine,p);tick.invoke(mc.particleEngine,p);
@@ -75,7 +85,22 @@ public final class BundledParticleWorldPreview {
                 continuity(p);
             }
         }
-        if(ticks==32||ticks==42){var folder=mc.gameDirectory.toPath().resolve("screenshots");java.nio.file.Files.createDirectories(folder);try(var image=Screenshot.takeScreenshot(mc.getMainRenderTarget())){image.writeToFile(folder.resolve("bundled-particles-world-"+ticks+".png"));}}
-        if(ticks==130){if(observed.size()!=22||observed.stream().anyMatch(Particle::isAlive))throw new AssertionError("Native providers/network/expiry failed: "+observed.size());System.out.println("Bundled particles world passed: 11 native providers, default and custom network paths, RGB/Life/Size, real sprites, bounded expiry; soft alpha path, stable starburst, lightning render continuity");mc.stop();}
+        if(ticks==32||ticks==42||Boolean.getBoolean("sablelife.shaderParticleTests")&&(ticks==62||ticks==95||ticks==115)){var folder=mc.gameDirectory.toPath().resolve("screenshots");java.nio.file.Files.createDirectories(folder);try(var image=Screenshot.takeScreenshot(mc.getMainRenderTarget())){image.writeToFile(folder.resolve("bundled-particles-world-"+ticks+".png"));}}
+        if(Boolean.getBoolean("sablelife.shaderParticleTests")) {
+            if(ticks==55)mc.getSingleplayerServer().execute(()->{var server=mc.getSingleplayerServer();server.getPlayerList().getPlayers().getFirst().teleportTo(server.overworld(),0,82,17,180,0);});
+            if(ticks==85||ticks==100){
+                var apiClass=Class.forName("net.irisshaders.iris.api.v0.IrisApi");var api=apiClass.getMethod("getInstance").invoke(null);
+                var config=apiClass.getMethod("getConfig").invoke(api);
+                Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig").getMethod("setShadersEnabledAndApply",boolean.class).invoke(config,ticks==100);
+            }
+            if(ticks==90||ticks==110){
+                var p=mc.particleEngine.createParticle(dev.sablelife.SableLife.STARBURST.get(),ticks==90?-2:2,84,3,0,0,0);
+                p.setLifetime(80);p.setColor(ticks==90?1:0,ticks==90?0:1,1);
+                boolean vanilla=p.getRenderType()==ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT;
+                if(vanilla!=(ticks==110))throw new AssertionError("Particle batch did not follow shader toggle");
+                if(ticks==90)BundledParticleGpuCheck.run(mc);
+            }
+        }
+        if(ticks==130){if(observed.size()!=22||observed.stream().anyMatch(Particle::isAlive))throw new AssertionError("Native providers/network/expiry failed: "+observed.size());System.out.println("Bundled particles world passed: 11 native providers, default and custom network paths, RGB/Life/Size, real sprites, bounded expiry; shader-aware particle batch, stable starburst, lightning render continuity");mc.stop();}
     }
 }

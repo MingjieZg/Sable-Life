@@ -5,6 +5,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(Display.TextDisplay.class)
 public interface RespawnTextDisplayAccess {
+ @Invoker("getText") Component sablelife$getText();
  @Invoker("setText") void sablelife$text(Component text);
  @Invoker("setBackgroundColor") void sablelife$background(int color);
  @Invoker("setFlags") void sablelife$flags(byte flags);

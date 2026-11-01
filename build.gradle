@@ -180,6 +180,8 @@ neoForge {
             systemProperty 'sablelife.trailDashboardPreview', providers.gradleProperty('trailDashboardPreview').getOrElse('false')
             systemProperty 'sablelife.gyroPreview', providers.gradleProperty('gyroPreview').getOrElse('false')
             systemProperty 'sablelife.pulseVisualPreview', providers.gradleProperty('pulseVisualPreview').getOrElse('false')
+            systemProperty 'sablelife.followRedstoneDashboardPreview', providers.gradleProperty('followRedstoneDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.navigationDashboardPreview', providers.gradleProperty('navigationDashboardPreview').getOrElse('false')
             systemProperty 'sablelife.shockwaveDashboardPreview', providers.gradleProperty('shockwaveDashboardPreview').getOrElse('false')
             systemProperty 'sablelife.gravityTravelPreview', providers.gradleProperty('gravityTravelPreview').getOrElse('false')
             systemProperty 'sablelife.projectileAimPreview', providers.gradleProperty('projectileAimPreview').getOrElse('false')
@@ -329,6 +331,7 @@ neoForge {
             loadedMods = [mods.sablelife, mods.sablelife_tests]
             gameDirectory = file('runs/bundled-particle-world-preview')
             systemProperty 'sablelife.bundledParticleWorldPreview', 'true'
+            systemProperty 'sablelife.shaderParticleTests', providers.gradleProperty('shaderParticleTests').getOrElse('false')
             programArguments.addAll '--width', '1280', '--height', '720'
         }
         terrainDebrisWorldPreview {
@@ -372,13 +375,18 @@ neoForge {
             if(providers.gradleProperty('dragonReplayTests').getOrElse('false')=='true') systemProperty 'sablelife.dragonReplayTemplate', file('.dev/dragon-template.nbt').absolutePath
             if(providers.gradleProperty('arenaAddonTests').getOrElse('false')=='true') systemProperty 'sablelife.arenaReplayTemplate', file('.dev/arena-replay/template.nbt').absolutePath
             systemProperty 'sablelife.expectCleanupCrash', providers.gradleProperty('expectCleanupCrash').getOrElse('false')
-            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_summon_tests,sablelife_freeze_tests,sablelife_terrain_tests,sablelife_signal_tests,sablelife_surface_tests,sablelife_cleanup_regression_tests,sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests,sablelife_plot_read_tests')
+            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_redstone_preview_tests,sablelife_summon_tests,sablelife_freeze_tests,sablelife_terrain_tests,sablelife_signal_tests,sablelife_surface_tests,sablelife_cleanup_regression_tests,sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests,sablelife_plot_read_tests')
         }
         configureEach { logLevel = org.slf4j.event.Level.INFO }
     }
 }
 
 dependencies {
+    if(providers.gradleProperty('shaderParticleTests').getOrElse('false')=='true') {
+        gameTestRuntimeOnly fileTree(dir: '.dev/shader-test-mods', include: ['iris*.jar'])
+        gameTestRuntimeOnly fileTree(dir: '.dev/shader-merged', include: ['*.jar'])
+        gameTestRuntimeOnly fileTree(dir: '.dev/shader-runtime', include: ['fabric*.jar'])
+    }
     // Downloaded from the official Modrinth release pages, pinned by SHA-512.
     implementation files('.dev/mods/sable-neoforge-1.21.1-2.0.5.jar')
     compileOnly fileTree(dir: '.dev/compile-libs', include: ['*.jar'])

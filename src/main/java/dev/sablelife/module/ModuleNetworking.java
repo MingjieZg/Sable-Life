@@ -47,7 +47,7 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("25");
+        var registrar = event.registrar("26");
         registrar.playToServer(Action.TYPE, Action.CODEC, (p, ctx) -> {
             if (p.operation.equals("cancel")) { MarkingSessions.cancel(ctx.player()); return; }
             if (!AuthoringRateLimit.allow(ctx.player(), p.operation.equals("add_preset") ? 20 : 1)) return;
@@ -80,6 +80,7 @@ public final class ModuleNetworking {
         registrar.playToClient(FreezeStatePacket.TYPE,FreezeStatePacket.CODEC,(p,ctx)->dev.sablelife.client.FreezeClient.receive(p));
         registrar.playToClient(TerrainDebrisPacket.TYPE,TerrainDebrisPacket.CODEC,(p,ctx)->dev.sablelife.client.TerrainDebrisClient.receive(p));
         registrar.playToClient(DistortionTrailPacket.TYPE,DistortionTrailPacket.CODEC,(p,ctx)->dev.sablelife.client.DistortionTrailClient.receive(p));
+        registrar.playToClient(VisualFilterPacket.TYPE,VisualFilterPacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ShockwaveZoomPacket.TYPE,ShockwaveZoomPacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ShockwavePacket.TYPE,ShockwavePacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ItemDisplayPacket.TYPE,ItemDisplayPacket.CODEC,(p,ctx)->dev.sablelife.client.ModuleItemDisplayClient.receive(p));

@@ -15,14 +15,20 @@ import java.util.*;
 
 /** Analog signals stay in plot coordinates; aiming is recomputed from the body's current pose. */
 public final class TargetNavigation {
+    public static final List<String> DIRECTIONS=List.of("Left","Right","Up","Down","Forward","Backward");
     private static final class State {
         UUID target;
         long nextSearch;
         int lastTurn = 1;
         String name = "";
-        int left, right, up, down;
+        int left, right, up, down, forward, backward;
     }
     private final Map<UUID, State> states = new HashMap<>();
+    public void publish(VirtualModule module,Map<Integer,Integer> channels){
+        var state=states.get(module.id());if(state==null)return;
+        int[] values={state.left,state.right,state.up,state.down,state.forward,state.backward};
+        for(int i=0;i<DIRECTIONS.size();i++){int channel=(int)module.value("navigation"+DIRECTIONS.get(i)+"Channel")-1;if(channel>=0&&values[i]>0)channels.merge(channel,values[i],Math::max);}
+    }
     public void clear() { states.clear(); }
     public void retain(Set<UUID> active) { states.keySet().retainAll(active); }
     public String name(UUID id) { var state = states.get(id); return state == null ? "" : state.name; }
@@ -93,6 +99,7 @@ public final class TargetNavigation {
     private static void output(VirtualModule module,State state,Map<ModuleSignals.Face,Integer> signals,net.minecraft.core.BlockPos pos,int forward,int backward){
         boolean invert=module.value("navigationInvert")==1;var front=front(module);
         if(invert){int swap=state.up;state.up=state.down;state.down=swap;swap=state.left;state.left=state.right;state.right=swap;swap=forward;forward=backward;backward=swap;}
+        state.forward=forward;state.backward=backward;
         put(signals,new ModuleSignals.Face(pos,Direction.UP),state.up);put(signals,new ModuleSignals.Face(pos,Direction.DOWN),state.down);
         put(signals,new ModuleSignals.Face(pos,front),forward);put(signals,new ModuleSignals.Face(pos,front.getOpposite()),backward);
         put(signals,new ModuleSignals.Face(pos,front.getCounterClockWise()),state.left);put(signals,new ModuleSignals.Face(pos,front.getClockWise()),state.right);

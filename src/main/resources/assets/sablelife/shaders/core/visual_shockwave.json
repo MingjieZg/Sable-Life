@@ -195,6 +195,17 @@
         0,
         0
       ]
+    },
+    {
+      "name": "FilterColor",
+      "type": "float",
+      "count": 4,
+      "values": [
+        0,
+        0,
+        0,
+        0
+      ]
     }
   ]
 }

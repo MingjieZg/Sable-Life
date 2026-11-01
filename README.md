@@ -1,4 +1,8 @@
-> Latest local development build: **0.1.308** (2026-10-31): summoned weapon previews share the native live-item display renderer, matching model pose and location; lifecycle media moved to the end of settings. [Development notes](docs/DEVELOPMENT_0.1.308.md). Protocol **25**, update both sides together. Stable **0.1.243**, movement **0.1.273/0.1.272**, last GitHub **0.1.308**. No new patches per user preference.
+> Latest uploaded development snapshot: **0.1.313** (2026-11-01). [Development JAR](releases/development-0.1.313/sablelife-0.1.313.jar) · [Development notes](docs/DEVELOPMENT_0.1.313.md) · [Project icon](assets/branding/sablelife-icon-white-512.png). Protocol **26**, manual145. Stable **0.1.243** and movement checkpoints **0.1.273/0.1.272** retained. Known issue: Bliss clouds can still obscure portions of bundled particles.
+
+
+
+
 
 
 

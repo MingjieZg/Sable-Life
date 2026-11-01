@@ -5,6 +5,12 @@ import java.util.List;
 /** Shared mode visibility, also exercised without a client. Stored hidden values are retained. */
 public final class SurfaceFieldSettings {
     public static boolean visible(VirtualModule m,String key){
+        if(m.type().equals("visual_shockwave")){
+            if(List.of("filterColor","filterStrength","filterFadeIn","filterFadeOut").contains(key))return m.value("filterEnabled")==1;
+            if(List.of("shockRadius","shockReverse","shockExpansion","shockWidth","shockDistortion","shockBlur").contains(key))return m.value("shockWaveEnabled")==1;
+            if(List.of("shockShake","shockShakeTime").contains(key))return m.value("shockShakeEnabled")==1;
+            if(List.of("shockZoom","shockZoomTime").contains(key))return m.value("shockZoomEnabled")==1;
+        }
         if(m.type().equals("summoned_weapon")){
             boolean many=m.value("summonCount")>1;int shape=(int)m.value("summonFormation");boolean line=shape==1||shape==6||shape==7;
             if(List.of("summonFormation","summonFormationRoll","summonFormationYaw","summonDeployGap").contains(key))return many;

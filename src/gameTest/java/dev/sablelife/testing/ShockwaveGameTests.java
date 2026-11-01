@@ -77,4 +77,25 @@ public final class ShockwaveGameTests {
   m.edit("shockContact",0,"");before=counts[1];draw.invoke(null,player,c,m);h.assertTrue(counts[1]>before&&counts[1]-before<contactCount,"Normal marker missing or contact probe not conditional");m.clearMarks();before=counts[1];draw.invoke(null,player,c,m);h.assertTrue(counts[1]==before&&counts[0]==1,"Cleared mark still drew a preview");h.succeed();
  }
 
+
+ @GameTest(template="combat",batch="filter_range",timeoutTicks=65)
+ public static void FilterOnlyTracksEachViewerAndStopsOnDisableAndMaster(GameTestHelper h){
+  var c=fixture(h);var m=module(c);m.edit("filterEnabled",1,"");m.edit("shockWaveEnabled",0,"");m.edit("shockShakeEnabled",0,"");m.edit("shockZoomEnabled",0,"");m.edit("shockRange",8,"");var point=m.anchors().getFirst().world(c,false);var packets=new ArrayList<VisualFilterPacket>();int[] transients={0};var player=TestActors.creative(h.getLevel());player.setPos(point.add(2,0,0));
+  player.connection=new ServerGamePacketListenerImpl(h.getLevel().getServer(),new Connection(PacketFlow.SERVERBOUND),player,CommonListenerCookie.createInitial(player.getGameProfile(),false)){@Override public void send(Packet<?> packet){if(packet instanceof ClientboundCustomPayloadPacket cp){if(cp.payload() instanceof VisualFilterPacket f&&f.module().equals(m.id()))packets.add(f);if(cp.payload() instanceof ShockwavePacket||cp.payload() instanceof ShockwaveZoomPacket)transients[0]++;}}};h.getLevel().players().add(player);c.tryActivate(player);c.modules().tick(c);
+  h.assertTrue(packets.size()==1&&packets.getFirst().active(),"Filter-only did not reach nearby viewer");
+  h.runAfterDelay(12,()->{h.assertTrue(packets.size()>=2&&packets.stream().allMatch(VisualFilterPacket::active),"Held filter interrupted");player.setPos(point.add(100,0,0));});
+  h.runAfterDelay(15,()->{h.assertTrue(!packets.getLast().active(),"Leaving range did not release");player.setPos(point.add(2,0,0));});
+  h.runAfterDelay(18,()->{h.assertTrue(packets.getLast().active(),"Reentry failed");m.edit("enabled",0,"");});
+  h.runAfterDelay(21,()->{h.assertTrue(!packets.getLast().active(),"Disable left held filter");m.edit("enabled",1,"");});
+  h.runAfterDelay(24,()->{h.assertTrue(packets.getLast().active(),"Reenabled filter missing");c.wireless().master(false);});
+  h.runAfterDelay(27,()->{h.assertTrue(!packets.getLast().active()&&transients[0]==0,"Master cleanup or independent effect switches failed");h.getLevel().players().remove(player);h.succeed();});
+ }
+ @GameTest(template="combat",batch="filter_repeat",timeoutTicks=45)
+ public static void RepeatWavesNeverReleaseFilterBeforeTriggerEnd(GameTestHelper h){
+  var c=fixture(h);var m=module(c);m.edit("filterEnabled",1,"");m.edit("shockMode",1,"");m.edit("shockInterval",2,"");var point=m.anchors().getFirst().world(c,false);var filters=new ArrayList<VisualFilterPacket>();int[] waves={0};var p=TestActors.creative(h.getLevel());p.setPos(point);
+  p.connection=new ServerGamePacketListenerImpl(h.getLevel().getServer(),new Connection(PacketFlow.SERVERBOUND),p,CommonListenerCookie.createInitial(p.getGameProfile(),false)){@Override public void send(Packet<?> packet){if(packet instanceof ClientboundCustomPayloadPacket cp){if(cp.payload() instanceof VisualFilterPacket f&&f.module().equals(m.id()))filters.add(f);if(cp.payload() instanceof ShockwavePacket)waves[0]++;}}};h.getLevel().players().add(p);c.tryActivate(p);c.modules().tick(c);
+  h.runAfterDelay(15,()->{h.assertTrue(waves[0]>=5&&filters.size()>=2&&filters.stream().allMatch(VisualFilterPacket::active),"Repeat interval restarted filter");c.resetForCreative(p);});
+  h.runAfterDelay(18,()->{h.assertTrue(!filters.getLast().active(),"Release life left filter held");h.getLevel().players().remove(p);h.succeed();});
+ }
+
 }

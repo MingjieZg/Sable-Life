@@ -1,6 +1,7 @@
 #version 150
 uniform sampler2D Scene;
 uniform vec2 ViewportSize;
+uniform vec4 FilterColor;
 uniform vec4 Wave0; uniform vec4 Wave1; uniform vec4 Wave2; uniform vec4 Wave3;
 uniform vec4 Wave4; uniform vec4 Wave5; uniform vec4 Wave6; uniform vec4 Wave7;
 uniform vec4 Fx4; uniform vec4 Fx5; uniform vec4 Fx6; uniform vec4 Fx7;
@@ -20,5 +21,5 @@ void main(){
  }
  vec2 uv=clamp(texCoord+offset,vec2(0.0001),vec2(0.9999));vec4 base=texture(Scene,uv);
  if(blur>0.0001){vec2 stepUV=vec2(1.0)/ViewportSize*4.0*blur;vec4 soft=(base+texture(Scene,clamp(uv+vec2(stepUV.x,0),vec2(0),vec2(1)))+texture(Scene,clamp(uv-vec2(stepUV.x,0),vec2(0),vec2(1)))+texture(Scene,clamp(uv+vec2(0,stepUV.y),vec2(0),vec2(1)))+texture(Scene,clamp(uv-vec2(0,stepUV.y),vec2(0),vec2(1))))/5.0;base=mix(base,soft,blur);}
- fragColor=base;
+ fragColor=vec4(mix(base.rgb,FilterColor.rgb,FilterColor.a),base.a);
 }

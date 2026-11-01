@@ -38,6 +38,7 @@
     "FreezeMovementMixin"
   ],
   "client": [
+    "RespawnLabelRendererMixin",
     "ProtectedBodyMiningMixin",
     "ParticleTravelMixin",
     "ParticleEngineTravelMixin"

@@ -1,3 +1,15 @@
+0.1.313 upload snapshot (2026-11-01): GitHub main and Drive backup; includes all 309-313 notes and approved original-crystal icon. Stable243 retained. Known Bliss cloud/particle issue remains. See UPLOAD_0.1.313.md.
+
+0.1.313 local development (2026-11-01): Iris shader-compatible bundled particles and post-composite world-projected respawn labels; Summoned weapon enabled in Move Set. 28 summon + 148 control native tests, Bliss shader/off/on/no-Iris world and GPU checks passed. Protocol26/manual145. See DEVELOPMENT_0.1.313.md. No ice fix, patch or upload.
+
+0.1.312 local development: wireless redstone fixed/follow analog strength;13 targeted+148 control native tests and16 UI layouts passed. Protocol26/manual144. See DEVELOPMENT_0.1.312.md. Latest uploaded0.1.308; stable0.1.243 retained.
+
+0.1.311 local development: navigation six analog internal direction channels,45 related native tests passed. Protocol26/manual143. See DEVELOPMENT_0.1.311.md. Latest uploaded0.1.308; stable0.1.243 retained.
+
+0.1.310 local development: disabled/copied redstone face preview fixed; missing anchors safely skipped. Protocol26/manual142. See DEVELOPMENT_0.1.310.md. Latest uploaded0.1.308; stable0.1.243 retained.
+
+0.1.309 local development: Visual Effects held range color filter; protocol26/manual142. See DEVELOPMENT_0.1.309.md. Latest uploaded version remains0.1.308; stable0.1.243 retained.
+
 0.1.308 upload: GitHub main / Google Drive; stable 0.1.243 retained. See UPLOAD_0.1.308.md.
 
 # 最新开发版 0.1.308（2026-10-31）

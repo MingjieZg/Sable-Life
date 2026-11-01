@@ -34,7 +34,7 @@ public final class ModuleFields {
             case "signal_logic" -> List.of("logicMatch","signalRules","logicChannel","logicPower","logicMode","logicPulse");
             case "combat_event" -> List.of("signalRules");
             case "health_phase" -> List.of("healthPhaseRules");
-            case "wireless_redstone" -> List.of("redstonePower", "redstoneMode", "redstonePulse", "redstoneInvert", "redstoneFaces", "redstoneChannel", "redstoneFrequency");
+            case "wireless_redstone" -> List.of("redstoneStrengthMode", "redstonePower", "redstoneMode", "redstonePulse", "redstoneInvert", "redstoneFaces", "redstoneChannel", "redstoneFrequency");
         case "sequence" -> List.of("sequenceSteps", "sequenceRepeat", "stopOnLow", "resetChannel", "resetSource");
             case "arena" -> List.of("arenaRadius", "warningRange", "countdown", "arenaDeath", "arenaForceReturn", "arenaReturn", "arenaBuffEnabled", "arenaBuffGroups", "arenaRespawnEnabled", "arenaRespawnDelay", "arenaRespawnRecord", "arenaRespawnClear");
             case "quake" -> List.of("quakeMode", "quakeOrigin", "target", "targetMultiple", "quakeDetectRange", "quakeRange", "quakeWidth", "quakeSpeed", "warningTime", "damage", "quakeLaunch", "quakePush", "quakeRise", "quakeGrounded", "quakeReach", "quakeWaves", "quakeGap", "interval", "direction", "quakeColor", "warningSound", "quakeSound", "particles");
@@ -60,7 +60,7 @@ public final class ModuleFields {
             case "sound" -> List.of("approach", "hurt", "radius", "volume", "pitch", "cooldown", "ambient", "ambientMin", "ambientMax");
             case "trigger_sound" -> List.of("triggerSound", "soundMode", "volume", "pitch", "cooldown", "interval", "contactMode", "contactSound", "contactDirection", "contactDistance", "contactCooldown");
             case "bgm" -> List.of("bgm", "bgmStart", "bgmRadius", "bgmVolume", "bgmFade");
-            case "navigation" -> List.of("target", "radius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert");
+            case "navigation" -> List.of("target", "radius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert", "navigationLeftChannel", "navigationRightChannel", "navigationUpChannel", "navigationDownChannel", "navigationForwardChannel", "navigationBackwardChannel");
             case "loot" -> List.of("weighted", "rolls");
             default -> List.of();
         };
@@ -107,7 +107,7 @@ public final class ModuleFields {
         case "signal_logic" -> List.of(c("logicMatch","signal_all","signal_any"),c("signalRules","signal_rule_editor"),n("logicChannel",0,65535,0),n("logicPower",1,15,15),c("logicMode","signal_hold","signal_pulse"),t("logicPulse",1,12000,10));
         case "combat_event" -> List.of(c("signalRules","signal_rule_editor"));
         case "health_phase" -> List.of(c("healthPhaseRules","phase_rule_editor"));
-        case "wireless_redstone" -> List.of(n("redstonePower", 0, 15, 15), c("redstoneMode", "signal_hold", "signal_pulse"),
+        case "wireless_redstone" -> List.of(c("redstoneStrengthMode","redstone_fixed","redstone_follow"),n("redstonePower", 0, 15, 15), c("redstoneMode", "signal_hold", "signal_pulse"),
                 t("redstonePulse", 1, 12000, 20), c("redstoneInvert", "off", "on"), c("redstoneFaces", "all_faces", "marked_face"), n("redstoneChannel",0,65535,0),
                 c("redstoneFrequency", "frequency"));
         case "move_set" -> List.of(c("moveSetEditor", "move_set_editor"));
@@ -116,7 +116,7 @@ public final class ModuleFields {
         case "hit_counter" -> List.of(n("hitThreshold",1,10000,5),n("hitSource",0,HeartModules.LIMIT,0),t("hitGap",0,1200,0),n("hitChannel",0,65535,0),n("hitPower",1,15,15),t("hitPulse",1,12000,20),c("redstoneFrequency","frequency"));
         case "surface_field" -> List.of(c("fieldRelease","field_impact"),target(2),c("fieldShape","field_circle","field_rectangle"),n("fieldRadius",.25,16,4),n("fieldLength",.25,32,8),n("fieldWidth",.25,32,2),n("fieldAngle",-180,180,0),c("fieldPlacement","field_centered","field_ahead"),t("fieldDuration",1,12000,160),n("damage",0,1000,3),t("hitInterval",1,12000,20),c("fieldBurn","off","on"),n("burn",0,30,3),c("particles","particles"));
         case "health_adjustment" -> List.of(n("healthAmount",-1000000,1000000,10),c("healthUnits","health_hp","health_percent"),c("healthMode","health_once","health_periodic"),t("healthInterval",1,12000,20),c("healthLethal","off","on"));
-        case "visual_shockwave" -> List.of(c("shockContact","off","on"),c("contactDirection","down","up","north","south","west","east"),n("contactDistance",.05,4,.25),t("contactCooldown",1,200,6),n("shockRadius",.5,128,18),c("shockReverse","off","on"),t("shockExpansion",1,200,9),n("shockWidth",.1,16,1.5),n("shockDistortion",0,1,.35),n("shockBlur",0,1,.25),n("shockShake",0,1,.15),t("shockShakeTime",1,200,8),n("shockZoom",-100,30,4),t("shockZoomTime",1,200,10),n("shockRange",1,256,64),c("shockMode","shock_once","shock_repeat"),t("shockInterval",1,12000,40));
+        case "visual_shockwave" -> List.of(c("filterEnabled","off","on"),new Field("filterColor",0,6,3,1,List.of("strike_red","strike_orange","strike_blue","strike_purple","strike_green","strike_white","strike_yellow")),n("filterStrength",0,1,.25),t("filterFadeIn",0,200,4),t("filterFadeOut",0,200,8),new Field("shockWaveEnabled",0,1,1,1,List.of("off","on")),new Field("shockShakeEnabled",0,1,1,1,List.of("off","on")),new Field("shockZoomEnabled",0,1,1,1,List.of("off","on")),c("shockContact","off","on"),c("contactDirection","down","up","north","south","west","east"),n("contactDistance",.05,4,.25),t("contactCooldown",1,200,6),n("shockRadius",.5,128,18),c("shockReverse","off","on"),t("shockExpansion",1,200,9),n("shockWidth",.1,16,1.5),n("shockDistortion",0,1,.35),n("shockBlur",0,1,.25),n("shockShake",0,1,.15),t("shockShakeTime",1,200,8),n("shockZoom",-100,30,4),t("shockZoomTime",1,200,10),n("shockRange",1,256,64),c("shockMode","shock_once","shock_repeat"),t("shockInterval",1,12000,40));
         case "hover_anchor" -> List.of(new Field("hoverX",0,1,1,1,List.of("off","on")),new Field("hoverY",0,1,1,1,List.of("off","on")),new Field("hoverZ",0,1,1,1,List.of("off","on")),c("hoverRotation","off","on"),c("hoverMode","hover_hard","hover_elastic"),n("hoverStrength",0,1000,20),n("hoverDamping",0,100,0),n("hoverOffset",0,16,2));
         case "gyroscope" -> List.of(c("gyroCalibrate","gyro_record"),n("gyroTilt",0,180,20),n("gyroSpeed",.1,720,90),c("gyroReturn","gyro_level","gyro_limit"),new Field("gyroCollision",0,1,1,1,List.of("off","on")));
         case "auto_facing" -> List.of(target(0),n("facingRange",1,256,64),n("facingSpeed",1,720,180),c("facingVertical","off","on"),new Field("facingCollision",0,1,1,1,List.of("off","on")),new Field("facingCreative",0,1,1,1,List.of("off","on")),c("lineOfSight","off","on"));
@@ -178,7 +178,7 @@ public final class ModuleFields {
         case "bgm" -> List.of(c("bgm", "library"), c("bgmStart", "after_hit", "on_approach"), n("bgmRadius", 1, 256, 64), t("bgmFade", 0, 400, 60), n("bgmVolume", 0, 1, 1));
         case "navigation" -> List.of(target(0), n("radius", 1, 128, 32), c("lineOfSight", "on", "off"),
                 new Field("verticalTracking", 0, 1, 1, 1, List.of("off", "on")), c("targetLock", "locked", "nearest"), n("deadZone", 0, 45, 3), n("pitchDeadZone", 0, 45, 3),
-                c("navigationFront", "marked", "north", "south", "west", "east"), c("navigationInvert", "off", "on"));
+                c("navigationFront", "marked", "north", "south", "west", "east"), c("navigationInvert", "off", "on"), n("navigationLeftChannel",0,65535,0), n("navigationRightChannel",0,65535,0), n("navigationUpChannel",0,65535,0), n("navigationDownChannel",0,65535,0), n("navigationForwardChannel",0,65535,0), n("navigationBackwardChannel",0,65535,0));
         case "loot" -> List.of(c("weighted", "chance", "weighted"), n("rolls", 1, 27, 1));
         default -> List.of();
     }; }

@@ -26,6 +26,7 @@ public final class ShockwaveClientPreview {
  private static int difference(int a,int b){int d=0;for(int s=0;s<24;s+=8)d=Math.max(d,Math.abs((a>>s&255)-(b>>s&255)));return d;}
  private static void verify(Minecraft mc)throws Exception{
   DistortionTrailGpuCheck.run(mc);
+  VisualFilterGpuCheck.run(mc);
   if(!ShockwaveRenderer.ready())throw new AssertionError("Shockwave shader did not compile/register");var folder=mc.gameDirectory.toPath().resolve("screenshots");java.nio.file.Files.createDirectories(folder);var target=new TextureTarget(512,384,false,Minecraft.ON_OSX);var p=packet(new Vec3(-3,2,-10),1,.5f);var wave=new ShockwaveClient.Wave(p,0);var proj=projection(target);
   try{pattern(target);RenderSystem.enableDepthTest();RenderSystem.depthMask(true);try(var baseline=Screenshot.takeScreenshot(target)){
    baseline.writeToFile(folder.resolve("shockwave-baseline.png"));target.bindWrite(true);ShockwaveRenderer.render(target,List.of(wave),Vec3.ZERO,new Matrix4f(),proj,10,1);

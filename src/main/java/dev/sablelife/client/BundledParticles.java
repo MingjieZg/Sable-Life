@@ -19,6 +19,8 @@ public final class BundledParticles {
     private static net.minecraft.client.renderer.ShaderInstance softShader;
     private static final ParticleRenderType SOFT = new ParticleRenderType() {
         @Override public com.mojang.blaze3d.vertex.BufferBuilder begin(com.mojang.blaze3d.vertex.Tesselator tess,net.minecraft.client.renderer.texture.TextureManager textures) {
+            // Already-live particles remain queued under SOFT when the shader pack is toggled on.
+            if(ShaderParticleCompat.active())return ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT.begin(tess,textures);
             var rs=softShader;
             com.mojang.blaze3d.systems.RenderSystem.setShader(()->rs==null?net.minecraft.client.renderer.GameRenderer.getParticleShader():rs);
             com.mojang.blaze3d.systems.RenderSystem.setShaderTexture(0,net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_PARTICLES);
@@ -49,7 +51,7 @@ public final class BundledParticles {
             super(level,x,y,z,vx,vy,vz,1,sprites);
             rCol=gCol=bCol=1;quadSize=.35F; xd=vx;yd=vy;zd=vz;lifetime=32+random.nextInt(17);
         }
-        @Override public ParticleRenderType getRenderType(){return SOFT;}
+        @Override public ParticleRenderType getRenderType(){return ShaderParticleCompat.active()?ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT:SOFT;}
         @Override public void tick(){super.tick();alpha=.7F*(1-age/(float)lifetime);}
     }
     public static final class Mote extends TextureSheetParticle {
@@ -58,7 +60,7 @@ public final class BundledParticles {
             quadSize=.09F;lifetime=20;pickSprite(sprites);
         }
         @Override public int getLightColor(float partial){return 0xF000F0;}
-        @Override public ParticleRenderType getRenderType(){return SOFT;}
+        @Override public ParticleRenderType getRenderType(){return ShaderParticleCompat.active()?ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT:SOFT;}
         @Override public void render(VertexConsumer out,Camera camera,float partial){
             billboard(new net.minecraft.world.phys.Vec3(Mth.lerp(partial,xo,x),Mth.lerp(partial,yo,y),Mth.lerp(partial,zo,z)),out,camera,quadSize,0,alpha*envelope(age+partial,lifetime),rCol,gCol,bCol,0xF000F0,getU0(),getU1(),getV0(),getV1());
         }
@@ -78,7 +80,7 @@ public final class BundledParticles {
         private void reshape(){for(int i=1;i<bolts.length-1;i++)bolts[i]=(random.nextFloat()-.5F)*.55F;for(int i=0;i<branches.length;i++)branches[i]=(random.nextFloat()-.5F)*.4F;}
         @Override public void tick(){super.tick();if(kind==0&&isAlive()&&age%2==0){System.arraycopy(bolts,0,previousBolts,0,bolts.length);System.arraycopy(branches,0,previousBranches,0,branches.length);reshape();}}
         @Override public int getLightColor(float partial){return kind==5?super.getLightColor(partial):0xF000F0;}
-        @Override public ParticleRenderType getRenderType(){return SOFT;}
+        @Override public ParticleRenderType getRenderType(){return ShaderParticleCompat.active()?ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT:SOFT;}
         @Override public void render(VertexConsumer out,Camera camera,float partial) {
             var eye=camera.getPosition();float t=Mth.clamp((age+partial)/(float)lifetime,0,1),fade=envelope(age+partial,lifetime);
             if(kind>=2){
@@ -134,7 +136,7 @@ public final class BundledParticles {
         }
         @Override public void tick(){super.tick();if(isAlive()&&age%2==0){System.arraycopy(px,0,previousX,0,px.length);System.arraycopy(py,0,previousY,0,py.length);reshape();}}
         @Override public int getLightColor(float partial){return 0xF000F0;}
-        @Override public ParticleRenderType getRenderType(){return SOFT;}
+        @Override public ParticleRenderType getRenderType(){return ShaderParticleCompat.active()?ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT:SOFT;}
         @Override public void render(VertexConsumer out,Camera camera,float partial) {
             var eye=camera.getPosition();
             float x=(float)(Mth.lerp(partial,xo,this.x)-eye.x),y=(float)(Mth.lerp(partial,yo,this.y)-eye.y),z=(float)(Mth.lerp(partial,zo,this.z)-eye.z);

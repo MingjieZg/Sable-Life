@@ -12,7 +12,7 @@ public final class NumericWheelSteps {
         if(type.equals("damage_accumulation")&&key.equals("accumRequired"))return 5;
         if(type.equals("damage_accumulation")&&key.equals("accumWindow"))return 4;
         // Explicit user choices: angles ±5, hit limit ±1; sound mixes keep their own policy.
-        if(type.equals("signal_turn")&&key.endsWith("Channel"))return 1;
+        if((type.equals("signal_turn")||type.equals("navigation"))&&key.endsWith("Channel"))return 1;
         if(type.equals("linear_movement")&&key.equals("travelSpeed"))return 1;
         if(key.equals("impactCount")||key.equals("impactSpreadRadius"))return 1;
         if(Set.of("summonTurnSpeed","summonYaw","summonPitch","summonFormationRoll","summonFormationYaw","summonFan").contains(key))return 5;

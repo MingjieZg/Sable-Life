@@ -189,7 +189,8 @@ public final class MarkingSessions {
             return;
         }
         if (module.type().equals("gyroscope") && List.of("valid","disabled").contains(HeartModules.status(module,heart))) { preview(player,heart,List.of(module.anchors().getFirst(),module.anchors().getFirst())); ModuleGyroscope.preview(player,heart,module); return; }
-        if (List.of("wireless_redstone", "sensor").contains(module.type()) && HeartModules.status(module, heart).equals("valid")) {
+        if (List.of("wireless_redstone", "sensor").contains(module.type())) {
+            if (module.anchors().isEmpty() || !List.of("valid","disabled").contains(HeartModules.status(module,heart)) || !module.anchors().getFirst().status(heart).equals("valid")) return;
             var anchor = module.anchors().getFirst(); var body = anchor.body(heart);
             var center = anchor.position(body).getCenter(); var level = (ServerLevel) player.level();
             var dust = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.2F, 1, .4F), 1.2F);

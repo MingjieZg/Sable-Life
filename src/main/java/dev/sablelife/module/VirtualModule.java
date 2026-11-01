@@ -278,6 +278,7 @@ public final class VirtualModule {
         if(type.equals("hit_counter")){int output=(int)value("hitChannel");if(output>index){settings.putDouble("hitChannel",output==index+1?0:output-1);changed=true;}}
         if(type.equals("health_phase"))changed|=healthPhaseRules.channelDeleted(index);
         if(SignalRules.supported(type)){changed|=signalRules().channelDeleted(index);int c=(int)value("logicChannel");if(type.equals("signal_logic")&&c>index){settings.putDouble("logicChannel",c==index+1?0:c-1);changed=true;}}
+        if(type.equals("navigation"))for(String direction:TargetNavigation.DIRECTIONS){String key="navigation"+direction+"Channel";int output=(int)value(key);if(output>index){settings.putDouble(key,output==index+1?0:output-1);changed=true;}}
         if(type.equals("signal_turn"))for(String direction:ModuleSignalTurn.DIRECTIONS){int output=(int)value(direction+"Channel");if(output>index){settings.putDouble(direction+"Channel",output==index+1?0:output-1);changed=true;}}
         if(type.equals("wireless_redstone")){int output=(int)value("redstoneChannel");if(output>index){settings.putDouble("redstoneChannel",output==index+1?0:output-1);changed=true;}}
         if(type.equals("sensor")){int output=(int)value("sensorChannel");if(output>index){settings.putDouble("sensorChannel",output==index+1?0:output-1);changed=true;}}
@@ -328,7 +329,7 @@ public final class VirtualModule {
                     if(color!=null&&(key.endsWith("Red")||key.endsWith("Green")||key.endsWith("Blue")))settings.putDouble(color+"RgbSet",1);
                     double next = Math.clamp(value, field.min(), field.max());
                     if(color!=null)next=Math.round(next);
-                    if (field.scale() == 20 || field.choice() || type.equals("signal_turn")&&key.endsWith("Channel") || List.of("slashCount","slashRed","slashGreen","slashBlue","arrows", "burn", "rolls", "radius", "innerRadius", "direction", "effectLevel", "density", "strikeRays", "strikeRandomCount", "beamHits", "sensorChannel", "sensorPower", "accumChannel", "accumPower", "phaseChannel", "phasePower", "resetChannel", "redstoneChannel", "redstonePower", "quakeWaves", "homingCount", "summonCount", "meleeHitLimit","hitThreshold","hitSource","hitChannel","hitPower").contains(key)) next = Math.round(next);
+                    if (field.scale() == 20 || field.choice() || (type.equals("signal_turn")||type.equals("navigation"))&&key.endsWith("Channel") || List.of("slashCount","slashRed","slashGreen","slashBlue","arrows", "burn", "rolls", "radius", "innerRadius", "direction", "effectLevel", "density", "strikeRays", "strikeRandomCount", "beamHits", "sensorChannel", "sensorPower", "accumChannel", "accumPower", "phaseChannel", "phasePower", "resetChannel", "redstoneChannel", "redstonePower", "quakeWaves", "homingCount", "summonCount", "meleeHitLimit","hitThreshold","hitSource","hitChannel","hitPower").contains(key)) next = Math.round(next);
                     if (key.equals("innerRadius")) next = Math.min(next, value("radius") - 1);
                     settings.putDouble(key, next);
                     if (key.equals("particlePattern")) { invalidated = false; detached = false; }

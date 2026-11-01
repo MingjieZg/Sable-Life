@@ -360,6 +360,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                             || m.type().equals("laser") && m.value("laserAim") != 1 && List.of("laserTracking", "laserFollow").contains(field.key())
                             || m.type().equals("laser") && m.value("laserAim") == 1 && List.of("direction", "sweepAngle").contains(field.key())
                             || m.type().equals("linear_movement")&&field.key().equals("moveObstruction")&&(m.value("moveForce")==1||m.value("linearMode")==1)
+                            || m.type().equals("wireless_redstone") && field.key().equals("redstonePower") && ModuleRedstone.followsInput(m)
                             || m.type().equals("wireless_redstone") && field.key().equals("redstonePulse") && m.value("redstoneMode") == 0
                             || m.type().equals("visual_shockwave")&&(field.key().equals("shockInterval")&&(m.value("shockMode")==0||m.value("shockContact")==1)||List.of("contactDistance","contactCooldown").contains(field.key())&&m.value("shockContact")==0)
                             || m.type().equals("health_adjustment")&&field.key().equals("healthInterval")&&m.value("healthMode")==0
