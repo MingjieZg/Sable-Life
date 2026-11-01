@@ -1,0 +1,430 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.147'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+base { archivesName = mod_id }
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories { mavenCentral() }
+
+sourceSets {
+    gameTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations {
+    gameTestImplementation.extendsFrom implementation
+    gameTestCompileOnly.extendsFrom compileOnly
+    gameTestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+neoForge {
+    version = project.neo_version
+    addModdingDependenciesTo sourceSets.gameTest
+    mods {
+        "${mod_id}" { sourceSet(sourceSets.main) }
+        sablelife_tests { sourceSet(sourceSets.gameTest) }
+    }
+    runs {
+        client {
+            client()
+            loadedMods = [mods.sablelife]
+            gameDirectory = file('runs/client')
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        server {
+            server()
+            loadedMods = [mods.sablelife]
+            gameDirectory = file('runs/server')
+            programArgument '--nogui'
+        }
+        panelPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/panel-preview')
+            systemProperty 'sablelife.panelPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        soundTimelinePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/sound-preview')
+            systemProperty 'sablelife.soundPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        modulePickerPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/module-picker-preview')
+            systemProperty 'sablelife.pickerPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        languagePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/language-preview')
+            systemProperty 'sablelife.languagePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        itemDisplayPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/item-display-preview')
+            systemProperty 'sablelife.itemDisplayPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        particleRingPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/particle-ring-preview')
+            systemProperty 'sablelife.particleRingPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        laserCutPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/laser-cut-preview')
+            systemProperty 'sablelife.laserCutPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        linearTargetPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/linear-target-preview')
+            systemProperty 'sablelife.linearTargetPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        manualPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/manual-preview')
+            systemProperty 'sablelife.manualPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        redstonePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/redstone-preview')
+            systemProperty 'sablelife.redstonePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        facingPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/facing-preview')
+            systemProperty 'sablelife.facingPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        rgbPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/rgb-preview')
+            systemProperty 'sablelife.rgbPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        slashPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/slash-preview')
+            systemProperty 'sablelife.slashPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        spherePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/sphere-preview')
+            systemProperty 'sablelife.spherePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        shockwavePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file("runs/shockwave-preview")
+            systemProperty "sablelife.shockwavePreview", "true"
+            systemProperty "sablelife.shockwaveWorldPreview", providers.gradleProperty("shockwaveWorldPreview").getOrElse("false")
+            programArguments.addAll "--width", "1280", "--height", "720"
+        }
+        adaptiveDashboardPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/adaptive-dashboard-preview')
+            systemProperty 'sablelife.adaptiveDashboardPreview', 'true'
+            systemProperty 'sablelife.signalDashboardPreview', providers.gradleProperty('signalDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.surfaceImpactPreview', providers.gradleProperty('surfaceImpactPreview').getOrElse('false')
+            systemProperty 'sablelife.surfaceFieldPreview', providers.gradleProperty('surfaceFieldPreview').getOrElse('false')
+            systemProperty 'sablelife.particleExpandPreview', providers.gradleProperty('particleExpandPreview').getOrElse('false')
+            systemProperty 'sablelife.moduleManagementPreview', providers.gradleProperty('moduleManagementPreview').getOrElse('false')
+            systemProperty 'sablelife.multiOriginPreview', providers.gradleProperty('multiOriginPreview').getOrElse('false')
+            systemProperty 'sablelife.armorWholePreview', providers.gradleProperty('armorWholePreview').getOrElse('false')
+            systemProperty 'sablelife.trailDashboardPreview', providers.gradleProperty('trailDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.gyroPreview', providers.gradleProperty('gyroPreview').getOrElse('false')
+            systemProperty 'sablelife.pulseVisualPreview', providers.gradleProperty('pulseVisualPreview').getOrElse('false')
+            systemProperty 'sablelife.followRedstoneDashboardPreview', providers.gradleProperty('followRedstoneDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.navigationDashboardPreview', providers.gradleProperty('navigationDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.shockwaveDashboardPreview', providers.gradleProperty('shockwaveDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.gravityTravelPreview', providers.gradleProperty('gravityTravelPreview').getOrElse('false')
+            systemProperty 'sablelife.projectileAimPreview', providers.gradleProperty('projectileAimPreview').getOrElse('false')
+            systemProperty 'sablelife.linearInputPreview', providers.gradleProperty('linearInputPreview').getOrElse('false')
+            systemProperty 'sablelife.moduleCapacityPreview', providers.gradleProperty('moduleCapacityPreview').getOrElse('false')
+            systemProperty 'sablelife.groundItemDashboardPreview', providers.gradleProperty('groundItemDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.timedDamageDashboardPreview', providers.gradleProperty('timedDamageDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.impactVisualDashboardPreview', providers.gradleProperty('impactVisualDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.summonDashboardPreview', providers.gradleProperty('summonDashboardPreview').getOrElse('false')
+            systemProperty 'sablelife.healthModulesPreview', providers.gradleProperty('healthModulesPreview').getOrElse('false')
+            systemProperty 'sablelife.hoverAnchorPreview', providers.gradleProperty('hoverAnchorPreview').getOrElse('false')
+            systemProperty 'sablelife.internalRedstonePreview', providers.gradleProperty('internalRedstonePreview').getOrElse('false')
+            programArguments.addAll '--width', '1920', '--height', '1080'
+        }
+        colorPickerPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/color-picker-preview')
+            systemProperty 'sablelife.colorPickerPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        signalTurnPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/signal-turn-preview')
+            systemProperty 'sablelife.signalTurnPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        accumulationPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/accumulation-preview')
+            systemProperty 'sablelife.accumPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        wirelessPickerPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/wireless-picker-preview')
+            systemProperty 'sablelife.wirelessPickerPreview', 'true'
+            programArguments.addAll '--width', providers.gradleProperty('wirelessPreviewWidth').getOrElse('1920'), '--height', providers.gradleProperty('wirelessPreviewHeight').getOrElse('1080')
+        }
+        lootEditorPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/loot-editor-preview')
+            systemProperty 'sablelife.lootEditorPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        signalRulePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/signal-rule-preview')
+            systemProperty 'sablelife.signalRulePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        healthPhaseRulePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/health-phase-rule-preview')
+            systemProperty 'sablelife.healthPhaseRulePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        armorRulePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/armor-rule-preview')
+            systemProperty 'sablelife.armorRulePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        arenaBuffPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/arena-buffs-preview')
+            systemProperty 'sablelife.arenaBuffPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        arenaRespawnPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/arena-respawn-preview')
+            systemProperty 'sablelife.arenaRespawnPreview', 'true'
+            programArguments.addAll '--width', '1920', '--height', '1080'
+        }
+        terrainSettingsPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/terrain-settings-preview')
+            systemProperty 'sablelife.terrainSettingsPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        mobGrabWorldPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/mobGrabWorldPreview')
+            systemProperty 'sablelife.mobGrabWorldPreview', 'true'
+            systemProperty 'sablelife.mobFreezeWorldPreview', providers.gradleProperty('mobFreezeWorldPreview').getOrElse('false')
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        freezeWorldPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/freezeWorldPreview')
+            systemProperty 'sablelife.freezeWorldPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        freezeDashboardPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/freezeDashboardPreview')
+            systemProperty 'sablelife.freezeDashboardPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        summonedWeaponPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/summoned-weapon-preview')
+            systemProperty 'sablelife.summonedWeaponPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        groundStrikeItemPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/ground-strike-item-preview')
+            systemProperty 'sablelife.groundStrikeItemPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        bundledParticleWorldPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/bundled-particle-world-preview')
+            systemProperty 'sablelife.bundledParticleWorldPreview', 'true'
+            systemProperty 'sablelife.shaderParticleTests', providers.gradleProperty('shaderParticleTests').getOrElse('false')
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        terrainDebrisWorldPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/terrain-debris-world-preview')
+            systemProperty 'sablelife.terrainDebrisWorldPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        coreEffectsPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/core-effects-preview')
+            systemProperty 'sablelife.coreEffectsPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        particleColorPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/particle-color-preview')
+            systemProperty 'sablelife.particleColorPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        defensePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/defense-preview')
+            systemProperty 'sablelife.defensePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('gameTestDirectory').getOrElse('runs/gametest'))
+            systemProperty 'sablelife.localGameTests', 'true'
+            if(providers.gradleProperty('dragonReplayTests').getOrElse('false')=='true') systemProperty 'sablelife.dragonReplayTemplate', file('.dev/dragon-template.nbt').absolutePath
+            if(providers.gradleProperty('arenaAddonTests').getOrElse('false')=='true') systemProperty 'sablelife.arenaReplayTemplate', file('.dev/arena-replay/template.nbt').absolutePath
+            systemProperty 'sablelife.expectCleanupCrash', providers.gradleProperty('expectCleanupCrash').getOrElse('false')
+            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_redstone_preview_tests,sablelife_summon_tests,sablelife_freeze_tests,sablelife_terrain_tests,sablelife_signal_tests,sablelife_surface_tests,sablelife_cleanup_regression_tests,sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests,sablelife_plot_read_tests')
+        }
+        configureEach { logLevel = org.slf4j.event.Level.INFO }
+    }
+}
+
+dependencies {
+    if(providers.gradleProperty('shaderParticleTests').getOrElse('false')=='true') {
+        gameTestRuntimeOnly fileTree(dir: '.dev/shader-test-mods', include: ['iris*.jar'])
+        gameTestRuntimeOnly fileTree(dir: '.dev/shader-merged', include: ['*.jar'])
+        gameTestRuntimeOnly fileTree(dir: '.dev/shader-runtime', include: ['fabric*.jar'])
+    }
+    // Downloaded from the official Modrinth release pages, pinned by SHA-512.
+    implementation files('.dev/mods/sable-neoforge-1.21.1-2.0.5.jar')
+    compileOnly fileTree(dir: '.dev/compile-libs', include: ['*.jar'])
+    compileOnly files('.dev/mods/create-1.21.1-6.0.10.jar')
+    compileOnly files('.dev/epicfight/epic-fight-21.17.3.1-mc1.21.1-neoforge.jar')
+    compileOnly files('.dev/iron-spells-review/irons_spellbooks-1.21.1-3.16.3.jar')
+    compileOnly fileTree(dir: '.dev/iron-spells-testmods', include: ['*.jar'])
+    if (providers.gradleProperty('ironSpellRuntime').getOrElse('false') == 'true') {
+        runtimeOnly files('.dev/iron-spells-review/irons_spellbooks-1.21.1-3.16.3.jar')
+        runtimeOnly fileTree(dir: '.dev/iron-spells-testmods', include: ['*.jar'])
+    }
+    if (providers.gradleProperty('ironSpellTests').getOrElse('false') == 'true') {
+        gameTestRuntimeOnly files('.dev/iron-spells-review/irons_spellbooks-1.21.1-3.16.3.jar')
+        gameTestRuntimeOnly fileTree(dir: '.dev/iron-spells-testmods', include: ['*.jar'])
+    }
+    if(providers.gradleProperty('mountedCleanupTests').getOrElse('false')=='true') gameTestRuntimeOnly fileTree(dir: '.dev/mounted-cleanup-mods', include: ['*.jar'])
+    if(providers.gradleProperty('plotCacheCompatTests').getOrElse('false')=='true') gameTestRuntimeOnly files('.dev/cache223/c2me.jar')
+    if(providers.gradleProperty('dragonToolgunTests').getOrElse('false')=='true') gameTestRuntimeOnly files('.dev/dragon-toolgun.jar')
+    if(providers.gradleProperty('dragonReplayTests').getOrElse('false')=='true') gameTestRuntimeOnly fileTree(dir: '.dev/dragon-replay-mods', include: ['*.jar'])
+    if(providers.gradleProperty('arenaAddonTests').getOrElse('false')=='true') gameTestRuntimeOnly fileTree(dir: '.dev/arena-addon-mods', include: ['*.jar'])
+    if (providers.gradleProperty('cleanupCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/cleanup-mods', include: ['*.jar'])
+    if (providers.gradleProperty('epicFightTests').getOrElse('false') == 'true') gameTestRuntimeOnly files('.dev/epicfight/epic-fight-21.17.3.1-mc1.21.1-neoforge.jar')
+    runtimeOnly files('.dev/mods/create-1.21.1-6.0.10.jar')
+    runtimeOnly files('.dev/mods/create-aeronautics-bundled-1.21.1-1.3.2.jar')
+    runtimeOnly files('.dev/mods/Jade-1.21.1-NeoForge-15.10.6.jar')
+    if(providers.gradleProperty('photomancyRuntime').getOrElse('true')=='true') runtimeOnly files('.dev/mods/sable-photomancy-1.0.1.jar')
+    runtimeOnly files('.dev/mods/ldlib2-neoforge-1.21.1-2.2.17-all.jar')
+    if (providers.gradleProperty('weaponCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/test-mods', include: ['*.jar'])
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.named('test', Test) { useJUnitPlatform() }
+tasks.named('processResources', ProcessResources) {
+    def metadata = [mod_id: mod_id, mod_name: mod_name, mod_version: mod_version, neo_version: neo_version]
+    inputs.properties metadata
+    filesMatching('META-INF/neoforge.mods.toml') { expand metadata }
+}
+idea { module { downloadSources = true } }

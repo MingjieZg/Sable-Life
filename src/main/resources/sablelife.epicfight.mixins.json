@@ -1,0 +1,23 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "dev.sablelife.mixin",
+  "plugin": "dev.sablelife.compat.epicfight.EpicFightMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "EpicFightAttackMixin",
+    "EpicFightAttackAccess",
+    "EpicFightColliderOriginAccess",
+    "EpicFightColliderMixin",
+    "EpicFightPhaseResetMixin",
+    "EpicFightGuardAccess",
+    "EpicFightBodyGuardMixin",
+    "EpicFightBodyParryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "client": [
+    "EpicFightProtectedToolMixin"
+  ]
+}

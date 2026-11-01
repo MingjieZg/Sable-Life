@@ -1,0 +1,29 @@
+package dev.sablelife.testing;
+import net.minecraft.gametest.framework.*;
+import net.neoforged.neoforge.gametest.*;
+@GameTestHolder("sablelife_respawn_tests") @PrefixGameTestTemplate(false)
+public final class ArenaRespawnGameTests {
+ @GameTest(template="combat",batch="respawn_cycle",timeoutTicks=360) public static void RecordedBodyRespawnsActiveWithMarksAndInventory(GameTestHelper h){ArenaRespawnScenarios.cycle(h,false);}
+ @GameTest(template="combat",batch="respawn_resume",timeoutTicks=360) public static void LegacyMidPlacementSaveReloadDoesNotDuplicateBody(GameTestHelper h){ArenaRespawnScenarios.cycle(h,true);}
+ @GameTest(template="combat",batch="respawn_permissions") public static void RecordRequiresCreativeOperatorAndRejectsWrongModule(GameTestHelper h){ArenaRespawnScenarios.permissions(h);}
+ @GameTest(template="combat",batch="respawn_unloaded",timeoutTicks=100) public static void CountdownPausesWithoutLoadingDistantChunks(GameTestHelper h){ArenaRespawnScenarios.unloaded(h);}
+ @GameTest(template="combat",batch="respawn_repeat",timeoutTicks=360) public static void TwoGenerationsKeepAutoRespawnWithoutDuplicatingLife(GameTestHelper h){ArenaRespawnScenarios.repeats(h);}
+ @GameTest(template="combat",batch="respawn_cancel",timeoutTicks=360) public static void OperatorCanCancelPartialPlacementSafely(GameTestHelper h){ArenaRespawnScenarios.cancelPartial(h);}
+ @GameTest(template="combat",batch="respawn_sparse",timeoutTicks=300) public static void SparseStructureAndLargeBlockDataRecordAndReload(GameTestHelper h){ArenaRespawnScenarios.sparseCapture(h);}
+ @GameTest(template="combat",batch="respawn_saved_budget") public static void SavedTemplatesKeepPerRecordAndWorldByteLimits(GameTestHelper h){ArenaRespawnScenarios.savedBudget(h);}
+
+ @GameTest(template="combat",batch="respawn_parts_death",timeoutTicks=360) public static void RebuiltPartsWithoutReadyConnectionsAllCleanOnSecondDeath(GameTestHelper h){ArenaRespawnScenarios.multiplePartsSecondDeath(h);}
+
+ @GameTest(template="combat",batch="respawn_orphan_display") public static void CancelClearsOrphanDisplayCopiesWithoutTouchingOtherText(GameTestHelper h){ArenaRespawnScenarios.cancelOrphanDisplay(h);}
+
+ @GameTest(template="combat",batch="respawn_tick_guard",timeoutTicks=100) public static void PartialBlueprintStopsOnlyItsOwnBlockTicksThenResumes(GameTestHelper h){ArenaRespawnScenarios.buildTickIsolation(h);}
+
+ @GameTest(template="combat",batch="respawn_minimum",timeoutTicks=100) public static void RespawnMinimumAppliesToEditorDeathAndSavedDelay(GameTestHelper h){ArenaRespawnScenarios.respawnMinimum(h);}
+
+ @GameTest(template="combat",batch="respawn_64000",timeoutTicks=400) public static void Real64000BlockTemplateCapturesReloadsAndPlacesInOneCall(GameTestHelper h){ArenaRespawnScenarios.sixtyFourThousandBlocks(h);}
+
+ @GameTest(template="combat",batch="respawn_grounded_timer",timeoutTicks=100) public static void GroundedCountdownKeepsHighSpawnAnchorAndCanBeCancelledNearby(GameTestHelper h){ArenaRespawnScenarios.groundedTimer(h);}
+
+ @GameTest(template="combat",batch="respawn_direct",timeoutTicks=100) public static void NativeDirectPlacementCompletesInOneCallAndDoesNotRepeatAfterReload(GameTestHelper h){ArenaRespawnScenarios.directPlacement(h);}
+ @GameTest(template="combat",batch="respawn_direct_failure",timeoutTicks=100) public static void NativeRestoreDiagnosticStopsActivationAndDuplicateRetry(GameTestHelper h){ArenaRespawnScenarios.directFailure(h);}
+}

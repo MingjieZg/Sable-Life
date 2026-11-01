@@ -1,0 +1,49 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.sablelife.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ModuleSignalMixin",
+    "ModuleDeathMessageMixin",
+    "NavigationWireMixin",
+    "UseOnContextAccess",
+    "LivingBlockPlaceMixin",
+    "LivingBlockItemPlacementMixin",
+    "BodyAssemblyMixin",
+    "RemovedBodyHeatMapMixin",
+    "BodyLootMixin",
+    "BodyMaterialDropMixin",
+    "CannonMountCleanupMixin",
+    "BodyContainerMixin",
+    "BodyReplacementMixin",
+    "BodyDestructionMixin",
+    "CreativeHeartBreakMixin",
+    "LevelRewardOrbMixin",
+    "ExplosionDamageAccess",
+    "TaczBodyDamageMixin",
+    "TaczBlockRayTraceMixin",
+    "CannonBodyDamageMixin",
+    "TaczBlastProfileMixin",
+    "RespawnTextDisplayAccess",
+    "RespawnDisplayAccess",
+    "ArenaBuildBlockEntityTickMixin",
+    "BearingDeathCleanupMixin",
+    "ServerChunkCacheAccess",
+    "PlotChunkCacheMixin",
+    "AuthoritativePlotChunkReadMixin",
+    "CreateBodyConfigurationMixin",
+    "ProtectedBodyContainerClickMixin",
+    "CreateBodyContraptionInteractionMixin",
+    "FreezeMovementMixin"
+  ],
+  "client": [
+    "RespawnLabelRendererMixin",
+    "ProtectedBodyMiningMixin",
+    "ParticleTravelMixin",
+    "ParticleEngineTravelMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
