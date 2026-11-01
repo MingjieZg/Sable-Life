@@ -13,8 +13,9 @@ class EditorInputsTest {
     @Test void wheelUsesDisplayUnitsWithoutFloatingPointDrift() {
         assertEquals(.1,SoundTimelineInputs.scroll(0,0,0,1));
         assertEquals(.9,SoundTimelineInputs.scroll(0,1,1,-1));
-        assertEquals(33,SoundTimelineInputs.scroll(3,32,32,1));
-        assertEquals(1,SoundTimelineInputs.scroll(4,0,0,1));
+        assertEquals(40,SoundTimelineInputs.scroll(3,32,32,1));
+        assertEquals(24,SoundTimelineInputs.scroll(3,32,32,-1));
+        assertEquals(.1,SoundTimelineInputs.scroll(4,0,0,1));
         double pitch=1;
         for(int i=0;i<10;i++){pitch=SoundTimelineInputs.scroll(1,pitch,1,1);pitch=SoundTimelineInputs.scroll(1,pitch,1,-1);}
         assertEquals(1,pitch);
