@@ -71,6 +71,22 @@ Combat integration versions:
 
 The exact-version gates above apply to Epic Fight and Iron's Spells. The TaCZ/CBC entries describe the pinned test environment, not an assertion that every other version works.
 
+### CBC addon coverage
+
+Damage forwarding and mounted-structure cleanup are separate compatibility features:
+
+| Addon | Scope covered by the integration and regression tests |
+| --- | --- |
+| CBC Advanced Technology (AT) | Heavy Autocannon AP, APDSFS and HE direct-hit damage forwarding, with per-projectile/per-creature deduplication. Mounted twin and heavy autocannons are also covered by death cleanup tests. |
+| CBC Neo Warfare | Compact cannon mount recognition and cleanup of mounted rotary cannons on body death, including checks that later disassembly does not restore the gun blocks. This entry does not claim separate damage coverage for every Neo ammunition type. |
+| Create Radar | Smart cannon mount subclass recognition, mounted cannon cleanup, and radar antenna/bearing death cleanup. This is lifecycle compatibility, not a blanket claim about radar targeting or every addon feature. |
+
+A CBCAT fix addon was also present in a historical compatibility test environment. That records the tested combination; it is not a separate full-support claim for the fix addon or all CBC addons.
+
+The public source retains the [AT heavy-cannon damage tests](src/gameTest/java/dev/sablelife/testing/HeavyCannonGameTests.java) and [mounted cannon/radar cleanup tests](src/gameTest/java/dev/sablelife/testing/MountedCleanupGameTests.java). These optional tests require their corresponding addon JARs; the default unit-test run does not exercise those native addon callbacks.
+
+Coverage is limited to the named behavior and inspected addon versions. An ammunition type that replaces the collision/penetration pipeline may need its own adapter even if it shares a CBC projectile base class.
+
 Other mods using standard Minecraft damage or block interaction mechanics may work without additional integration, but compatibility is not guaranteed. Even supported integrations may not cover every weapon, spell, addon, or special damage mechanic.
 
 For addon authors, see the [public body combat API guide](docs/COMBAT_API.md) for server-side damage entry points, coordinate conventions and attack cadence.
