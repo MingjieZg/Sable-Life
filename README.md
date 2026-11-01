@@ -1,7 +1,7 @@
 # Sable Life
 
 <p align="center">
-  <img src="assets/branding/sablelife-icon-white-512.png" alt="Sable Life icon" width="160">
+  <img src="assets/branding/sablelife-logo.png" alt="Sable Life logo" width="420">
 </p>
 
 **Give your creations life.**
