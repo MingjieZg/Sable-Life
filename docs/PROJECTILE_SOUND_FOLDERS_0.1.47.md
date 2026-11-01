@@ -1,9 +1,0 @@
-# 0.1.47 Projectile appearance and sound folders
-
-Gun and Mortar expose a Projectile appearance property near the start of their property pages. It opens a one-slot ghost sample menu above the player inventory. Click that slot with an inventory item on the cursor to copy a one-item sample with its components; no inventory consumption. Empty-hand click or Restore default clears the sample. Authoring changes are limited to editable dormant cores, server-validated, and tied to the selected module identity. Back returns to the remembered module.
-
-The selected item is a visual representation, not an invocation of its item behavior. Gun remains a straight bullet with the configured hitbox; Mortar keeps its ballistic flight, warning ring, and blast settings. Empty samples use iron nugget / fire charge. The item is persisted in module NBT, included in copier configurations, synchronized as an ItemStack on spawned projectiles, and persisted on saved projectile entities. Existing projectiles retain the appearance captured when launched.
-
-Every virtual-module sound-library selector (Sound, BGM, Flame, Gun, Mortar, Area pulse) now has two adjacent folder buttons: MC and OGG. OGG opens config/sablelife/sounds. MC exports a vanilla-only, browsable sound tree on demand to config/sablelife/minecraft_sounds and opens it once complete. Original Minecraft assets are packed/content-addressed, so this is a browsing copy rather than modification of game assets. sounds.json is included to map sound event IDs to audio paths. Files from non-vanilla resource packs are excluded. Export runs on the IO pool; atomic temporary-file moves prevent partially written sounds being mistaken for complete copies.
-
-Validation: assemble passed; reviewed menu guards, ghost-slot copying, module/entity persistence and client ItemStack synchronization. No game tests or client launch. Runtime visual and directory-opening verification remains pending.
