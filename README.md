@@ -113,7 +113,7 @@ Historical version-specific notes are retained for development reference and are
 
 ## License
 
-Sable Life source code is released under the [MIT License](LICENSE).
+Sable Life is released under the [MIT License](LICENSE).
 
 The NeoForge MDK template material retains its original license in [TEMPLATE_LICENSE.txt](TEMPLATE_LICENSE.txt).
 
