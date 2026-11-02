@@ -4,6 +4,12 @@ This changelog highlights the major development milestones of Sable Life from it
 
 > **History note:** Sable Life was developed through a long private development cycle before its public release. The public Git history was intentionally reset at **0.1.313** during repository cleanup, so the entries below are a curated reconstruction of the project's development timeline rather than a complete commit-by-commit record.
 
+## 0.1.318 — Blueprint placement on reused body storage
+
+- Fixed stale Life protection records rejecting new blocks at empty coordinates after a deleted structure's storage plot is reused. This could affect ordinary Photomancy blueprints without Life Cores, producing missing parts or an `empty plot bounds` placement failure.
+- New blocks placed into air discard the retired coordinate ownership before protection checks. Existing non-air living blocks retain deletion and replacement protection.
+- Existing blueprint files remain usable without re-saving. Confirmed in the previously affected player world; regression coverage includes 13 consecutive imports on reused storage.
+
 ## 0.1.317 — Straight firing angles and optional presentation modules
 
 - Added horizontal and vertical firing angles to Flamethrower, Arrow, Gun and fixed-mode Laser. Flamethrower/Arrow/Gun/Slash/Laser now position the muzzle along the original selected direction before firing angles, fans or sweeps are applied. Previews distinguish the positioning line and launch point; target aiming starts at that muzzle and summoned weapons retain their own muzzle settings.

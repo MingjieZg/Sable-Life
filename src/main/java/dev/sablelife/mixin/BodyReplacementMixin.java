@@ -16,8 +16,14 @@ public abstract class BodyReplacementMixin {
     @Inject(method = "setBlockState", at = @At("HEAD"), cancellable = true)
     private void sableLife$protectBlockReplacement(BlockPos pos, BlockState state, boolean moved, CallbackInfoReturnable<BlockState> cir) {
         var chunk = (LevelChunk) (Object) this;
-        if (chunk.getLevel() instanceof ServerLevel level && !chunk.getBlockState(pos).is(state.getBlock())
-                && dev.sablelife.ownership.BodyProtection.locked(level, pos)) cir.setReturnValue(null);
+        if (chunk.getLevel() instanceof ServerLevel level) {
+            var previous = chunk.getBlockState(pos);
+            // Plot coordinates are reused. Protection belongs to an existing block, never to air
+            // left behind by an external deletion. Clear stale ownership before the write gate.
+            if (previous.isAir() && !state.isAir()) BodyOwnership.get(level).forget(pos);
+            else if (!previous.is(state.getBlock()) && dev.sablelife.ownership.BodyProtection.locked(level, pos))
+                cir.setReturnValue(null);
+        }
     }
     @Inject(method = "setBlockState", at = @At("RETURN"))
     private void sableLife$forgetReplacedBlock(BlockPos pos, BlockState state, boolean moved, CallbackInfoReturnable<BlockState> cir) {

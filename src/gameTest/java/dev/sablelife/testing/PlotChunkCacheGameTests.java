@@ -15,6 +15,49 @@ import net.neoforged.neoforge.gametest.*;
 import java.util.*;
 @GameTestHolder("sablelife_plot_cache_tests") @PrefixGameTestTemplate(false)
 public final class PlotChunkCacheGameTests {
+ @GameTest(template="combat",batch="blueprint_reused_protected_plot",timeoutTicks=100)
+ public static void OrdinaryBlueprintIgnoresRetiredLifeProtectionOnReusedPlot(GameTestHelper h){
+  var level=h.getLevel();var pos=h.absolutePos(new BlockPos(5,40,5));
+  level.setBlockAndUpdate(pos,Blocks.IRON_BLOCK.defaultBlockState());level.setBlockAndUpdate(pos.east(),Blocks.DISPENSER.defaultBlockState());
+  var body=SubLevelAssemblyHelper.assembleBlocks(level,pos,List.of(pos,pos.east()),new BoundingBox3i(pos.getX(),pos.getY(),pos.getZ(),pos.getX()+1,pos.getY(),pos.getZ()));
+  var center=body.getPlot().getCenterBlock();
+  var blueprint=dev.rew1nd.sableschematicapi.blueprint.SableBlueprintExporter.exportSelected(level,pos.getCenter(),Set.of(body.getUniqueId()));
+  var owner=UUID.randomUUID();dev.sablelife.ownership.LifeLifecycle.get(level.getServer()).setBreakable(owner,false);
+  StructureRemovalApi.remove(level,body);
+  // Third-party deletion can leave a former living body's coordinate records behind.
+  var ownership=dev.sablelife.ownership.BodyOwnership.get(level);ownership.bind(center,owner);ownership.bind(center.east(),owner);
+  h.assertTrue(dev.sablelife.ownership.BodyProtection.locked(level,center),"Fixture did not retain retired protection");
+  try{
+   var result=dev.rew1nd.sableschematicapi.blueprint.SableBlueprintPlacer.place(level,blueprint,pos.getCenter().add(0,8,0));
+   h.assertTrue(result.placedSubLevels()==1&&result.diagnostics().isEmpty(),"Ordinary no-core blueprint was partially restored");
+   h.assertTrue(level.getBlockState(center).is(Blocks.IRON_BLOCK)&&level.getBlockState(center.east()).is(Blocks.DISPENSER),"Retired protection blocked new blueprint blocks");
+   h.assertTrue(level.getBlockEntity(center.east()) instanceof net.minecraft.world.level.block.entity.DispenserBlockEntity,"Dispenser block entity lost on import");
+   h.assertTrue(ownership.owner(center)==null&&ownership.owner(center.east())==null,"New body inherited retired life ownership");
+   for(int attempt=0;attempt<12;attempt++){
+    var current=(dev.ryanhcode.sable.sublevel.ServerSubLevel)Sable.HELPER.getContaining(level,center);
+    StructureRemovalApi.remove(level,current);
+    ownership.bind(center,owner);if(attempt%2==0)ownership.bind(center.east(),owner);
+    var repeated=dev.rew1nd.sableschematicapi.blueprint.SableBlueprintPlacer.place(level,blueprint,pos.getCenter().add(0,8,0));
+    h.assertTrue(repeated.placedSubLevels()==1&&repeated.diagnostics().isEmpty(),"Repeated import failed at "+attempt);
+    h.assertTrue(level.getBlockState(center).is(Blocks.IRON_BLOCK)&&level.getBlockState(center.east()).is(Blocks.DISPENSER)
+      &&level.getBlockEntity(center.east()) instanceof net.minecraft.world.level.block.entity.DispenserBlockEntity,"Repeated import became incomplete at "+attempt);
+    h.assertTrue(ownership.owner(center)==null&&ownership.owner(center.east())==null,"Repeated import inherited old protection");
+   }
+   h.succeed();
+  }finally{ownership.release(owner);dev.sablelife.ownership.LifeLifecycle.get(level.getServer()).cancel(owner);}
+ }
+ @GameTest(template="combat",batch="blueprint_existing_protection")
+ public static void ActualProtectedBlocksStillRejectDeletionAndReplacement(GameTestHelper h){
+  var level=h.getLevel();var pos=h.absolutePos(new BlockPos(4,40,4));level.setBlockAndUpdate(pos,Blocks.IRON_BLOCK.defaultBlockState());
+  var owner=UUID.randomUUID();var ownership=dev.sablelife.ownership.BodyOwnership.get(level);ownership.bind(pos,owner);
+  var lifecycle=dev.sablelife.ownership.LifeLifecycle.get(level.getServer());lifecycle.setBreakable(owner,false);
+  try{
+   level.setBlockAndUpdate(pos,Blocks.AIR.defaultBlockState());
+   h.assertTrue(level.getBlockState(pos).is(Blocks.IRON_BLOCK)&&owner.equals(ownership.owner(pos)),"Live block lost deletion protection");
+   level.setBlockAndUpdate(pos,Blocks.DIRT.defaultBlockState());
+   h.assertTrue(level.getBlockState(pos).is(Blocks.IRON_BLOCK)&&owner.equals(ownership.owner(pos)),"Live block lost replacement protection");h.succeed();
+  }finally{ownership.release(owner);lifecycle.cancel(owner);}
+ }
  @GameTest(template="combat",batch="plot_cache",timeoutTicks=100)
  public static void ReloadedTemplateAndManualBlueprintSurviveReusedPlot(GameTestHelper h){
   var level=h.getLevel();var pos=h.absolutePos(new BlockPos(5,40,5));

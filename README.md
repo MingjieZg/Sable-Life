@@ -11,7 +11,7 @@ Instead of spawning a traditional Minecraft entity, Sable Life gives life direct
 
 ## Current Version
 
-**0.1.317**
+**0.1.318**
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
