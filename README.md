@@ -4,6 +4,7 @@
   <img src="assets/branding/sablelife-logo.png" alt="Sable Life logo" width="420">
 </p>
 
+
 Sable Life is a Minecraft 1.21.1 NeoForge mod built on top of **Create** and **Sable**, designed to work with **Create: Aeronautics** and turn physical structures into configurable living constructs.
 
 Instead of spawning a traditional Minecraft entity, Sable Life gives life directly to the physical structure you build. The blocks themselves form the body and receive damage, while you decide how the construct moves, reacts, attacks, and behaves.
@@ -51,7 +52,7 @@ A Life can be configured to:
 - Trigger custom sounds, particles, visual effects, and combat feedback
 - Protect its physical body from normal block breaking
 - Drop configurable whole-body or limb loot
-- Respawn through Arena systems
+- Respawn through Arena systems #Required **Sable-Photomancy**
 - Combine multiple modules into custom boss mechanics
 
 ## The Structure Is the Body
