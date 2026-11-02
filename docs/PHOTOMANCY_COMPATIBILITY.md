@@ -18,7 +18,7 @@ Matching interfaces cannot prove identical behavior. Future changes to blueprint
 
 If an update disables respawn, retain the world and consult the server log before changing the encounter. Use a compatible dependency version or an updated Sable Life adapter. Do not bypass the trusted-template NBT check: it protects complete restoration and confines full NBT loading to administrator-recorded respawn templates.
 
-Create and Sable participate in broader world/physics behavior and retain their declared version ranges. This change does not relax their compatibility requirements.
+Starting with Sable Life **0.1.315**, Create and Sable have minimum-only dependency ranges: Create **6.0.10+** and Sable **2.0.5+**, for Minecraft 1.21.1 / NeoForge. These upper version caps are removed by project policy; Create/Sable do not use this Photomancy-specific interface checker. The pinned development versions remain unchanged, and allowing newer versions to load does not establish that all of them have been behavior-tested.
 
 ## Verification and maintenance
 

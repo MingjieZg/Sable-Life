@@ -4,6 +4,12 @@ This changelog highlights the major development milestones of Sable Life from it
 
 > **History note:** Sable Life was developed through a long private development cycle before its public release. The public Git history was intentionally reset at **0.1.313** during repository cleanup, so the entries below are a curated reconstruction of the project's development timeline rather than a complete commit-by-commit record.
 
+## 0.1.315 — Open-ended Create and Sable dependency ranges
+
+- Removed the upper version caps for Create and Sable while retaining minimums of Create 6.0.10 and Sable 2.0.5.
+- Kept the Minecraft 1.21.1 requirement and pinned development dependencies unchanged.
+- Clarified that higher dependency versions are allowed to load, with compatibility issues reported against exact versions; they are not all claimed as tested.
+
 ## 0.1.314 — Photomancy interface compatibility
 
 - Arena automatic respawn now checks the required Photomancy blueprint API and trusted-template NBT hook instead of requiring version exactly 1.0.1.

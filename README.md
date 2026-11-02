@@ -12,7 +12,7 @@ Instead of spawning a traditional Minecraft entity, Sable Life gives life direct
 
 ## Current Version
 
-**0.1.314**
+**0.1.315**
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
@@ -22,8 +22,10 @@ Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
 - Minecraft 1.21.1
 - NeoForge 21.1.235 or newer
-- Create **6.0.10 or newer, below 6.1** (`[6.0.10,6.1)`)
-- Sable **2.0.5 or newer, below 2.1** (`[2.0.5,2.1)`)
+- Create **6.0.10 or newer** (`[6.0.10,)`)
+- Sable **2.0.5 or newer** (`[2.0.5,)`)
+
+Create and Sable have minimum versions without upper version caps. The development dependencies remain pinned to Create **6.0.10** and Sable **2.0.5** for reproducible builds. Higher versions for Minecraft 1.21.1 / NeoForge are allowed by Sable Life's dependency metadata, but are not all verified compatible. If a newer version causes a problem, include the exact mod versions and relevant log when opening an issue.
 
 ### Designed to work with
 
@@ -35,7 +37,7 @@ Create: Aeronautics is part of the primary intended gameplay environment, but is
 
 - **Sable Photomancy**, version **1.0.1 or newer**, with a compatible blueprint API. Version 1.0.1 is the compiled and tested baseline; newer versions are checked by required interfaces rather than an exact version match.
 
-Without a compatible Photomancy installation, automatic respawn is disabled while other Sable Life features remain available. The server log identifies an incompatible API. See [Photomancy compatibility](docs/PHOTOMANCY_COMPATIBILITY.md) for the contract and limits. Create and Sable retain the version ranges listed above.
+Without a compatible Photomancy installation, automatic respawn is disabled while other Sable Life features remain available. The server log identifies an incompatible API. See [Photomancy compatibility](docs/PHOTOMANCY_COMPATIBILITY.md) for the contract and limits.
 
 ## What Sable Life Can Do
 
