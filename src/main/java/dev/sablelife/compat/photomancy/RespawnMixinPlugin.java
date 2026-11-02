@@ -1,11 +1,10 @@
 package dev.sablelife.compat.photomancy;
-import net.neoforged.fml.loading.FMLLoader;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.*;
 import java.util.*;
 public final class RespawnMixinPlugin implements IMixinConfigPlugin {
  public void onLoad(String p){} public String getRefMapperConfig(){return null;}
- public boolean shouldApplyMixin(String target,String mixin){var list=FMLLoader.getLoadingModList();return list!=null&&list.getMods().stream().anyMatch(m->m.getModId().equals("sable_schematic_api")&&m.getVersion().toString().equals("1.0.1"));}
+ public boolean shouldApplyMixin(String target,String mixin){return mixin.endsWith(".RespawnBlueprintNbtMixin")?PhotomancyCompatibility.available():PhotomancyCompatibility.diagnosticHook(mixin);}
  public void acceptTargets(Set<String>a,Set<String>b){} public List<String>getMixins(){return null;}
  public void preApply(String n,ClassNode c,String m,IMixinInfo i){} public void postApply(String n,ClassNode c,String m,IMixinInfo i){}
 }

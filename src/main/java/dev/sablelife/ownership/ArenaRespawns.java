@@ -13,7 +13,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.phys.*;
-import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import java.util.*;
@@ -32,7 +31,7 @@ public final class ArenaRespawns extends SavedData {
   int delay,remaining;String phase="ready";Set<UUID> oldBodies=new HashSet<>(),newBodies=new HashSet<>();
   transient Build build;transient int shown=-1;
  }
- public static boolean available(){return ModList.get().getModContainerById("sable_schematic_api").map(m->m.getModInfo().getVersion().toString().equals("1.0.1")).orElse(false);}
+ public static boolean available(){return dev.sablelife.compat.photomancy.PhotomancyCompatibility.available();}
  public static ArenaRespawns get(MinecraftServer server){return server.overworld().getDataStorage().computeIfAbsent(new Factory<>(ArenaRespawns::new,ArenaRespawns::load),"sablelife_arena_respawns");}
  private Entry find(HeartBlockEntity heart,UUID module){return entries.values().stream().filter(e->e.creature.equals(heart.creatureId())&&e.module.equals(module)).findFirst().orElse(null);}
  public int count(){return entries.size();}

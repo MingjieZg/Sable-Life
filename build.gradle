@@ -417,6 +417,7 @@ dependencies {
     if (providers.gradleProperty('weaponCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/test-mods', include: ['*.jar'])
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.ow2.asm:asm-tree:9.8'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

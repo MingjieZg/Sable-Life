@@ -12,7 +12,7 @@ Instead of spawning a traditional Minecraft entity, Sable Life gives life direct
 
 ## Current Version
 
-**0.1.313**
+**0.1.314**
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
@@ -30,6 +30,12 @@ Minecraft **1.21.1** · **NeoForge** · **Java 21**
 - Create: Aeronautics **1.3.2** (pinned development version; other versions are not guaranteed)
 
 Create: Aeronautics is part of the primary intended gameplay environment, but is not currently declared as a hard runtime dependency.
+
+### Optional for Arena automatic respawn
+
+- **Sable Photomancy**, version **1.0.1 or newer**, with a compatible blueprint API. Version 1.0.1 is the compiled and tested baseline; newer versions are checked by required interfaces rather than an exact version match.
+
+Without a compatible Photomancy installation, automatic respawn is disabled while other Sable Life features remain available. The server log identifies an incompatible API. See [Photomancy compatibility](docs/PHOTOMANCY_COMPATIBILITY.md) for the contract and limits. Create and Sable retain the version ranges listed above.
 
 ## What Sable Life Can Do
 

@@ -4,6 +4,13 @@ This changelog highlights the major development milestones of Sable Life from it
 
 > **History note:** Sable Life was developed through a long private development cycle before its public release. The public Git history was intentionally reset at **0.1.313** during repository cleanup, so the entries below are a curated reconstruction of the project's development timeline rather than a complete commit-by-commit record.
 
+## 0.1.314 — Photomancy interface compatibility
+
+- Arena automatic respawn now checks the required Photomancy blueprint API and trusted-template NBT hook instead of requiring version exactly 1.0.1.
+- Compatible newer versions can enable the integration; missing/incompatible APIs disable it with a server-log explanation. Optional diagnostic hooks are checked separately.
+- Documented the optional respawn dependency and its compatibility limits. Create/Sable dependency ranges are unchanged.
+- Added interface-contract regression tests and retained existing native Arena coverage.
+
 ## Development Timeline
 
 ### 0.1.21–0.1.30 — Early Life Prototype
@@ -331,3 +338,4 @@ Public release entries should focus on:
 - Stable release milestones.
 
 Minor internal experiments and temporary development notes do not need to be preserved here.
+
