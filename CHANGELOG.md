@@ -4,6 +4,12 @@ This changelog highlights the major development milestones of Sable Life from it
 
 > **History note:** Sable Life was developed through a long private development cycle before its public release. The public Git history was intentionally reset at **0.1.313** during repository cleanup, so the entries below are a curated reconstruction of the project's development timeline rather than a complete commit-by-commit record.
 
+## 0.1.317 — Straight firing angles and optional presentation modules
+
+- Added horizontal and vertical firing angles to Flamethrower, Arrow, Gun and fixed-mode Laser. Flamethrower/Arrow/Gun/Slash/Laser now position the muzzle along the original selected direction before firing angles, fans or sweeps are applied. Previews distinguish the positioning line and launch point; target aiming starts at that muzzle and summoned weapons retain their own muzzle settings.
+- Added Visual Effects, Distortion trail, Particle effects, Item display and Trigger sound as optional survival Redstone Core modules, all disabled by default in server configuration.
+- Enabled survival particle, item and trigger-sound editors when their server switches are on. Existing control modules keep their defaults; Move Set, ordinary Sound and BGM remain unavailable on the Redstone Core.
+
 ## 0.1.316 — Server module switches and survival controller restrictions
 
 - Restricted the survival Redstone Core to nine signal/control modules, adding Signal logic and removing Move Set, sound, item display and visual-effect modules.

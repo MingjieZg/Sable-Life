@@ -43,7 +43,7 @@ public final class RedstoneCoreGameTests {
         var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
         for(String type:VirtualModule.AVAILABLE_TYPES){
             boolean accepted=menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,"");
-            h.assertTrue(accepted==RedstoneCorePolicy.TYPES.contains(type),"Unexpected survival capability: "+type);
+            h.assertTrue(accepted==ModuleAvailability.enabled(true,type),"Unexpected survival capability: "+type);
         }
         var module=core.modules().all().getFirst();
         for(int trigger:List.of(4,5))h.assertTrue(!menu.action(author,core.modules().revision(),module.id(),"edit","trigger",trigger,""),"Life-only trigger accepted");
@@ -52,9 +52,9 @@ public final class RedstoneCoreGameTests {
     @GameTest(template="combat",batch="redstone_legacy_retention")
     public static void LegacyModulesRemainStoredWithoutRunning(GameTestHelper h){
         var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
-        var legacy=core.modules().add("trigger_sound");legacy.edit("triggerSound",0,"minecraft:entity.ravager.roar");legacy.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));
-        var before=legacy.text("triggerSound");RedstoneCorePolicy.sanitize(core);
-        h.assertTrue(core.modules().find(legacy.id())==legacy&&!legacy.enabled()&&legacy.text("triggerSound").equals(before),"Legacy configuration lost");
+        var legacy=core.modules().add("sound");legacy.edit("ambient",0,"minecraft:entity.ravager.roar");legacy.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));
+        var before=legacy.text("ambient");RedstoneCorePolicy.sanitize(core);
+        h.assertTrue(core.modules().find(legacy.id())==legacy&&!legacy.enabled()&&legacy.text("ambient").equals(before),"Legacy configuration lost");
         legacy.edit("enabled",1,"");core.modules().tick(core);
         h.assertTrue(!HeartModules.triggered(legacy,core)&&core.modules().events().emittedSounds()==0,"Legacy module bypassed runtime restriction");
         h.assertTrue(!menu.action(author,core.modules().revision(),legacy.id(),"copy","",0,""),"Forbidden legacy module copied");

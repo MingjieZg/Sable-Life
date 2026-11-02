@@ -57,7 +57,7 @@ public final class EffectSelectionMenu extends AbstractContainerMenu {
     }
     @Override public void broadcastChanges() { if (heart != null && heart.getLevel().getGameTime() % 5 == 0) refresh(); super.broadcastChanges(); }
     @Override public boolean stillValid(Player player) {
-        return heart == null || player.isCreative() && !heart.isRemoved() && player.level() == heart.getLevel()
+        return heart == null || heart.canAccessEditor(player) && !heart.isRemoved() && player.level() == heart.getLevel()
                 && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart && (arenaParent!=null?heart.modules().find(arenaParent.id())==arenaParent&&arenaParent.arenaBuffs().find(arenaGroup.id())==arenaGroup:coreDeath ? (coreRemoval?heart.removalPresentation():heart.deathPresentation()).particleSelection()==module : movementParent!=null?heart.modules().find(movementParent.id())==movementParent:heart.modules().find(module.id()) == module)
                 && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
     }

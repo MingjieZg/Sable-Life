@@ -38,9 +38,9 @@ public final class ModuleSlash {
   for(var m:modules){
    if(!m.type().equals("slash")||!EmitterRuntime.active(m,heart))continue;var s=states.computeIfAbsent(m.id(),id->new State());
    if(now>=s.due&&s.blades.size()+(int)m.value("slashCount")<=MAX_FLYING){
-    var mark=ModuleCombat.baseOrigin(heart,m);var directions=ProjectileAim.directions(heart,m,mark).stream().limit((MAX_FLYING-s.blades.size())/(int)m.value("slashCount")).toList();
+    var mark=ModuleCombat.nozzle(heart,m);var directions=ProjectileAim.directions(heart,m,mark).stream().limit((MAX_FLYING-s.blades.size())/(int)m.value("slashCount")).toList();
     if(directions.isEmpty()||!EmitterRuntime.start(m,heart))continue;
-    var cast=EmitterRuntime.copy(m);for(var base:directions)for(var frame:frames(base,m))s.blades.add(new Blade(m.emitter()!=null?mark:mark.add(frame.direction.scale(.55+m.value("startDistance"))),frame,cast));s.due=now+(long)m.value("interval");ModuleAudio.play(server,m,"flightSound",mark);
+    var cast=EmitterRuntime.copy(m);for(var base:directions)for(var frame:frames(base,m))s.blades.add(new Blade(mark,frame,cast));s.due=now+(long)m.value("interval");ModuleAudio.play(server,m,"flightSound",mark);
    }
   }
   // Released blades own their frozen settings; dropping the trigger or mark does not erase them.
@@ -96,7 +96,7 @@ public final class ModuleSlash {
   }
  }
  public static void preview(ServerPlayer player,HeartBlockEntity heart,VirtualModule m){
-  var level=(ServerLevel)heart.getLevel();var mark=ModuleCombat.baseOrigin(heart,m);var dust=new DustParticleOptions(new Vector3f(1,1,1),1);
-  for(var base:ProjectileAim.directions(heart,m,mark))for(var f:frames(base,m)){var start=mark.add(f.direction.scale(.55+m.value("startDistance")));var end=SensorGeometry.beamEnd(level,heart.creatureId(),start,start.add(f.direction.scale(m.value("range"))));int count=Math.clamp((int)Math.ceil(start.distanceTo(end)*2),1,256);for(int i=0;i<=count;i++){var p=start.lerp(end,i/(double)count);level.sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);}net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet(new Blade(end,f,m),end,end));}
+  MarkingSessions.previewLaunch(player,heart,m);var level=(ServerLevel)heart.getLevel();var mark=ModuleCombat.nozzle(heart,m);var dust=new DustParticleOptions(new Vector3f(1,1,1),1);
+  for(var base:ProjectileAim.directions(heart,m,mark))for(var f:frames(base,m)){var start=mark;var end=SensorGeometry.beamEnd(level,heart.creatureId(),start,start.add(f.direction.scale(m.value("range"))));int count=Math.clamp((int)Math.ceil(start.distanceTo(end)*2),1,256);for(int i=0;i<=count;i++){var p=start.lerp(end,i/(double)count);level.sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);}net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet(new Blade(end,f,m),end,end));}
  }
 }

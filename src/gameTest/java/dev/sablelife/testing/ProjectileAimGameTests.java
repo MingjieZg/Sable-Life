@@ -16,6 +16,41 @@ import java.util.*;
 
 @GameTestHolder("sablelife_blast_tests") @PrefixGameTestTemplate(false)
 public final class ProjectileAimGameTests {
+    @GameTest(template="combat",batch="aim_angles")
+    public static void StraightAnglesOffsetOriginPersistAndRespectTargetAndEmitter(GameTestHelper h){
+        var core=fixture(h);
+        for(String type:List.of("flame","arrow","gun","laser")){
+            var m=weapon(core,type);m.edit("shotAim",0,"");
+            m.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));
+            var rotation=new org.joml.Quaterniond(m.anchors().getFirst().body(core).logicalPose().orientation());
+            h.assertTrue(ModuleCombat.direction(core,m).distanceTo(ContactBox.rotate(rotation,new Vec3(0,0,-1)))<1e-6,"Default direction changed: "+type);
+            m.edit("shotHorizontal",90,"");m.edit("startDistance",3,"");
+            var expected=ContactBox.rotate(rotation,new Vec3(1,0,0));
+            h.assertTrue(ModuleCombat.direction(core,m).distanceTo(expected)<1e-6,"Horizontal angle not relative to part: "+type);
+            var muzzle=ModuleCombat.baseOrigin(core,m).add(ContactBox.rotate(rotation,new Vec3(0,0,-3.55)));
+            h.assertTrue(ModuleCombat.nozzle(core,m).distanceTo(muzzle)<1e-6,"Firing angle moved muzzle: "+type);
+            m.edit("shotHorizontal",0,"");m.edit("shotVertical",90,"");
+            h.assertTrue(ModuleCombat.direction(core,m).distanceTo(ContactBox.rotate(rotation,new Vec3(0,1,0)))<1e-6,"Positive vertical did not point up: "+type);
+            h.assertTrue(ModuleCombat.nozzle(core,m).distanceTo(muzzle)<1e-6,"Vertical angle orbited muzzle: "+type);
+            var copy=VirtualModule.load(m.save());h.assertTrue(copy.value("shotVertical")==90&&copy.value("startDistance")==3,"Angles lost on reload");
+            for(var face:Direction.values()){
+                m.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),face)));m.edit("shotHorizontal",35,"");m.edit("shotVertical",25,"");
+                h.assertTrue(Math.abs(ModuleCombat.direction(core,m).length()-1)<1e-6,"Invalid direction at face "+face);
+            }
+            if(List.of("arrow","gun").contains(type)){
+                m.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));m.edit("shotAim",1,"");
+                h.assertTrue(ModuleCombat.direction(core,m).distanceTo(ContactBox.rotate(rotation,new Vec3(0,0,-1)))<1e-6,"Straight angles leaked into target-mode origin");
+            }
+            var emitter=new VirtualModule.Emitter(new Vec3(1,2,3),new Vec3(0,0,1),new org.joml.Quaterniond(),UUID.randomUUID());m.emitter(emitter);
+            h.assertTrue(ModuleCombat.direction(core,m).equals(emitter.direction())&&ModuleCombat.nozzle(core,m).equals(emitter.position()),"Angles overrode summoned muzzle");
+        }
+        var slash=weapon(core,"slash");slash.edit("shotAim",0,"");slash.edit("startDistance",2,"");
+        var muzzle=ModuleCombat.nozzle(core,slash);slash.edit("slashHorizontal",90,"");slash.edit("slashVertical",30,"");slash.edit("slashCount",3,"");slash.edit("slashFan",90,"");
+        h.assertTrue(ModuleCombat.nozzle(core,slash).equals(muzzle),"Slash angles moved launch point");
+        var frames=ModuleSlash.frames(ModuleCombat.direction(core,slash),slash);
+        h.assertTrue(frames.size()==3&&frames.getFirst().direction().distanceTo(frames.getLast().direction())>1,"Slash fan stopped rotating after muzzle separation");
+        h.succeed();
+    }
     private static HeartBlockEntity fixture(GameTestHelper h){var l=h.getLevel();var p=h.absolutePos(new BlockPos(4,40,4));l.setBlockAndUpdate(p,SableLife.HEART.get().defaultBlockState());l.setBlockAndUpdate(p.east(),Blocks.IRON_BLOCK.defaultBlockState());var b=SubLevelAssemblyHelper.assembleBlocks(l,p,List.of(p,p.east()),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+1,p.getY(),p.getZ()));var core=(HeartBlockEntity)l.getBlockEntity(b.getPlot().getCenterBlock());var pin=core.modules().add("hover_anchor");pin.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.UP)));pin.edit("hoverRotation",1,"");return core;}
     private static VirtualModule weapon(HeartBlockEntity core,String type){var m=core.modules().add(type);m.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.UP)));m.edit("target",1,"");m.edit("targetRange",16,"");m.edit("shotAim",1,"");m.edit("interval",200,"");return m;}
     private static LivingEntity cow(GameTestHelper h,Vec3 center){var e=EntityType.COW.create(h.getLevel());e.setNoAi(true);e.setNoGravity(true);e.setPos(center.add(0,-e.getBbHeight()/2,0));h.getLevel().addFreshEntity(e);return e;}

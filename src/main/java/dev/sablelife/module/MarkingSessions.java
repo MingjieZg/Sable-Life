@@ -352,6 +352,7 @@ public final class MarkingSessions {
                 dev.sablelife.attack.ShotTrajectory.ring(level, player, flight.landing(), module.value("blastRadius"), dev.sablelife.module.ModuleColors.packed(module,"mortarWarningColor"));
             }
         } else if (module.type().equals("flame") || module.type().equals("arrow") || module.type().equals("gun")) {
+            previewLaunch(player,heart,module);
             var start = ModuleCombat.nozzle(heart, module);
             var directions=module.type().equals("flame")?List.of(ModuleCombat.direction(heart,module)):ProjectileAim.directions(heart,module,start);
             for(var direction:directions) {
@@ -369,6 +370,14 @@ public final class MarkingSessions {
     }
     public static void stopped(net.neoforged.neoforge.event.server.ServerStoppedEvent event) {
         sessions.clear();previews.clear();
+    }
+    /** Cyan: original-face positioning; yellow: fixed launch point. Attack preview starts here. */
+    public static void previewLaunch(ServerPlayer player,HeartBlockEntity heart,VirtualModule module){
+        var level=(ServerLevel)heart.getLevel();var from=ModuleCombat.baseOrigin(heart,module);var to=ModuleCombat.nozzle(heart,module);
+        var cyan=new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(0,.8F,1),.6F);
+        int count=Math.clamp((int)Math.ceil(from.distanceTo(to)*4),1,256);
+        for(int i=0;i<=count;i++){var p=from.lerp(to,i/(double)count);level.sendParticles(player,cyan,true,p.x,p.y,p.z,1,0,0,0,0);}
+        level.sendParticles(player,new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1,.85F,0),1.3F),true,to.x,to.y,to.z,1,0,0,0,0);
     }
     private static void particle(ServerLevel level, ServerPlayer player, Vec3 point) {
         level.sendParticles(player, ParticleTypes.ELECTRIC_SPARK, true, point.x, point.y, point.z, 1, 0, 0, 0, 0);

@@ -63,7 +63,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             var target=heart.modules().find(id);if(target!=null&&!ModuleAvailability.enabled(heart,target))return false;
         }
         if(heart.isControlCore()){
-            if(!java.util.Set.of("add","add_preset","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","copy","signal_rules").contains(operation))return false;
+            if(!java.util.Set.of("add","add_preset","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","copy","signal_rules","effects","projectile","sound_editor").contains(operation))return false;
             if((operation.equals("add")||operation.equals("add_preset"))&&!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(key))return false;
             var existing=heart.modules().find(id);if(!java.util.Set.of("add","add_preset","wireless","select","remove","reorder").contains(operation)&&(existing==null||!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(existing.type())))return false;
             if(operation.equals("edit")&&(key.startsWith("hurt")||existing!=null&&dev.sablelife.heart.RedstoneCorePolicy.disabledField(existing,key)||key.equals("trigger")&&(value<0||value>3)))return false;

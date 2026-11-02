@@ -27,6 +27,48 @@ public final class ModuleAvailabilityGameTests {
         return (HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());
     }
     private static boolean offered(HeartBlockEntity core,String type){return core.modules().snapshot(core,true).getList("AvailableTypes",8).stream().anyMatch(t->t.getAsString().equals(type));}
+    @GameTest(template="combat",batch="server_module_policy")
+    public static void OptionalPresentationDefaultsOffAndSurvivalEditorsRunWhenEnabled(GameTestHelper h){
+        var core=core(h,true,3);var author=net.neoforged.neoforge.common.util.FakePlayerFactory.get(h.getLevel(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),"OptionalControlAuthor"));
+        author.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);author.setPos(SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter()));
+        var menu=new HeartDashboardMenu(1,author.getInventory(),core);var previous=new HashMap<String,Boolean>();
+        try{
+            h.assertTrue(RedstoneCorePolicy.TYPES.size()==14,"Expected nine control and five optional presentation types");
+            for(String type:RedstoneCorePolicy.OPTIONAL_TYPES){
+                var option=setting(true,type);previous.put(type,option.get());
+                h.assertTrue(!option.get()&&!offered(core,type),"Optional presentation enabled by default: "+type);
+                h.assertTrue(!menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"False option accepted add");
+                option.set(true);
+                h.assertTrue(offered(core,type)&&menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"True option unavailable: "+type);
+                var m=core.modules().all().getLast();m.edit("trigger",0,"");var a=ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH);m.anchors(m.area()?List.of(a,a):List.of(a));
+                h.assertTrue(HeartModules.triggered(m,core),"Optional type required Life activation: "+type);
+                if(type.equals("particles")){
+                    h.assertTrue(menu.action(author,core.modules().revision(),m.id(),"effects","particles",0,""),"Particle editor failed for survival");
+                    var editor=new EffectSelectionMenu(1,author.getInventory(),core,m,true);
+                    h.assertTrue(editor.stillValid(author)&&editor.action(author,m.id(),"add",0,"minecraft:flame"),"Survival particle selection failed");
+                }
+                if(type.equals("item_display")){
+                    h.assertTrue(menu.action(author,core.modules().revision(),m.id(),"projectile","",0,""),"Item editor unavailable");
+                    m.projectileItem(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DISPENSER),h.getLevel().registryAccess());
+                }
+                if(type.equals("trigger_sound")){
+                    h.assertTrue(menu.action(author,core.modules().revision(),m.id(),"sound_editor","triggerSound",0,""),"Sound editor unavailable");
+                    h.assertTrue(m.edit("triggerSound",0,"minecraft:entity.ravager.roar"),"Could not configure optional trigger sound");
+                }
+            }
+            core.modules().tick(core);
+            h.assertTrue(core.modules().events().emittedSounds()==1,"Optional trigger sound did not run");
+            var display=core.modules().all().stream().filter(m->m.type().equals("item_display")).findFirst().orElseThrow();
+            h.assertTrue(ModuleItemDisplay.showing(core,display),"Optional item display hidden while enabled");
+            var saved=core.modules().save().getList("Modules",10).copy();
+            for(String type:previous.keySet())setting(true,type).set(false);
+            core.modules().tick(core);
+            h.assertTrue(!ModuleItemDisplay.showing(core,display)&&core.modules().all().stream().noneMatch(m->HeartModules.triggered(m,core)),"False left presentation active");
+            h.assertTrue(saved.equals(core.modules().save().getList("Modules",10)),"Disabling erased presentation configuration");
+            h.assertTrue(!ModuleAvailability.enabled(true,"sound")&&!ModuleAvailability.enabled(true,"bgm")&&!ModuleAvailability.enabled(true,"move_set"),"Unrequested capabilities opened");
+            h.succeed();
+        }finally{previous.forEach((type,value)->setting(true,type).set(value));}
+    }
     @GameTest(template="combat",batch="server_module_policy",timeoutTicks=40)
     public static void SwitchesHideRejectSuspendRetainAndRestoreWithoutCrossCoreGrants(GameTestHelper h){
         var life=core(h,false,3);var control=core(h,true,11);var author=TestActors.creative(h.getLevel());

@@ -11,7 +11,7 @@ Instead of spawning a traditional Minecraft entity, Sable Life gives life direct
 
 ## Current Version
 
-**0.1.316**
+**0.1.317**
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
@@ -100,7 +100,7 @@ For addon authors, see the [public body combat API guide](docs/COMBAT_API.md) fo
 
 ## Server Module Configuration
 
-The server's `sablelife-server.toml` provides fixed boolean module switches under `[modules.lifeCore]` (44 types) and `[modules.redstoneCore]` (nine supported control types). Defaults are `true`. Setting a switch to `false` hides that type from the Add catalog and suspends existing modules without deleting their settings. Multiplayer clients follow the server's availability list.
+The server's `sablelife-server.toml` provides fixed boolean module switches under `[modules.lifeCore]` (44 types) and `[modules.redstoneCore]` (nine control types enabled by default, plus five optional presentation types disabled by default). The optional types are Visual Effects, Distortion trail, Particle effects, Item display and Trigger sound. Setting a switch to `false` hides that type from the Add catalog and suspends existing modules without deleting their settings. Multiplayer clients follow the server's availability list.
 
 See [module availability and configuration](docs/MODULE_AVAILABILITY.md) for examples, existing-module behavior and runtime reset details.
 

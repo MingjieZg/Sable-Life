@@ -47,6 +47,7 @@ public final class ModuleCombat {
         var world = level.getServer().getLevel(level.dimension()); if (world == null) return;
         var active = new HashSet<UUID>();
         for (var module : heart.modules().all()) {
+            if(heart.isControlCore()&&!module.type().equals("particles"))continue;
             if (supported(module.type()) && heart.health().state() == dev.sablelife.heart.HeartState.ALIVE
                     && !module.detached() && HeartModules.status(module, heart).equals("disconnected")) {
                 module.detach(); heart.setChanged();
@@ -168,23 +169,36 @@ public final class ModuleCombat {
         if (strength > 0) { var delta = victim.position().subtract(origin); victim.knockback(strength, -delta.x, -delta.z); }
     }
     private void effect(LivingEntity victim, VirtualModule module) { ModuleEffects.apply(victim, module.effects(), null); }
+    /** Selected face before firing-angle adjustments; used only to position the muzzle. */
+    public static Vec3 baseDirection(HeartBlockEntity heart, VirtualModule module) {
+        if(module.emitter()!=null)return module.emitter().direction();
+        var anchor=module.anchors().getFirst();var body=anchor.body(heart);
+        return ContactBox.rotate(new Quaterniond(body.logicalPose().orientation()), localDirection(module)).normalize();
+    }
+    private static Vec3 localDirection(VirtualModule module){
+        var anchor=module.anchors().getFirst();int configured=(int)module.value("direction");
+        var face=configured==0?anchor.face():Direction.byName(ModuleFields.find(module.type(),"direction").choices().get(configured));
+        return Vec3.atLowerCornerOf(face.getNormal());
+    }
     public static Vec3 direction(HeartBlockEntity heart, VirtualModule module) {
         if(module.emitter()!=null)return module.emitter().direction();
-        var anchor = module.anchors().getFirst(); var body = anchor.body(heart); int configured = (int) module.value("direction");
-        var face = configured == 0 ? anchor.face() : Direction.byName(ModuleFields.find(module.type(), "direction").choices().get(configured));
-        return ContactBox.rotate(new Quaterniond(body.logicalPose().orientation()), Vec3.atLowerCornerOf(face.getNormal())).normalize();
+        var local=localDirection(module);
+        if(module.type().equals("flame") || List.of("arrow","gun").contains(module.type())&&module.value("shotAim")==0
+                || module.type().equals("laser")&&module.value("laserAim")==0)
+            local=ContactBox.rotate(MeleeGeometry.angles(local,module.value("shotHorizontal"),module.value("shotVertical")),local);
+        return ContactBox.rotate(new Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation()),local).normalize();
     }
-    /** Moves the attack origin outward, in the current body-relative emission direction. */
+    /** Position first along the original face; firing angles must never orbit the muzzle. */
     public static Vec3 offsetStart(HeartBlockEntity heart, VirtualModule module, Vec3 origin) {
         if(module.emitter()!=null)return origin;
-        double distance = module.value("startDistance");
-        return distance == 0 ? origin : origin.add(direction(heart, module).scale(distance));
+        double distance=module.value("startDistance");
+        return distance==0?origin:origin.add(baseDirection(heart,module).scale(distance));
     }
     public static Vec3 baseOrigin(HeartBlockEntity heart,VirtualModule module){return module.emitter()!=null?module.emitter().position():module.anchors().getFirst().world(heart,false);}
     public static Vec3 origin(HeartBlockEntity heart, VirtualModule module, boolean surface) {
         return module.emitter()!=null?module.emitter().position():offsetStart(heart, module, module.anchors().getFirst().world(heart, surface));
     }
-    public static Vec3 nozzle(HeartBlockEntity heart, VirtualModule module) { return module.emitter()!=null?module.emitter().position():origin(heart, module, false).add(direction(heart, module).scale(.55)); }
+    public static Vec3 nozzle(HeartBlockEntity heart, VirtualModule module) { return module.emitter()!=null?module.emitter().position():origin(heart, module, false).add(baseDirection(heart, module).scale(.55)); }
     private static Vec3 clip(ServerLevel world, Vec3 start, Vec3 end) {
         var hit = world.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, (net.minecraft.world.entity.Entity) null));
         return hit.getType() == HitResult.Type.MISS ? end : SableBodyProbe.toWorld(world, hit.getLocation());

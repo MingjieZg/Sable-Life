@@ -54,7 +54,7 @@ public final class ModuleLaser {
     }
     private static Vec3 direction(HeartBlockEntity heart, VirtualModule m, State state) {
         if(m.emitter()!=null)return m.emitter().direction();
-        var origin = ModuleCombat.baseOrigin(heart,m);
+        var origin = ModuleCombat.nozzle(heart,m);
         if (m.value("laserAim") == 1 && state.target != null) {
             long now = heart.getLevel().getGameTime();
             state.warningUpdated = false;
@@ -117,23 +117,24 @@ public final class ModuleLaser {
         }
     }
     public static void preview(ServerPlayer player, HeartBlockEntity heart, VirtualModule m) {
+        MarkingSessions.previewLaunch(player,heart,m);
         var level = (ServerLevel) player.level(); var state = new State();
-        var origin = ModuleCombat.baseOrigin(heart,m);
+        var origin = ModuleCombat.nozzle(heart,m);
         if (m.value("laserAim") == 1) {
             for (var target : acquireTargets(level, heart, m, origin)) {
                 var preview = new State(); preview.target = target;
-                var dir = direction(heart, m, preview); var start = m.emitter()!=null?origin:origin.add(dir.scale(.55 + m.value("startDistance")));
+                var dir = direction(heart, m, preview); var start = origin;
                 draw(level, player, m, start, SensorGeometry.beamEnd(level, heart.creatureId(), start, start.add(dir.scale(m.value("beamLength")))), false);
             }
             return;
         }
-        var dir = direction(heart, m, state); var start = m.emitter()!=null?origin:origin.add(dir.scale(.55 + m.value("startDistance")));
+        var dir = direction(heart, m, state); var start = origin;
         draw(level, player, m, start, SensorGeometry.beamEnd(level, heart.creatureId(), start, start.add(dir.scale(m.value("beamLength")))), false);
         if (sweeping(m)) {
             state.casting = true; state.fireAt = level.getGameTime(); state.finishAt = state.fireAt + 1;
             for (int edge = 0; edge < 2; edge++) {
                 state.fireAt = level.getGameTime() - edge; state.finishAt = state.fireAt + 2;
-                dir = direction(heart, m, state); start = origin.add(dir.scale(.55 + m.value("startDistance")));
+                dir = direction(heart, m, state); start = origin;
                 draw(level, player, m, start, SensorGeometry.beamEnd(level, heart.creatureId(), start, start.add(dir.scale(m.value("beamLength")))), true);
             }
         }
@@ -149,7 +150,7 @@ public final class ModuleLaser {
                     && HeartModules.status(m, heart).equals("disconnected")) { m.detach(); heart.setChanged(); }
             if (!m.type().equals("laser") || !external&&!HeartModules.triggered(m, heart)) continue;
             active.add(m.id()); var s = states.computeIfAbsent(m.id(), ignored -> new State());
-            var origin = ModuleCombat.baseOrigin(heart,m);
+            var origin = ModuleCombat.nozzle(heart,m);
             if (!s.casting) {
                 if (now < s.ready || !external&&!heart.modules().hurtTriggers.start(m)) continue;
                 if (m.value("laserAim") == 1) {
@@ -177,7 +178,7 @@ public final class ModuleLaser {
                 if (m.value("laserAim") == 1 && (!eligible(beam.target, m)
                         || beam.target.getBoundingBox().getCenter().distanceToSqr(origin) > m.value("beamLength") * m.value("beamLength"))) continue;
                 beam.firing = s.firing;
-                var dir = direction(heart, m, beam); var start = m.emitter()!=null?origin:origin.add(dir.scale(.55 + m.value("startDistance")));
+                var dir = direction(heart, m, beam); var start = origin;
                 var endpoint=start.add(dir.scale(m.value("beamLength")));
                 var end=s.firing&&m.value("laserBreakBlocks")==1?LaserBlockCut.cut(level,heart,m,start,endpoint,beam.cut,now):SensorGeometry.beamEnd(level,heart.creatureId(),start,endpoint);
                 if (s.firing || (m.value("laserAim") == 1 ? beam.warningUpdated : now % 4 == 0)) draw(level, null, m, start, end, !s.firing);

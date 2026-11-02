@@ -36,14 +36,14 @@ public final class SableLifeServerConfig {
         for(String type:dev.sablelife.module.VirtualModule.AVAILABLE_TYPES)LIFE_MODULES.put(type,builder.define(type,true));
         builder.pop();
         builder.comment("Only supported control modules are configurable here; this table cannot grant Life Core capabilities.").push("redstoneCore");
-        for(String type:dev.sablelife.heart.RedstoneCorePolicy.TYPES)REDSTONE_MODULES.put(type,builder.define(type,true));
+        for(String type:dev.sablelife.heart.RedstoneCorePolicy.TYPES)REDSTONE_MODULES.put(type,builder.define(type,dev.sablelife.heart.RedstoneCorePolicy.defaultEnabled(type)));
         builder.pop(2);
         SPEC = builder.build();
     }
     public static int maximumModulesPerCreature(){return SPEC.isLoaded()?MODULES.get():128;}
     public static boolean moduleEnabled(boolean redstoneCore,String type){
         var setting=(redstoneCore?REDSTONE_MODULES:LIFE_MODULES).get(type);
-        return setting!=null&&(!SPEC.isLoaded()||setting.get());
+        return setting!=null&&(SPEC.isLoaded()?setting.get():!redstoneCore||dev.sablelife.heart.RedstoneCorePolicy.defaultEnabled(type));
     }
     public static int maximumWirelessChannels() { return SPEC.isLoaded() ? CHANNELS.get() : 256; }
     public static int particlePointsPerPlayerTick() { return SPEC.isLoaded() ? PARTICLES.get() : 8192; }
