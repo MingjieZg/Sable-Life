@@ -22,15 +22,15 @@ public final class ModuleSurfaceField {
     private final Map<HitKey,Long> hits=new HashMap<>();
     public int count(){return fields.size();}
     public void clear(){fields.clear();hits.clear();}
-    private static boolean sourceEnabled(HeartBlockEntity heart,VirtualModule source){return source!=null&&(source.enabled()||heart.modules().summonedWeapons.using(source.id()));}
+    private static boolean sourceEnabled(HeartBlockEntity heart,VirtualModule source){return ModuleAvailability.enabled(heart,source)&&(source.enabled()||heart.modules().summonedWeapons.using(source.id()));}
     public static boolean impactAttack(VirtualModule m){return m!=null&&IMPACT_ATTACKS.contains(m.type());}
     /** One shared impact entry point; targets without a world surface are projected to ground. */
     public void impact(HeartBlockEntity heart,VirtualModule attack,Vec3 point,Vec3 normal,Vec3 incoming){
         if(!impactAttack(attack)||attack.impactFieldId()==null)return;
-        if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()||!impactAttack(attack)||!attack.enabled())return;
+        if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()||!impactAttack(attack)||!attack.enabled()||!ModuleAvailability.enabled(heart,attack))return;
         var source=heart.modules().find(attack.id());if(!sourceEnabled(heart,source))return;
         var config=heart.modules().find(attack.impactFieldId());
-        if(config!=null&&config.enabled()&&config.type().equals("surface_field"))spawn(level,attack.id(),config.id(),config,point,normal,incoming);
+        if(config!=null&&ModuleAvailability.enabled(heart,config)&&config.enabled()&&config.type().equals("surface_field"))spawn(level,attack.id(),config.id(),config,point,normal,incoming);
     }
     public void spawn(ServerLevel level,UUID source,UUID template,VirtualModule config,Vec3 point,Vec3 normal,Vec3 incoming){
         if(!Double.isFinite(point.lengthSqr()+normal.lengthSqr()+incoming.lengthSqr())||!level.hasChunkAt(BlockPos.containing(point)))return;
@@ -45,7 +45,7 @@ public final class ModuleSurfaceField {
     public void tick(HeartBlockEntity heart){
         if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()||heart.health().state()!=HeartState.ALIVE){clear();return;}
         long now=level.getGameTime();
-        fields.removeIf(f->{var source=heart.modules().find(f.source);var template=heart.modules().find(f.template);return now>=f.expires||!sourceEnabled(heart,source)||template==null||!template.enabled();});
+        fields.removeIf(f->{var source=heart.modules().find(f.source);var template=heart.modules().find(f.template);return now>=f.expires||!sourceEnabled(heart,source)||template==null||!ModuleAvailability.enabled(heart,template)||!template.enabled();});
         hits.entrySet().removeIf(e->e.getValue()<=now);
         int visuals=192;
         for(int index=0;index<fields.size();index++){

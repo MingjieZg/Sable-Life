@@ -18,7 +18,7 @@ public final class ModuleLoot {
         if (!(heart.getLevel() instanceof ServerLevel server) || heart.health().state() != HeartState.ALIVE) return;
         var root = Sable.HELPER.getContaining(server, heart.getBlockPos()); if (root == null) return;
         for (var module : heart.modules().all()) {
-            if (!module.known() || !module.type().equals("loot") || !module.enabled() || module.invalidated() || module.anchors().size() != 1
+            if (!ModuleAvailability.enabled(heart,module) || !module.known() || !module.type().equals("loot") || !module.enabled() || module.invalidated() || module.anchors().size() != 1
                     || heart.creatureId().equals(module.rewardOwner())) continue;
             var anchor = module.anchors().getFirst(); var body = anchor.body(heart);
             if (body == null || body.isRemoved() || !server.hasChunkAt(anchor.position(body))) continue;

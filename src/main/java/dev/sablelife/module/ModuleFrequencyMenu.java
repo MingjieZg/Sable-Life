@@ -21,7 +21,7 @@ public final class ModuleFrequencyMenu extends AbstractContainerMenu {
     private ModuleFrequencyMenu(int id,Inventory inventory,HeartBlockEntity heart,VirtualModule module,int channel) {
         super(SableLife.MODULE_FREQUENCY_MENU.get(),id);this.heart=heart;this.module=module;this.wirelessChannel=channel;
         data=heart==null ? new SimpleContainerData(1) : new ContainerData() {
-            public int getCount(){return 1;} public void set(int i,int v){} public int get(int i){return heart.canEdit(inventory.player)?1:0;}
+            public int getCount(){return 1;} public void set(int i,int v){} public int get(int i){return (heart.canEdit(inventory.player)&&(wirelessChannel>=0||ModuleAvailability.enabled(heart,module)))?1:0;}
         };addDataSlots(data);
         for(int i=0;i<2;i++) addSlot(new Slot(samples,i,55+i*54,40){
             @Override public boolean mayPlace(ItemStack stack){return false;}
@@ -39,13 +39,13 @@ public final class ModuleFrequencyMenu extends AbstractContainerMenu {
     private void set(boolean blue,ItemStack stack){if(module!=null){module.redBlue(blue,stack,heart.getLevel().registryAccess());heart.modules().changed();}else{heart.wireless().channel(wirelessChannel).frequency(blue,stack);heart.wireless().configurationChanged();}heart.setChanged();refresh();sendAllDataToRemote();}
     @Override public void clicked(int slot,int button,ClickType type,Player player){
         if(!stillValid(player))return;
-        if(slot>=0&&slot<2){if(heart!=null&&heart.canEdit(player)&&type==ClickType.PICKUP&&(button==0||button==1))set(slot==1,getCarried());return;}
+        if(slot>=0&&slot<2){if(heart!=null&&(heart.canEdit(player)&&(wirelessChannel>=0||ModuleAvailability.enabled(heart,module)))&&type==ClickType.PICKUP&&(button==0||button==1))set(slot==1,getCarried());return;}
         super.clicked(slot,button,type,player);
     }
     @Override public boolean clickMenuButton(Player player,int button){
         if(heart==null||!stillValid(player))return false;
         if(button==0){if(module!=null){DashboardSelection.set(heart,player.getUUID(),module.id());heart.openDashboard(player);}else heart.openWireless(player,wirelessChannel);return true;}
-        if(button==1&&heart.canEdit(player)){set(false,ItemStack.EMPTY);set(true,ItemStack.EMPTY);return true;}return false;
+        if(button==1&&(heart.canEdit(player)&&(wirelessChannel>=0||ModuleAvailability.enabled(heart,module)))){set(false,ItemStack.EMPTY);set(true,ItemStack.EMPTY);return true;}return false;
     }
     @Override public ItemStack quickMoveStack(Player player,int slot){return ItemStack.EMPTY;}
     @Override public boolean canDragTo(Slot slot){return slot.index>=2;}

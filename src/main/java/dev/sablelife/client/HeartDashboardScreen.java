@@ -79,7 +79,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private void reorderModule(int direction){sync();if(selected()!=null){reorderDestination=modules.indexOf(selected())+direction;reorderExpires=tickCount+100;action("reorder","",direction,"");}}
     private void trackAdd(String type){beforeAdd=new HashSet<>(modules.stream().map(VirtualModule::id).toList());addingType=type;addExpires=tickCount+100;}
     boolean savePreset(String name){sync();var module=selected();if(module==null)return false;try{ModulePresetLibrary.save(name,module.save());return true;}catch(java.io.IOException e){return false;}}
-    private List<String> availableTypes(){return menu.snapshot().getBoolean("ControlCore")?dev.sablelife.heart.RedstoneCorePolicy.TYPES:VirtualModule.AVAILABLE_TYPES;}
+    public List<String> availableTypes(){var result=new java.util.ArrayList<String>();for(var value:menu.snapshot().getList("AvailableTypes",8))result.add(value.getAsString());return result;}
     private List<VirtualModule> sidebarModules() { return filteredModules; }
     private void refreshSidebar(){var result=new ArrayList<VirtualModule>();for(int i=0;i<modules.size();i++){var m=modules.get(i);if(ModuleSearch.matches(m,tr("type_"+m.type()).getString(),i+1,moduleQuery))result.add(m);}filteredModules=List.copyOf(result);}
 
@@ -195,7 +195,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         fields.forEach(b -> b.setFocused(false));
         parameterPage = Math.clamp(parameterPage + delta, 0, Math.max(0, (parameters.size() - 1) / parameterSlots));
     }
-    private static int nextControlTrigger(VirtualModule m,int direction){int next=Math.floorMod((int)m.value("trigger")+direction,5);return next==4&&!MoveSet.TARGETS.contains(m.type())?Math.floorMod(next+direction,5):next;}
+    private static int nextControlTrigger(VirtualModule m,int direction){return Math.floorMod((int)m.value("trigger")+direction,4);}
     private static int nextTrigger(VirtualModule m,int direction) { int next=Math.floorMod((int)m.value("trigger")+direction,6); return next==4&&!MoveSet.TARGETS.contains(m.type()) ? Math.floorMod(next+direction,6) : next; }
     private void applyChannel() {
         if (!channel.active) return;
@@ -287,7 +287,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             selected = sidebarModules().isEmpty() ? NONE : sidebarModules().getFirst().id();
         page = Math.min(page, Math.max(0, (sidebarModules().size() - 1) / sidebarSlots));
         if(beforeAdd!=null){var added=modules.stream().filter(m->m.type().equals(addingType)&&!beforeAdd.contains(m.id())&&snapshot.hasUUID("Selected")&&m.id().equals(snapshot.getUUID("Selected"))).findFirst();if(added.isPresent()){selected=added.get().id();if(!sidebarModules().contains(added.get())){moduleQuery="";moduleSearch.setValue("");}page=sidebarModules().indexOf(added.get())/sidebarSlots;beforeAdd=null;}else if(tickCount>addExpires)beforeAdd=null;}
-        var m=selected();boolean editable=snapshot.getBoolean("Editable")&&!(m!=null&&m.type().equals("command")&&!snapshot.getBoolean("CommandEditable"));boolean usable=m!=null&&m.known();
+        var m=selected();boolean editable=snapshot.getBoolean("Editable")&&!(m!=null&&m.type().equals("command")&&!snapshot.getBoolean("CommandEditable"));boolean usable=m!=null&&m.known()&&!statuses.get(modules.indexOf(m)).equals("server_disabled");
         releaseLife.visible=!snapshot.getBoolean("ControlCore");releaseLife.active = snapshot.getBoolean("Ready");
         lootNav.visible=!snapshot.getBoolean("ControlCore");if(snapshot.getBoolean("ControlCore"))settingsNav.setMessage(Component.translatable("manual.sablelife.open"));
         boolean selectionChanged = !last.equals(selected);
@@ -431,6 +431,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             trigger.setMessage(tr("trigger_" + (int) m.value("trigger")));
             trigger.setTooltip(m.value("trigger") == 2 ? net.minecraft.client.gui.components.Tooltip.create(tr("trigger_internal_help")) : null); toggle.setMessage(tr(m.enabled() ? "disable" : "enable"));
         } else { rgbButtons.forEach(b->b.visible=false);name.setValue(""); channel.setValue(""); fields.forEach(b -> { b.setValue(""); b.visible = false; }); applyButtons.forEach(b -> b.visible = false); choices.forEach(b -> b.visible = false); soundFolders.forEach(b -> b.visible = false); vanillaFolders.forEach(b -> b.visible = false); noneButtons.forEach(b -> b.visible = false); }
+        remove.active=editable&&m!=null;
         edits.forEach(b -> { if (m == null) b.visible = false; });
         if (m != null) { toggle.visible = remove.visible = mark.visible = trigger.visible = channelApply.visible = true; edits.getFirst().visible = true; }
         samples.visible = loot; samples.active = loot;

@@ -11,7 +11,7 @@ import java.util.*;
 /** Column-major catalog: fill rows downward, then continue in the next column. */
 public final class ModulePickerScreen extends Screen {
     private final HeartDashboardScreen parent;
-    private final List<String> types;
+    private List<String> types;
     private String category="all",query="";
     private EditBox search;
     private final Map<String,String> english=new HashMap<>();
@@ -67,7 +67,7 @@ public final class ModulePickerScreen extends Screen {
     }
     private void sortPreset(String neighbor){if(selected==null||selected.preset==null)return;try{ModulePresetLibrary.moveRelative(selected.name,neighbor);deleteUntil=0;lastClick=0;followSorted=true;rebuildWidgets();}catch(java.io.IOException e){error=tr("failed");}}
     private void loadSelected(){if(selected==null||!parent.canAddModule())return;if(selected.preset==null)parent.addType(selected.type);else parent.addPreset(selected.preset.module());onClose();}
-    @Override public void tick(){ticks++;if(deleteUntil!=0&&deleteUntil<=ticks){deleteUntil=0;delete.setMessage(tr("delete"));}if(minecraft.player==null||minecraft.player.containerMenu!=parent.getMenu())minecraft.setScreen(null);}
+    @Override public void tick(){if(!types.equals(parent.availableTypes())){types=List.copyOf(parent.availableTypes());selected=null;rebuildWidgets();}ticks++;if(deleteUntil!=0&&deleteUntil<=ticks){deleteUntil=0;delete.setMessage(tr("delete"));}if(minecraft.player==null||minecraft.player.containerMenu!=parent.getMenu())minecraft.setScreen(null);}
     @Override public boolean isPauseScreen(){return false;}
     @Override public void onClose(){minecraft.setScreen(parent);}
     @Override public void renderBackground(GuiGraphics g,int mx,int my,float partial){super.renderBackground(g,mx,my,partial);g.fill(x-2,y-2,x+w+2,y+h+2,0xFF9B614E);g.fill(x,y,x+w,y+h,0xFF242632);g.drawString(font,title,x+8,y+12,0xFFE6D8EA,false);if(!error.getString().isEmpty())g.drawString(font,error,x+8,y+h-39,0xFFFF7777,false);}

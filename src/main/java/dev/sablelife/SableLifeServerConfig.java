@@ -2,9 +2,11 @@ package dev.sablelife;
 
 import net.neoforged.neoforge.common.ModConfigSpec;
 
-/** Resource limits are server-owned. Existing saved channel numbers are never truncated. */
+/** Resource limits and module switches are server-owned. Saved configurations are retained. */
 public final class SableLifeServerConfig {
     public static final ModConfigSpec SPEC;
+    private static final java.util.Map<String,ModConfigSpec.BooleanValue> LIFE_MODULES=new java.util.LinkedHashMap<>();
+    private static final java.util.Map<String,ModConfigSpec.BooleanValue> REDSTONE_MODULES=new java.util.LinkedHashMap<>();
     private static final ModConfigSpec.IntValue CHANNELS, PARTICLES, CLEANUP, MODULES;
     private static final ModConfigSpec.IntValue PROJECTILES, CREATURE_PROJECTILES;
     private static final ModConfigSpec.IntValue COLLISION, ARENA_CAPTURE_SCAN, ARENA_BLOCKS, ARENA_BLOCK_ENTITIES, ARENA_TEMPLATE_BYTES, ARENA_WORLD_BYTES;
@@ -29,9 +31,20 @@ public final class SableLifeServerConfig {
         ARENA_BLOCK_ENTITIES=builder.comment("Block entities permitted in one administrator Arena record. Limits NBT restoration work during native one-call placement.").defineInRange("arenaCaptureBlockEntities",dev.sablelife.ownership.ArenaRespawnLimits.BLOCK_ENTITIES,256,131072);
         ARENA_TEMPLATE_BYTES=builder.comment("Uncompressed estimated bytes permitted per Arena template at capture and saved-data admission. Required for native one-call respawn memory limits.").defineInRange("arenaTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.TEMPLATE_BYTES,1048576,134217728);
         ARENA_WORLD_BYTES=builder.comment("Total uncompressed estimated bytes permitted across world Arena templates.").defineInRange("arenaWorldTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.WORLD_TEMPLATE_BYTES,1048576,536870912);
+        builder.comment("Server-owned module switches. False hides new modules and suspends existing modules without deleting their settings.").push("modules");
+        builder.push("lifeCore");
+        for(String type:dev.sablelife.module.VirtualModule.AVAILABLE_TYPES)LIFE_MODULES.put(type,builder.define(type,true));
+        builder.pop();
+        builder.comment("Only supported control modules are configurable here; this table cannot grant Life Core capabilities.").push("redstoneCore");
+        for(String type:dev.sablelife.heart.RedstoneCorePolicy.TYPES)REDSTONE_MODULES.put(type,builder.define(type,true));
+        builder.pop(2);
         SPEC = builder.build();
     }
     public static int maximumModulesPerCreature(){return SPEC.isLoaded()?MODULES.get():128;}
+    public static boolean moduleEnabled(boolean redstoneCore,String type){
+        var setting=(redstoneCore?REDSTONE_MODULES:LIFE_MODULES).get(type);
+        return setting!=null&&(!SPEC.isLoaded()||setting.get());
+    }
     public static int maximumWirelessChannels() { return SPEC.isLoaded() ? CHANNELS.get() : 256; }
     public static int particlePointsPerPlayerTick() { return SPEC.isLoaded() ? PARTICLES.get() : 8192; }
     public static int deathCleanupBlocksPerTick() { return SPEC.isLoaded() ? CLEANUP.get() : 256; }

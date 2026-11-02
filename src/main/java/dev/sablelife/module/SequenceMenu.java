@@ -59,7 +59,7 @@ public final class SequenceMenu extends AbstractContainerMenu {
         tag.putInt("WirelessSelected", wirelessSelected); tag.putInt("WirelessMode", wireless.value(6));
         tag.putBoolean("WirelessEnabled", wireless.value(0) == 1); tag.putBoolean("WirelessMaster", heart.wireless().master());
         tag.putInt("WirelessPower", heart.wireless().output(wirelessSelected)); tag.put("Module", module.save()); tag.put("Runtime", heart.modules().sequenceSnapshot(module.id()));
-        tag.putBoolean("Editable", heart.canEdit(viewer)); tag.putInt("Channels", heart.wireless().size());
+        tag.putBoolean("Editable", (heart.canEdit(viewer)&&ModuleAvailability.enabled(heart,module))); tag.putInt("Channels", heart.wireless().size());
         tag.putInt("ChannelLimit", heart.wireless().limit());
         tag.putIntArray("ProgramChannels", java.util.stream.IntStream.range(0, heart.wireless().size())
                 .filter(i -> heart.wireless().channel(i).programmed() && heart.wireless().channel(i).configured()).map(i -> i + 1).toArray());
@@ -78,7 +78,7 @@ public final class SequenceMenu extends AbstractContainerMenu {
             if (channel < 0 || channel >= heart.wireless().size()) return false;
             wirelessSelected = channel; refresh(); sendAllDataToRemote(); return true;
         }
-        if (!heart.canEdit(p)) return false;
+        if (!(heart.canEdit(p)&&ModuleAvailability.enabled(heart,module))) return false;
         if (key.startsWith("wire_")) {
             switch (key) {
                 case "wire_add" -> { int added = heart.wireless().add(); if (added < 0) return false; wirelessSelected = added; }
@@ -106,7 +106,7 @@ public final class SequenceMenu extends AbstractContainerMenu {
         if (heart == null || !stillValid(p)) return;
         if (slot == 0) return;
         if (slot == 1 || slot == 2) {
-            if (heart.canEdit(p) && heart.wireless().size() > 0 && type == ClickType.PICKUP && (button == 0 || button == 1)) {
+            if ((heart.canEdit(p)&&ModuleAvailability.enabled(heart,module)) && heart.wireless().size() > 0 && type == ClickType.PICKUP && (button == 0 || button == 1)) {
                 heart.wireless().channel(wirelessSelected).frequency(slot == 2, getCarried());
                 heart.wireless().configurationChanged(); heart.setChanged(); refresh(); sendAllDataToRemote();
             }

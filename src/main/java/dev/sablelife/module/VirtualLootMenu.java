@@ -52,7 +52,7 @@ public final class VirtualLootMenu extends ChestMenu {
     public boolean action(Player player,int revision,java.util.UUID id,String key,double value,String text){
         if(!stillValid(player)||!module.id().equals(id))return false;
         if(key.equals("back")){heart.openDashboard(player);return true;}
-        if(!heart.canEdit(player)||revision!=heart.modules().revision()||!Double.isFinite(value)||value!=Math.rint(value)){refresh();sendAllDataToRemote();return false;}
+        if(!(heart.canEdit(player)&&ModuleAvailability.enabled(heart,module))||revision!=heart.modules().revision()||!Double.isFinite(value)||value!=Math.rint(value)){refresh();sendAllDataToRemote();return false;}
         int slot;try{slot=Integer.parseInt(text);}catch(NumberFormatException e){return false;}
         var tag=module.lootSamples();boolean changed=false;
         switch(key){
@@ -64,7 +64,7 @@ public final class VirtualLootMenu extends ChestMenu {
         }
         if(changed){heart.modules().changed();heart.setChanged();}refresh();sendAllDataToRemote();return changed;
     }
-    private void metadata(){var tag=new net.minecraft.nbt.CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("Editable",heart.canEdit(viewer));tag.putBoolean("Weighted",module.value("weighted")!=0);tag.putInt("Rolls",(int)module.value("rolls"));tag.putInt("MaxRule",module.value("weighted")==0?100:1000);tag.putUUID("Id",module.id());tag.putInt("Revision",heart.modules().revision());for(int i=0;i<27;i++)tag.putInt("Rule"+i,rule(i));getContainer().getItem(40).set(DataComponents.CUSTOM_DATA,net.minecraft.world.item.component.CustomData.of(tag));}
+    private void metadata(){var tag=new net.minecraft.nbt.CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("Editable",(heart.canEdit(viewer)&&ModuleAvailability.enabled(heart,module)));tag.putBoolean("Weighted",module.value("weighted")!=0);tag.putInt("Rolls",(int)module.value("rolls"));tag.putInt("MaxRule",module.value("weighted")==0?100:1000);tag.putUUID("Id",module.id());tag.putInt("Revision",heart.modules().revision());for(int i=0;i<27;i++)tag.putInt("Rule"+i,rule(i));getContainer().getItem(40).set(DataComponents.CUSTOM_DATA,net.minecraft.world.item.component.CustomData.of(tag));}
     @Override public boolean stillValid(Player player) {
         return player.isCreative() && !heart.isRemoved() && player.level() == heart.getLevel()
                 && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart && heart.modules().find(module.id()) == module
@@ -75,7 +75,7 @@ public final class VirtualLootMenu extends ChestMenu {
         if (!stillValid(player)) return;
         if (slot >= 0 && slot < 54) {
             if (slot == 53 && type == ClickType.PICKUP) { heart.openDashboard(player); return; }
-            if (!heart.canEdit(player) || button < 0 || button > 1) { sendAllDataToRemote(); return; }
+            if (!(heart.canEdit(player)&&ModuleAvailability.enabled(heart,module)) || button < 0 || button > 1) { sendAllDataToRemote(); return; }
             boolean changed = false;
             if (slot < 27 && type == ClickType.PICKUP) {
                 var value = getCarried().copy(); var existing = sample(slot);
@@ -97,7 +97,7 @@ public final class VirtualLootMenu extends ChestMenu {
         super.clicked(slot, button, type, player);
     }
     @Override public ItemStack quickMoveStack(Player player,int slot){
-        if(slot>=54&&slot<slots.size()&&stillValid(player)&&heart.canEdit(player)){var sample=slots.get(slot).getItem();if(!sample.isEmpty())for(int i=0;i<27;i++)if(sample(i).isEmpty()){var tag=module.lootSamples();tag.put("Slot"+i,sample.copy().save(heart.getLevel().registryAccess()));module.lootSamples(tag);heart.modules().changed();heart.setChanged();break;}}
+        if(slot>=54&&slot<slots.size()&&stillValid(player)&&(heart.canEdit(player)&&ModuleAvailability.enabled(heart,module))){var sample=slots.get(slot).getItem();if(!sample.isEmpty())for(int i=0;i<27;i++)if(sample(i).isEmpty()){var tag=module.lootSamples();tag.put("Slot"+i,sample.copy().save(heart.getLevel().registryAccess()));module.lootSamples(tag);heart.modules().changed();heart.setChanged();break;}}
         refresh();sendAllDataToRemote();return ItemStack.EMPTY;
     }
     @Override public boolean canDragTo(Slot slot) { return slot.index >= 54; }

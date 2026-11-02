@@ -24,14 +24,14 @@ public final class MarkingSessions {
     private record Preview(HeartBlockEntity heart, UUID module, long expires) {}
     private static final Map<UUID, Preview> previews = new HashMap<>();
     public static void showPreview(ServerPlayer player, HeartBlockEntity heart, VirtualModule module) {
-        if(module.type().equals("surface_field"))return;
+        if(!ModuleAvailability.enabled(heart,module)||module.type().equals("surface_field"))return;
         if(module.type().equals("visual_shockwave"))ModuleShockwave.preview(player,heart,module);
         previews.put(player.getUUID(), new Preview(heart, module.id(), player.level().getGameTime() + 100));
         if(module.type().equals("visual_shockwave"))previewModule(player,heart,module);
         player.closeContainer();
     }
     public static boolean start(Player player, HeartBlockEntity heart, VirtualModule module) {
-        if (module.coreModule()) return false;
+        if (!ModuleAvailability.enabled(heart,module)||module.coreModule()) return false;
         if (!(player instanceof ServerPlayer server) || !heart.canEdit(player)) return false;
         sessions.put(player.getUUID(), new Session(heart, module.id(), heart.modules().revision(), player.level().getGameTime() + 2400, new ArrayList<>()));
         player.closeContainer(); PacketDistributor.sendToPlayer(server, new ModuleNetworking.MarkState(true));
@@ -63,7 +63,7 @@ public final class MarkingSessions {
             event.setCanceled(true);
     }
     private static boolean valid(Player player, Session s) {
-        return s.heart.canEdit(player) && s.heart.modules().find(s.module) != null
+        return s.heart.canEdit(player) && ModuleAvailability.enabled(s.heart,s.heart.modules().find(s.module)) && s.heart.modules().find(s.module) != null
                 && s.heart.modules().revision() == s.revision && player.level().getGameTime() < s.expires;
     }
     public static void click(PlayerInteractEvent.RightClickBlock event) {
@@ -135,7 +135,7 @@ public final class MarkingSessions {
         for (var id : List.copyOf(previews.keySet())) {
             var p = previews.get(id); var player = event.getServer().getPlayerList().getPlayer(id);
             if (player == null || !p.heart.canAccessEditor(player) || player.level() != p.heart.getLevel() || p.heart.isRemoved()
-                    || p.heart.modules().find(p.module) == null || p.heart.modules().find(p.module).invalidated() || player.level().getGameTime() >= p.expires
+                    || !ModuleAvailability.enabled(p.heart,p.heart.modules().find(p.module)) || p.heart.modules().find(p.module) == null || p.heart.modules().find(p.module).invalidated() || player.level().getGameTime() >= p.expires
                     || SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(player.level(), p.heart.getBlockPos().getCenter())) > 4096) {
                 previews.remove(id); continue;
             }

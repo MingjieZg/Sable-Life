@@ -7,6 +7,9 @@ plugins {
 version = mod_version
 group = mod_group_id
 base { archivesName = mod_id }
+tasks.named('jar', Jar) {
+    archiveFileName = "${mod_id}-neoforge-${minecraft_version}-v${mod_version}.jar"
+}
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories { mavenCentral() }

@@ -247,14 +247,12 @@
   },
   "survival_core.settings": {
     "en_us": [
-      "Master controls",
-      "No attacks",
-      "Sound names"
+      "Assemble the body first;",
+      "Triggers are Always,"
     ],
     "zh_cn": [
-      "总开关",
-      "不开放",
-      "声音名称"
+      "先组装主体，",
+      "触发方式为"
     ]
   },
   "survival_core.troubleshooting": {

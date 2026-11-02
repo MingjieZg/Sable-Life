@@ -57,11 +57,16 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     }
     public boolean action(Player player, int revision, UUID id, String operation, String key, double value, String text) {
         if (heart == null || !stillValid(player)) return false;
+        if(operation.equals("add")||operation.equals("add_preset")){
+            if(!ModuleAvailability.enabled(heart.isControlCore(),key))return false;
+        }else if(!java.util.Set.of("select","remove","reorder","wireless","settings","loot","release").contains(operation)){
+            var target=heart.modules().find(id);if(target!=null&&!ModuleAvailability.enabled(heart,target))return false;
+        }
         if(heart.isControlCore()){
-            if(!java.util.Set.of("add","add_preset","projectile","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","copy","move_set","sound_editor").contains(operation))return false;
+            if(!java.util.Set.of("add","add_preset","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","copy","signal_rules").contains(operation))return false;
             if((operation.equals("add")||operation.equals("add_preset"))&&!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(key))return false;
-            var existing=heart.modules().find(id);if(!operation.equals("add")&&!operation.equals("add_preset")&&!operation.equals("wireless")&&(existing==null||!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(existing.type())))return false;
-            if(operation.equals("edit")&&(key.startsWith("hurt")||existing!=null&&dev.sablelife.heart.RedstoneCorePolicy.disabledField(existing,key)||key.equals("trigger")&&(value<0||value>4)))return false;
+            var existing=heart.modules().find(id);if(!java.util.Set.of("add","add_preset","wireless","select","remove","reorder").contains(operation)&&(existing==null||!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(existing.type())))return false;
+            if(operation.equals("edit")&&(key.startsWith("hurt")||existing!=null&&dev.sablelife.heart.RedstoneCorePolicy.disabledField(existing,key)||key.equals("trigger")&&(value<0||value>3)))return false;
         }
         if(heart.isControlCore()&&operation.equals("sound_editor")&&!dev.sablelife.heart.RedstoneCorePolicy.audioKeyAllowed(heart.modules().find(id),key))return false;
         if(heart.isControlCore()&&operation.equals("move_set")){
@@ -152,6 +157,10 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
                 if(result){module.approveCommands();heart.modules().changed();}
             }
             case "move_set" -> {
+                if(key.equals("action_add")){
+                    try{var target=heart.modules().find(UUID.fromString(text.split("\\|",3)[1]));if(!ModuleAvailability.enabled(heart,target))return false;}
+                    catch(IllegalArgumentException|IndexOutOfBoundsException e){return false;}
+                }
                 if (key.equals("action_add") && !player.canUseGameMasterBlocks()) {
                     try { var target = heart.modules().find(UUID.fromString(text.split("\\|", 3)[1])); if (target != null && target.type().equals("command")) return false; }
                     catch (IllegalArgumentException | IndexOutOfBoundsException e) { return false; }

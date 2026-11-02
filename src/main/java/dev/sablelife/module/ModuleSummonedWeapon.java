@@ -77,7 +77,7 @@ public final class ModuleSummonedWeapon {
             if(!m.type().equals("summoned_weapon")||!HeartModules.triggered(m,heart))continue;
             powered.add(m.id());long token=heart.modules().moveActivation(m.id());var previous=held.put(m.id(),token);
             if(previous!=null&&previous==token)continue;
-            var source=heart.modules().find(m.summonAttackId());if(source==null||!ATTACKS.contains(source.type())||m.projectileItem(level.registryAccess()).isEmpty())continue;
+            var source=heart.modules().find(m.summonAttackId());if(source==null||!ModuleAvailability.enabled(heart,source)||!ATTACKS.contains(source.type())||m.projectileItem(level.registryAccess()).isEmpty())continue;
             // Bound concurrent independent attacks, including pending staggered members.
             long live=states.values().stream().flatMap(List::stream).flatMap(g->g.members.stream()).filter(x->!x.finished).count();
             if(live+(int)m.value("summonCount")>256)continue;

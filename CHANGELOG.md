@@ -4,6 +4,14 @@ This changelog highlights the major development milestones of Sable Life from it
 
 > **History note:** Sable Life was developed through a long private development cycle before its public release. The public Git history was intentionally reset at **0.1.313** during repository cleanup, so the entries below are a curated reconstruction of the project's development timeline rather than a complete commit-by-commit record.
 
+## 0.1.316 — Server module switches and survival controller restrictions
+
+- Restricted the survival Redstone Core to nine signal/control modules, adding Signal logic and removing Move Set, sound, item display and visual-effect modules.
+- Removed Move Set and Hurt triggers from the Redstone Core. Unsupported legacy module settings remain stored but cannot run or be copied on that core.
+- Added fixed server-owned `[modules.lifeCore]` and `[modules.redstoneCore]` boolean switches. Disabled types are hidden from Add/preset catalogs, retain existing settings with a server-disabled status, and cannot trigger or bypass policy through copy/import/edit requests.
+- Module policy changes clear loaded cores' transient runtimes; restoring a switch permits normal triggering without deleting configuration.
+- Release JAR filenames now use `sablelife-neoforge-1.21.1-v<version>.jar`.
+
 ## 0.1.315 — Open-ended Create and Sable dependency ranges
 
 - Removed the upper version caps for Create and Sable while retaining minimums of Create 6.0.10 and Sable 2.0.5.

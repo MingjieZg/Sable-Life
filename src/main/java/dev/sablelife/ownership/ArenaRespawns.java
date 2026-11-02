@@ -36,7 +36,7 @@ public final class ArenaRespawns extends SavedData {
  private Entry find(HeartBlockEntity heart,UUID module){return entries.values().stream().filter(e->e.creature.equals(heart.creatureId())&&e.module.equals(module)).findFirst().orElse(null);}
  public int count(){return entries.size();}
  public static boolean record(ServerPlayer player,HeartBlockEntity heart,VirtualModule module){
-  if(!available()||!player.isCreative()||!player.canUseGameMasterBlocks()||!heart.canAccessEditor(player)||heart.isControlCore()||module==null||!module.type().equals("arena")||module.arenaCenter()==null||!module.arenaDimension().equals(player.level().dimension().location().toString())||heart.health().state()==HeartState.DYING||heart.health().state()==HeartState.DEAD)return false;
+  if(!dev.sablelife.module.ModuleAvailability.enabled(false,"arena")||!available()||!player.isCreative()||!player.canUseGameMasterBlocks()||!heart.canAccessEditor(player)||heart.isControlCore()||module==null||!module.type().equals("arena")||module.arenaCenter()==null||!module.arenaDimension().equals(player.level().dimension().location().toString())||heart.health().state()==HeartState.DYING||heart.health().state()==HeartState.DEAD)return false;
   var data=get(player.server);var existing=data.find(heart,module.id());
   if(existing==null&&(data.entries.size()>=LIMIT||data.entries.values().stream().anyMatch(e->e.creature.equals(heart.creatureId()))))return false;
   try{
@@ -61,7 +61,7 @@ public final class ArenaRespawns extends SavedData {
   var data=get(level.getServer());
   for(var e:data.entries.values())if(e.creature.equals(heart.creatureId())&&e.phase.equals("ready")){
    var module=heart.modules().find(e.module);
-   if(module==null||!module.enabled()||module.value("arenaRespawnEnabled")!=1||module.arenaCenter()==null||!module.arenaDimension().equals(e.dimension.toString()))continue;
+   if(module==null||!dev.sablelife.module.ModuleAvailability.enabled(heart,module)||!module.enabled()||module.value("arenaRespawnEnabled")!=1||module.arenaCenter()==null||!module.arenaDimension().equals(e.dimension.toString()))continue;
    e.center=module.arenaCenter();e.delay=Math.clamp((int)module.value("arenaRespawnDelay"),100,72000);e.remaining=e.delay;e.phase="countdown";
    var root=dev.ryanhcode.sable.Sable.HELPER.getContaining(level,heart.getBlockPos());
    e.oldBodies.addAll(BodyOwnership.get(level).bodyIds(level,heart.creatureId()));
@@ -86,6 +86,7 @@ public final class ArenaRespawns extends SavedData {
   for(var e:list){
    var level=server.getLevel(ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,e.dimension));if(level==null)continue;
    if(e.phase.equals("ready")){if(e.display!=null)hide(level,e);continue;}
+   if(!dev.sablelife.module.ModuleAvailability.enabled(false,"arena")){hide(level,e);continue;}
    if(!available()){display(level,e,"missing",0);continue;}
    try{
     if(e.build==null)e.build=PhotomancyRespawnBridge.create(e.template,e.progress,e.center);

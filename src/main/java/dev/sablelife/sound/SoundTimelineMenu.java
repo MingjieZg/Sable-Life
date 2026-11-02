@@ -30,7 +30,7 @@ public final class SoundTimelineMenu extends AbstractContainerMenu {
         player.openMenu(new net.minecraft.world.SimpleMenuProvider((id,inv,p)->new SoundTimelineMenu(id,inv,heart,moduleId,key,context),Component.translatable("sound_timeline.sablelife.title")));return true;
     }
     private VirtualModule module(){return heart==null||moduleId==null?null:heart.modules().find(moduleId);}
-    private boolean editable(Player p){return heart!=null&&(context.equals("module")?heart.canEdit(p):heart.canToggleBreaking(p));}
+    private boolean editable(Player p){return heart!=null&&(context.equals("module")?heart.canEdit(p)&&ModuleAvailability.enabled(heart,module()):heart.canToggleBreaking(p));}
     private SoundTimeline timeline(){
         if(context.equals("module"))return module().soundTimeline(key);
         return (context.equals("vanish")?heart.removalPresentation():heart.deathPresentation()).soundTimeline(key);

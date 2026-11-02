@@ -12,7 +12,7 @@ Instead of spawning a traditional Minecraft entity, Sable Life gives life direct
 
 ## Current Version
 
-**0.1.315**
+**0.1.316**
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
@@ -98,6 +98,12 @@ Coverage is limited to the named behavior and inspected addon versions. An ammun
 Other mods using standard Minecraft damage or block interaction mechanics may work without additional integration, but compatibility is not guaranteed. Even supported integrations may not cover every weapon, spell, addon, or special damage mechanic.
 
 For addon authors, see the [public body combat API guide](docs/COMBAT_API.md) for server-side damage entry points, coordinate conventions and attack cadence.
+
+## Server Module Configuration
+
+The server's `sablelife-server.toml` provides fixed boolean module switches under `[modules.lifeCore]` (44 types) and `[modules.redstoneCore]` (nine supported control types). Defaults are `true`. Setting a switch to `false` hides that type from the Add catalog and suspends existing modules without deleting their settings. Multiplayer clients follow the server's availability list.
+
+See [module availability and configuration](docs/MODULE_AVAILABILITY.md) for examples, existing-module behavior and runtime reset details.
 
 ## Building From Source
 

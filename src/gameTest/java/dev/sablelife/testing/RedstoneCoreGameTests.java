@@ -19,7 +19,7 @@ public final class RedstoneCoreGameTests {
     @GameTest(template="combat",batch="module_order")
     public static void ModuleReorderingKeepsIdentityAndPersistsOrder(GameTestHelper h){
         var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
-        var first=core.modules().add("sound");var second=core.modules().add("auto_facing");var controller=core.modules().add("move_set");
+        var first=core.modules().add("sequence");var second=core.modules().add("auto_facing");var controller=core.modules().add("sensor");
         h.assertTrue(menu.action(author,core.modules().revision(),second.id(),"reorder","",-1,""),"Reorder refused");
         h.assertTrue(core.modules().all().getFirst()==second&&core.modules().find(first.id())==first,"Reorder replaced module objects or identities");
         h.assertTrue(!menu.action(author,core.modules().revision(),second.id(),"reorder","",-1,"")&&!menu.action(author,core.modules().revision(),second.id(),"reorder","",.5,""),"Invalid or out-of-range reorder accepted");
@@ -38,52 +38,45 @@ public final class RedstoneCoreGameTests {
         h.assertTrue(!menu.action(author,core.modules().revision(),new UUID(0,0),"add_preset","auto_facing",0,new VirtualModule("flame").save().toString()),"Forged type bypassed whitelist");
         h.succeed();
     }
-    @GameTest(template="combat",batch="redstone_audio_editor")
-    public static void SurvivalSoundMixEditorRetainsDisabledCombatSettings(GameTestHelper h){
-        var core=fixture(h,false);var author=player(h,core);var dashboard=new HeartDashboardMenu(1,author.getInventory(),core);
-        for(String type:List.of("sound","trigger_sound","bgm"))h.assertTrue(dashboard.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"Sound module add rejected: "+type);
-        for(var m:core.modules().all())for(String key:m.type().equals("sound")?List.of("approach","ambient"):m.type().equals("trigger_sound")?List.of("triggerSound","contactSound"):List.of("bgm")){
-            h.assertTrue(dev.sablelife.sound.SoundTimelineMenu.open(author,core,m.id(),key,"module"),"Survival sound editor rejected: "+key);
-            var editor=new dev.sablelife.sound.SoundTimelineMenu(1,author.getInventory(),core,m.id(),key,"module");h.assertTrue(editor.stillValid(author)&&editor.action(author,editor.snapshot().getInt("Revision"),"add",null,0,"minecraft:block.note_block.bass"),"Survival sound mix edit failed");
-        }
-        var sound=core.modules().all().get(0);var bgm=core.modules().all().get(2);
-        h.assertTrue(!dev.sablelife.sound.SoundTimelineMenu.open(author,core,sound.id(),"hurt","module"),"Hurt editor opened on control core");
-        var forged=new dev.sablelife.sound.SoundTimelineMenu(1,author.getInventory(),core,sound.id(),"hurt","module");h.assertTrue(!forged.action(author,forged.snapshot().getInt("Revision"),"add",null,0,"minecraft:block.note_block.bass"),"Forged hurt editor changed configuration");
-        h.assertTrue(!dashboard.action(author,core.modules().revision(),bgm.id(),"edit","bgmStart",1,""),"Combat BGM start edited on control core");
-        h.assertTrue(bgm.value("bgmStart")==0&&ModuleEvents.musicReady(core,bgm)&&sound.hasSound("hurt"),"Disabled shared settings erased, or BGM waits for impossible damage");
-        var data=core.copyConfiguration();h.assertTrue(core.pasteConfiguration(author,data)&&core.modules().all().size()==3&&core.modules().all().get(2).value("bgmStart")==0,"Copy lost sounds or disabled combat configuration");h.succeed();
-    }
-    @GameTest(template="combat",batch="redstone_audio_runtime",timeoutTicks=20)
-    public static void TriggerSoundRunsWithoutLifeAndMasterClearsRepeatState(GameTestHelper h){
-        var core=fixture(h,false);var trigger=core.modules().add("trigger_sound");h.assertTrue(trigger.text("triggerSound").isEmpty(),"Trigger Sound default mix was not empty");trigger.edit("triggerSound",0,"minecraft:entity.ravager.roar");trigger.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos().east(),Direction.NORTH)));trigger.edit("trigger",0,"");trigger.edit("cooldown",0,"");
-        var ambient=core.modules().add("sound");ambient.anchors(trigger.anchors());
-        core.modules().tick(core);long count=core.modules().events().emittedSounds();h.assertTrue(count==1,"Trigger sound required life activation");core.modules().events().hurt(core);h.assertTrue(core.modules().events().emittedSounds()==count,"Disabled Hurt sound played");
-        core.modules().tick(core);h.assertTrue(core.modules().events().emittedSounds()==count,"Once trigger repeated while signal stayed high");
-        core.wireless().master(false);core.modules().tick(core);core.wireless().master(true);core.modules().tick(core);h.assertTrue(core.modules().events().emittedSounds()==count+1,"Master restart did not reset audio trigger");
-        trigger.edit("soundMode",1,"");trigger.edit("interval",2,"");
-        h.runAfterDelay(4,()->{h.assertTrue(core.modules().events().emittedSounds()>count+1,"Control repeated sound did not run");core.wireless().master(false);core.modules().tick(core);long stopped=core.modules().events().emittedSounds();h.runAfterDelay(4,()->{h.assertTrue(core.modules().events().emittedSounds()==stopped&&core.health().state()==HeartState.DORMANT,"Master off kept audio or activated life");h.succeed();});});
-    }
-    @GameTest(template="combat",timeoutTicks=20,batch="redstone_survivalmovesetschedulesonlyallowedactionswithouthealth")
-    public static void SurvivalMoveSetSchedulesOnlyAllowedActionsWithoutHealth(GameTestHelper h){
+    @GameTest(template="combat",batch="redstone_restricted_catalog")
+    public static void RestrictedCatalogRejectsPresentationAndLifeModules(GameTestHelper h){
         var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
-        for(var type:List.of("move_set","sensor","navigation","auto_facing"))h.assertTrue(menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"New control module rejected: "+type);
-        var table=core.modules().all().getFirst();var out=core.modules().add("wireless_redstone");out.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos().east(),Direction.UP)));out.edit("redstonePower",8,"");
-        h.assertTrue(menu.action(author,core.modules().revision(),table.id(),"move_set","add",0,""),"Control move editor rejected");
-        h.assertTrue(menu.action(author,core.modules().revision(),table.id(),"move_set","action_add",0,"0|"+out.id()),"Allowed timeline action rejected");
-        menu.action(author,core.modules().revision(),table.id(),"move_set","action_start",.2,"0|0");
-        for(var type:List.of("trigger_sound","sound","bgm")){
-            var audio=core.modules().add(type);if(!type.equals("bgm"))audio.anchors(out.anchors());
-            h.assertTrue(menu.action(author,core.modules().revision(),table.id(),"move_set","action_add",0,"0|"+audio.id()),"Sound action rejected by control Move set: "+type);
-            h.assertTrue(ModuleMoveSet.status(table.moveSet().get(0),core).equals("ready"),"Sound action made control move unavailable");
+        for(String type:VirtualModule.AVAILABLE_TYPES){
+            boolean accepted=menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,"");
+            h.assertTrue(accepted==RedstoneCorePolicy.TYPES.contains(type),"Unexpected survival capability: "+type);
         }
-        var forbidden=core.modules().add("flame");h.assertTrue(!menu.action(author,core.modules().revision(),table.id(),"move_set","action_add",0,"0|"+forbidden.id()),"Timeline bypassed whitelist");
-        h.assertTrue(!menu.action(author,core.modules().revision(),table.id(),"move_set","phaseUpper",50,"0"),"HP edit allowed on non-living core");
-        core.modules().remove(forbidden.id());
-        // Imported legacy HP bands are ignored by the non-living controller.
-        table.moveSet().get(0).config().edit("phaseUpper",50,"");
-        var pig=net.minecraft.world.entity.EntityType.PIG.create(h.getLevel());pig.setNoAi(true);pig.setNoGravity(true);var center=SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter());pig.setPos(center.add(0,0,4));h.getLevel().addFreshEntity(pig);
-        core.modules().tick(core);h.assertTrue(!HeartModules.triggered(out,core),"Delayed control action fired early");
-        h.runAfterDelay(6,()->{h.assertTrue(HeartModules.triggered(out,core),"Control move did not dispatch without life: "+core.modules().snapshot(core,true));var a=out.anchors().getFirst();h.assertTrue(ModuleSignals.signal(h.getLevel(),a.position(a.body(core)),Direction.DOWN)==8,"Move-set redstone output missing");core.wireless().master(false);core.modules().tick(core);h.assertTrue(!HeartModules.triggered(out,core),"Master off retained move dispatch");pig.discard();h.succeed();});
+        var module=core.modules().all().getFirst();
+        for(int trigger:List.of(4,5))h.assertTrue(!menu.action(author,core.modules().revision(),module.id(),"edit","trigger",trigger,""),"Life-only trigger accepted");
+        h.succeed();
+    }
+    @GameTest(template="combat",batch="redstone_legacy_retention")
+    public static void LegacyModulesRemainStoredWithoutRunning(GameTestHelper h){
+        var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
+        var legacy=core.modules().add("trigger_sound");legacy.edit("triggerSound",0,"minecraft:entity.ravager.roar");legacy.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));
+        var before=legacy.text("triggerSound");RedstoneCorePolicy.sanitize(core);
+        h.assertTrue(core.modules().find(legacy.id())==legacy&&!legacy.enabled()&&legacy.text("triggerSound").equals(before),"Legacy configuration lost");
+        legacy.edit("enabled",1,"");core.modules().tick(core);
+        h.assertTrue(!HeartModules.triggered(legacy,core)&&core.modules().events().emittedSounds()==0,"Legacy module bypassed runtime restriction");
+        h.assertTrue(!menu.action(author,core.modules().revision(),legacy.id(),"copy","",0,""),"Forbidden legacy module copied");
+        h.assertTrue(menu.action(author,core.modules().revision(),legacy.id(),"remove","",0,""),"Legacy module could not be removed");h.succeed();
+    }
+    @GameTest(template="combat",batch="redstone_signal_logic")
+    public static void SurvivalSignalLogicRunsAndClearsWithMaster(GameTestHelper h){
+        var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
+        int input=core.wireless().add();int output=core.wireless().add();
+        for(int channel:List.of(input,output)){core.wireless().channel(channel).set(0,1);core.wireless().channel(channel).set(6,3);}
+        h.assertTrue(menu.action(author,core.modules().revision(),new UUID(0,0),"add","signal_logic",0,""),"Signal logic add rejected");
+        var logic=core.modules().all().getFirst();logic.edit("logicChannel",output+1,"");logic.edit("logicPower",9,"");
+        h.assertTrue(menu.action(author,core.modules().revision(),logic.id(),"signal_rules","",0,""),"Signal rule editor rejected");
+        var editor=new SignalRuleMenu(1,author.getInventory(),core,logic,null);
+        h.assertTrue(editor.action(author,core.modules().revision(),new UUID(0,0),"add",0),"Survival signal rule add rejected");
+        for(var row:logic.signalRules().rows())row.edit("signalInput",input+1);
+        core.wireless().programOutputs("test",Map.of(input,15));core.modules().tick(core);
+        h.assertTrue(core.wireless().output(output)==9&&core.health().state()==HeartState.DORMANT,"Signal logic required life activation");
+        h.runAfterDelay(2,()->core.wireless().programOutputs("test",Map.of()));
+        h.runAfterDelay(3,()->{core.modules().tick(core);h.assertTrue(core.wireless().output(output)==0,"Logic retained output after input ended");core.wireless().programOutputs("test",Map.of(input,15));});
+        h.runAfterDelay(4,()->{core.modules().tick(core);h.assertTrue(core.wireless().output(output)==9,"Logic did not rearm");core.wireless().master(false);});
+        h.runAfterDelay(6,()->{core.modules().tick(core);h.assertTrue(core.wireless().output(output)==0,"Master off retained logic output");h.succeed();});
     }
     @GameTest(template="combat",batch="redstone_sensorandalignmentpublishsignalswithoutlife")
     public static void SensorAndAlignmentPublishSignalsWithoutLife(GameTestHelper h){
@@ -128,7 +121,7 @@ public final class RedstoneCoreGameTests {
         h.assertTrue(!core.editCore(author,"health",500,"")&&!core.editCore(author,"deathPreview",0,""),"Life settings exposed");
         core.modules().add("flame");m.edit("trigger",5,"");var tag=core.saveWithoutMetadata(h.getLevel().registryAccess());tag.putString("LifeState","ALIVE");tag.putFloat("Health",100);
         var restored=new HeartBlockEntity(core.getBlockPos(),SableLife.REDSTONE_CORE.get().defaultBlockState());restored.loadWithComponents(tag,h.getLevel().registryAccess());
-        h.assertTrue(restored.health().state()==HeartState.DORMANT&&restored.modules().all().stream().allMatch(RedstoneCorePolicy::allowed),"NBT reactivated life or bypassed whitelist");h.succeed();
+        h.assertTrue(restored.health().state()==HeartState.DORMANT&&restored.modules().all().size()==2&&restored.modules().all().stream().noneMatch(VirtualModule::enabled),"NBT reactivated life or bypassed whitelist");h.succeed();
     }
     @GameTest(template="combat",batch="redstone_mixedduplicatecoressuspendbothcontrollers")
     public static void MixedDuplicateCoresSuspendBothControllers(GameTestHelper h){

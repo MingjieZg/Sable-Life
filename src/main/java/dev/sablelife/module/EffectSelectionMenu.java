@@ -52,7 +52,7 @@ public final class EffectSelectionMenu extends AbstractContainerMenu {
     public CompoundTag snapshot() { return snapshot.getItem(0).getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag(); }
     private void refresh() {
         if (heart == null) return;
-        var tag = new CompoundTag(); tag.put("Module", module.save()); tag.putBoolean("ParticleMode", particleMode);tag.putBoolean("ArenaBuffMode",arenaGroup!=null); tag.putBoolean("Editable", coreDeath ? heart.canToggleBreaking(viewer) : heart.canEdit(viewer));
+        var tag = new CompoundTag(); tag.put("Module", module.save()); tag.putBoolean("ParticleMode", particleMode);tag.putBoolean("ArenaBuffMode",arenaGroup!=null); tag.putBoolean("Editable", coreDeath ? heart.canToggleBreaking(viewer) : (heart.canEdit(viewer)&&ModuleAvailability.enabled(heart,arenaParent!=null?arenaParent:movementParent!=null?movementParent:module)));
         var stack = new ItemStack(Items.PAPER); stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag)); snapshot.setItem(0, stack);
     }
     @Override public void broadcastChanges() { if (heart != null && heart.getLevel().getGameTime() % 5 == 0) refresh(); super.broadcastChanges(); }
@@ -62,7 +62,7 @@ public final class EffectSelectionMenu extends AbstractContainerMenu {
                 && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
     }
     public boolean action(Player player, java.util.UUID id, String operation, double value, String effect) {
-        if (heart == null || !stillValid(player) || !module.id().equals(id) || !(coreDeath ? heart.canToggleBreaking(player) : heart.canEdit(player))) return false;
+        if (heart == null || !stillValid(player) || !module.id().equals(id) || !(coreDeath ? heart.canToggleBreaking(player) : (heart.canEdit(player)&&ModuleAvailability.enabled(heart,arenaParent!=null?arenaParent:movementParent!=null?movementParent:module)))) return false;
         if (!(particleMode ? module.editParticle(operation, effect, value) : arenaGroup!=null?arenaGroup.effect(operation,effect,value):module.editEffect(operation, effect, value))) return false;
         if(!coreDeath) heart.modules().changed(); heart.setChanged(); refresh(); sendAllDataToRemote(); return true;
     }
