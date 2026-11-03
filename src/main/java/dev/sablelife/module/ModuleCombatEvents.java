@@ -28,7 +28,7 @@ public final class ModuleCombatEvents {
   }
   if(used){seen.put(key,now);while(seen.size()>2048)seen.remove(seen.keySet().iterator().next());}
  }
- public void tick(HeartBlockEntity heart){long now=heart.getLevel().getGameTime();if(tick==now)return;tick=now;owner=heart;runtime.clear();var outputs=new HashMap<Integer,Integer>();var keep=new HashSet<Key>();
+ public void tick(HeartBlockEntity heart){long now=heart.getLevel().getGameTime();if(tick==now)return;tick=now;owner=heart;runtime.clear();var outputs=new HashMap<Integer,Integer>();var trace=new HashMap<UUID,Map<Integer,Integer>>();var keep=new HashSet<Key>();
   if(!heart.operational()||!heart.wireless().master()){clear();return;}
   seen.entrySet().removeIf(e->(e.getKey().startsWith("2:")||e.getKey().startsWith("0:0:")||e.getKey().startsWith("0:1:"))&&now-e.getValue()>2);
   for(var m:heart.modules().all())if(m.type().equals("combat_event")){
@@ -37,9 +37,9 @@ public final class ModuleCombatEvents {
     boolean ready=enabled&&row.enabled()&&ModuleHealthPhase.channelStatus((int)row.value("eventChannel"),heart).equals("ready");
     if(clock!=null){if(!ready){clocks.remove(key);clock=null;}else if(clock.pending){clock.until=now+(long)row.value("eventPulse");clock.pending=false;}}
     boolean powered=ready&&clock!=null&&now<clock.until;var state=new CompoundTag();state.putUUID("Id",row.id());state.putBoolean("Active",powered);state.putString("ChannelStatus",ModuleHealthPhase.channelStatus((int)row.value("eventChannel"),heart));state.putInt("Count",clock==null?0:clock.count);state.putInt("Required",(int)row.value("eventCount"));state.putInt("Remaining",clock==null?0:(int)Math.max(0,clock.until-now));rows.add(state);
-    if(powered){active++;outputs.merge((int)row.value("eventChannel")-1,(int)row.value("eventPower"),Math::max);}
+    if(powered){active++;outputs.merge((int)row.value("eventChannel")-1,(int)row.value("eventPower"),Math::max);ChannelDiagnostics.record(trace,m.id(),(int)row.value("eventChannel")-1,(int)row.value("eventPower"));}
    }data.put("Rows",rows);data.putInt("ActiveCount",active);runtime.put(m.id(),data);
   }
-  clocks.keySet().retainAll(keep);heart.wireless().programOutputs("combat_event",outputs);
+  clocks.keySet().retainAll(keep);heart.wireless().programOutputs("combat_event",outputs,trace);
  }
 }

@@ -44,7 +44,18 @@ public final class HeartWireless {
         for(int n=0;n<resets.length;n++){int reset=channels.get(latchChannels.get(n)).value(8)-1;resets[n]=reset>=0&&reset<size()&&(channels.get(reset).receiving()?input(reset):powerAt(reset,time))>0;}
         for(int n=0;n<resets.length;n++){int i=latchChannels.get(n);latches.computeIfAbsent(i,k->new Latch()).sample(rawPowerAt(i,time),resets[n]);}
     }
+    private final java.util.Map<String,java.util.Map<java.util.UUID,java.util.Map<Integer,Integer>>> contributionSources=new java.util.HashMap<>();
+    public java.util.Map<java.util.UUID,Integer> moduleContributions(int channel){
+        var result=new java.util.LinkedHashMap<java.util.UUID,Integer>();if(!master||!heart.operational())return result;
+        contributionSources.values().forEach(rows->rows.forEach((id,values)->{int power=values.getOrDefault(channel,0);if(power>0)result.merge(id,power,Math::max);}));return java.util.Map.copyOf(result);
+    }
+    public void programOutputs(String source,java.util.Map<Integer,Integer> outputs,java.util.Map<java.util.UUID,java.util.Map<Integer,Integer>> details){
+        programOutputs(source,outputs);var accepted=new java.util.HashMap<java.util.UUID,java.util.Map<Integer,Integer>>();
+        if(master&&heart.operational())details.forEach((id,values)->{var valid=new java.util.HashMap<Integer,Integer>();values.forEach((c,p)->{if(c>=0&&c<size()&&channels.get(c).programmed()&&channels.get(c).configured()&&p>0&&outputs.getOrDefault(c,0)>=p)valid.put(c,Math.clamp(p,0,15));});if(!valid.isEmpty())accepted.put(id,java.util.Map.copyOf(valid));});
+        if(!accepted.isEmpty())contributionSources.put(source,java.util.Map.copyOf(accepted));
+    }
     public void programOutputs(String source, java.util.Map<Integer, Integer> outputs) {
+        contributionSources.remove(source);
         var next = new java.util.HashMap<Integer, Integer>();
         if (master && heart.operational()) outputs.forEach((index, value) -> {
             if (index >= 0 && index < size() && channels.get(index).programmed() && channels.get(index).configured()) next.put(index, Math.clamp(value, 0, 15));
@@ -167,7 +178,7 @@ public final class HeartWireless {
     public void configurationChanged() { configuredChannels=null;latchChannels=null; stop(); }
     public void stop() {
         latches.clear();
-        programSources.clear();
+        contributionSources.clear();programSources.clear();
         programOutputs = java.util.Map.of();
         moduleTransmitters.values().forEach(this::removeModuleTransmitter); moduleTransmitters.clear();
         for (var receiver : receivers.values()) {

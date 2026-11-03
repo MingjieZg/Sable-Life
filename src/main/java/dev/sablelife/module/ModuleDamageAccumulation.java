@@ -26,17 +26,17 @@ public final class ModuleDamageAccumulation {
     }
     public static String channelStatus(VirtualModule m,HeartBlockEntity heart){return ModuleHealthPhase.channelStatus(m,heart,"accumChannel");}
     public void tick(HeartBlockEntity heart,Map<UUID,HeartWireless.ModuleOutput> external){
-        owner=heart;var retained=new HashSet<UUID>();var internal=new HashMap<Integer,Integer>();
+        owner=heart;var retained=new HashSet<UUID>();var internal=new HashMap<Integer,Integer>();var trace=new HashMap<UUID,Map<Integer,Integer>>();
         if(heart.health().state()==HeartState.ALIVE)for(var m:heart.modules().all()){
             if(!m.type().equals("damage_accumulation"))continue;retained.add(m.id());var s=state(m);
             boolean ready=channelStatus(m,heart).equals("ready"),enabled=active(m,heart);
             s.high=s.timed?advance(s,m,heart):s.counter.tick(heart.getLevel().getGameTime(),enabled&&(ready||m.hasRedBlue()),(int)m.value("accumPulse"));
             boolean powered=s.timed?s.high:s.high!=(m.value("accumInvert")==1);
             int power=enabled&&powered?(int)m.value("accumPower"):0;
-            if(ready&&power>0)internal.merge((int)m.value("accumChannel")-1,power,Math::max);
+            if(ready&&power>0){internal.merge((int)m.value("accumChannel")-1,power,Math::max);ChannelDiagnostics.record(trace,m.id(),(int)m.value("accumChannel")-1,power);}
             if(m.hasRedBlue())external.put(m.id(),new HeartWireless.ModuleOutput(m.redBlue(false,heart.getLevel().registryAccess()),m.redBlue(true,heart.getLevel().registryAccess()),power));
         }
-        states.keySet().retainAll(retained);heart.wireless().programOutputs("damage_accumulation",internal);
+        states.keySet().retainAll(retained);heart.wireless().programOutputs("damage_accumulation",internal,trace);
     }
     public CompoundTag snapshot(VirtualModule m,HeartBlockEntity heart){
         var tag=new CompoundTag();var s=states.get(m.id());boolean timed=m.value("accumMode")==1;tag.putBoolean("Timed",timed);

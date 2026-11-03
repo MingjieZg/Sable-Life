@@ -21,6 +21,11 @@ public final class ModuleSurfaceField {
     private final List<Field> fields=new ArrayList<>();
     private final Map<HitKey,Long> hits=new HashMap<>();
     public int count(){return fields.size();}
+    /** Visual-only sampling stays within geometry and the shared per-creature budget. */
+    public static int visualSampleCount(VirtualModule config,int samples,int remaining){
+        int entries=config.particleEntries().size();if(entries==0)return 0;
+        return Math.max(0,Math.min((int)config.value("density"),Math.min(samples,remaining/entries)));
+    }
     public void clear(){fields.clear();hits.clear();}
     private static boolean sourceEnabled(HeartBlockEntity heart,VirtualModule source){return ModuleAvailability.enabled(heart,source)&&(source.enabled()||heart.modules().summonedWeapons.using(source.id()));}
     public static boolean impactAttack(VirtualModule m){return m!=null&&IMPACT_ATTACKS.contains(m.type());}
@@ -51,7 +56,7 @@ public final class ModuleSurfaceField {
         for(int index=0;index<fields.size();index++){
             // Rotate visual priority so a dense old patch cannot hide newer impacts forever.
             var f=fields.get(Math.floorMod(index+(int)(now/4),fields.size()));
-            if(now%4==0&&visuals>0){var entries=f.config.particleEntries();int count=Math.min(24,Math.min(f.samples.size(),visuals/Math.max(1,entries.size())));visuals-=count*entries.size();
+            if(now%4==0&&visuals>0){var entries=f.config.particleEntries();int count=visualSampleCount(f.config,f.samples.size(),visuals);visuals-=count*entries.size();
                 for(int i=0;i<count;i++){var p=f.samples.get(level.random.nextInt(f.samples.size()));if(!level.hasChunkAt(BlockPos.containing(p)))continue;
                     var surface=SurfaceFieldGeometry.surface(level,p,f.frame.normal());if(surface==null||surface.distanceToSqr(p)>.25)continue;
                     for(var particle:entries)ModuleParticles.send(level,particle,p.x,p.y,p.z,0,f.frame.normal().x*.015,f.frame.normal().y*.015,f.frame.normal().z*.015,1);

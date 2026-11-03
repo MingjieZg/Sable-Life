@@ -9,7 +9,7 @@ public final class ModuleSignalLogic {
  private final Map<UUID,Clock> clocks=new HashMap<>();private final Map<UUID,net.minecraft.nbt.CompoundTag> runtime=new HashMap<>();private HeartBlockEntity owner;private long tick=Long.MIN_VALUE;
  public net.minecraft.nbt.CompoundTag snapshot(UUID id){return runtime.getOrDefault(id,new net.minecraft.nbt.CompoundTag()).copy();}
  public void clear(){clocks.clear();runtime.clear();tick=Long.MIN_VALUE;if(owner!=null)owner.wireless().programOutputs("signal_logic",Map.of());owner=null;}
- public void tick(HeartBlockEntity heart){long now=heart.getLevel().getGameTime();if(tick==now)return;tick=now;owner=heart;runtime.clear();var outputs=new HashMap<Integer,Integer>();var keep=new HashSet<UUID>();
+ public void tick(HeartBlockEntity heart){long now=heart.getLevel().getGameTime();if(tick==now)return;tick=now;owner=heart;runtime.clear();var outputs=new HashMap<Integer,Integer>();var trace=new HashMap<UUID,Map<Integer,Integer>>();var keep=new HashSet<UUID>();
   var inputs=new HashMap<Integer,Integer>();var eligible=new HashMap<UUID,Boolean>();
   for(var m:heart.modules().all())if(m.type().equals("signal_logic")){eligible.put(m.id(),heart.operational()&&heart.wireless().master()&&HeartModules.triggered(m,heart));for(var r:m.signalRules().rows()){int c=(int)r.value("signalInput")-1;if(c>=0&&c<heart.wireless().size()&&!inputs.containsKey(c))inputs.put(c,heart.wireless().channel(c).receiving()?heart.wireless().input(c):heart.wireless().output(c));}}
   for(var m:heart.modules().all())if(m.type().equals("signal_logic")){
@@ -18,9 +18,9 @@ public final class ModuleSignalLogic {
    boolean matched=count>0&&valid&&(m.value("logicMatch")==0?all:any);boolean enabled=eligible.getOrDefault(m.id(),false);boolean ready=ModuleHealthPhase.channelStatus(output,heart).equals("ready");boolean condition=enabled&&ready&&matched;
    Clock clock=clocks.get(m.id());var config=m.save();if(clock==null||!clock.config.equals(config)){clock=new Clock(m);clocks.put(m.id(),clock);}keep.add(m.id());
    if(!enabled||!ready){clock.previous=false;clock.until=0;}else if(condition&&!clock.previous)clock.until=now+(long)m.value("logicPulse");clock.previous=condition;
-   boolean powered=enabled&&ready&&(m.value("logicMode")==0?condition:now<clock.until);if(powered)outputs.merge(output-1,(int)m.value("logicPower"),Math::max);
+   boolean powered=enabled&&ready&&(m.value("logicMode")==0?condition:now<clock.until);if(powered){outputs.merge(output-1,(int)m.value("logicPower"),Math::max);ChannelDiagnostics.record(trace,m.id(),output-1,(int)m.value("logicPower"));}
    data.put("Rows",rows);data.putBoolean("Matched",matched);data.putBoolean("Active",powered);data.putBoolean("InputsValid",count>0&&valid);data.putString("ChannelStatus",ModuleHealthPhase.channelStatus(output,heart));runtime.put(m.id(),data);
   }
-  clocks.keySet().retainAll(keep);heart.wireless().programOutputs("signal_logic",outputs);
+  clocks.keySet().retainAll(keep);heart.wireless().programOutputs("signal_logic",outputs,trace);
  }
 }

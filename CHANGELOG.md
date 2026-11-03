@@ -4,6 +4,15 @@ This changelog highlights the major development milestones of Sable Life from it
 
 > **History note:** Sable Life was developed through a long private development cycle before its public release. The public Git history was intentionally reset at **0.1.313** during repository cleanup, so the entries below are a curated reconstruction of the project's development timeline rather than a complete commit-by-commit record.
 
+## 0.1.320 — Module management
+
+- Added References, Groups and Channels through the button next to module search.
+- Added Particle density (0-128, default24) to Ongoing area damage. Zero hides particles while damage, burning and effects remain active; the existing shared particle budget still applies.
+- Jump to referenced modules or exact Move Set moves; warn before deleting referenced modules.
+- Organize modules into collapsible groups without changing execution order. Groups persist in saves, copies and presets; search reveals matching grouped modules.
+- Inspect each module's actual internal channel contribution, configured idle sources and consumers, plus channel waveform/latch and external received strength.
+- Highlighted Uses/Used by reference labels, added Channel Inspect wheel adjustment by one, and improved search-button alignment and bottom-frame spacing.
+
 ## 0.1.319 — Wireless Redstone signal ramps
 
 - Added Ramp output strength mode with adjacent start/end values (0–15) and a configurable duration. Ramps can increase or decrease and hold their final strength while triggered.

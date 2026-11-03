@@ -20,6 +20,9 @@ import java.util.UUID;
 public final class HeartDashboardMenu extends AbstractContainerMenu {
     private final HeartBlockEntity heart;
     private final Player viewer;
+    private int inspectedChannel,connectionsRevision=Integer.MIN_VALUE;
+    private java.util.List<ModuleConnections.Link> connections=java.util.List.of();
+    private java.util.List<ModuleConnections.Endpoint> endpoints=java.util.List.of();
     private final SimpleContainer snapshot = new SimpleContainer(1);
     public HeartDashboardMenu(int id, Inventory inventory) { this(id, inventory, null); }
     public HeartDashboardMenu(int id, Inventory inventory, HeartBlockEntity heart) {
@@ -35,6 +38,9 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         if (heart == null) return;
         var tag = heart.modules().snapshot(heart, heart.canEdit(viewer)); tag.putBoolean("Ready", true); tag.putBoolean("CommandEditable", viewer.canUseGameMasterBlocks()); tag.putBoolean("CommandAllowed", heart.getLevel().getServer().isCommandBlockEnabled());tag.putBoolean("RespawnAllowed",viewer.isCreative()&&viewer.canUseGameMasterBlocks());
         var selected = DashboardSelection.get(heart, viewer.getUUID());if(selected==null&&!heart.modules().all().isEmpty())selected=heart.modules().all().getFirst().id(); if (selected != null) tag.putUUID("Selected", selected);
+        if(connectionsRevision!=heart.modules().revision()){connections=ModuleConnections.links(heart.modules().all());endpoints=ModuleConnections.endpoints(heart.modules().all());connectionsRevision=heart.modules().revision();}
+        tag.put("References",ModuleConnections.references(connections,selected));
+        inspectedChannel=Math.clamp(inspectedChannel,0,Math.max(0,heart.wireless().size()-1));tag.put("ChannelDiagnostics",ChannelDiagnostics.snapshot(heart,inspectedChannel,endpoints));
         // A large core still exposes its complete selected module, but does not resend every other module's deep config.
         if(tag.sizeInBytes()>1_000_000){
             var list=tag.getList("Modules",10);var detailed=selected;
@@ -46,7 +52,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         snapshot.setItem(0, stack);
     }
     private static void compactHeader(CompoundTag module){
-        var keep=java.util.Set.of("Version","Id","Type","Name","Enabled","Invalidated","Detached","Trigger","Channel","Status","TriggerPowered","HurtRuntime","PhaseRuntime","HitRuntime","PhaseActive","PhaseRemaining","PhaseChannelStatus","PhaseRangeValid","MovementPhase","TurnState","FacingState","LaserPhase","QuakePhase","PullPhase","PullVictims","ArenaDistance","ArenaWarning","NavigationTarget","NavigationLeft","NavigationRight","NavigationUp","NavigationDown","ItemDisplayVisible","RespawnRuntime");
+        var keep=java.util.Set.of("Version","Id","Type","Name","Group","Enabled","Invalidated","Detached","Trigger","Channel","Status","TriggerPowered","HurtRuntime","PhaseRuntime","HitRuntime","PhaseActive","PhaseRemaining","PhaseChannelStatus","PhaseRangeValid","MovementPhase","TurnState","FacingState","LaserPhase","QuakePhase","PullPhase","PullVictims","ArenaDistance","ArenaWarning","NavigationTarget","NavigationLeft","NavigationRight","NavigationUp","NavigationDown","ItemDisplayVisible","RespawnRuntime");
         for(var key:java.util.Set.copyOf(module.getAllKeys()))if(!keep.contains(key))module.remove(key);
     }
     @Override public void broadcastChanges() { if (heart != null && heart.getLevel().getGameTime() % 5 == 0) refresh(); super.broadcastChanges(); }
@@ -57,6 +63,14 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     }
     public boolean action(Player player, int revision, UUID id, String operation, String key, double value, String text) {
         if (heart == null || !stillValid(player)) return false;
+        if(operation.equals("inspect")){
+            if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>=heart.wireless().size())return false;
+            inspectedChannel=(int)value;refresh();broadcastChanges();return true;
+        }
+        if(operation.equals("group")){
+            var target=heart.modules().find(id);if(!heart.canEdit(player)||revision!=heart.modules().revision()||target==null||!target.group(text))return false;
+            heart.modules().changed();heart.setChanged();refresh();broadcastChanges();return true;
+        }
         if(operation.equals("add")||operation.equals("add_preset")){
             if(!ModuleAvailability.enabled(heart.isControlCore(),key))return false;
         }else if(!java.util.Set.of("select","remove","reorder","wireless","settings","loot","release").contains(operation)){

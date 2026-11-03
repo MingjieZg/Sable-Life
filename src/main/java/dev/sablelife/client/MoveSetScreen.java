@@ -14,6 +14,7 @@ import java.util.*;
 public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardMenu> {
     private final UUID tableId;
     private UUID selected;
+    private int initialMove=-1;
     private CompoundTag snapshot=new CompoundTag(), runtime=new CompoundTag();
     private VirtualModule table;
     private List<VirtualModule> modules=List.of();
@@ -31,6 +32,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
     private static List<ModuleFields.Field> rulesFor(HeartDashboardMenu menu){return ModuleFields.moveRules().stream()
             .filter(f->!menu.snapshot().getBoolean("ControlCore")||!Set.of("phaseLower","phaseUpper").contains(f.key())).toList();}
     public MoveSetScreen(HeartDashboardMenu menu,Inventory inventory,Component title,UUID tableId){super(menu,inventory,title);this.tableId=tableId;this.ruleFields=rulesFor(menu);}
+    public MoveSetScreen(HeartDashboardMenu menu,Inventory inventory,Component title,UUID tableId,int move){this(menu,inventory,title,tableId);initialMove=move;}
     private Component tr(String key){return Component.translatable("moveset.sablelife."+key);}
     private Component moduleName(VirtualModule m){return m.name().isBlank()?Component.translatable("dashboard.sablelife.type_"+m.type()):Component.literal(m.name());}
     private Component moveName(MoveSet.Move m){return m.config().name().isBlank()?Component.translatable("moveset.sablelife.move_number",moves.indexOf(m)+1):Component.literal(m.config().name());}
@@ -108,7 +110,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
     private void sync(){
         snapshot=menu.snapshot();var list=snapshot.getList("Modules",10);var loaded=new ArrayList<VirtualModule>();table=null;
         for(int i=0;i<list.size();i++){var tag=list.getCompound(i);var m=VirtualModule.load(tag);loaded.add(m);if(m.id().equals(tableId)){table=m;runtime=tag.getCompound("MoveSetRuntime");}}
-        modules=List.copyOf(loaded);moves=table==null?List.of():table.moveSet().moves();if(current()==null)selected=moves.isEmpty()?null:moves.getFirst().config().id();
+        modules=List.copyOf(loaded);moves=table==null?List.of():table.moveSet().moves();if(initialMove>=0&&!moves.isEmpty()){var move=moves.get(Math.min(initialMove,moves.size()-1));selected=move.config().id();movePage=Math.min(initialMove,moves.size()-1)/Math.max(1,moveSlots);initialMove=-1;}if(current()==null)selected=moves.isEmpty()?null:moves.getFirst().config().id();
         boolean editable=snapshot.getBoolean("Editable")&&table!=null;var current=current();
         var details=current==null?null:problemDetails(current);
         statusHelp.visible=!picking&&details!=null;statusHelp.active=statusHelp.visible;

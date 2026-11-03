@@ -29,6 +29,15 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private EditBox moduleSearch;
     private String moduleQuery="";
     private List<VirtualModule> filteredModules=List.of();
+    private List<ModuleFolders.Row> folderRows=List.of();
+    private final Set<String> collapsedGroups=new HashSet<>();
+    private UUID pendingJump;private int pendingMove=-1;
+    void inspectAction(String operation,UUID id,double value,String text){PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,menu.snapshot().getInt("Revision"),id,operation,"",value,text));}
+    UUID selectedId(){return selected;}
+    void jumpTo(UUID id,int move){sync();var target=modules.stream().filter(m->m.id().equals(id)).findFirst().orElse(null);if(target==null)return;moduleQuery="";collapsedGroups.remove(target.group());moduleSearch.setValue("");selected=id;refreshSidebar();page=Math.max(0,sidebarIndex(id))/Math.max(1,sidebarSlots);pendingJump=id;pendingMove=move;inspectAction("select",id,0,"");minecraft.setScreen(this);}
+    private int sidebarIndex(UUID id){for(int i=0;i<folderRows.size();i++)if(!folderRows.get(i).header()&&folderRows.get(i).module().id().equals(id))return i;return -1;}
+    private void clickSidebar(int index){int n=page*sidebarSlots+index;if(n>=folderRows.size())return;var row=folderRows.get(n);if(row.header()){if(!collapsedGroups.add(row.group()))collapsedGroups.remove(row.group());refreshSidebar();page=Math.min(page,Math.max(0,(folderRows.size()-1)/sidebarSlots));}else{selected=row.module().id();action("select","",0,"");}}
+
     private int reorderDestination=-1,reorderExpires;
     private int parameterSlots, rowPitch, detailX, inputX, applyX, detailWidth;
     private int sidebarSlots = 8;
@@ -85,7 +94,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     boolean savePreset(String name){sync();var module=selected();if(module==null)return false;try{ModulePresetLibrary.save(name,module.save());return true;}catch(java.io.IOException e){return false;}}
     public List<String> availableTypes(){var result=new java.util.ArrayList<String>();for(var value:menu.snapshot().getList("AvailableTypes",8))result.add(value.getAsString());return result;}
     private List<VirtualModule> sidebarModules() { return filteredModules; }
-    private void refreshSidebar(){var result=new ArrayList<VirtualModule>();for(int i=0;i<modules.size();i++){var m=modules.get(i);if(ModuleSearch.matches(m,tr("type_"+m.type()).getString(),i+1,moduleQuery))result.add(m);}filteredModules=List.copyOf(result);}
+    private void refreshSidebar(){var result=new ArrayList<VirtualModule>();for(int i=0;i<modules.size();i++){var m=modules.get(i);if(ModuleSearch.matches(m,tr("type_"+m.type()).getString(),i+1,moduleQuery)||!moduleQuery.isBlank()&&m.group().toLowerCase(Locale.ROOT).contains(moduleQuery.toLowerCase(Locale.ROOT)))result.add(m);}filteredModules=List.copyOf(result);folderRows=ModuleFolders.rows(filteredModules,collapsedGroups,!moduleQuery.isBlank());}
 
 
     private VirtualModule selected() { return modules.stream().filter(m -> m.id().equals(selected)).findFirst().orElse(null); }
@@ -104,7 +113,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         sidebarPitch = Math.max(14,(int)Math.ceil(font.lineHeight*textScale())+8);
         sidebarSlots = Math.max(1,(imageHeight - 44 - 47)/sidebarPitch);
         if(topField!=null)for(int i=0;i<parameters.size();i++)if(parameters.get(i).key().equals(topField)){parameterPage=i/parameterSlots;break;}
-        for(int i=0;i<sidebarModules().size();i++)if(sidebarModules().get(i).id().equals(selected)){page=i/sidebarSlots;break;}
+        if(sidebarIndex(selected)>=0)page=sidebarIndex(selected)/sidebarSlots;
         detailX = Math.min(143,Math.max(103,Math.round(imageWidth*.30f))); detailWidth = imageWidth - detailX - 11;
         inputX = detailX + Math.round(detailWidth * .46f); applyX = imageWidth - 49;
         super.init(); rows.clear(); edits.clear(); fields.clear(); applyButtons.clear(); choices.clear(); soundFolders.clear(); vanillaFolders.clear(); noneButtons.clear();rgbButtons.clear();
@@ -119,18 +128,22 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         releaseLife = button(tr("release").copy().withStyle(net.minecraft.ChatFormatting.RED), imageWidth - 61, 8, 34, () -> action("release", "", 0, ""));
         releaseLife.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("release_help")));
         button(Component.literal("\u00d7"), imageWidth - 23, 8, 16, () -> onClose()).setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("close")));
-        moduleSearch=new EditBox(font,leftPos+7,topPos+31,detailX-23,14,tr("module_search"));moduleSearch.setMaxLength(80);moduleSearch.setHint(tr("module_search"));moduleSearch.setValue(moduleQuery);
+        moduleSearch=new EditBox(font,leftPos+7,topPos+31,detailX-46,14,tr("module_search"));moduleSearch.setMaxLength(80);moduleSearch.setHint(tr("module_search"));moduleSearch.setValue(moduleQuery);
         moduleSearch.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("module_search_help")));
         moduleSearch.setResponder(value->{moduleQuery=value;refreshSidebar();page=0;});addRenderableWidget(moduleSearch);
+        var manager=button(Component.literal("…"),detailX-35,30,19,()->minecraft.setScreen(new ModuleInspectorScreen(this)));
+        // EditBox draws its border one pixel outside its widget bounds.
+        manager.setHeight(moduleSearch.getHeight()+2);
+        manager.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("inspector.sablelife.title")));
         for (int i = 0; i < sidebarSlots; i++) {
             int index = i;
             rows.add(button(Component.empty(), 7, 47 + i * sidebarPitch, detailX-23, () -> {
-                if (page * sidebarSlots + index < sidebarModules().size()) { selected = sidebarModules().get(page * sidebarSlots + index).id(); action("select", "", 0, ""); }
+                clickSidebar(index);
             }));
             rows.getLast().setHeight(sidebarPitch - 2);
         }
         button(Component.literal("‹"), 7, imageHeight - 44, 27, () -> page = Math.max(0, page - 1));
-        button(Component.literal("›"), detailX-43, imageHeight - 44, 27, () -> page = Math.min(Math.max(0, (sidebarModules().size() - 1) / sidebarSlots), page + 1));
+        button(Component.literal("›"), detailX-43, imageHeight - 44, 27, () -> page = Math.min(Math.max(0, (folderRows.size() - 1) / sidebarSlots), page + 1));
         int strip=detailX-23,arrow=strip>=110?19:14,space=strip-2*arrow-9,addWidth=(int)Math.ceil(space*.6),copyWidth=space-addWidth;
         add=button(tr("add_short"),7,bottomY(),addWidth,()->minecraft.setScreen(new ModulePickerScreen(this,availableTypes())));
         copyModule=button(tr("copy_module"),10+addWidth,bottomY(),copyWidth,()->{sync();var current=selected();if(current!=null){trackAdd(current.type());action("copy","",0,"");}});
@@ -289,7 +302,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         return super.mouseClicked(mouseX, mouseY, button);
     }
     private int tickCount;
-    @Override protected void containerTick() { super.containerTick(); tickCount++; sync(); }
+    @Override protected void containerTick() { super.containerTick(); tickCount++; sync();if(pendingJump!=null&&snapshot.hasUUID("Selected")&&snapshot.getUUID("Selected").equals(pendingJump)){var target=selected();if(pendingMove>=0&&target!=null&&target.type().equals("move_set")&&!target.moveSet().moves().isEmpty()){int move=pendingMove;pendingJump=null;pendingMove=-1;minecraft.setScreen(new MoveSetScreen(menu,minecraft.player.getInventory(),title,target.id(),move));}else{pendingJump=null;pendingMove=-1;}} }
     private void sync() {
         var data = menu.getSlot(0).getItem().getOrDefault(net.minecraft.core.component.DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.EMPTY);
         if (data != decodedData) {
@@ -299,13 +312,13 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if (!selectionRestored && snapshot.getBoolean("Ready")) {
             if (snapshot.hasUUID("Selected")) selected = snapshot.getUUID("Selected");
             selectionRestored = true;
-            for (int i = 0; i < sidebarModules().size(); i++) if (sidebarModules().get(i).id().equals(selected)) page = i / sidebarSlots;
+            if(sidebarIndex(selected)>=0)page=sidebarIndex(selected)/sidebarSlots;
         }
 
         if (selected() == null)
             selected = sidebarModules().isEmpty() ? NONE : sidebarModules().getFirst().id();
-        page = Math.min(page, Math.max(0, (sidebarModules().size() - 1) / sidebarSlots));
-        if(beforeAdd!=null){var added=modules.stream().filter(m->m.type().equals(addingType)&&!beforeAdd.contains(m.id())&&snapshot.hasUUID("Selected")&&m.id().equals(snapshot.getUUID("Selected"))).findFirst();if(added.isPresent()){selected=added.get().id();if(!sidebarModules().contains(added.get())){moduleQuery="";moduleSearch.setValue("");}page=sidebarModules().indexOf(added.get())/sidebarSlots;beforeAdd=null;}else if(tickCount>addExpires)beforeAdd=null;}
+        page = Math.min(page, Math.max(0, (folderRows.size() - 1) / sidebarSlots));
+        if(beforeAdd!=null){var added=modules.stream().filter(m->m.type().equals(addingType)&&!beforeAdd.contains(m.id())&&snapshot.hasUUID("Selected")&&m.id().equals(snapshot.getUUID("Selected"))).findFirst();if(added.isPresent()){selected=added.get().id();if(!sidebarModules().contains(added.get())){moduleQuery="";moduleSearch.setValue("");}collapsedGroups.remove(added.get().group());refreshSidebar();page=Math.max(0,sidebarIndex(selected))/sidebarSlots;beforeAdd=null;}else if(tickCount>addExpires)beforeAdd=null;}
         var m=selected();boolean editable=snapshot.getBoolean("Editable")&&!(m!=null&&m.type().equals("command")&&!snapshot.getBoolean("CommandEditable"));boolean usable=m!=null&&m.known()&&!statuses.get(modules.indexOf(m)).equals("server_disabled");
         releaseLife.visible=!snapshot.getBoolean("ControlCore");releaseLife.active = snapshot.getBoolean("Ready");
         lootNav.visible=!snapshot.getBoolean("ControlCore");if(snapshot.getBoolean("ControlCore"))settingsNav.setMessage(Component.translatable("manual.sablelife.open"));
@@ -330,9 +343,12 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if(!pendingRgb.isEmpty()&&m!=null&&m.value(pendingRgb+"Rgb")==pendingRgbMode){for(int i=0;i<parameters.size();i++)if(parameters.get(i).key().equals(pendingRgb))parameterPage=i/parameterSlots;pendingRgb="";}
         parameterPage = Math.min(parameterPage, Math.max(0, (parameters.size() - 1) / parameterSlots));
         for (int i = 0; i < sidebarSlots; i++) {
-            int row=page*sidebarSlots+i;var button=rows.get(i);button.visible=row<sidebarModules().size();button.active=true;
-            if(row<sidebarModules().size()){
-                var entry=sidebarModules().get(row);Component label=entry.name().isEmpty()?tr("type_"+entry.type()):Component.literal(entry.name());
+            int row=page*sidebarSlots+i;var button=rows.get(i);button.visible=row<folderRows.size();button.active=true;
+            if(row<folderRows.size()){
+                var folder=folderRows.get(row);if(folder.header()){
+                    button.setMessage(Component.literal((collapsedGroups.contains(folder.group())&&moduleQuery.isBlank()?"+ ":"- ")+folder.group()+" ("+folder.count()+")"));LifeUiStyle.bookmark(button,0);button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(folder.group())));continue;
+                }
+                var entry=folder.module();Component label=entry.name().isEmpty()?tr("type_"+entry.type()):Component.literal(entry.name());
                 button.setMessage(Component.literal(entry.id().equals(selected)?"▶ ":"").append(label).append(" #"+(modules.indexOf(entry)+1)));
                 LifeUiStyle.bookmark(button,ModuleCategory.of(entry.type()).color);
                 button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.empty().append(tr("type_"+entry.type())).append("\n").append(tr("description_"+entry.type()))));
@@ -340,7 +356,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         }
         add.active=editable&&modules.size()<(menu.snapshot().contains("ModuleLimit")?menu.snapshot().getInt("ModuleLimit"):128);add.setMessage(tr("add_short"));copyModule.active=add.active&&usable&&m!=null&&sidebarModules().contains(m);
         int selectedIndex=modules.indexOf(m);moveModuleUp.active=editable&&selectedIndex>0;moveModuleDown.active=editable&&selectedIndex>=0&&selectedIndex<modules.size()-1;
-        if(reorderDestination>=0){if(selectedIndex==reorderDestination){page=Math.max(0,sidebarModules().indexOf(m))/sidebarSlots;reorderDestination=-1;}else if(tickCount>reorderExpires)reorderDestination=-1;}
+        if(reorderDestination>=0){if(selectedIndex==reorderDestination){page=Math.max(0,sidebarIndex(m.id()))/sidebarSlots;reorderDestination=-1;}else if(tickCount>reorderExpires)reorderDestination=-1;}
         int categoryColor = m == null ? 0 : ModuleCategory.of(m.type()).color;
         for (Button b : edits) { b.active = editable && usable; LifeUiStyle.bookmark(b, b.getWidth() >= 60 ? categoryColor : 0); }
         savePreset.active=usable;LifeUiStyle.bookmark(savePreset,categoryColor);
@@ -403,7 +419,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                     box.setEditable(editable && usable && !automaticAim); box.active = editable && usable && !automaticAim && !isNone;
                     applyButtons.get(i).active = box.active; choices.get(i).active = (editable || soundField || field.key().equals("effects") || field.key().equals("particles") || field.key().endsWith("Particles") || field.key().equals("sequenceSteps") || field.key().equals("moveSetEditor") || field.key().equals("commandEditor") || field.key().equals("arenaBuffGroups") || field.key().equals("armorRules") || field.key().equals("healthPhaseRules") || field.key().equals("signalRules")) && usable && !automaticAim && !isNone;
                     box.setTextColor(automaticAim ? 0x777777 : 0xE0E0E0);
-                    box.setTooltip(List.of("shotHorizontal","shotVertical").contains(field.key())?net.minecraft.client.gui.components.Tooltip.create(tr("shot_angle_help")):m.type().equals("summoned_weapon")?net.minecraft.client.gui.components.Tooltip.create(tr("summon_help")):List.of("impactVisual","impactParticles","impactSpreadMode","impactSpreadRadius","impactCount").contains(field.key())?net.minecraft.client.gui.components.Tooltip.create(tr("impact_visual_help")):(m.type().equals("surface_field")||field.key().startsWith("impact"))?net.minecraft.client.gui.components.Tooltip.create(tr("field_help")):List.of("arrow","gun","slash").contains(m.type())&&List.of("shotAim","target","targetMultiple","targetRange").contains(field.key())?net.minecraft.client.gui.components.Tooltip.create(tr("shot_aim_help")):m.type().equals("distortion_trail")?net.minecraft.client.gui.components.Tooltip.create(tr("distortion_trail_help")):m!=null&&m.type().equals("visual_shockwave")?net.minecraft.client.gui.components.Tooltip.create(tr("shock_help")):m.type().equals("hit_counter")?net.minecraft.client.gui.components.Tooltip.create(tr("hit_counter_help")):m.type().equals("health_adjustment")?net.minecraft.client.gui.components.Tooltip.create(tr("health_adjustment_help")):m.type().equals("hover_anchor")?net.minecraft.client.gui.components.Tooltip.create(tr("hover_help")):m.type().equals("wireless_redstone")&&field.key().equals("redstoneChannel")?net.minecraft.client.gui.components.Tooltip.create(tr("redstone_channel_help")):m.type().equals("pulse")&&field.key().equals("pulseExpandTime")?net.minecraft.client.gui.components.Tooltip.create(tr("pulse_visual_help")):m.type().equals("gyroscope")?net.minecraft.client.gui.components.Tooltip.create(tr("gyro_help")):m!=null&&m.type().equals("sensor")?net.minecraft.client.gui.components.Tooltip.create(tr("sensor_output_help")):m.type().equals("signal_turn")?net.minecraft.client.gui.components.Tooltip.create(tr("signal_turn_help")):m.type().equals("damage_accumulation")?net.minecraft.client.gui.components.Tooltip.create(tr("accum_help")):m.type().equals("armor")?net.minecraft.client.gui.components.Tooltip.create(tr("armor_help")):m.type().equals("item_display")?net.minecraft.client.gui.components.Tooltip.create(tr("item_display_help")):m.type().equals("melee") ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("meleeHitLimit") ? "melee_hit_limit_help" : List.of("meleeLength","meleeWidth","meleeHeight").contains(field.key()) ? "melee_expand_help" : List.of("startDistance","meleeHorizontal","meleeVertical").contains(field.key()) ? "melee_offset_help" : "melee_help")) : m.type().equals("particles") ? net.minecraft.client.gui.components.Tooltip.create(tr("particle_pattern_help")) : m.type().equals("arena") ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("countdown") ? "arena_countdown_help" : "arena_help")) : m.type().equals("flame") && field.key().equals("flameParticleSize") ? net.minecraft.client.gui.components.Tooltip.create(tr("flame_visual_help")) : m.type().equals("slash") ? net.minecraft.client.gui.components.Tooltip.create(tr("slash_help")) : m.type().equals("grab") ? net.minecraft.client.gui.components.Tooltip.create(tr("grab_help")) : m.type().equals("freeze") ? net.minecraft.client.gui.components.Tooltip.create(tr("freeze_help")) : m.type().equals("sphere_blast") ? net.minecraft.client.gui.components.Tooltip.create(tr("sphere_blast_help")) : m.type().equals("linear_movement") ? net.minecraft.client.gui.components.Tooltip.create(tr(List.of("moveGravity","moveStep","moveStepHeight","moveStepCooldown","moveForce","moveVertical","moveTargetVertical").contains(field.key())?"move_gravity_help":"linear_help")) : field.key().equals("startDistance") ? net.minecraft.client.gui.components.Tooltip.create(tr("start_distance_help")) : m.type().equals("laser") && List.of("laserTracking", "laserFollow").contains(field.key()) ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("laserFollow") ? "laser_follow_help" : "laser_tracking_help")) : m.type().equals("quake") ? net.minecraft.client.gui.components.Tooltip.create(tr("quake_help")) : m.type().equals("wireless_redstone") ? net.minecraft.client.gui.components.Tooltip.create(tr("redstone_help")) : m.type().equals("pull") ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("pullStop")?"pull_stop_help":"pull_help")) : m.type().equals("health_phase") ? net.minecraft.client.gui.components.Tooltip.create(tr("phase_help")) : m.type().equals("homing") ? net.minecraft.client.gui.components.Tooltip.create(tr("homing_help")) : m.type().equals("laser") ? net.minecraft.client.gui.components.Tooltip.create(tr("laser_help")) : m.type().equals("mortar") && field.key().equals("speed")
+                    box.setTooltip(m.type().equals("surface_field")&&field.key().equals("density")?net.minecraft.client.gui.components.Tooltip.create(tr("field_density_help")):List.of("shotHorizontal","shotVertical").contains(field.key())?net.minecraft.client.gui.components.Tooltip.create(tr("shot_angle_help")):m.type().equals("summoned_weapon")?net.minecraft.client.gui.components.Tooltip.create(tr("summon_help")):List.of("impactVisual","impactParticles","impactSpreadMode","impactSpreadRadius","impactCount").contains(field.key())?net.minecraft.client.gui.components.Tooltip.create(tr("impact_visual_help")):(m.type().equals("surface_field")||field.key().startsWith("impact"))?net.minecraft.client.gui.components.Tooltip.create(tr("field_help")):List.of("arrow","gun","slash").contains(m.type())&&List.of("shotAim","target","targetMultiple","targetRange").contains(field.key())?net.minecraft.client.gui.components.Tooltip.create(tr("shot_aim_help")):m.type().equals("distortion_trail")?net.minecraft.client.gui.components.Tooltip.create(tr("distortion_trail_help")):m!=null&&m.type().equals("visual_shockwave")?net.minecraft.client.gui.components.Tooltip.create(tr("shock_help")):m.type().equals("hit_counter")?net.minecraft.client.gui.components.Tooltip.create(tr("hit_counter_help")):m.type().equals("health_adjustment")?net.minecraft.client.gui.components.Tooltip.create(tr("health_adjustment_help")):m.type().equals("hover_anchor")?net.minecraft.client.gui.components.Tooltip.create(tr("hover_help")):m.type().equals("wireless_redstone")&&field.key().equals("redstoneChannel")?net.minecraft.client.gui.components.Tooltip.create(tr("redstone_channel_help")):m.type().equals("pulse")&&field.key().equals("pulseExpandTime")?net.minecraft.client.gui.components.Tooltip.create(tr("pulse_visual_help")):m.type().equals("gyroscope")?net.minecraft.client.gui.components.Tooltip.create(tr("gyro_help")):m!=null&&m.type().equals("sensor")?net.minecraft.client.gui.components.Tooltip.create(tr("sensor_output_help")):m.type().equals("signal_turn")?net.minecraft.client.gui.components.Tooltip.create(tr("signal_turn_help")):m.type().equals("damage_accumulation")?net.minecraft.client.gui.components.Tooltip.create(tr("accum_help")):m.type().equals("armor")?net.minecraft.client.gui.components.Tooltip.create(tr("armor_help")):m.type().equals("item_display")?net.minecraft.client.gui.components.Tooltip.create(tr("item_display_help")):m.type().equals("melee") ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("meleeHitLimit") ? "melee_hit_limit_help" : List.of("meleeLength","meleeWidth","meleeHeight").contains(field.key()) ? "melee_expand_help" : List.of("startDistance","meleeHorizontal","meleeVertical").contains(field.key()) ? "melee_offset_help" : "melee_help")) : m.type().equals("particles") ? net.minecraft.client.gui.components.Tooltip.create(tr("particle_pattern_help")) : m.type().equals("arena") ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("countdown") ? "arena_countdown_help" : "arena_help")) : m.type().equals("flame") && field.key().equals("flameParticleSize") ? net.minecraft.client.gui.components.Tooltip.create(tr("flame_visual_help")) : m.type().equals("slash") ? net.minecraft.client.gui.components.Tooltip.create(tr("slash_help")) : m.type().equals("grab") ? net.minecraft.client.gui.components.Tooltip.create(tr("grab_help")) : m.type().equals("freeze") ? net.minecraft.client.gui.components.Tooltip.create(tr("freeze_help")) : m.type().equals("sphere_blast") ? net.minecraft.client.gui.components.Tooltip.create(tr("sphere_blast_help")) : m.type().equals("linear_movement") ? net.minecraft.client.gui.components.Tooltip.create(tr(List.of("moveGravity","moveStep","moveStepHeight","moveStepCooldown","moveForce","moveVertical","moveTargetVertical").contains(field.key())?"move_gravity_help":"linear_help")) : field.key().equals("startDistance") ? net.minecraft.client.gui.components.Tooltip.create(tr("start_distance_help")) : m.type().equals("laser") && List.of("laserTracking", "laserFollow").contains(field.key()) ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("laserFollow") ? "laser_follow_help" : "laser_tracking_help")) : m.type().equals("quake") ? net.minecraft.client.gui.components.Tooltip.create(tr("quake_help")) : m.type().equals("wireless_redstone") ? net.minecraft.client.gui.components.Tooltip.create(tr("redstone_help")) : m.type().equals("pull") ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("pullStop")?"pull_stop_help":"pull_help")) : m.type().equals("health_phase") ? net.minecraft.client.gui.components.Tooltip.create(tr("phase_help")) : m.type().equals("homing") ? net.minecraft.client.gui.components.Tooltip.create(tr("homing_help")) : m.type().equals("laser") ? net.minecraft.client.gui.components.Tooltip.create(tr("laser_help")) : m.type().equals("mortar") && field.key().equals("speed")
                             ? net.minecraft.client.gui.components.Tooltip.create(tr("mortar_speed_help")) : m.type().equals("auto_facing") ? net.minecraft.client.gui.components.Tooltip.create(tr(field.key().equals("facingCollision")?"facing_collision_help":field.key().equals("lineOfSight")?"line_of_sight_help":"auto_facing_help")) : null);
                     if ((!box.isFocused() && !(field.key().equals("redstoneRampStart")&&rampEnd.isFocused())) || !last.equals(selected)) box.setValue(String.format(Locale.ROOT, "%.2f", m.value(field.key()) / field.scale()));
                     if (m.type().equals("health_phase") && field.key().equals("phaseChannel")) {
@@ -485,7 +501,9 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             mark.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("particle_mark_help")));
         }
         if (!last.equals(selected)) deleteUntil = 0;
-        remove.setMessage(tr(deleteUntil > tickCount ? "confirm_remove" : "remove")); last = selected;
+        remove.setMessage(tr(deleteUntil > tickCount ? "confirm_remove" : "remove"));
+        var referenceInfo=snapshot.getCompound("References");int references=referenceInfo.hasUUID("Selected")&&referenceInfo.getUUID("Selected").equals(selected)?referenceInfo.getInt("Incoming"):0;if(references>0){var warning=Component.translatable("inspector.sablelife.delete_warning",references);remove.setTooltip(net.minecraft.client.gui.components.Tooltip.create(warning));if(deleteUntil>tickCount)remove.setMessage(Component.translatable("inspector.sablelife.confirm_delete",references));}else remove.setTooltip(null);
+        last = selected;
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
         if (key == 257 || key == 335) {
@@ -527,15 +545,16 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
     @Override protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
-        g.fill(leftPos - 2, topPos - 2, leftPos + imageWidth + 2, topPos + imageHeight + 2, 0xFF19151D);
-        g.fill(leftPos, topPos, leftPos + imageWidth, topPos + imageHeight, 0xFF9B614E);
-        g.fill(leftPos + 3, topPos + 3, leftPos + imageWidth - 3, topPos + imageHeight - 3, 0xFF242632);
+        int bottom = topPos + imageHeight + 3;
+        g.fill(leftPos - 2, topPos - 2, leftPos + imageWidth + 2, bottom + 2, 0xFF19151D);
+        g.fill(leftPos, topPos, leftPos + imageWidth, bottom, 0xFF9B614E);
+        g.fill(leftPos + 3, topPos + 3, leftPos + imageWidth - 3, bottom - 3, 0xFF242632);
         g.fill(leftPos + 5, topPos + 29, leftPos + detailX - 13, topPos + imageHeight - 22, 0xFF363140);
-        g.fill(leftPos + detailX-9, topPos + 30, leftPos + detailX-7, topPos + imageHeight - 3, 0xFF9770B5);
+        g.fill(leftPos + detailX-9, topPos + 30, leftPos + detailX-7, bottom - 3, 0xFF9770B5);
     }
     @Override protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         if(sidebarModules().isEmpty()&&!moduleQuery.isBlank())g.drawString(font,font.plainSubstrByWidth(tr("module_search_empty").getString(),detailX-25),9,49,0xBDC5D4,false);
-        g.drawString(font, (page + 1) + " / " + Math.max(1, (sidebarModules().size() + sidebarSlots - 1) / sidebarSlots), 7+(detailX-23)/2-20, imageHeight - 39, 0xD9C4ED, false);
+        g.drawString(font, (page + 1) + " / " + Math.max(1, (folderRows.size() + sidebarSlots - 1) / sidebarSlots), 7+(detailX-23)/2-20, imageHeight - 39, 0xD9C4ED, false);
         var m = selected(); if (m == null) { g.drawWordWrap(font, tr("empty"), detailX, 74, detailWidth, 0xD9C4ED); return; }
         Component current = Component.translatable("dashboard.sablelife.current", tr(m.enabled() ? "enabled" : "disabled"))
                 .append(" | ").append(tr((m.coreModule()) && statuses.get(modules.indexOf(m)).equals("valid") ? "status_core" : "status_" + statuses.get(modules.indexOf(m))));
@@ -544,7 +563,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         
         for (int i = 0; i < parameterSlots; i++) if (parameterPage * parameterSlots + i < parameters.size()) {
             String key = parameters.get(parameterPage * parameterSlots + i).key();if(key.startsWith("__rgb_pad_"))continue;
-            var label = tr(m.type().equals("summoned_weapon")&&key.equals("projectile")?"summonItem":m.type().equals("summoned_weapon")&&key.equals("displaySize")?"summonScale":m.type().equals("freeze")&&key.equals("fieldAngle")?"freezeAngle":m.type().equals("grab")&&key.equals("particles")?"grabParticles":m.type().equals("freeze")&&key.equals("particles")?"freezeParticles":m.type().equals("surface_field")&&key.equals("target")?"fieldTarget":m.type().equals("surface_field")&&key.equals("burn")?"fieldBurnDuration":m.type().equals("slash")&&key.equals("burn")?"slashBurnDuration":m.type().equals("slash")&&key.equals("flightSound")?"slashReleaseSound":m.type().equals("slash")&&key.equals("range")?"slash_range":m.type().equals("quake") && key.equals("quakeRange") ? m.value("quakeMode") == 0 ? "quake_length" : "quake_radius" : m.type().equals("ground_strike") && m.value("strikeMode") == 3 && List.of("strikeRange", "waveDelay").contains(key) ? "random_" + key : key.equals("speed") && (m.type().equals("gun") || m.type().equals("mortar")) ? m.type() + "_speed"
+            var label = tr(m.type().equals("surface_field")&&key.equals("density")?"fieldParticleDensity":m.type().equals("summoned_weapon")&&key.equals("projectile")?"summonItem":m.type().equals("summoned_weapon")&&key.equals("displaySize")?"summonScale":m.type().equals("freeze")&&key.equals("fieldAngle")?"freezeAngle":m.type().equals("grab")&&key.equals("particles")?"grabParticles":m.type().equals("freeze")&&key.equals("particles")?"freezeParticles":m.type().equals("surface_field")&&key.equals("target")?"fieldTarget":m.type().equals("surface_field")&&key.equals("burn")?"fieldBurnDuration":m.type().equals("slash")&&key.equals("burn")?"slashBurnDuration":m.type().equals("slash")&&key.equals("flightSound")?"slashReleaseSound":m.type().equals("slash")&&key.equals("range")?"slash_range":m.type().equals("quake") && key.equals("quakeRange") ? m.value("quakeMode") == 0 ? "quake_length" : "quake_radius" : m.type().equals("ground_strike") && m.value("strikeMode") == 3 && List.of("strikeRange", "waveDelay").contains(key) ? "random_" + key : key.equals("speed") && (m.type().equals("gun") || m.type().equals("mortar")) ? m.type() + "_speed"
                     : key.equals("speed") && m.type().equals("homing") ? "homing_speed" : key.equals("particles") && List.of("arrow", "gun", "mortar", "homing").contains(m.type()) ? "flight_particles"
                     : key.equals("arrows") && m.type().equals("gun") ? "bullets" : key.equals("interval") && m.type().equals("laser") ? "burstInterval" : key);
             int labelWidth = (int) ((inputX - detailX - 6) / textScale());

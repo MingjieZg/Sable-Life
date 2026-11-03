@@ -1,5 +1,5 @@
 {
-  "revision": 151,
+  "revision": 152,
   "entries": [
     {
       "id": "getting_started",
@@ -9,7 +9,8 @@
           "manual.sablelife.getting_started.usage"
         ],
         "settings": [
-          "manual.sablelife.getting_started.settings"
+          "manual.sablelife.getting_started.settings",
+          "manual.sablelife.module_management"
         ],
         "example": [
           "manual.sablelife.getting_started.example"

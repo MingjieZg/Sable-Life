@@ -118,6 +118,14 @@ neoForge {
             systemProperty 'sablelife.manualPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
+        managementPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/management-preview-320')
+            systemProperty 'sablelife.managementPreview', 'true'
+            programArguments.addAll '--width', '1440', '--height', '900'
+        }
         rampPreview {
             client()
             sourceSet = sourceSets.gameTest

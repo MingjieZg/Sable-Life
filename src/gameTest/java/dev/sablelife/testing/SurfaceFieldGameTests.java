@@ -14,6 +14,32 @@ import java.util.*;
 
 @GameTestHolder("sablelife_surface_tests") @PrefixGameTestTemplate(false)
 public final class SurfaceFieldGameTests {
+    @GameTest(template="combat",timeoutTicks=30,batch="surface_flame_density_packets") public static void defaultDensityActuallySendsFlameParticlesToViewer(GameTestHelper h){
+        var c=core(h);var p=floor(h);var area=c.modules().add("surface_field");area.editParticle("remove","minecraft:effect");area.editParticle("add","minecraft:flame");var attack=c.modules().add("mortar");attack.impactField(area.id());
+        var viewer=TestActors.creative(h.getLevel());viewer.setPos(p.add(0,2,0));var packets=new ArrayList<net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket>();
+        viewer.connection=new net.minecraft.server.network.ServerGamePacketListenerImpl(h.getLevel().getServer(),new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND),viewer,net.minecraft.server.network.CommonListenerCookie.createInitial(viewer.getGameProfile(),false)){
+            @Override public void send(net.minecraft.network.protocol.Packet<?> packet){if(packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket particles)packets.add(particles);}
+        };h.getLevel().players().add(viewer);
+        long delay=4-Math.floorMod(h.getLevel().getGameTime(),4);
+        h.runAfterDelay(delay,()->{try{
+            var runtime=new ModuleSurfaceField();runtime.impact(c,attack,p,new Vec3(0,1,0),new Vec3(0,0,1));runtime.tick(c);
+            h.assertTrue(runtime.count()==1&&packets.size()==24,"Default24 flame did not send24 real particle packets: "+packets.size()+"; fields="+runtime.count()+"; tick="+h.getLevel().getGameTime());
+            h.assertTrue(packets.stream().allMatch(packet->packet.getParticle().getType()==net.minecraft.core.particles.ParticleTypes.FLAME),"Wrong particle type sent");h.succeed();
+        }finally{h.getLevel().players().remove(viewer);}});
+    }
+    @GameTest(template="combat") public static void particleDensityPersistsAndRespectsVisualBudget(GameTestHelper h){
+        var m=new VirtualModule("surface_field");h.assertTrue(m.value("density")==24&&ModuleSurfaceField.visualSampleCount(m,100,192)==24,"Default particle density changed old appearance");
+        m.edit("density",80,"");h.assertTrue(ModuleSurfaceField.visualSampleCount(m,100,192)==80&&ModuleSurfaceField.visualSampleCount(m,10,192)==10,"Density did not control samples or exceeded geometry");
+        m.editParticle("add","minecraft:flame");h.assertTrue(ModuleSurfaceField.visualSampleCount(m,100,30)==15,"Multiple particle types exceeded shared visual budget");
+        h.assertTrue(VirtualModule.load(m.save()).value("density")==80&&ModulePreset.create(m.save()).value("density")==80,"Density lost on save or preset");
+        var legacy=m.save();legacy.getCompound("Settings").remove("density");h.assertTrue(VirtualModule.load(legacy).value("density")==24,"Legacy config did not retain default24");
+        m.edit("density",0,"");h.assertTrue(ModuleSurfaceField.visualSampleCount(m,100,192)==0,"Zero density emitted particles");
+        m.edit("density",128,"");h.assertTrue(m.value("density")==128&&dev.sablelife.client.NumericWheelSteps.module("surface_field","density",1,0)==1,"Density upper bound/wheel wrong");h.succeed();
+    }
+    @GameTest(template="combat") public static void zeroParticleDensityStillDamagesTargets(GameTestHelper h){
+        var c=core(h);var p=floor(h);var area=c.modules().add("surface_field");area.edit("density",0,"");area.edit("damage",2,"");var attack=c.modules().add("mortar");attack.impactField(area.id());var victim=pig(h,p);float before=victim.getHealth();
+        c.modules().surfaceFields.impact(c,attack,p,new Vec3(0,1,0),new Vec3(0,0,1));c.modules().surfaceFields.tick(c);h.assertTrue(victim.getHealth()==before-2,"Disabling particles disabled damage");victim.discard();h.succeed();
+    }
     private static HeartBlockEntity core(GameTestHelper h){
         var level=h.getLevel();var pos=h.absolutePos(new BlockPos(1,9,1));level.setBlockAndUpdate(pos,SableLife.HEART.get().defaultBlockState());
         var c=(HeartBlockEntity)level.getBlockEntity(pos);c.health().activate();

@@ -35,7 +35,7 @@ public final class ModuleHealthPhase {
         owner = null;
     }
     public void tick(HeartBlockEntity heart) {
-        owner=heart;active.clear();runtime.clear();var signals=new HashMap<Integer,Integer>();var retained=new HashSet<Key>();
+        owner=heart;active.clear();runtime.clear();var signals=new HashMap<Integer,Integer>();var trace=new HashMap<UUID,Map<Integer,Integer>>();var retained=new HashSet<Key>();
         if(heart.health().state()==HeartState.ALIVE&&heart.wireless().master())for(var module:heart.modules().all()){
             if(!module.type().equals("health_phase")||!HeartModules.status(module,heart).equals("valid"))continue;
             var data=new net.minecraft.nbt.CompoundTag();var rows=new net.minecraft.nbt.ListTag();int count=0;
@@ -46,10 +46,10 @@ public final class ModuleHealthPhase {
                 boolean powered=false;int remaining=0;
                 if(row.enabled()) {retained.add(key);var clock=clocks.get(key);if(clock==null||clock.row!=row||clock.revision!=row.revision()){clock=new Clock(row);clocks.put(key,clock);}powered=clock.signal.tick(inRange,row.value("phaseMode")==1,(int)row.value("phasePulse"));remaining=clock.signal.remaining();}
                 boolean output=powered&&status.equals("ready");state.putBoolean("Active",output);state.putInt("Remaining",remaining);rows.add(state);
-                if(output){count++;active.add(module.id());signals.merge((int)row.value("phaseChannel")-1,(int)row.value("phasePower"),Math::max);}
+                if(output){count++;active.add(module.id());signals.merge((int)row.value("phaseChannel")-1,(int)row.value("phasePower"),Math::max);ChannelDiagnostics.record(trace,module.id(),(int)row.value("phaseChannel")-1,(int)row.value("phasePower"));}
             }
             data.put("Rows",rows);data.putInt("ActiveCount",count);runtime.put(module.id(),data);
         }
-        clocks.keySet().retainAll(retained);heart.wireless().programOutputs("health_phase",signals);
+        clocks.keySet().retainAll(retained);heart.wireless().programOutputs("health_phase",signals,trace);
     }
 }

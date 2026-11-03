@@ -74,6 +74,9 @@ public final class VirtualModule {
     private final UUID id;
     private final String type;
     private String name = "";
+    private String group="";
+    public String group(){return group;}
+    public boolean group(String value){if(!ModuleFolders.valid(value))return false;group=value.trim();return true;}
     private boolean enabled = true;
     private boolean invalidated;
     private boolean detached;
@@ -365,7 +368,7 @@ public final class VirtualModule {
         if (commandApprovalRequired) tag.putBoolean("CommandApprovalRequired", true);
         if(type.equals("summoned_weapon")||type.equals("linear_movement")||type.equals("sphere_blast")||type.equals("pulse")||type.equals("mortar")||type.equals("ground_strike")){var stages=new CompoundTag();movementParticles.forEach((stage,selection)->stages.put(stage,selection.save()));tag.put("MovementParticles",stages);}
         if (type.equals("homing")) tag.putInt("HomingFormationVersion", 4);
-        tag.putString("Name", name); tag.putBoolean("Enabled", enabled);
+        tag.putString("Group",group);tag.putString("Name", name); tag.putBoolean("Enabled", enabled);
         tag.putBoolean("Invalidated", invalidated);
         tag.putBoolean("Detached", detached);
         if (rewardOwner != null) tag.putUUID("RewardOwner", rewardOwner);
@@ -388,7 +391,7 @@ public final class VirtualModule {
     public static VirtualModule load(CompoundTag tag) {
         var module = new VirtualModule(tag.hasUUID("Id") ? tag.getUUID("Id") : UUID.randomUUID(), tag.getString("Type"));
         if (!module.known() || tag.getInt("Version") > 1) { module.unknown = tag.copy(); module.enabled = false; return module; }
-        module.edit("name", 0, tag.getString("Name")); module.enabled = tag.getBoolean("Enabled");
+        module.group(tag.getString("Group"));module.edit("name", 0, tag.getString("Name")); module.enabled = tag.getBoolean("Enabled");
         module.invalidated = tag.getBoolean("Invalidated");
         module.detached = tag.getBoolean("Detached");
         module.commandApprovalRequired = tag.getBoolean("CommandApprovalRequired");

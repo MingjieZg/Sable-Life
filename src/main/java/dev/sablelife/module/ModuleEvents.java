@@ -49,7 +49,7 @@ public final class ModuleEvents {
         var activeNavigation = new HashSet<UUID>();
         sensorTargets.clear();sensorPowered.clear();
         var faceSignals = new HashMap<ModuleSignals.Face, Integer>();
-        var navigationChannels=new HashMap<Integer,Integer>();
+        var navigationChannels=new HashMap<Integer,Integer>();var trace=new HashMap<UUID,Map<Integer,Integer>>();
         sensorOutputIds.clear();
         for (var module : heart.modules().all()) {
             if(module.type().equals("sensor"))sensorOutputIds.add(module.id());
@@ -71,7 +71,7 @@ public final class ModuleEvents {
             }
             if (!HeartModules.triggered(module, heart)) continue;
             if (module.type().equals("navigation")) {
-                activeNavigation.add(module.id()); navigation.tick(level, heart, module, faceSignals);navigation.publish(module,navigationChannels); continue;
+                activeNavigation.add(module.id()); navigation.tick(level, heart, module, faceSignals);var own=new HashMap<Integer,Integer>();navigation.publish(module,own);own.forEach((ch,power)->navigationChannels.merge(ch,power,Math::max));trace.put(module.id(),own); continue;
             }
             if (module.type().equals("bgm")) {
                 activeSounds.add(module.id());
@@ -114,7 +114,7 @@ public final class ModuleEvents {
         }
         var iterator = sounds.entrySet().iterator();
         while (iterator.hasNext()) { var entry = iterator.next(); if (!activeSounds.contains(entry.getKey())) { stopAudio(heart, entry.getKey(), entry.getValue()); iterator.remove(); } }
-        heart.wireless().programOutputs("navigation",navigationChannels);
+        heart.wireless().programOutputs("navigation",navigationChannels,trace);
         redstone.tick(heart, weakFaces,sensorPowered);
         ModuleSignals.updateWeakFaces(heart, weakFaces);
         ModuleSignals.update(heart, Map.of());

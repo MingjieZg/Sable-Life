@@ -22,11 +22,11 @@ public final class ModuleSequence {
     }
     private void publish() {
         if (owner == null) return;
-        var outputs = new HashMap<Integer, Integer>();
-        for (var state : states.values()) { var step = state.output;
-            if (step != null && !step.waiting() && step.channel() > 0) outputs.merge(step.channel() - 1, step.power(), Math::max);
+        var outputs = new HashMap<Integer, Integer>();var trace=new HashMap<UUID,Map<Integer,Integer>>();
+        for (var entry : states.entrySet()) { var step = entry.getValue().output;
+            if (step != null && !step.waiting() && step.channel() > 0){outputs.merge(step.channel() - 1, step.power(), Math::max);ChannelDiagnostics.record(trace,entry.getKey(),step.channel()-1,step.power());}
         }
-        owner.wireless().programOutputs("sequence", outputs);
+        owner.wireless().programOutputs("sequence", outputs,trace);
     }
     public CompoundTag snapshot(UUID id) {
         var tag = new CompoundTag(); var s = states.get(id);

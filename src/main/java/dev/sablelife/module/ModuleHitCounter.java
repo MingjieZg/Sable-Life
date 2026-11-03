@@ -15,13 +15,13 @@ public final class ModuleHitCounter {
  }
  public void tick(HeartBlockEntity heart){tick(heart,new HashMap<>());}
  public void tick(HeartBlockEntity heart,Map<UUID,HeartWireless.ModuleOutput> external){
-  owner=heart;var outputs=new HashMap<Integer,Integer>();var keep=new HashSet<UUID>();
+  owner=heart;var outputs=new HashMap<Integer,Integer>();var trace=new HashMap<UUID,Map<Integer,Integer>>();var keep=new HashSet<UUID>();
   if(heart.health().state()==HeartState.ALIVE&&heart.wireless().master())for(var m:heart.modules().all())if(m.type().equals("hit_counter")&&HeartModules.triggered(m,heart)){
    keep.add(m.id());var s=state(m);boolean ready=ModuleHealthPhase.channelStatus(m,heart,"hitChannel").equals("ready");
-   boolean high=s.count.tick(heart.getLevel().getGameTime(),ready||m.hasRedBlue(),(int)m.value("hitPulse"));if(high&&ready)outputs.merge((int)m.value("hitChannel")-1,(int)m.value("hitPower"),Math::max);
+   boolean high=s.count.tick(heart.getLevel().getGameTime(),ready||m.hasRedBlue(),(int)m.value("hitPulse"));if(high&&ready){outputs.merge((int)m.value("hitChannel")-1,(int)m.value("hitPower"),Math::max);ChannelDiagnostics.record(trace,m.id(),(int)m.value("hitChannel")-1,(int)m.value("hitPower"));}
    if(m.hasRedBlue())external.put(m.id(),new HeartWireless.ModuleOutput(m.redBlue(false,heart.getLevel().registryAccess()),m.redBlue(true,heart.getLevel().registryAccess()),high?(int)m.value("hitPower"):0));
   }
-  states.keySet().retainAll(keep);heart.wireless().programOutputs("hit_counter",outputs);
+  states.keySet().retainAll(keep);heart.wireless().programOutputs("hit_counter",outputs,trace);
  }
  /** Publish the already-ticked pulse; keep hit/health adjustment scheduling at its original point. */
  public void publish(HeartBlockEntity heart,Map<UUID,HeartWireless.ModuleOutput> external){

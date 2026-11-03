@@ -22,14 +22,14 @@ public final class ModuleRedstone {
     public void clear() { clocks.clear();if(owner!=null)owner.wireless().programOutputs("wireless_redstone",Map.of());owner=null; }
     public void tick(HeartBlockEntity heart, Map<ModuleSignals.Face, Integer> faces,Set<UUID> poweredSensors) {
         owner=heart;var retained = new HashSet<UUID>();
-        var internal=new HashMap<Integer,Integer>();
+        var internal=new HashMap<Integer,Integer>();var trace=new HashMap<UUID,Map<Integer,Integer>>();var sensorTrace=new HashMap<UUID,Map<Integer,Integer>>();
         var sensorInternal=new HashMap<Integer,Integer>();
         var external = new HashMap<UUID, dev.sablelife.heart.HeartWireless.ModuleOutput>();
         if (heart.operational() && heart.wireless().master()) {
             for (var module : heart.modules().all()) {
                 if(module.type().equals("sensor")&&HeartModules.status(module,heart).equals("valid")){
                     int power=poweredSensors.contains(module.id())?(int)module.value("sensorPower"):0;
-                    if(power>0&&ModuleHealthPhase.channelStatus(module,heart,"sensorChannel").equals("ready"))sensorInternal.merge((int)module.value("sensorChannel")-1,power,Math::max);
+                    if(power>0&&ModuleHealthPhase.channelStatus(module,heart,"sensorChannel").equals("ready")){sensorInternal.merge((int)module.value("sensorChannel")-1,power,Math::max);ChannelDiagnostics.record(sensorTrace,module.id(),(int)module.value("sensorChannel")-1,power);}
                     if(module.hasRedBlue())external.put(module.id(),new dev.sablelife.heart.HeartWireless.ModuleOutput(module.redBlue(false,heart.getLevel().registryAccess()),module.redBlue(true,heart.getLevel().registryAccess()),power));
                     continue;
                 }
@@ -49,7 +49,7 @@ public final class ModuleRedstone {
                 int active=high?(pulse?clock.sampled:strength):0;
                 power=follow?(module.value("redstoneInvert")==1?15-active:active):high!=(module.value("redstoneInvert")==1)?(int)module.value("redstonePower"):0;
                 }
-                if(power>0&&ModuleHealthPhase.channelStatus(module,heart,"redstoneChannel").equals("ready"))internal.merge((int)module.value("redstoneChannel")-1,power,Math::max);
+                if(power>0&&ModuleHealthPhase.channelStatus(module,heart,"redstoneChannel").equals("ready")){internal.merge((int)module.value("redstoneChannel")-1,power,Math::max);ChannelDiagnostics.record(trace,module.id(),(int)module.value("redstoneChannel")-1,power);}
                 if(module.hasRedBlue()) external.put(module.id(),new dev.sablelife.heart.HeartWireless.ModuleOutput(module.redBlue(false,heart.getLevel().registryAccess()),module.redBlue(true,heart.getLevel().registryAccess()),power));
                 if(module.anchors().isEmpty()) continue;
                 var anchor = module.anchors().getFirst(); var body = anchor.body(heart);
@@ -60,8 +60,8 @@ public final class ModuleRedstone {
             }
         }
         clocks.keySet().retainAll(retained);
-        heart.wireless().programOutputs("sensor",sensorInternal);
-        heart.wireless().programOutputs("wireless_redstone",internal);
+        heart.wireless().programOutputs("sensor",sensorInternal,sensorTrace);
+        heart.wireless().programOutputs("wireless_redstone",internal,trace);
         heart.modules().damageAccumulation.tick(heart,external);
         heart.modules().hitCounter.publish(heart,external);
         heart.wireless().moduleFrequencies(external);
