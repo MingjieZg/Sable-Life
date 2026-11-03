@@ -305,6 +305,13 @@ public final class VirtualModule {
     public boolean edit(String key, double value, String text) {
         if (!known() || !Double.isFinite(value)) return false;
         if(type.equals("health_phase")&&HealthPhaseRules.FIELDS.contains(key)){if(healthPhaseRules.rows().isEmpty())healthPhaseRules.add();return healthPhaseRules.rows().getFirst().edit(key,value);}
+        if(type.equals("wireless_redstone")&&key.equals("redstoneRampRange")){
+            var pair=text.split("\\|",-1);if(pair.length!=2)return false;
+            try{double from=Double.parseDouble(pair[0]),to=Double.parseDouble(pair[1]);
+                if(!Double.isFinite(from)||!Double.isFinite(to)||from!=Math.rint(from)||to!=Math.rint(to)||from<0||from>15||to<0||to>15)return false;
+                return edit("redstoneRampStart",from,"")&&edit("redstoneRampEnd",to,"");
+            }catch(NumberFormatException invalid){return false;}
+        }
         if(type.equals("armor")&&key.equals("armorWholeBody")&&value!=Math.rint(value))return false;
         if(type.equals("armor")&&List.of("damageModifier","reduction","armorWhen").contains(key))return false;
         if(type.equals("slash")&&List.of("slashRed","slashGreen","slashBlue").contains(key)){edit("slashColorRgb",1,"");key="slashColor"+key.substring(5);}

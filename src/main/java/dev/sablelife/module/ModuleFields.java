@@ -34,7 +34,7 @@ public final class ModuleFields {
             case "signal_logic" -> List.of("logicMatch","signalRules","logicChannel","logicPower","logicMode","logicPulse");
             case "combat_event" -> List.of("signalRules");
             case "health_phase" -> List.of("healthPhaseRules");
-            case "wireless_redstone" -> List.of("redstoneStrengthMode", "redstonePower", "redstoneMode", "redstonePulse", "redstoneInvert", "redstoneFaces", "redstoneChannel", "redstoneFrequency");
+            case "wireless_redstone" -> List.of("redstoneStrengthMode", "redstonePower", "redstoneRampStart", "redstoneRampEnd", "redstoneRampTime", "redstoneMode", "redstonePulse", "redstoneInvert", "redstoneFaces", "redstoneChannel", "redstoneFrequency");
         case "sequence" -> List.of("sequenceSteps", "sequenceRepeat", "stopOnLow", "resetChannel", "resetSource");
             case "arena" -> List.of("arenaRadius", "warningRange", "countdown", "arenaDeath", "arenaForceReturn", "arenaReturn", "arenaBuffEnabled", "arenaBuffGroups", "arenaRespawnEnabled", "arenaRespawnDelay", "arenaRespawnRecord", "arenaRespawnClear");
             case "quake" -> List.of("quakeMode", "quakeOrigin", "target", "targetMultiple", "quakeDetectRange", "quakeRange", "quakeWidth", "quakeSpeed", "warningTime", "damage", "quakeLaunch", "quakePush", "quakeRise", "quakeGrounded", "quakeReach", "quakeWaves", "quakeGap", "interval", "direction", "quakeColor", "warningSound", "quakeSound", "particles");
@@ -108,8 +108,8 @@ public final class ModuleFields {
         case "signal_logic" -> List.of(c("logicMatch","signal_all","signal_any"),c("signalRules","signal_rule_editor"),n("logicChannel",0,65535,0),n("logicPower",1,15,15),c("logicMode","signal_hold","signal_pulse"),t("logicPulse",1,12000,10));
         case "combat_event" -> List.of(c("signalRules","signal_rule_editor"));
         case "health_phase" -> List.of(c("healthPhaseRules","phase_rule_editor"));
-        case "wireless_redstone" -> List.of(c("redstoneStrengthMode","redstone_fixed","redstone_follow"),n("redstonePower", 0, 15, 15), c("redstoneMode", "signal_hold", "signal_pulse"),
-                t("redstonePulse", 1, 12000, 20), c("redstoneInvert", "off", "on"), c("redstoneFaces", "all_faces", "marked_face"), n("redstoneChannel",0,65535,0),
+        case "wireless_redstone" -> List.of(c("redstoneStrengthMode","redstone_fixed","redstone_follow","redstone_ramp"),n("redstonePower", 0, 15, 15),n("redstoneRampStart",0,15,0),n("redstoneRampEnd",0,15,15),t("redstoneRampTime",1,12000,60), c("redstoneMode", "signal_hold", "signal_pulse"),
+                t("redstonePulse", 1, 12000, 20), c("redstoneInvert", "off", "on"), new Field("redstoneFaces", 0, 1, 1, 1, List.of("all_faces", "marked_face")), n("redstoneChannel",0,65535,0),
                 c("redstoneFrequency", "frequency"));
         case "move_set" -> List.of(c("moveSetEditor", "move_set_editor"));
         case "command" -> List.of(c("commandEditor", "command_editor"));

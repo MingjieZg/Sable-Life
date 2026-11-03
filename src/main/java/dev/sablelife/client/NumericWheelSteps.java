@@ -5,7 +5,7 @@ import java.util.Set;
 
 /** Editing increments in display units; never changes saved defaults or validation ranges. */
 public final class NumericWheelSteps {
-    private static final Set<String> WHOLE=Set.of("grabCount","slashCount","slashRed","slashGreen","slashBlue","damage","blastDamage","arrows","burn","rolls","density","beamHits","meleeHitLimit","strikeRays","strikeRandomCount","quakeWaves","homingCount","accumThreshold","sensorChannel","sensorPower","accumChannel","accumPower","phaseChannel","phasePower","resetChannel","redstoneChannel","redstonePower","dispatchWeight","hitThreshold","hitSource","hitChannel","hitPower","phaseUpper","phaseLower");
+    private static final Set<String> WHOLE=Set.of("grabCount","slashCount","slashRed","slashGreen","slashBlue","damage","blastDamage","arrows","burn","rolls","density","beamHits","meleeHitLimit","strikeRays","strikeRandomCount","quakeWaves","homingCount","accumThreshold","sensorChannel","sensorPower","accumChannel","accumPower","phaseChannel","phasePower","resetChannel","redstoneChannel","redstonePower","redstoneRampStart","redstoneRampEnd","dispatchWeight","hitThreshold","hitSource","hitChannel","hitPower","phaseUpper","phaseLower");
     private static final Set<String> BLOCKS=Set.of("moveTargetRange","castTargetRange","slashLength","slashSpeed","sphereDistance","range","radius","innerRadius","targetRange","facingRange","arenaRadius","warningRange","bgmRadius","quakeRange","quakeDetectRange","strikeRange","strikeHeight","strikeStep","beamLength","pullRadius","dispatchNear","dispatchFar");
     public static double module(String type,String key,double scale,double minimum){
         if(dev.sablelife.module.ModuleColors.parent(type,key)!=null)return 1;

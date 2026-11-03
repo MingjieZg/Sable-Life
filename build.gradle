@@ -118,6 +118,14 @@ neoForge {
             systemProperty 'sablelife.manualPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
+        rampPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/ramp-preview-319')
+            systemProperty 'sablelife.rampPreview', 'true'
+            programArguments.addAll '--width', '1440', '--height', '900'
+        }
         redstonePreview {
             client()
             sourceSet = sourceSets.gameTest

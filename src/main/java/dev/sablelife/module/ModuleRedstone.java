@@ -8,7 +8,7 @@ import java.util.*;
 /** Shares the sensor/navigation publication pass, so no producer erases another. */
 public final class ModuleRedstone {
     private HeartBlockEntity owner;
-    private static final class Clock {final SignalPulse signal=new SignalPulse();boolean previous;int sampled;}
+    private static final class Clock {final SignalPulse signal=new SignalPulse();final SignalRamp ramp=new SignalRamp();boolean previous;int sampled;}
     private final Map<UUID, Clock> clocks = new HashMap<>();
     public static boolean followsInput(VirtualModule module){return module.value("redstoneStrengthMode")==1&&module.value("trigger")>=1&&module.value("trigger")<=3;}
     public static int inputStrength(HeartBlockEntity heart,VirtualModule module){
@@ -37,11 +37,18 @@ public final class ModuleRedstone {
                 retained.add(module.id());
                 var clock = clocks.computeIfAbsent(module.id(), ignored -> new Clock());
                 boolean input=HeartModules.triggered(module,heart),pulse=module.value("redstoneMode")==1;
+                int power;
+                if(module.value("redstoneStrengthMode")==2){
+                    power=clock.ramp.tick(heart.getLevel().getGameTime(),input,(int)module.value("redstoneRampStart"),(int)module.value("redstoneRampEnd"),(int)module.value("redstoneRampTime"));
+                    clock.previous=false;clock.signal.tick(heart.getLevel().getGameTime(),false,false,1);
+                }else{
+                clock.ramp.tick(heart.getLevel().getGameTime(),false,0,15,1);
                 boolean follow=followsInput(module);int strength=follow?inputStrength(heart,module):(int)module.value("redstonePower");
                 if(input&&!clock.previous)clock.sampled=strength;clock.previous=input;
                 boolean high=clock.signal.tick(heart.getLevel().getGameTime(),input,pulse,(int)module.value("redstonePulse"));
                 int active=high?(pulse?clock.sampled:strength):0;
-                int power=follow?(module.value("redstoneInvert")==1?15-active:active):high!=(module.value("redstoneInvert")==1)?(int)module.value("redstonePower"):0;
+                power=follow?(module.value("redstoneInvert")==1?15-active:active):high!=(module.value("redstoneInvert")==1)?(int)module.value("redstonePower"):0;
+                }
                 if(power>0&&ModuleHealthPhase.channelStatus(module,heart,"redstoneChannel").equals("ready"))internal.merge((int)module.value("redstoneChannel")-1,power,Math::max);
                 if(module.hasRedBlue()) external.put(module.id(),new dev.sablelife.heart.HeartWireless.ModuleOutput(module.redBlue(false,heart.getLevel().registryAccess()),module.redBlue(true,heart.getLevel().registryAccess()),power));
                 if(module.anchors().isEmpty()) continue;

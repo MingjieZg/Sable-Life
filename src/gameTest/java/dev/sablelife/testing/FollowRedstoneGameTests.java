@@ -62,4 +62,31 @@ public final class FollowRedstoneGameTests {
  public static void HurtTriggerUsesConfiguredPowerInFollowMode(GameTestHelper h){
   var c=core(h);var m=out(c);m.edit("trigger",5,"");m.edit("redstonePower",9,"");c.tryActivate(TestActors.creative(h.getLevel()));c.damage(1);c.modules().tick(c);h.assertTrue(c.wireless().output(1)==9,"Hurt trigger did not use configured strength");h.runAfterDelay(4,()->{h.assertTrue(c.wireless().output(1)==0,"Hurt window left output");h.succeed();});
  }
+
+ @GameTest(template="combat",batch="ramp_outputs",timeoutTicks=30)
+ public static void RampHoldsEndpointClearsAllOutputsAndRestarts(GameTestHelper h){
+  var c=core(h);var m=out(c);m.edit("redstoneStrengthMode",2,"");m.edit("redstoneRampTime",6,"");
+  var red=new ItemStack(Items.DIAMOND);var blue=new ItemStack(Items.AMETHYST_SHARD);m.redBlue(false,red,h.getLevel().registryAccess());m.redBlue(true,blue,h.getLevel().registryAccess());var link=new Link(c.getBlockPos(),true,red,blue);com.simibubi.create.Create.REDSTONE_LINK_NETWORK_HANDLER.addToNetwork(h.getLevel(),link);
+  c.tryActivate(TestActors.creative(h.getLevel()));c.wireless().programOutputs("test_input",Map.of(0,15));c.modules().events().tick(c);long began=h.getLevel().getGameTime();
+  h.assertTrue(c.wireless().output(1)==0&&face(c,m)==0&&link.rx==0,"Ramp did not start at zero");
+  h.runAfterDelay(3,()->{c.modules().events().tick(c);int expected=(int)Math.round(15*Math.min(1,(h.getLevel().getGameTime()-began)/6.));h.assertTrue(c.wireless().output(1)==expected&&face(c,m)==expected&&link.rx==expected,"Ramp destinations diverged at midpoint");});
+  h.runAfterDelay(9,()->{try{c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==15&&face(c,m)==15&&link.rx==15,"Held ramp did not hold endpoint");c.wireless().programOutputs("test_input",Map.of());c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==0&&face(c,m)==0&&link.rx==0,"Stopped ramp retained output");c.wireless().programOutputs("test_input",Map.of(0,15));c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==0,"Restart resumed old progress");c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==0,"Same-tick publication advanced ramp");h.succeed();}finally{com.simibubi.create.Create.REDSTONE_LINK_NETWORK_HANDLER.removeFromNetwork(h.getLevel(),link);c.modules().events().clear();}});
+ }
+ @GameTest(template="combat",batch="ramp_settings",timeoutTicks=30)
+ public static void DescendingRampIgnoresInvertAndPulseAndPersistsValidatedEndpoints(GameTestHelper h){
+  var fresh=new VirtualModule("wireless_redstone");h.assertTrue(fresh.value("redstoneFaces")==1,"New module should default to selected surface");
+  var c=core(h);var m=out(c);m.edit("redstoneStrengthMode",2,"");h.assertTrue(m.edit("redstoneRampRange",0,"15|3"),"Endpoint pair rejected");
+  for(String invalid:List.of("-1|4","4|16","3.5|4","NaN|4","3|4|5","3|")){h.assertTrue(!m.edit("redstoneRampRange",0,invalid)&&m.value("redstoneRampStart")==15&&m.value("redstoneRampEnd")==3,"Malformed range partially changed configuration: "+invalid);}
+  m.edit("redstoneRampTime",6,"");m.edit("redstoneMode",1,"");m.edit("redstonePulse",120,"");m.edit("redstoneInvert",1,"");
+  var saved=VirtualModule.load(m.save());var preset=ModulePreset.create(m.save());h.assertTrue(saved.value("redstoneRampStart")==15&&preset.value("redstoneRampEnd")==3&&saved.value("redstoneStrengthMode")==2,"Ramp settings lost on save/preset");
+  c.tryActivate(TestActors.creative(h.getLevel()));c.wireless().programOutputs("test_input",Map.of(0,15));c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==15,"Descending ramp incorrectly inverted");
+  h.runAfterDelay(8,()->{c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==3,"Descending endpoint lost to pulse/inversion");c.wireless().programOutputs("test_input",Map.of());c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==0,"Pulse/inversion kept stopped ramp alive");c.wireless().programOutputs("test_input",Map.of(0,15));c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==15,"Descending ramp failed to restart");c.wireless().master(false);h.assertTrue(c.wireless().output(1)==0,"Master off retained ramp");h.succeed();});
+ }
+ @GameTest(template="combat",batch="ramp_moveset",timeoutTicks=30)
+ public static void MoveSetEndsRampImmediatelyBeforeRampDeadline(GameTestHelper h){
+  var c=core(h);var m=out(c);m.edit("redstoneStrengthMode",2,"");m.edit("redstoneRampStart",3,"");m.edit("redstoneRampTime",60,"");m.edit("redstoneMode",1,"");m.edit("redstonePulse",120,"");m.edit("redstoneInvert",1,"");
+  var table=c.modules().add("move_set");table.moveSet().edit("add",0,"",c.modules());table.moveSet().edit("action_add",0,"0|"+m.id(),c.modules());table.moveSet().edit("action_duration",.2,"0|0",c.modules());var config=table.moveSet().get(0).config();config.edit("dispatchBusy",100,"");config.edit("dispatchRest",100,"");config.edit("dispatchCooldown",100,"");config.edit("target",1,"");config.edit("dispatchFar",32,"");
+  var cow=net.minecraft.world.entity.EntityType.COW.create(h.getLevel());cow.setNoAi(true);cow.setNoGravity(true);cow.setPos(m.anchors().getFirst().world(c,false).add(3,0,0));h.getLevel().addFreshEntity(cow);c.tryActivate(TestActors.creative(h.getLevel()));c.modules().tick(c);h.assertTrue(m.value("trigger")==4&&c.wireless().output(1)==3,"Move Set ramp did not start at configured endpoint");
+  h.runAfterDelay(7,()->{c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==0&&face(c,m)==0,"Ramp outlived shortened Move Set action");cow.discard();h.succeed();});
+ }
 }

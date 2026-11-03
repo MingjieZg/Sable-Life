@@ -4,6 +4,15 @@ This changelog highlights the major development milestones of Sable Life from it
 
 > **History note:** Sable Life was developed through a long private development cycle before its public release. The public Git history was intentionally reset at **0.1.313** during repository cleanup, so the entries below are a curated reconstruction of the project's development timeline rather than a complete commit-by-commit record.
 
+## 0.1.319 — Wireless Redstone signal ramps
+
+- Added Ramp output strength mode with adjacent start/end values (0–15) and a configurable duration. Ramps can increase or decrease and hold their final strength while triggered.
+- Ending activation immediately clears and resets the ramp, including Move Set action windows. Reverse and Hold/Pulse controls are disabled in Ramp mode; swap endpoints to reverse the ramp. Fixed and Follow input behavior is unchanged.
+- Marked-surface, internal-channel and external-frequency outputs share the ramp. Available on Life Cores and permitted survival Redstone Cores.
+- Updated the in-game help and manual.
+
+- New Wireless Redstone modules default to selected-surface output instead of all six faces. Existing saved face selections are preserved.
+
 ## 0.1.318 — Blueprint placement on reused body storage
 
 - Fixed stale Life protection records rejecting new blocks at empty coordinates after a deleted structure's storage plot is reused. This could affect ordinary Photomancy blueprints without Life Cores, producing missing parts or an `empty plot bounds` placement failure.
