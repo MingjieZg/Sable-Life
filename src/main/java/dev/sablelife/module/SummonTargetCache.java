@@ -16,6 +16,7 @@ public final class SummonTargetCache {
     private final Map<UUID,Vec3> centers=new LinkedHashMap<>();
     private long nextSearch=Long.MIN_VALUE,queries,revision;
     private int category=-1;
+    private dev.sablelife.heart.HeartBlockEntity policyOwner;
     public long queries(){return queries;}
     public long revision(){return revision;}
     public Vec3 point(UUID id){if(id==null)return null;var e=entities.get(id);return e!=null&&!e.isRemoved()&&e.isAlive()?centers.get(id):null;}
@@ -31,6 +32,7 @@ public final class SummonTargetCache {
         return List.copyOf(result);
     }
     public void prepare(ServerLevel level,UUID owner,int mode,List<Vec3> positions,double range,long now){
+        policyOwner=LoadedCoreIndex.find(level,owner);
         if(positions.isEmpty()){suspend();return;}
         boolean covered=mode==category;
         if(covered)for(var p:positions){boolean found=false;for(var c:coverage)if(contains(c,p,range)){found=true;break;}if(!found){covered=false;break;}}
@@ -42,14 +44,14 @@ public final class SummonTargetCache {
         // Between searches, validate/refresh candidates once per group rather than per weapon.
         for(var entity:candidates){
             var id=entity.getUUID();boolean loaded=entity instanceof ModuleTargets.LifeTarget?LoadedCoreIndex.find(level,id)!=null:level.getEntity(id)==entity;
-            if(entity.level()==level&&!entity.isRemoved()&&loaded&&ModuleTargets.matches(entity,mode))centers.put(id,entity.getBoundingBox().getCenter());else centers.remove(id);
+            if(entity.level()==level&&!entity.isRemoved()&&loaded&&dev.sablelife.heart.CoreRelations.targetAllowed(level,owner,entity)&&ModuleTargets.matches(entity,mode))centers.put(id,entity.getBoundingBox().getCenter());else centers.remove(id);
         }
     }
     public UUID select(UUID current,Vec3 origin,double range,boolean reselect){
         double best=range*range;var old=point(current);
         if(!reselect&&old!=null&&old.distanceToSqr(origin)<=best)return current;
-        UUID chosen=null;
-        for(var entry:centers.entrySet()){if(point(entry.getKey())==null)continue;double distance=entry.getValue().distanceToSqr(origin);if(distance<=best&&(chosen==null||distance<best)){best=distance;chosen=entry.getKey();}}
+        UUID chosen=null;int bestRank=Integer.MAX_VALUE;double rangeSquared=range*range;
+        for(var entry:centers.entrySet()){if(point(entry.getKey())==null)continue;double distance=entry.getValue().distanceToSqr(origin);int rank=ModuleTargets.rank(policyOwner,entities.get(entry.getKey()));if(distance<=rangeSquared&&(chosen==null||rank<bestRank||rank==bestRank&&distance<best)){best=distance;bestRank=rank;chosen=entry.getKey();}}
         return chosen;
     }
 }

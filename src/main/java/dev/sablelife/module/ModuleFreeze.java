@@ -20,7 +20,7 @@ public final class ModuleFreeze {
         int count=0;var source=new PlayerFreeze.Source(heart.creatureId(),m.audioId());
         var candidates=new LinkedHashMap<UUID,net.minecraft.world.entity.LivingEntity>();for(var p:level.players())candidates.put(p.getUUID(),p);
         if(m.value("freezeTarget")!=0)for(var v:volumes)for(var mob:level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class,v.bounds(),MobGrab::eligible))candidates.putIfAbsent(mob.getUUID(),mob);
-        for(var target:candidates.values())if(matches(target,m)&&volumes.stream().anyMatch(v->level.hasChunkAt(net.minecraft.core.BlockPos.containing(v.center()))&&v.intersects(target.getBoundingBox()))){
+        for(var target:candidates.values())if(dev.sablelife.heart.CoreRelations.targetAllowed(level,heart.creatureId(),target)&&matches(target,m)&&volumes.stream().anyMatch(v->level.hasChunkAt(net.minecraft.core.BlockPos.containing(v.center()))&&v.intersects(target.getBoundingBox()))){
             boolean applied;if(target instanceof ServerPlayer player){PlayerFreeze.apply(player,source,(int)m.value("freezeDuration"));applied=true;}else applied=MobGrab.freeze((net.minecraft.world.entity.Mob)target,source,(int)m.value("freezeDuration"));
             if(applied&&++count>=64)break;
         }return count;
@@ -41,7 +41,7 @@ public final class ModuleFreeze {
         for(var m:modules){
             if(!m.type().equals("freeze")||!EmitterRuntime.active(m,heart))continue;keep.add(m.id());var s=states.computeIfAbsent(m.id(),id->new State());s.audio=m.audioId();
             if(s.cast==null){
-                if(now<s.next)continue;var volumes=volumes(heart,m);if(volumes.isEmpty()||!EmitterRuntime.start(m,heart))continue;
+                if(now<s.next)continue;var volumes=volumes(heart,m);if(volumes.isEmpty()||!EmitterRuntime.start(m,heart)||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,volumes.size()))continue;
                 s.cast=EmitterRuntime.copy(m);s.volumes=List.copyOf(volumes);s.points=volumes.stream().map(ControlVolume::center).toList();s.fire=now+(long)m.value("freezeWarning");s.next=s.fire+(long)m.value("freezeDuration")+(long)m.value("interval");
                 for(var v:volumes){draw(level,null,s.cast,v);ModuleAudio.play(level,s.cast,"warningSound",v.center());}
             }

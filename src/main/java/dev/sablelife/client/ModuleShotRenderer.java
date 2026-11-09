@@ -22,6 +22,7 @@ public final class ModuleShotRenderer extends EntityRenderer<ModuleShot> {
     @SubscribeEvent public static void register(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(SableLife.LEVEL_REWARD_ORB.get(),net.minecraft.client.renderer.entity.ExperienceOrbRenderer::new);
         event.registerEntityRenderer(SableLife.MODULE_SHOT.get(), ModuleShotRenderer::new);
+        event.registerEntityRenderer(SableLife.ENTITY_HITBOX.get(),net.minecraft.client.renderer.entity.NoopRenderer::new);
     }
     @Override public void render(ModuleShot shot, float yaw, float partial, PoseStack pose, MultiBufferSource buffers, int light) {
         if(shot.defaultHomingAppearance()) {
@@ -39,12 +40,11 @@ public final class ModuleShotRenderer extends EntityRenderer<ModuleShot> {
         var item = shot.getItem();
         pose.pushPose();
         if(shot.fixedFallingItem()) pose.mulPose(shot.fallingItemRotation());
-        else if(shot.homingProjectile()) {
+        else if(shot.homingProjectile()||shot.customFlightItem()) {
             var velocity=shot.getDeltaMovement();
             float heading=velocity.lengthSqr()>.000001 ? (float)Math.toDegrees(Math.atan2(velocity.x,velocity.z)) : shot.getYRot();
             float pitch=velocity.lengthSqr()>.000001 ? (float)Math.toDegrees(Math.atan2(velocity.y,Math.hypot(velocity.x,velocity.z))) : shot.getXRot();
-            pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(heading)); pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(-pitch));
-            pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(-90)); pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(-45));
+            pose.mulPose(dev.sablelife.attack.ProjectileItemPose.flight(heading,pitch,shot.itemRotation()));
         } else pose.mulPose(entityRenderDispatcher.cameraOrientation());
         ProjectileItemRenderer.render(items,item,shot.level(),shot.getId(),shot.fallingProjectile()?shot.fallingItemSize():shot.projectileDiameter(),pose,buffers,15728880);
         pose.popPose(); super.render(shot, yaw, partial, pose, buffers, light);

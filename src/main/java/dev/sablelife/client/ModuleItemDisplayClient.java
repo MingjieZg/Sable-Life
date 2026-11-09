@@ -1,10 +1,13 @@
 package dev.sablelife.client;
 import dev.sablelife.SableLife;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.sablelife.module.*;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
@@ -17,7 +20,7 @@ import java.util.*;
 public final class ModuleItemDisplayClient {
     private record Display(UUID id,ModuleAnchor anchor,ItemStack item,float size,Vec3 offset,org.joml.Quaternionf rotation){}
     private record Core(UUID creature,List<Display> displays,long expires){}
-    private record Preview(net.minecraft.world.entity.Display.ItemDisplay entity,long expires){}
+    private record Preview(net.minecraft.world.entity.Display.ItemDisplay entity,Vec3 muzzle,long expires){}
     private static final Map<UUID,List<Preview>> previews=new LinkedHashMap<>();
     private static final Map<BlockPos,Core> cores=new LinkedHashMap<>();
     private static net.minecraft.client.multiplayer.ClientLevel previous;
@@ -25,6 +28,7 @@ public final class ModuleItemDisplayClient {
     public static void receive(ItemDisplayPacket packet){
         var level=Minecraft.getInstance().level;if(level==null)return;if(level!=previous){cores.clear();previews.clear();previous=level;}
         if(packet.displays()==null)return;
+        if(packet.displays().contains("HealthBars")){WorldHealthBarClient.receive(packet);return;}
         if(packet.displays().contains("SummonPreview")){
             var rows=new ArrayList<Preview>();
             for(var value:packet.displays().getList("SummonPreview",10)){
@@ -35,7 +39,8 @@ public final class ModuleItemDisplayClient {
                 var rotation=new org.joml.Quaternionf((float)row.getDouble("QX"),(float)row.getDouble("QY"),(float)row.getDouble("QZ"),(float)row.getDouble("QW"));
                 ((dev.sablelife.mixin.RespawnDisplayAccess)(Object)entity).sablelife$transform(new com.mojang.math.Transformation(new org.joml.Vector3f(),rotation,new org.joml.Vector3f(row.getFloat("Size")),new org.joml.Quaternionf()));
                 // Build vanilla render state without adding a collidable/networked world entity.
-                entity.tick();rows.add(new Preview(entity,level.getGameTime()+60));
+                var muzzle=row.contains("MuzzleX",6)?new Vec3(row.getDouble("MuzzleX"),row.getDouble("MuzzleY"),row.getDouble("MuzzleZ")):null;
+                entity.tick();rows.add(new Preview(entity,muzzle,level.getGameTime()+60));
             }
             previews.put(packet.creature(),List.copyOf(rows));while(previews.size()>16)previews.remove(previews.keySet().iterator().next());return;
         }
@@ -49,6 +54,7 @@ public final class ModuleItemDisplayClient {
         while(cores.size()>256)cores.remove(cores.keySet().iterator().next());
     }
     @SubscribeEvent public static void render(RenderLevelStageEvent event){
+        if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_PARTICLES){renderMuzzles(event);return;}
         if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_ENTITIES)return;var mc=Minecraft.getInstance();var level=mc.level;
         if(level==null||level!=previous){cores.clear();previews.clear();previous=level;return;}cores.entrySet().removeIf(e->e.getValue().expires<level.getGameTime());
         previews.entrySet().removeIf(e->e.getValue().isEmpty()||e.getValue().getFirst().expires<level.getGameTime());
@@ -64,6 +70,33 @@ public final class ModuleItemDisplayClient {
                 ProjectileItemRenderer.render(mc.getItemRenderer(),display.item,level,display.id.hashCode(),display.size,pose,buffers,net.minecraft.client.renderer.LevelRenderer.getLightColor(level,BlockPos.containing(world)));pose.popPose();
             }
         }
+    }
+    private static void renderMuzzles(RenderLevelStageEvent event){
+        var mc=Minecraft.getInstance();
+        if(mc.level==null||mc.level!=previous||previews.isEmpty())return;
+        var camera=event.getCamera();
+        var cameraUp=new Vec3(camera.getUpVector());
+        var cameraLeft=new Vec3(camera.getLeftVector());
+        var buffers=mc.renderBuffers().bufferSource();
+        var lines=buffers.getBuffer(MuzzleOverlay.LINES);
+        for(var group:previews.values())for(var preview:group){
+            if(preview.muzzle==null||preview.expires<mc.level.getGameTime())continue;
+            var center=preview.muzzle.subtract(camera.getPosition());
+            double distance=center.length();
+            if(!Double.isFinite(distance)||distance>256)continue;
+            double size=Math.clamp(distance*.012,.1,.6);
+            var up=cameraUp.scale(size);
+            var left=cameraLeft.scale(size);
+            var corners=List.of(center.add(up),center.add(left),center.subtract(up),center.subtract(left));
+            for(int i=0;i<4;i++)BlueprintPreviewClient.line(event.getPoseStack(),lines,corners.get(i),corners.get((i+1)%4),0xFFAA33);
+        }
+        buffers.endBatch(MuzzleOverlay.LINES);
+    }
+    private abstract static class MuzzleOverlay extends RenderType {
+        private MuzzleOverlay(){super("sablelife_muzzle_overlay",DefaultVertexFormat.POSITION_COLOR_NORMAL,VertexFormat.Mode.LINES,256,false,false,()->{},()->{});}
+        private static final RenderType LINES=create("sablelife_muzzle_overlay",DefaultVertexFormat.POSITION_COLOR_NORMAL,VertexFormat.Mode.LINES,256,
+            CompositeState.builder().setShaderState(RENDERTYPE_LINES_SHADER).setLineState(PreviewLineStyle.widthState(1F,false)).setDepthTestState(NO_DEPTH_TEST)
+                .setWriteMaskState(COLOR_WRITE).setCullState(NO_CULL).createCompositeState(false));
     }
     private ModuleItemDisplayClient(){}
 }

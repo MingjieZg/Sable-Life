@@ -22,6 +22,60 @@ import io.netty.buffer.Unpooled;
 import java.util.*;
 @GameTestHolder("sablelife_control_tests") @PrefixGameTestTemplate(false)
 public final class ShockwaveGameTests {
+ @GameTest(template="combat",batch="shockwave_radial_pattern")
+ public static void RadialPatternPersistsUsesEmitterAndKeepsLegacyRingDefaults(GameTestHelper h){
+  var c=fixture(h);var m=module(c);
+  h.assertTrue(m.value("shockPattern")==0&&ModuleShockwave.packet(c,m).pattern()==0,"Existing effect no longer defaults to ring");
+  var legacy=m.save();for(var key:List.of("shockPattern","shockRadialStrength","shockRadialTime","shockRadialClear"))legacy.getCompound("Settings").remove(key);
+  h.assertTrue(VirtualModule.load(legacy).value("shockPattern")==0,"Old module selected a new pattern");
+  m.edit("shockPattern",1,"");m.edit("shockRadialStrength",.65,"");m.edit("shockRadialTime",30,"");m.edit("shockRadialClear",12.5,"");
+  m.edit("shockBlur",0,"");m.edit("shockDistortion",0,"");m.edit("shockShakeEnabled",0,"");m.edit("shockZoomEnabled",0,"");
+  var p=ModuleShockwave.packet(c,m);
+  h.assertTrue(p.valid()&&p.pattern()==1&&Math.abs(p.blur()-.65F)<.001&&p.expansion()==30&&p.clearRadius()==.125F&&p.distortion()==0,"Radial parameters were not mapped to the effect");
+  h.assertTrue(p.point().distanceTo(m.anchors().getFirst().world(c,false))<.0001,"Radial centre is not the emission world point");
+  for(var restored:List.of(VirtualModule.load(m.save()),ModulePreset.create(m.save())))h.assertTrue(restored.value("shockPattern")==1&&restored.value("shockRadialTime")==30&&restored.value("shockRadialClear")==12.5,"Radial settings lost in save or preset");
+  h.assertTrue(SurfaceFieldSettings.visible(m,"shockPattern")&&SurfaceFieldSettings.visible(m,"shockRadialStrength")&&!SurfaceFieldSettings.visible(m,"shockRadius")&&!SurfaceFieldSettings.visible(m,"shockReverse"),"Radial/ring fields mixed");
+  m.edit("shockWaveEnabled",0,"");h.assertTrue(!SurfaceFieldSettings.visible(m,"shockPattern")&&!SurfaceFieldSettings.visible(m,"shockRadialTime"),"Disabled spatial effect exposed radial settings");m.edit("shockWaveEnabled",1,"");
+  var buf=new RegistryFriendlyByteBuf(Unpooled.buffer(),h.getLevel().registryAccess());try{ShockwavePacket.CODEC.encode(buf,p);h.assertTrue(p.equals(ShockwavePacket.CODEC.decode(buf))&&buf.readableBytes()==0,"Radial wire round trip failed");}finally{buf.release();}
+  var invalid=new ShockwavePacket(p.dimension(),p.point(),p.radius(),p.expansion(),p.width(),p.distortion(),p.blur(),p.shake(),p.shakeTicks(),p.zoom(),p.zoomTicks(),p.range(),p.reverse(),p.shakeFrequency(),2,p.clearRadius());
+  h.assertTrue(!invalid.valid(),"Unknown pattern accepted");
+  invalid=new ShockwavePacket(p.dimension(),p.point(),p.radius(),p.expansion(),p.width(),p.distortion(),p.blur(),p.shake(),p.shakeTicks(),p.zoom(),p.zoomTicks(),p.range(),p.reverse(),p.shakeFrequency(),1,Float.NaN);
+  h.assertTrue(!invalid.valid(),"Invalid clear radius accepted");
+  var packets=new ArrayList<ShockwavePacket>();var player=TestActors.creative(h.getLevel());player.setPos(p.point());
+  player.connection=new ServerGamePacketListenerImpl(h.getLevel().getServer(),new Connection(PacketFlow.SERVERBOUND),player,CommonListenerCookie.createInitial(player.getGameProfile(),false)){
+   @Override public void send(Packet<?> packet){if(packet instanceof ClientboundCustomPayloadPacket cp&&cp.payload() instanceof ShockwavePacket wave)packets.add(wave);}
+  };
+  h.getLevel().players().add(player);
+  try{c.tryActivate(player);c.modules().tick(c);h.assertTrue(packets.size()==1&&packets.getFirst().pattern()==1&&packets.getFirst().blur()>.6,"Radial-only effect did not emit when ring strengths were zero");}
+  finally{h.getLevel().players().remove(player);}
+  h.succeed();
+ }
+ @GameTest(template="combat",batch="shockwave_rear_shake")
+ public static void ShakeUsesWorldDistanceWithoutProjectingTheSource(GameTestHelper h){
+  var core=fixture(h);var module=module(core);
+  var old=module.save();old.getCompound("Settings").remove("shockShakeFrequency");
+  h.assertTrue(VirtualModule.load(old).value("shockShakeFrequency")==1,"Older shockwave lost the original shake speed");
+  module.edit("shockShakeFrequency",.25,"");
+  var packet=ModuleShockwave.packet(core,module);
+  h.assertTrue(packet.shakeFrequency()==.25F&&VirtualModule.load(module.save()).value("shockShakeFrequency")==.25,"Shake frequency did not persist");
+  var buffer=new RegistryFriendlyByteBuf(Unpooled.buffer(),h.getLevel().registryAccess());
+  try{ShockwavePacket.CODEC.encode(buffer,packet);h.assertTrue(ShockwavePacket.CODEC.decode(buffer).equals(packet),"Shake frequency was lost in transit");}
+  finally{buffer.release();}
+  var offset=new Vec3(0,0,2);var front=packet.point().add(offset);var rear=packet.point().subtract(offset);
+  double amplitude=ShockwaveMath.shakeAmplitude(packet,front,2,1);
+  h.assertTrue(amplitude>0&&amplitude==ShockwaveMath.shakeAmplitude(packet,rear,2,1),"Opposite sides did not receive equal shake");
+  h.assertTrue(ShockwaveMath.shakeAmplitude(packet,front,2,0)==0,"Shake ignored the client effect scale");
+  var packets=new ArrayList<ShockwavePacket>();
+  var player=viewer(h,core.getBlockPos().getCenter(),packets,new ArrayList<>(),packet.point());
+  try{
+   h.assertTrue(player.position().distanceTo(packet.point())>packet.range(),"Viewer is not using plot-local coordinates");
+   core.tryActivate(player);core.modules().tick(core);
+   h.assertTrue(packets.size()==1,"Plot-local viewer missed nearby shake");
+   var received=packets.getFirst();
+   h.assertTrue(received.shake()>0&&received.shakeFrequency()==.25F&&received.distortion()==0&&received.blur()==0&&received.zoom()==0,"Shake fallback lost frequency or changed the other visuals");
+  }finally{h.getLevel().players().remove(player);}
+  h.succeed();
+ }
  @GameTest(template="combat",batch="shockwave_reverse")
  public static void ReversePersistsAndContractsFromMaximumRadius(GameTestHelper h){
   var c=fixture(h);var m=module(c);h.assertTrue(m.value("shockReverse")==0&&!ModuleShockwave.packet(c,m).reverse(),"Existing waves changed direction");
@@ -70,11 +124,26 @@ public final class ShockwaveGameTests {
 
  @GameTest(template="combat",batch="shock_marker_preview")
  public static void PreviewShowsMarkedBlockAndContactProbeWithoutRepeatingWave(GameTestHelper h)throws Exception{
-  var c=fixture(h);var m=module(c);m.edit("shockContact",1,"");var player=TestActors.creative(h.getLevel());player.setPos(m.anchors().getFirst().world(c,false));int[] counts={0,0};
-  player.connection=new ServerGamePacketListenerImpl(h.getLevel().getServer(),new Connection(PacketFlow.SERVERBOUND),player,CommonListenerCookie.createInitial(player.getGameProfile(),false)){@Override public void send(Packet<?> packet){if(packet instanceof ClientboundCustomPayloadPacket cp&&cp.payload() instanceof ShockwavePacket)counts[0]++;if(packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket)counts[1]++;}};
-  MarkingSessions.showPreview(player,c,m);h.assertTrue(counts[0]==1&&counts[1]>0,"Preview did not show both one wave and marked block");int before=counts[1];
-  var draw=MarkingSessions.class.getDeclaredMethod("previewModule",ServerPlayer.class,HeartBlockEntity.class,VirtualModule.class);draw.setAccessible(true);draw.invoke(null,player,c,m);h.assertTrue(counts[0]==1&&counts[1]>before,"Marker refresh repeated the wave or omitted geometry");int contactCount=counts[1]-before;
-  m.edit("shockContact",0,"");before=counts[1];draw.invoke(null,player,c,m);h.assertTrue(counts[1]>before&&counts[1]-before<contactCount,"Normal marker missing or contact probe not conditional");m.clearMarks();before=counts[1];draw.invoke(null,player,c,m);h.assertTrue(counts[1]==before&&counts[0]==1,"Cleared mark still drew a preview");h.succeed();
+  var c=fixture(h);var m=module(c);m.edit("shockContact",1,"");var player=TestActors.creative(h.getLevel());player.setPos(m.anchors().getFirst().world(c,false));
+  var outlines=new ArrayList<MarkOutline>();int[] counts={0,0};
+  player.connection=new ServerGamePacketListenerImpl(h.getLevel().getServer(),new Connection(PacketFlow.SERVERBOUND),player,CommonListenerCookie.createInitial(player.getGameProfile(),false)){
+   @Override public void send(Packet<?> packet){
+    if(packet instanceof ClientboundCustomPayloadPacket cp){
+     if(cp.payload() instanceof ShockwavePacket)counts[0]++;
+     if(cp.payload() instanceof MarkOutline outline)outlines.add(outline);
+    }
+    if(packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket)counts[1]++;
+   }
+  };
+  MarkingSessions.showPreview(player,c,m);
+  h.assertTrue(counts[0]==1&&counts[1]>0&&outlines.size()==1&&outlines.getFirst().endpoints().size()==24,"Preview did not show one wave, the probe, and the 12 outline edges");
+  int before=counts[1];
+  var draw=MarkingSessions.class.getDeclaredMethod("previewModule",ServerPlayer.class,HeartBlockEntity.class,VirtualModule.class);draw.setAccessible(true);draw.invoke(null,player,c,m);
+  h.assertTrue(counts[0]==1&&counts[1]>before&&outlines.size()==2,"Marker refresh repeated the wave or omitted geometry");
+  m.edit("shockContact",0,"");before=counts[1];draw.invoke(null,player,c,m);
+  h.assertTrue(counts[1]==before&&outlines.size()==3,"Normal marker missing or contact probe not conditional");
+  m.clearMarks();draw.invoke(null,player,c,m);
+  h.assertTrue(counts[1]==before&&counts[0]==1&&outlines.size()==3,"Cleared mark still drew a preview");h.succeed();
  }
 
 

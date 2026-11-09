@@ -1,0 +1,13 @@
+{
+  "vertex": "sablelife:world_health_bar",
+  "fragment": "sablelife:world_health_bar",
+  "samplers": [],
+  "attributes": ["Position", "UV0"],
+  "uniforms": [
+    {"name":"ModelViewMat","type":"matrix4x4","count":16,"values":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]},
+    {"name":"ProjMat","type":"matrix4x4","count":16,"values":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]},
+    {"name":"BarSize","type":"float","count":2,"values":[2,0.2]},
+    {"name":"Fill","type":"float","count":1,"values":[1]},
+    {"name":"Style","type":"float","count":1,"values":[0]}
+  ]
+}

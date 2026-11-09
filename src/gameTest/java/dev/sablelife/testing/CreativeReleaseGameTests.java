@@ -34,7 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-@GameTestHolder("sablelife_tests")
+@GameTestHolder("sablelife_release_tests")
 @PrefixGameTestTemplate(false)
 public final class CreativeReleaseGameTests {
     @GameTest(template = "combat", timeoutTicks = 160, batch="audit_creativereleasegametests_dyingbodyreleasesfromnoncoreblockandallowscreativebreaking")
@@ -165,6 +165,48 @@ public final class CreativeReleaseGameTests {
             helper.assertTrue(before.equals(heart.saveWithoutMetadata(level.registryAccess())), "Rejected direct reset mutated the Heart");
             helper.assertTrue(heart.getBlockState().getValue(HeartBlock.ACTIVE), "Rejected release cleared activation flag");
             helper.assertTrue(level.getBlockState(target).is(Blocks.IRON_BLOCK), "Rejected release removed a body block");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "combat", batch = "release_during_laser")
+    public static void DashboardReleaseStopsFiringLaser(GameTestHelper helper) {
+        var creature = platform(helper);
+        var heart = creature.heart();
+        var level = helper.getLevel();
+        var player = playerAtFace(level, creature, heart.getBlockPos(), Direction.UP, GameType.CREATIVE);
+        var laser = heart.modules().add("laser");
+        laser.anchors(List.of(dev.sablelife.module.ModuleAnchor.create(heart, heart.getBlockPos(), Direction.NORTH)));
+        laser.edit("chargeTime", 0, "");
+        laser.edit("beamHits", 100, "");
+        laser.edit("laserVisualStyle", 1, "");
+        laser.edit("laserAim",1,"");
+        laser.edit("target",1,"");
+        for(int i=0;i<3;i++){
+            heart.tryActivate(player);
+            helper.assertTrue(heart.resetForCreative(player),"Could not prepare prior activation cycle");
+        }
+        var saved=heart.saveWithoutMetadata(level.registryAccess());
+        heart.loadWithComponents(saved,level.registryAccess());
+        var loadedLaser=heart.modules().find(laser.id());
+        var target=net.minecraft.world.entity.EntityType.COW.create(level);
+        var muzzle=dev.sablelife.module.ModuleCombat.nozzle(heart,loadedLaser);
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        target.setPos(muzzle.add(0,.5,-3));
+        helper.assertTrue(level.addFreshEntity(target),"Could not add laser target");
+        heart.tryActivate(player);
+        helper.runAfterDelay(3,()->{
+            var menu = new dev.sablelife.module.HeartDashboardMenu(1, player.getInventory(), heart);
+            helper.assertTrue(menu.snapshot().getList("Modules", 10).getCompound(0).getString("LaserPhase").equals("firing"),
+                    "Laser fixture did not fire: "+dev.sablelife.module.HeartModules.status(loadedLaser,heart)
+                            +", candidates="+dev.sablelife.module.ModuleLaser.acquireTargets(level,heart,loadedLaser,dev.sablelife.module.ModuleCombat.nozzle(heart,loadedLaser)).size());
+            var oldId = heart.creatureId();
+            helper.assertTrue(menu.action(player, heart.modules().revision(), loadedLaser.id(), "release", "", 0, ""), "Firing laser blocked dashboard Release");
+            assertReset(helper, heart, oldId, heart.health().maximum(), heart.health().deathDelay());
+            helper.assertTrue(heart.modules().snapshot(heart, true).getList("Modules", 10).getCompound(0).getString("LaserPhase").equals("waiting"), "Laser remained active after Release");
+            helper.assertTrue(dev.sablelife.module.VirtualModule.load(loadedLaser.save()).value("laserVisualStyle") == 1, "Beam style lost on reload");
+            target.discard();
             helper.succeed();
         });
     }

@@ -53,6 +53,9 @@ public final class GravityTravel {
     public record StepResult(boolean valid,double lift){}
     /** Shared step controller, usable by both route-controlled and gravity-driven Travel. */
     public static StepResult step(ServerLevel level,VirtualModule m,List<LinearMovementGeometry.Body> bodies,Vec3 direction,double speed,Session session){
+        return step(level,false,m,bodies,direction,speed,session);
+    }
+    static StepResult step(ServerLevel level,boolean checkHeadroom,VirtualModule m,List<LinearMovementGeometry.Body> bodies,Vec3 direction,double speed,Session session){
         var physics=SubLevelPhysicsSystem.get(level);if(physics==null||!level.getServer().isRunning()||bodies.isEmpty())return new StepResult(false,0);
         long now=level.getGameTime();double lift=0;var contact=session.contact;
         if(bodies.stream().anyMatch(b->b.body().isRemoved()))return new StepResult(false,0);
@@ -73,7 +76,7 @@ public final class GravityTravel {
         List<LinearMovementGeometry.Body> raised=bodies;
         if(lift>0){
             raised=LinearMovementGeometry.forcedDestination(bodies,bodies,new Vec3(0,lift,0));
-            if(!LinearMovementGeometry.loadedDestination(level,raised))return new StepResult(false,0);
+            if(!LinearMovementGeometry.loadedDestination(level,raised)||checkHeadroom&&!LinearMovementGeometry.clear(level,bodies,Vec3.ZERO,new Vec3(0,lift,0),true))return new StepResult(false,0);
         }
         if(lift>0)for(var body:raised){
             physics.getPipeline().teleport(body.body(),body.position(),body.rotation());
@@ -90,7 +93,7 @@ public final class GravityTravel {
         var common=driveDelta(new Vector3d(reference.body().latestLinearVelocity),direction,speed);
         boolean clearing=heart.terrainBreaker().advance(heart,bodies,direction.scale(speed/20));
         if(heart.terrainBreaker().brokeThisTick(level.getGameTime()))session.clear();
-        if(!clearing&&!step(level,m,bodies,direction,speed,session).valid())return false;
+        if(!clearing&&!step(level,heart.isControlCore(),m,bodies,direction,speed,session).valid())return false;
         for(var body:bodies)physics.getPipeline().addLinearAndAngularVelocity(body.body(),common,new Vector3d());
         return true;
     }

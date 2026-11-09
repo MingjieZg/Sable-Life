@@ -26,13 +26,13 @@ public final class RedstonePreviewGameTests {
  @GameTest(template="combat",batch="redstone_disabled_preview")
  public static void CopiedDisabledRedstoneRetainsFacePreviewAfterRemarkAndMissingMarksDrawNothing(GameTestHelper h)throws Exception{
   var c=fixture(h);var m=c.modules().add("wireless_redstone");m.edit("redstoneFaces",0,"");m.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.UP)));m.edit("enabled",0,"");var p=TestActors.creative(h.getLevel());p.setPos(m.anchors().getFirst().world(c,false));int[] dust={0},other={0};
-  p.connection=new ServerGamePacketListenerImpl(h.getLevel().getServer(),new Connection(PacketFlow.SERVERBOUND),p,CommonListenerCookie.createInitial(p.getGameProfile(),false)){@Override public void send(Packet<?> packet){if(packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket cp){if(cp.getParticle() instanceof net.minecraft.core.particles.DustParticleOptions)dust[0]++;else other[0]++;}}};
+  p.connection=new ServerGamePacketListenerImpl(h.getLevel().getServer(),new Connection(PacketFlow.SERVERBOUND),p,CommonListenerCookie.createInitial(p.getGameProfile(),false)){@Override public void send(Packet<?> packet){if(packet instanceof ClientboundCustomPayloadPacket cp&&cp.payload() instanceof MarkOutline outline){dust[0]+=outline.endpoints().size();if(outline.kind()!=MarkOutline.Kind.DETAIL||outline.color()!=0x33FF66)other[0]++;}else if(packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket)other[0]++;}};
   var draw=MarkingSessions.class.getDeclaredMethod("previewModule",ServerPlayer.class,HeartBlockEntity.class,VirtualModule.class);draw.setAccessible(true);
-  draw.invoke(null,p,c,m);h.assertTrue(dust[0]==216&&other[0]==0,"Disabled six-face preview became generic direction line");
-  m.edit("enabled",1,"");dust[0]=0;draw.invoke(null,p,c,m);h.assertTrue(dust[0]==216&&other[0]==0,"Enabled preview differs");
+  draw.invoke(null,p,c,m);h.assertTrue(dust[0]==108&&other[0]==0,"Disabled six-face preview lost solid edges or stripes");
+  m.edit("enabled",1,"");dust[0]=0;draw.invoke(null,p,c,m);h.assertTrue(dust[0]==108&&other[0]==0,"Enabled preview differs");
   m.edit("enabled",0,"");var data=c.copyConfiguration();h.assertTrue(c.pasteConfiguration(p,data),"Copier paste failed");var copied=c.modules().all().stream().filter(x->x.type().equals("wireless_redstone")).findFirst().orElseThrow();
   h.assertTrue(!copied.enabled()&&copied.anchors().isEmpty(),"Copy changed enabled state or retained source mark");dust[0]=0;draw.invoke(null,p,c,copied);h.assertTrue(dust[0]==0&&other[0]==0,"Unmarked copied module drew or crashed");
-  copied.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.UP)));copied.edit("redstoneFaces",1,"");draw.invoke(null,p,c,copied);h.assertTrue(dust[0]==36&&other[0]==0,"Remarked copied module did not show selected face");
+  copied.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.UP)));copied.edit("redstoneFaces",1,"");draw.invoke(null,p,c,copied);h.assertTrue(dust[0]==18&&other[0]==0,"Remarked copied module did not show selected face");
   copied.clearMarks();copied.edit("enabled",1,"");dust[0]=0;draw.invoke(null,p,c,copied);h.assertTrue(dust[0]==0&&other[0]==0,"Enabled unmarked redstone drew or crashed");h.succeed();
  }
 

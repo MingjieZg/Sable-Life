@@ -60,6 +60,29 @@ public final class RedstoneCoreGameTests {
         h.assertTrue(!menu.action(author,core.modules().revision(),legacy.id(),"copy","",0,""),"Forbidden legacy module copied");
         h.assertTrue(menu.action(author,core.modules().revision(),legacy.id(),"remove","",0,""),"Legacy module could not be removed");h.succeed();
     }
+    @GameTest(template="combat",batch="redstone_move_set")
+    public static void MoveSetForcesTargetFreeSelection(GameTestHelper h){
+        var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
+        var relay=core.modules().add("wireless_redstone");
+        relay.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos().east(),Direction.UP)));
+        relay.edit("redstonePower",11,"");
+        h.assertTrue(menu.action(author,core.modules().revision(),relay.id(),"add","move_set",0,""),"Move set missing from catalog");
+        var table=core.modules().all().getLast();
+        h.assertTrue(menu.action(author,core.modules().revision(),table.id(),"move_set","add",0,""),"Move editor rejected");
+        h.assertTrue(menu.action(author,core.modules().revision(),table.id(),"move_set","action_add",0,"0|"+relay.id()),"Relay could not be scheduled");
+        table.moveSet().get(0).config().edit("phaseUpper",1,"");
+        h.assertTrue(!menu.action(author,core.modules().revision(),table.id(),"edit","ignoreConditions",0,""),"Ignore conditions was editable");
+        h.assertTrue(!menu.action(author,core.modules().revision(),table.id(),"move_set","dispatchNear",5,"0"),"Target condition was editable");
+        h.assertTrue(menu.action(author,core.modules().revision(),table.id(),"move_set","dispatchCooldown",40,"0"),"Timing was locked");
+        RedstoneCorePolicy.sanitize(core);
+        core.modules().tick(core);
+        var anchor=relay.anchors().getFirst();var output=anchor.position(anchor.body(core)).above();
+        h.assertTrue(ModuleSignals.signal(h.getLevel(),output,Direction.UP)==11&&core.health().state()==HeartState.DORMANT,"Move did not drive relay without life or a target");
+        core.wireless().master(false);
+        core.modules().tick(core);
+        h.assertTrue(ModuleSignals.signal(h.getLevel(),output,Direction.UP)==0,"Master off retained scheduled output");
+        h.succeed();
+    }
     @GameTest(template="combat",batch="redstone_signal_logic")
     public static void SurvivalSignalLogicRunsAndClearsWithMaster(GameTestHelper h){
         var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
@@ -119,7 +142,7 @@ public final class RedstoneCoreGameTests {
     @GameTest(template="combat",batch="redstone_whitelistrejectsforgedrequestsandpoisonedimports")
     public static void WhitelistRejectsForgedRequestsAndPoisonedImports(GameTestHelper h){
         var core=fixture(h,false);var author=player(h,core);var menu=new HeartDashboardMenu(1,author.getInventory(),core);
-        for(String type:List.of("command","flame","linear_movement","health_phase","particles"))h.assertTrue(!menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"Unsafe type accepted: "+type);
+        for(String type:List.of("command","flame","health_phase","blueprint_spawn"))h.assertTrue(!menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"Unsafe type accepted: "+type);
         var m=core.modules().add("wireless_redstone");h.assertTrue(!menu.action(author,core.modules().revision(),m.id(),"edit","trigger",5,""),"Hurt trigger accepted");
         h.assertTrue(!core.editCore(author,"health",500,"")&&!core.editCore(author,"deathPreview",0,""),"Life settings exposed");
         core.modules().add("flame");m.edit("trigger",5,"");var tag=core.saveWithoutMetadata(h.getLevel().registryAccess());tag.putString("LifeState","ALIVE");tag.putFloat("Health",100);

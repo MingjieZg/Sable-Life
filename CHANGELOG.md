@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.403
+
+- Survival Heart Core with configurable Energy costs, refueling and a Survival Release Tool.
+- Factions, private invitations, alliances, targeting exclusions and automation improvements.
+- Entity hitboxes with Hybrid damage, mob interaction, large-box query and edge-contact fixes.
+- Blueprint Spawner, projection previews and configurable natural spawning with workbench protection.
+- World health bars and names, continuous lasers, new visual patterns and solid previews.
+- Updated bilingual manual, controls, compatibility handling and cleanup.
+
+Full release notes: [English](docs/releases/0.1.403_EN.md) / [中文](docs/releases/0.1.403.md).
+Stress benchmarks: [English](docs/performance/STRESS_TESTS_EN.md) / [中文](docs/performance/STRESS_TESTS.md).
+
+---
+
 This changelog highlights the major development milestones of Sable Life from its earliest documented prototypes to the current public release.
 
 > **History note:** Sable Life was developed through a long private development cycle before its public release. The public Git history was intentionally reset at **0.1.313** during repository cleanup, so the entries below are a curated reconstruction of the project's development timeline rather than a complete commit-by-commit record.
@@ -382,4 +396,3 @@ Public release entries should focus on:
 - Stable release milestones.
 
 Minor internal experiments and temporary development notes do not need to be preserved here.
-

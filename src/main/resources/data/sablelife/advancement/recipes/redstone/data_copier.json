@@ -1,0 +1,17 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_material": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [ { "items": "minecraft:paper" } ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": { "recipe": "sablelife:data_copier" }
+    }
+  },
+  "requirements": [ [ "has_material", "has_the_recipe" ] ],
+  "rewards": { "recipes": [ "sablelife:data_copier" ] }
+}

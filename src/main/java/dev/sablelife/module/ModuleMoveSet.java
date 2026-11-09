@@ -46,7 +46,7 @@ public final class ModuleMoveSet {
             }
             if (state.current == null && now >= state.restUntil) {
                 var eligible = moves.stream().filter(m -> status(m, heart).equals("ready") && now >= state.cooldown.getOrDefault(m.config().id(), 0L)
-                        && m.config().targetPresent(heart)).toList();
+                        && (ignoresConditions(table, heart.isControlCore())||m.config().targetPresent(heart))).toList();
                 var selected = choose(eligible, state.previous, heart.getLevel().random.nextDouble());
                 if (selected != null) {
                     running = eligible.stream().filter(m -> m.config().id().equals(selected)).findFirst().orElseThrow();
@@ -59,6 +59,10 @@ public final class ModuleMoveSet {
         }
         states.keySet().retainAll(keep);
     }
+    /** Selection override only; action validity and timing remain independent. */
+    public static boolean ignoresConditions(VirtualModule table){return table!=null&&table.type().equals("move_set")&&table.value("ignoreConditions")==1;}
+    public static boolean ignoresConditions(VirtualModule table, boolean controlCore){return table!=null&&table.type().equals("move_set")&&(controlCore||ignoresConditions(table));}
+    public static boolean ruleLocked(VirtualModule table,String key,boolean controlCore){return ignoresConditions(table, controlCore)&&!List.of("dispatchWeight","dispatchCooldown","dispatchBusy","dispatchRest","dispatchRepeat").contains(key)&&ModuleFields.moveRules().stream().anyMatch(f->f.key().equals(key));}
     /** Eligible priority moves follow list order; weighted draws only run when none are ready. */
     public static UUID choose(List<MoveSet.Move> eligible, UUID previous, double random) {
         var priority = eligible.stream().filter(MoveSet.Move::priority).findFirst();
@@ -73,7 +77,7 @@ public final class ModuleMoveSet {
         for (var move : table.moveSet().moves()) {
             var row = new CompoundTag(); var id = move.config().id(); row.putUUID("Id", id);
             String status = status(move, heart);
-            if (status.equals("ready") && !move.config().targetPresent(heart)) status = "conditions";
+            if (status.equals("ready") && !ignoresConditions(table, heart.isControlCore()) && !move.config().targetPresent(heart)) status = "conditions";
             row.putString("Status", status); row.putInt("Cooldown", state == null ? 0 : (int)Math.max(0, state.cooldown.getOrDefault(id, 0L) - now));
             var problems = new ListTag(); var seen = new HashSet<UUID>();
             for (int i=0;i<move.actions().size();i++) {

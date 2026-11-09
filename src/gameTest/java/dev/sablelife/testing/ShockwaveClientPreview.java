@@ -25,8 +25,10 @@ public final class ShockwaveClientPreview {
  private static void pattern(RenderTarget target){target.bindWrite(true);RenderSystem.disableScissor();int cell=12;for(int x=0;x<target.width;x+=cell)for(int y=0;y<target.height;y+=cell){RenderSystem.enableScissor(x,y,Math.min(cell,target.width-x),Math.min(cell,target.height-y));boolean light=(x/cell+y/cell)%2==0;RenderSystem.clearColor(light?.9f:.1f,.15f+.6f*x/target.width,.15f+.6f*y/target.height,1);RenderSystem.clear(GL11.GL_COLOR_BUFFER_BIT,false);}RenderSystem.disableScissor();}
  private static int difference(int a,int b){int d=0;for(int s=0;s<24;s+=8)d=Math.max(d,Math.abs((a>>s&255)-(b>>s&255)));return d;}
  private static void verify(Minecraft mc)throws Exception{
+  PreviewLineGpuCheck.run(mc);
   DistortionTrailGpuCheck.run(mc);
   VisualFilterGpuCheck.run(mc);
+  RadialBlurGpuCheck.run(mc);
   if(!ShockwaveRenderer.ready())throw new AssertionError("Shockwave shader did not compile/register");var folder=mc.gameDirectory.toPath().resolve("screenshots");java.nio.file.Files.createDirectories(folder);var target=new TextureTarget(512,384,false,Minecraft.ON_OSX);var p=packet(new Vec3(-3,2,-10),1,.5f);var wave=new ShockwaveClient.Wave(p,0);var proj=projection(target);
   try{pattern(target);RenderSystem.enableDepthTest();RenderSystem.depthMask(true);try(var baseline=Screenshot.takeScreenshot(target)){
    baseline.writeToFile(folder.resolve("shockwave-baseline.png"));target.bindWrite(true);ShockwaveRenderer.render(target,List.of(wave),Vec3.ZERO,new Matrix4f(),proj,10,1);

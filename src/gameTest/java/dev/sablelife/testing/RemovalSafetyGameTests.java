@@ -111,4 +111,97 @@ public final class RemovalSafetyGameTests {
         h.assertTrue(reproduced==Boolean.getBoolean("sablelife.expectCleanupCrash"),reproduced?"Removed body still enters split assembly":"Baseline did not reproduce the reported native exception");
         if(reproduced)System.out.println("Confirmed native baseline: Sub-level assembly attempted inside plot of already removed sub-level");h.succeed();
     }
+    @GameTest(template="combat",batch="residue_cleanup_commands",timeoutTicks=80)
+    public static void CleanupCommandsRespectRadiusAndPreserveUnverifiedBlocks(GameTestHelper h) {
+        var level = h.getLevel();
+        var core = cleanupCore(h);
+        var ownership = dev.sablelife.ownership.BodyOwnership.get(level);
+        var fragment = h.absolutePos(new BlockPos(4, 7, 4));
+        var distant = fragment.east(12);
+        var unknown = fragment.south();
+        var unknownOwner = java.util.UUID.randomUUID();
+        for (var pos : List.of(fragment, distant, unknown)) level.setBlockAndUpdate(pos, Blocks.IRON_BLOCK.defaultBlockState());
+        ownership.bind(fragment, core.creatureId());
+        ownership.bind(distant, core.creatureId());
+        ownership.bind(unknown, unknownOwner);
+        var source = level.getServer().createCommandSourceStack().withLevel(level).withPosition(fragment.getCenter());
+        var commands = level.getServer().getCommands();
+        commands.performPrefixedCommand(source, "sablelife cleanup scan radius 3");
+        h.runAfterDelay(3, () -> {
+            h.assertTrue(level.getBlockState(fragment).is(Blocks.IRON_BLOCK), "Scan deleted a block");
+            commands.performPrefixedCommand(source.withPermission(0), "sablelife cleanup apply radius 3");
+        });
+        h.runAfterDelay(6, () -> {
+            h.assertTrue(level.getBlockState(fragment).is(Blocks.IRON_BLOCK), "Non-operator ran cleanup");
+            commands.performPrefixedCommand(source, "sablelife cleanup apply radius 3");
+        });
+        h.runAfterDelay(12, () -> {
+            h.assertTrue(level.getBlockState(fragment).isAir() && ownership.owner(fragment) == null, "Radius did not clear detached owned block");
+            h.assertTrue(level.getBlockState(distant).is(Blocks.IRON_BLOCK), "Radius deleted a distant block");
+            h.assertTrue(level.getBlockState(unknown).is(Blocks.IRON_BLOCK), "Cleanup guessed that an unknown core was deleted");
+            h.assertTrue(level.getBlockEntity(core.getBlockPos()) == core, "Cleanup deleted live core");
+            commands.performPrefixedCommand(source, "sablelife cleanup apply all");
+        });
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(level.getBlockState(distant).isAir() && ownership.owner(distant) == null, "All did not clear distant fragment");
+            h.assertTrue(level.getBlockState(unknown).is(Blocks.IRON_BLOCK), "All deleted an unverified block");
+            h.succeed();
+        });
+    }
+
+    @GameTest(template="combat",batch="residue_external_core_delete",timeoutTicks=80)
+    public static void PermanentRemovalClearsPlotRecordsAndMakesFragmentsEligible(GameTestHelper h) {
+        var level = h.getLevel();
+        var core = cleanupCore(h);
+        var owner = core.creatureId();
+        var oldPosition = core.getBlockPos();
+        var ownership = dev.sablelife.ownership.BodyOwnership.get(level);
+        var fragment = h.absolutePos(new BlockPos(4, 7, 4));
+        level.setBlockAndUpdate(fragment, Blocks.IRON_BLOCK.defaultBlockState());
+        ownership.bind(fragment, owner);
+        var container = SubLevelContainer.getContainer(level);
+        var body = (dev.ryanhcode.sable.sublevel.ServerSubLevel) dev.ryanhcode.sable.Sable.HELPER.getContaining(level, oldPosition);
+        container.removeSubLevel(body, SubLevelRemovalReason.REMOVED);
+        h.runAfterDelay(6, () -> {
+            h.assertTrue(core.isRemoved() && ownership.owner(oldPosition) == null, "Permanent deletion left plot ownership");
+            h.assertTrue(level.getBlockState(fragment).is(Blocks.IRON_BLOCK), "Automatic cleanup deleted physical fragment");
+            // Emulate a pre-fix ownership record left at the now-vacant plot.
+            ownership.bind(oldPosition, owner);
+            var source = level.getServer().createCommandSourceStack().withLevel(level).withPosition(fragment.getCenter());
+            level.getServer().getCommands().performPrefixedCommand(source, "sablelife cleanup apply all");
+        });
+        h.runAfterDelay(14, () -> {
+            h.assertTrue(ownership.owner(oldPosition) == null, "All skipped historical ownership at a vacant plot");
+            h.assertTrue(level.getBlockState(fragment).isAir() && !ownership.hasOwned(owner), "Known orphan fragment survived cleanup");
+            h.succeed();
+        });
+    }
+
+    @GameTest(template="combat",batch="residue_unloaded_core",timeoutTicks=60)
+    public static void CleanupKeepsAnUnloadedOccupiedPlot(GameTestHelper h) {
+        var level = h.getLevel();
+        var core = cleanupCore(h);
+        var position = core.getBlockPos();
+        var owner = core.creatureId();
+        var container = SubLevelContainer.getContainer(level);
+        var body = (dev.ryanhcode.sable.sublevel.ServerSubLevel) dev.ryanhcode.sable.Sable.HELPER.getContaining(level, position);
+        container.removeSubLevel(body, SubLevelRemovalReason.UNLOADED);
+        level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack(), "sablelife cleanup apply all");
+        h.runAfterDelay(8, () -> {
+            h.assertTrue(owner.equals(dev.sablelife.ownership.BodyOwnership.get(level).owner(position)), "Cleanup removed an unloaded core's ownership");
+            h.succeed();
+        });
+    }
+
+    private static dev.sablelife.heart.HeartBlockEntity cleanupCore(GameTestHelper h) {
+        var level = h.getLevel();
+        var pos = h.absolutePos(new BlockPos(3, 40, 3));
+        level.setBlockAndUpdate(pos, dev.sablelife.SableLife.HEART.get().defaultBlockState());
+        level.setBlockAndUpdate(pos.east(), Blocks.IRON_BLOCK.defaultBlockState());
+        var body = SubLevelAssemblyHelper.assembleBlocks(level, pos, List.of(pos, pos.east()),
+                new BoundingBox3i(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY(), pos.getZ()));
+        var core = (dev.sablelife.heart.HeartBlockEntity) level.getBlockEntity(body.getPlot().getCenterBlock());
+        core.tryActivate(TestActors.creative(level));
+        return core;
+    }
 }

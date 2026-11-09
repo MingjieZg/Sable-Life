@@ -20,6 +20,7 @@ import java.util.UUID;
 public final class HeartDashboardMenu extends AbstractContainerMenu {
     private final HeartBlockEntity heart;
     private final Player viewer;
+    private net.minecraft.nbt.ListTag blueprintFiles=new net.minecraft.nbt.ListTag();
     private int inspectedChannel,connectionsRevision=Integer.MIN_VALUE;
     private java.util.List<ModuleConnections.Link> connections=java.util.List.of();
     private java.util.List<ModuleConnections.Endpoint> endpoints=java.util.List.of();
@@ -48,7 +49,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             tag.putBoolean("PartialAuthoring",true);
             if(tag.sizeInBytes()>1_000_000){for(var value:list)compactHeader((CompoundTag)value);tag.putBoolean("Editable",false);tag.putBoolean("AuthoringOversized",true);}
         }
-        var stack = new ItemStack(Items.PAPER); stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        tag.put("BlueprintFiles",blueprintFiles.copy());var stack = new ItemStack(Items.PAPER); stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         snapshot.setItem(0, stack);
     }
     private static void compactHeader(CompoundTag module){
@@ -63,6 +64,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     }
     public boolean action(Player player, int revision, UUID id, String operation, String key, double value, String text) {
         if (heart == null || !stillValid(player)) return false;
+        if(operation.equals("blueprint_spawn")&&key.equals("list")){if(!(player instanceof net.minecraft.server.level.ServerPlayer sp)||!sp.canUseGameMasterBlocks())return false;blueprintFiles=new net.minecraft.nbt.ListTag();for(var name:dev.sablelife.ownership.BlueprintSpawns.files(sp))blueprintFiles.add(net.minecraft.nbt.StringTag.valueOf(name));refresh();sendAllDataToRemote();return true;}
         if(operation.equals("inspect")){
             if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>=heart.wireless().size())return false;
             inspectedChannel=(int)value;refresh();broadcastChanges();return true;
@@ -72,19 +74,18 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             heart.modules().changed();heart.setChanged();refresh();broadcastChanges();return true;
         }
         if(operation.equals("add")||operation.equals("add_preset")){
-            if(!ModuleAvailability.enabled(heart.isControlCore(),key))return false;
+            if(!ModuleAvailability.enabled(heart,key))return false;
         }else if(!java.util.Set.of("select","remove","reorder","wireless","settings","loot","release").contains(operation)){
-            var target=heart.modules().find(id);if(target!=null&&!ModuleAvailability.enabled(heart,target))return false;
+            var target=heart.modules().find(id);if(target!=null&&!ModuleAvailability.enabled(heart,target))return false;if(target!=null&&target.type().equals("blueprint_spawn")&&!player.canUseGameMasterBlocks())return false;
         }
         if(heart.isControlCore()){
-            if(!java.util.Set.of("add","add_preset","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","copy","signal_rules","effects","projectile","sound_editor").contains(operation))return false;
+            if(!java.util.Set.of("add","add_preset","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","copy","signal_rules","move_set","effects","projectile","sound_editor").contains(operation))return false;
             if((operation.equals("add")||operation.equals("add_preset"))&&!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(key))return false;
             var existing=heart.modules().find(id);if(!java.util.Set.of("add","add_preset","wireless","select","remove","reorder").contains(operation)&&(existing==null||!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(existing.type())))return false;
-            if(operation.equals("edit")&&(key.startsWith("hurt")||existing!=null&&dev.sablelife.heart.RedstoneCorePolicy.disabledField(existing,key)||key.equals("trigger")&&(value<0||value>3)))return false;
+            if(operation.equals("edit")&&(key.startsWith("hurt")||existing!=null&&dev.sablelife.heart.RedstoneCorePolicy.disabledField(existing,key)||key.equals("trigger")&&(value<0||value>dev.sablelife.heart.RedstoneCorePolicy.maxTrigger(existing.type()))))return false;
         }
         if(heart.isControlCore()&&operation.equals("sound_editor")&&!dev.sablelife.heart.RedstoneCorePolicy.audioKeyAllowed(heart.modules().find(id),key))return false;
         if(heart.isControlCore()&&operation.equals("move_set")){
-            if(key.equals("phaseLower")||key.equals("phaseUpper"))return false;
             if(key.equals("action_add")){
                 try {var parts=text.split("\\|",3);var target=heart.modules().find(UUID.fromString(parts[1]));if(target==null||!dev.sablelife.heart.RedstoneCorePolicy.allowed(target))return false;}catch(IllegalArgumentException|IndexOutOfBoundsException e){return false;}
             }
@@ -105,6 +106,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
                     net.minecraft.network.chat.Component.translatable("sequence.sablelife.title"))); return true;
         }
         if (operation.equals("effects")) {
+            if(heart.isSurvivalCore()&&key.equals("effects"))return false;
             var module = heart.modules().find(id);
             if(module!=null&&(module.type().equals("summoned_weapon")||module.type().equals("linear_movement")||module.type().equals("sphere_blast")||module.type().equals("pulse")||module.type().equals("mortar")||module.type().equals("ground_strike"))&&VirtualModule.particleStage(key)!=null){
                 String stage=VirtualModule.particleStage(key);if(module.movementParticles(stage)==null)return false;
@@ -138,8 +140,8 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             if(!module.type().equals("bgm")&&!TargetCastOrigin.targeted(module)&&module.arenaCenter()==null&&module.anchors().isEmpty())return false;
             MarkingSessions.showPreview(server, heart, module); return true;
         }
-        if(operation.equals("accum_reset")){var target=heart.modules().find(id);if(!player.isCreative()||target==null||!target.type().equals("damage_accumulation"))return false;heart.modules().damageAccumulation.reset(id);refresh();broadcastChanges();return true;}
-        if(operation.equals("hurt_reset")) { if(!player.isCreative() || heart.modules().find(id)==null) return false; heart.modules().hurtTriggers.reset(id); refresh(); broadcastChanges(); return true; }
+        if(operation.equals("accum_reset")){var target=heart.modules().find(id);if(!heart.canAccessEditor(player)||target==null||!target.type().equals("damage_accumulation"))return false;heart.modules().damageAccumulation.reset(id);refresh();broadcastChanges();return true;}
+        if(operation.equals("hurt_reset")) { if(!heart.canAccessEditor(player) || heart.modules().find(id)==null) return false; heart.modules().hurtTriggers.reset(id); refresh(); broadcastChanges(); return true; }
         if(operation.equals("arena_record")||operation.equals("arena_clear")){
             if(revision!=heart.modules().revision()||!(player instanceof net.minecraft.server.level.ServerPlayer server))return false;
             var target=heart.modules().find(id);boolean ok=operation.equals("arena_record")?dev.sablelife.ownership.ArenaRespawns.record(server,heart,target):dev.sablelife.ownership.ArenaRespawns.clear(server,heart,target);refresh();broadcastChanges();return ok;
@@ -152,18 +154,22 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
                 if(!AuthoringLimits.presetText(text)||!VirtualModule.AVAILABLE_TYPES.contains(key)||key.equals("command")&&!player.canUseGameMasterBlocks())return false;
                 try {
                     var tag=net.minecraft.nbt.TagParser.parseTag(text);if(!AuthoringLimits.compound(tag,AuthoringLimits.MAX_PRESET_BYTES)||!tag.getString("Type").equals(key)||tag.getInt("Version")>1)return false;
-                    if(heart.isControlCore()&&tag.getInt("Trigger")==5)tag.putInt("Trigger",0);
-                    var added=heart.modules().addPreset(tag);result=added!=null;if(added!=null)DashboardSelection.set(heart,player.getUUID(),added.id());
+                    if(heart.isControlCore()&&tag.getInt("Trigger")>dev.sablelife.heart.RedstoneCorePolicy.maxTrigger(key))tag.putInt("Trigger",0);
+                    var added=heart.modules().addPreset(tag);result=added!=null;if(added!=null){if(heart.isSurvivalCore())dev.sablelife.heart.SurvivalLifeCorePolicy.constrain(added);if(heart.isControlCore())dev.sablelife.heart.RedstoneCorePolicy.constrainMovement(added);DashboardSelection.set(heart,player.getUUID(),added.id());}
                     if (added != null && added.type().equals("command")) added.approveCommands();
                 }catch(com.mojang.brigadier.exceptions.CommandSyntaxException|IllegalArgumentException e){return false;}
             }
             case "add" -> {
                 if(key.equals("command")&&!player.canUseGameMasterBlocks()||!VirtualModule.AVAILABLE_TYPES.contains(key))return false;
-                var added=heart.modules().add(key);result=added!=null;if(added!=null)DashboardSelection.set(heart,player.getUUID(),added.id());
+                var added=heart.modules().add(key);result=added!=null;if(added!=null){if(heart.isControlCore())dev.sablelife.heart.RedstoneCorePolicy.constrainMovement(added);DashboardSelection.set(heart,player.getUUID(),added.id());}
             }
             case "copy" -> {
                 if(module==null||module.type().equals("command")&&!player.canUseGameMasterBlocks())return false;
-                var added=heart.modules().copy(id);result=added!=null;if(added!=null)DashboardSelection.set(heart,player.getUUID(),added.id());
+                var added=heart.modules().copy(id);result=added!=null;if(added!=null){if(heart.isControlCore())dev.sablelife.heart.RedstoneCorePolicy.constrainMovement(added);DashboardSelection.set(heart,player.getUUID(),added.id());}
+            }
+            case "blueprint_spawn" -> {
+                if(!(player instanceof net.minecraft.server.level.ServerPlayer sp)||module==null||!module.type().equals("blueprint_spawn"))return false;
+                result=key.equals("load")?dev.sablelife.ownership.BlueprintSpawns.select(sp,heart,module,text):key.equals("clear")&&dev.sablelife.ownership.BlueprintSpawns.clear(sp,heart,module);
             }
             case "commands" -> {
                 if (!player.canUseGameMasterBlocks() || module == null || !module.type().equals("command")) return false;
@@ -171,6 +177,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
                 if(result){module.approveCommands();heart.modules().changed();}
             }
             case "move_set" -> {
+                if(ModuleMoveSet.ruleLocked(module,key,heart.isControlCore()))return false;
                 if(key.equals("action_add")){
                     try{var target=heart.modules().find(UUID.fromString(text.split("\\|",3)[1]));if(!ModuleAvailability.enabled(heart,target))return false;}
                     catch(IllegalArgumentException|IndexOutOfBoundsException e){return false;}
@@ -186,7 +193,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             case "reorder" -> result=Double.isFinite(value)&&(value==-1||value==1)&&heart.modules().reorder(id,(int)value);
             case "remove" -> { if(module!=null&&module.type().equals("command")&&!player.canUseGameMasterBlocks())return false;result=heart.modules().remove(id); }
             case "mark" -> { return module != null && module.known() && MarkingSessions.start(player, heart, module); }
-            case "edit" -> { if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; if(module!=null&&ModuleSurfaceField.impactAttack(module)&&key.equals("impactArea")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var config=value==0?null:heart.modules().all().get((int)value-1);if(config!=null&&!config.type().equals("surface_field"))return false;module.impactField(config==null?null:config.id());result=true;}else if(module!=null&&module.type().equals("summoned_weapon")&&key.equals("summonAttack")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleSummonedWeapon.ATTACKS.contains(source.type()))return false;module.summonAttack(source==null?null:source.id());result=true;}else if(module!=null&&module.type().equals("hit_counter")&&key.equals("hitSource")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleHitCounter.ATTACKS.contains(source.type()))return false;module.hitSource(source==null?null:source.id(),(int)value);result=true;}else result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
+            case "edit" -> { if(heart.isSurvivalCore()&&module!=null&&!dev.sablelife.heart.SurvivalLifeCorePolicy.targetModeAllowed(module,key,value))return false; if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; if(module!=null&&ModuleSurfaceField.impactAttack(module)&&key.equals("impactArea")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var config=value==0?null:heart.modules().all().get((int)value-1);if(config!=null&&!config.type().equals("surface_field"))return false;module.impactField(config==null?null:config.id());result=true;}else if(module!=null&&module.type().equals("summoned_weapon")&&key.equals("summonAttack")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleSummonedWeapon.ATTACKS.contains(source.type()))return false;module.summonAttack(source==null?null:source.id());result=true;}else if(module!=null&&module.type().equals("hit_counter")&&key.equals("hitSource")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleHitCounter.ATTACKS.contains(source.type()))return false;module.hitSource(source==null?null:source.id(),(int)value);result=true;}else result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
             default -> { return false; }
         }
         if (result) { heart.setChanged(); refresh(); broadcastChanges(); }

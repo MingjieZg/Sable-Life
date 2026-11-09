@@ -13,11 +13,20 @@ public final class NumericWheelSteps {
         if(type.equals("damage_accumulation")&&key.equals("accumWindow"))return 4;
         // Explicit user choices: angles ±5, hit limit ±1; sound mixes keep their own policy.
         if((type.equals("signal_turn")||type.equals("navigation"))&&key.endsWith("Channel"))return 1;
-        if(type.equals("linear_movement")&&key.equals("travelSpeed"))return 1;
+        if(type.equals("linear_movement")){
+            if(key.equals("moveTargetRange"))return 8;
+            if(Set.of("travelSpeed","interval","chargeTime","moveStopDistance","moveDistance").contains(key))return 1;
+        }
+        if(type.equals("sensor")&&key.equals("frontWidth"))return 1;
+        if(type.equals("entity_hitbox")&&Set.of("hitboxWidth","hitboxHeight","hitboxDepth","hitboxOffsetX","hitboxOffsetY","hitboxOffsetZ").contains(key))return 1;
+        if(type.equals("health_bar")&&key.equals("healthBarNameSize"))return .05;
+        if(type.equals("health_bar")&&key.equals("healthBarNameGap"))return .01;
         if(key.equals("impactCount")||key.equals("impactSpreadRadius"))return 1;
         if(Set.of("summonTurnSpeed","summonYaw","summonPitch","summonFormationRoll","summonFormationYaw","summonFan").contains(key))return 5;
         if(Set.of("summonCount","summonRadius","summonSpacing").contains(key))return 1;
         if(key.equals("turnSpeed"))return 5;
+        if(type.equals("laser")&&Set.of("sweepSpeed","verticalSweepSpeed").contains(key))return 5;
+        if(type.equals("laser")&&key.equals("laserParticleSpacing"))return .25;
         if(key.equals("hoverStrength"))return 5;
         if(key.equals("shockZoom")||key.equals("shockRadius")||key.equals("shockRange"))return 1;
         if(Set.of("shockDistortion","shockBlur","shockShake").contains(key))return .05;
@@ -25,6 +34,8 @@ public final class NumericWheelSteps {
         if(key.equals("armorWholeChannel"))return 1;
         if(key.startsWith("displayRot")||ModuleFields.angle(key)||key.equals("damageModifier"))return 5;
         if(type.equals("arena")&&key.equals("arenaRespawnDelay"))return 1;
+        if(key.equals("interactionSize"))return 1;
+        if(type.equals("blueprint_spawn")&&Set.of("spawnDelay","spawnCooldown","spawnLimit").contains(key))return 1;
         if(type.equals("surface_field")&&Set.of("fieldRadius","fieldLength","fieldWidth","fieldDuration").contains(key))return 1;
         if(type.equals("freeze")&&Set.of("freezeHeight","fieldLength","fieldWidth").contains(key))return 1;
         if(scale!=1)return .1;
@@ -35,7 +46,7 @@ public final class NumericWheelSteps {
     }
     public static double core(String key){if(key.equals("crushDelay"))return .05;
         if(key.equals("knockbackResistance")||key.equals("health")||key.equals("defenseThreshold")||key.equals("regen")||key.equals("regenPercent"))return 5;
-        if(key.equals("voidDeathHeight")||key.equals("regenDelay")||key.equals("deathEffectRadius"))return 1;
+        if(key.equals("limbCleanupDelay")||key.equals("voidDeathHeight")||key.equals("regenDelay")||key.equals("deathEffectRadius"))return 1;
         if(key.equals("xp")||key.equals("defenseMaximum")||key.endsWith("Count"))return 1;
         return .1;
     }

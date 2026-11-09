@@ -43,7 +43,7 @@ public final class ModuleSphereBlast {
             keep.add(m.id());var s=states.computeIfAbsent(m.id(),id->new State());
             if(s.cast==null){
                 var points=TargetCastOrigin.targeted(m)?TargetCastOrigin.points(heart,m):List.of(center(heart,m));if(points.isEmpty()||now<s.due||points.stream().noneMatch(p->server.hasChunkAt(BlockPos.containing(p)))||!heart.modules().hurtTriggers.start(m))continue;
-                s.cast=VirtualModule.load(m.save());s.points=points.stream().filter(p->server.hasChunkAt(BlockPos.containing(p))).toList();s.fire=now+(long)m.value("chargeTime");s.due=now+(long)m.value("interval");for(var point:s.points){ModuleAudio.play(server,s.cast,"chargeSound",point);charge(server,s.cast,point,s.fire-now,null);}s.lastCharge=now;
+                s.points=points.stream().filter(p->server.hasChunkAt(BlockPos.containing(p))).toList();if(!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,s.points.size()))continue;s.cast=VirtualModule.load(m.save());s.fire=now+(long)m.value("chargeTime");s.due=now+(long)m.value("interval");for(var point:s.points){ModuleAudio.play(server,s.cast,"chargeSound",point);charge(server,s.cast,point,s.fire-now,null);}s.lastCharge=now;
             }
             if(now<s.fire){if(now%5==0&&s.lastCharge!=now){for(var point:s.points)charge(server,s.cast,point,s.fire-now,null);s.lastCharge=now;}continue;}
             // Never generate or load remote terrain merely to execute an attack.
@@ -54,10 +54,10 @@ public final class ModuleSphereBlast {
     }
     public static void detonate(ServerLevel level,HeartBlockEntity heart,VirtualModule m,Vec3 point){
         double radius=m.value("blastRadius");float damage=(float)m.value("damage");
-        for(var victim:ModuleTargets.query(level,heart.creatureId(),new AABB(point,point).inflate(radius),e->ModuleTargets.matches(e,m))){
+        for(var victim:ModuleTargets.damageQuery(level,heart.creatureId(),new AABB(point,point).inflate(radius),e->ModuleTargets.matches(e,m))){
             var b=victim.getBoundingBox();var closest=new Vec3(Math.clamp(point.x,b.minX,b.maxX),Math.clamp(point.y,b.minY,b.maxY),Math.clamp(point.z,b.minZ,b.maxZ));
             if(closest.distanceToSqr(point)>radius*radius)continue;
-            if(damage==0||ModuleDamage.hurt(victim,ModuleDamage.named(ModuleDamage.blast(level,null),heart),damage,heart,m))ModuleEffects.apply(victim,m.effects(),null);
+            if(damage==0||ModuleDamage.hurt(victim,ModuleDamage.named(ModuleDamage.blast(level,null),heart),damage,heart,m))ModuleEffects.apply(victim,ModuleEffects.forCore(heart,m),null);
         }
         // Block destruction uses the same vanilla TNT rules as existing explosive projectiles.
         // Entity damage is handled above once; vanilla damage/knockback is disabled.

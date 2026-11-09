@@ -24,8 +24,8 @@ public final class DataCopierItem extends Item {
     private InteractionResult transfer(UseOnContext context) {
         var player = context.getPlayer(); var level = context.getLevel();
         if (player == null || !(level.getBlockEntity(context.getClickedPos()) instanceof HeartBlockEntity heart)) return InteractionResult.PASS;
-        if (!player.isCreative()) {
-            if (!level.isClientSide) player.displayClientMessage(Component.translatable("message.sablelife.copier_creative"), true);
+        if (!heart.canAccessEditor(player)) {
+            if (!level.isClientSide) player.displayClientMessage(Component.translatable("message.sablelife.copier_permission"), true);
             return InteractionResult.FAIL;
         }
         if (level.isClientSide) return InteractionResult.SUCCESS;

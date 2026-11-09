@@ -17,18 +17,22 @@ import java.util.*;
 public final class BodyExplosionDamage {
  private record Hit(BlockPos block,double distance){}
  private static final Map<Explosion,Boolean> TERRAIN_ONLY=Collections.synchronizedMap(new WeakHashMap<>());
+ private static final Map<net.minecraft.world.damagesource.DamageSource,Long> TERRAIN_SOURCES=Collections.synchronizedMap(new WeakHashMap<>());
+ private static final Map<net.minecraft.world.damagesource.DamageSource,Long> NATIVE_SOURCES=Collections.synchronizedMap(new WeakHashMap<>());
  /** Identity-scoped suppression: keep vanilla terrain/ordinary-entity behavior, skip duplicate core damage. */
  public static void terrainOnly(Explosion explosion){if(explosion!=null)TERRAIN_ONLY.put(explosion,true);}
+ public static boolean routedTerrainSource(net.minecraft.world.damagesource.DamageSource source,long tick){return Objects.equals(TERRAIN_SOURCES.get(source),tick);}
+ public static boolean nativeExplosionSource(net.minecraft.world.damagesource.DamageSource source,long tick){return Objects.equals(NATIVE_SOURCES.get(source),tick);}
  private static final Map<Explosion,Set<UUID>> SEEN=Collections.synchronizedMap(new WeakHashMap<>());
  public static void detonate(ExplosionEvent.Detonate event){
-  if(!(event.getLevel() instanceof ServerLevel level))return;var explosion=event.getExplosion();if(TERRAIN_ONLY.containsKey(explosion))return;var source=explosion.getDirectSourceEntity();
+  if(!(event.getLevel() instanceof ServerLevel level))return;var explosion=event.getExplosion();var damageSource=((ExplosionDamageAccess)explosion).sablelife$damageSource();NATIVE_SOURCES.put(damageSource,level.getGameTime());if(TERRAIN_ONLY.containsKey(explosion)){TERRAIN_SOURCES.put(damageSource,level.getGameTime());return;}var source=explosion.getDirectSourceEntity();
   // Our own modules already apply their configured damage. Their terrain/VFX explosion must not duplicate it.
   if(source!=null&&source.getPersistentData().hasUUID("SableLifeAttackOwner"))return;
   var calculator=((ExplosionDamageAccess)explosion).sablelife$calculator();if(calculator.getClass().getName().startsWith("dev.sablelife."))return;
   double range=BodyDamageBridge.explosionRange(explosion);var center=SableBodyProbe.toWorld(level,explosion.center());if(!Double.isFinite(range)||range<=0||!Double.isFinite(center.lengthSqr()))return;
   var seen=SEEN.computeIfAbsent(explosion,e->new HashSet<>());
   for(var core:dev.sablelife.ownership.LoadedCoreIndex.query(level,new AABB(center,center).inflate(range))){
-   if(core.isControlCore()||core.health().state()!=HeartState.ALIVE||seen.contains(core.creatureId()))continue;var hit=nearestVisible(level,core,center,range);if(hit==null)continue;seen.add(core.creatureId());float amount=BodyDamageBridge.explosionDamage(explosion,hit.distance,range);if(Float.isFinite(amount)&&amount>0)core.damageAt(hit.block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));
+   if(core.isControlCore()||EntityHitboxes.blocksStructure(core)||core.health().state()!=HeartState.ALIVE||seen.contains(core.creatureId()))continue;var hit=nearestVisible(level,core,center,range);if(hit==null)continue;seen.add(core.creatureId());float amount=BodyDamageBridge.explosionDamage(explosion,hit.distance,range);if(Float.isFinite(amount)&&amount>0){if(EntityHitboxes.hybrid(core))core.modules().damageBoxes.bodyExplosion(core,((ExplosionDamageAccess)explosion).sablelife$damageSource(),hit.block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));else core.damageAt(hit.block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));}
   }
  }
  private static Hit nearestVisible(ServerLevel level,HeartBlockEntity core,Vec3 center,double range){

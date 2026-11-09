@@ -277,7 +277,7 @@ public final class VirtualModuleGameTests {
             drops.forEach(net.minecraft.world.entity.Entity::discard); h.succeed();
         });
     }
-    @GameTest(template = "combat", batch="audit_virtualmodulegametests_virtualflameusesordinarymarkedblockandsingledamage")
+    @GameTest(template = "combat", timeoutTicks=30, batch="audit_virtualmodulegametests_virtualflameusesordinarymarkedblockandsingledamage")
     public static void virtualFlameUsesOrdinaryMarkedBlockAndSingleDamage(GameTestHelper h) {
         var level = h.getLevel(); var origin = h.absolutePos(new BlockPos(4, 6, 4));
         level.setBlockAndUpdate(origin, SableLife.HEART.get().defaultBlockState()); level.setBlockAndUpdate(origin.east(), Blocks.IRON_BLOCK.defaultBlockState());
@@ -291,7 +291,7 @@ public final class VirtualModuleGameTests {
         h.assertTrue(target.getHealth() == 20, "Unpowered flame self-fired");
         level.setBlockAndUpdate(heart.getBlockPos().east().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
         heart.modules().tick(heart);
-        h.assertTrue(target.getHealth() == 17, "Virtual flame did not apply one damage hit"); target.discard(); h.succeed();
+        h.runAfterDelay(7,()->{h.assertTrue(target.getHealth() == 17, "Moving flame front did not apply one damage hit: "+target.getHealth());target.discard();h.succeed();});
     }
     @GameTest(template = "combat", batch="audit_virtualmodulegametests_virtualanchorcontrolignoresheartbeatandfiresonearrow")
     public static void virtualAnchorControlIgnoresHeartbeatAndFiresOneArrow(GameTestHelper h) {
@@ -314,7 +314,7 @@ public final class VirtualModuleGameTests {
         var heart = fixture(h); var a = heart.modules().add("melee"); var b = heart.modules().add("melee");
         var anchor = ModuleAnchor.create(heart, heart.getBlockPos().east(), Direction.EAST);
         for (var m : List.of(a, b)) { m.anchors(List.of(anchor, anchor)); m.edit("damage", 2, ""); m.edit("knockback", 0, ""); }
-        a.edit("effect", 2, ""); a.edit("effectLevel", 3, "");
+        a.editEffect("add", "minecraft:weakness", 0); a.editEffect("level", "minecraft:weakness", 3);
         var cow = cow(h, anchor.world(heart, false).add(0, -.5, 0)); cow.invulnerableTime = 100;
         heart.modules().tick(heart);
         h.assertTrue(cow.getHealth() == 20, "Dormant module attacked");
@@ -325,7 +325,7 @@ public final class VirtualModuleGameTests {
         a.edit("enabled", 0, ""); b.edit("enabled", 0, ""); heart.modules().clearRuntime(); heart.modules().tick(heart);
         h.assertTrue(cow.getHealth() == 16, "Disabled module attacked"); cow.discard(); h.succeed();
     }
-    @GameTest(template = "combat", batch="audit_virtualmodulegametests_virtualflameobeyswallsandburnsunblockedtargets")
+    @GameTest(template = "combat", timeoutTicks=35, batch="audit_virtualmodulegametests_virtualflameobeyswallsandburnsunblockedtargets")
     public static void virtualFlameObeysWallsAndBurnsUnblockedTargets(GameTestHelper h) {
         var heart = fixture(h); var m = heart.modules().add("flame");
         m.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos().east(), Direction.EAST)));
@@ -335,12 +335,16 @@ public final class VirtualModuleGameTests {
         var wall = BlockPos.containing(start.add(direction.scale(1.5)));
         h.getLevel().setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel())); heart.modules().tick(heart);
-        h.assertTrue(target.getHealth() == 20, "Flame passed through wall");
-        h.getLevel().setBlockAndUpdate(wall, Blocks.AIR.defaultBlockState()); heart.modules().clearRuntime(); target.invulnerableTime = 100;
-        heart.modules().tick(heart);
-        h.assertTrue(target.getHealth() == 17 && target.isOnFire(), "Open flame did not damage and ignite");
-        m.invalidate(); heart.modules().clearRuntime(); heart.modules().tick(heart);
-        h.assertTrue(target.getHealth() == 17, "Destroyed nozzle attacked"); target.discard(); h.succeed();
+        h.runAfterDelay(7,()->{
+            h.assertTrue(target.getHealth() == 20, "Flame passed through wall");
+            h.getLevel().setBlockAndUpdate(wall, Blocks.AIR.defaultBlockState());heart.modules().clearRuntime();target.invulnerableTime=100;
+            heart.modules().tick(heart);
+            h.runAfterDelay(7,()->{
+                h.assertTrue(target.getHealth()==17&&target.isOnFire(),"Open flame did not damage and ignite: "+target.getHealth());
+                m.invalidate();heart.modules().clearRuntime();heart.modules().tick(heart);
+                h.assertTrue(target.getHealth()==17,"Destroyed nozzle attacked");target.discard();h.succeed();
+            });
+        });
     }
     @GameTest(template = "combat", batch="audit_virtualmodulegametests_virtualpulsehonorswallandcadence")
     public static void virtualPulseHonorsWallAndCadence(GameTestHelper h) {
@@ -364,6 +368,7 @@ public final class VirtualModuleGameTests {
         var box = new net.minecraft.world.phys.AABB(ModuleCombat.nozzle(heart, m), ModuleCombat.nozzle(heart, m)).inflate(1);
         heart.tryActivate(dev.sablelife.testing.TestActors.creative(h.getLevel())); heart.modules().tick(heart);
         h.assertTrue(h.getLevel().getEntitiesOfClass(dev.sablelife.attack.ModuleArrow.class, box).isEmpty(), "Unpowered wireless fired");
+        while(heart.wireless().size()<16)heart.wireless().add();
         var channel = heart.wireless().channel(15); channel.frequency(false, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND));
         channel.set(0, 1); channel.set(2, 100); channel.set(4, 15); heart.wireless().start(); heart.wireless().tick(h.getLevel());
         heart.modules().tick(heart); var shots = h.getLevel().getEntitiesOfClass(dev.sablelife.attack.ModuleArrow.class, box);
@@ -460,6 +465,7 @@ public final class VirtualModuleGameTests {
         var heart = fixture(h); var module = heart.modules().add("flame");
         module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos().east(), Direction.EAST)));
         module.edit("trigger", 2, ""); module.edit("channel", 16, "");
+        while(heart.wireless().size()<16)heart.wireless().add();
         var channel = heart.wireless().channel(15); channel.frequency(false, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.AMETHYST_SHARD));
         channel.set(0, 1); channel.set(2, 100); channel.set(4, 11);
         h.assertTrue(!HeartModules.triggered(module, heart), "Dormant virtual trigger powered");
@@ -480,6 +486,7 @@ public final class VirtualModuleGameTests {
         h.assertTrue(!menu.action(player, 0, none, "add", "melee", 0, ""), "Stale revision overwrote data");
         var module = heart.modules().all().getFirst();
         h.assertTrue(menu.action(player, 1, module.id(), "edit", "name", 0, "Tail"), "Module rename failed");
+        while(heart.wireless().size()<16)heart.wireless().add();
         var c = heart.wireless().channel(15); c.frequency(false, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND)); c.set(0, 1); c.set(1, 80);
         var tag = heart.saveWithFullMetadata(level.registryAccess());
         var restored = (HeartBlockEntity) net.minecraft.world.level.block.entity.BlockEntity.loadStatic(heart.getBlockPos(), heart.getBlockState(), tag, level.registryAccess());

@@ -6,6 +6,9 @@ license="MIT"
 config="sablelife.mixins.json"
 
 [[mixins]]
+config="sablelife.weapons.mixins.json"
+
+[[mixins]]
 config="sablelife.ironspells.mixins.json"
 
 [[mods]]

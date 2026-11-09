@@ -28,7 +28,7 @@ public final class ShotTrajectory {
         int mode = (int) module.value("target");
         targets.removeIf(e -> !ModuleTargets.matches(e,module)
                 || SableBodyProbe.toWorld(world, e.position()).distanceToSqr(start) > Math.pow(module.value("targetRange"), 2));
-        targets.sort(java.util.Comparator.comparingDouble(e -> SableBodyProbe.toWorld(world, e.position()).distanceToSqr(start)));
+        targets.sort(ModuleTargets.comparator(heart,e -> SableBodyProbe.toWorld(world, e.position()).distanceToSqr(start)));
         for (var target : targets) {
             var delta = SableBodyProbe.toWorld(world, target.position()).add(0, .05, 0).subtract(start);
             Vec3 solution = null;

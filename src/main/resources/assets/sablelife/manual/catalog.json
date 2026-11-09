@@ -1,16 +1,20 @@
 {
-  "revision": 152,
+  "revision": 197,
   "entries": [
     {
       "id": "getting_started",
       "title": "manual.sablelife.chapter.getting_started",
       "sections": {
         "usage": [
-          "manual.sablelife.getting_started.usage"
-        ],
-        "settings": [
+          "manual.sablelife.getting_started.usage",
+          "manual.sablelife.getting_started.step_assemble",
+          "manual.sablelife.getting_started.step_dashboard",
+          "manual.sablelife.getting_started.step_mark",
+          "manual.sablelife.getting_started.step_preview",
+          "manual.sablelife.getting_started.step_activate",
+          "manual.sablelife.getting_started.step_release",
           "manual.sablelife.getting_started.settings",
-          "manual.sablelife.module_management"
+          "manual.sablelife.getting_started.automation"
         ],
         "example": [
           "manual.sablelife.getting_started.example"
@@ -18,41 +22,28 @@
         "troubleshooting": [
           "manual.sablelife.getting_started.troubleshooting"
         ]
+      },
+      "figures": {
+        "manual.sablelife.getting_started.step_assemble": "assemble",
+        "manual.sablelife.getting_started.step_dashboard": "dashboard",
+        "manual.sablelife.getting_started.step_mark": "mark",
+        "manual.sablelife.getting_started.step_preview": "preview",
+        "manual.sablelife.getting_started.step_activate": "activate",
+        "manual.sablelife.getting_started.step_release": "release"
       }
     },
     {
-      "id": "simple_start",
-      "title": "manual.sablelife.chapter.simple_start",
+      "id": "core",
+      "title": "manual.sablelife.chapter.core",
       "sections": {
         "usage": [
-          "manual.sablelife.simple_start.usage"
-        ],
-        "settings": [
-          "manual.sablelife.simple_start.settings"
+          "manual.sablelife.core.brief_usage"
         ],
         "example": [
-          "manual.sablelife.simple_start.example"
+          "manual.sablelife.core.example"
         ],
         "troubleshooting": [
-          "manual.sablelife.simple_start.troubleshooting"
-        ]
-      }
-    },
-    {
-      "id": "basic_operations",
-      "title": "manual.sablelife.chapter.basic_operations",
-      "sections": {
-        "usage": [
-          "manual.sablelife.basic_operations.usage"
-        ],
-        "settings": [
-          "manual.sablelife.basic_operations.settings"
-        ],
-        "example": [
-          "manual.sablelife.basic_operations.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.basic_operations.troubleshooting"
+          "manual.sablelife.core.troubleshooting"
         ]
       }
     },
@@ -61,13 +52,7 @@
       "title": "manual.sablelife.chapter.module_management",
       "sections": {
         "usage": [
-          "manual.sablelife.module_management.usage"
-        ],
-        "settings": [
-          "manual.sablelife.module_management.settings",
-          "manual.sablelife.module_management.color_picker",
-          "manual.sablelife.module_management.manual_controls",
-          "manual.sablelife.module_management.presets"
+          "manual.sablelife.module_management.brief_usage"
         ],
         "example": [
           "manual.sablelife.module_management.example"
@@ -82,10 +67,7 @@
       "title": "manual.sablelife.chapter.marking_system",
       "sections": {
         "usage": [
-          "manual.sablelife.marking_system.usage"
-        ],
-        "settings": [
-          "manual.sablelife.marking_system.settings"
+          "manual.sablelife.marking_system.brief_usage"
         ],
         "example": [
           "manual.sablelife.marking_system.example"
@@ -100,10 +82,7 @@
       "title": "manual.sablelife.chapter.preview_system",
       "sections": {
         "usage": [
-          "manual.sablelife.preview_system.usage"
-        ],
-        "settings": [
-          "manual.sablelife.preview_system.settings"
+          "manual.sablelife.preview_system.brief_usage"
         ],
         "example": [
           "manual.sablelife.preview_system.example"
@@ -114,76 +93,11 @@
       }
     },
     {
-      "id": "core",
-      "title": "manual.sablelife.chapter.core",
-      "sections": {
-        "usage": [
-          "manual.sablelife.core.usage",
-          "manual.sablelife.core.protected_tools",
-          "manual.sablelife.core.iron_spells",
-          "manual.sablelife.core.iron_areas",
-          "manual.sablelife.core.iron_physical_followup",
-          "manual.sablelife.core.whole_cleanup"
-        ],
-        "settings": [
-          "manual.sablelife.core.settings",
-          "manual.sablelife.core.death_envelope",
-          "manual.sablelife.core.boss_colors"
-        ],
-        "example": [
-          "manual.sablelife.core.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.core.troubleshooting"
-        ]
-      }
-    },
-    {
-      "id": "death_unloading",
-      "title": "manual.sablelife.chapter.death_unloading",
-      "sections": {
-        "usage": [
-          "manual.sablelife.death_unloading.usage",
-          "manual.sablelife.death_unloading.cleanup_resume"
-        ],
-        "settings": [
-          "manual.sablelife.death_unloading.settings"
-        ],
-        "example": [
-          "manual.sablelife.death_unloading.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.death_unloading.troubleshooting"
-        ]
-      }
-    },
-    {
-      "id": "server_limits",
-      "title": "manual.sablelife.chapter.server_limits",
-      "sections": {
-        "usage": [
-          "manual.sablelife.server_limits.usage"
-        ],
-        "settings": [
-          "manual.sablelife.server_limits.settings"
-        ],
-        "example": [
-          "manual.sablelife.server_limits.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.server_limits.troubleshooting"
-        ]
-      }
-    },
-    {
       "id": "triggers",
       "title": "manual.sablelife.chapter.triggers",
       "sections": {
         "usage": [
-          "manual.sablelife.triggers.usage"
-        ],
-        "settings": [
-          "manual.sablelife.triggers.settings"
+          "manual.sablelife.triggers.brief_usage"
         ],
         "example": [
           "manual.sablelife.triggers.example"
@@ -194,38 +108,17 @@
       }
     },
     {
-      "id": "sound_timeline",
-      "title": "manual.sablelife.chapter.sound_timeline",
+      "id": "wireless_channels",
+      "title": "manual.sablelife.chapter.wireless_channels",
       "sections": {
         "usage": [
-          "manual.sablelife.sound_timeline.usage"
-        ],
-        "settings": [
-          "manual.sablelife.sound_timeline.settings"
+          "manual.sablelife.wireless_channels.brief_usage"
         ],
         "example": [
-          "manual.sablelife.sound_timeline.example"
+          "manual.sablelife.wireless_channels.example"
         ],
         "troubleshooting": [
-          "manual.sablelife.sound_timeline.troubleshooting"
-        ]
-      }
-    },
-    {
-      "id": "retaliation",
-      "title": "manual.sablelife.chapter.retaliation",
-      "sections": {
-        "usage": [
-          "manual.sablelife.retaliation.usage"
-        ],
-        "settings": [
-          "manual.sablelife.retaliation.settings"
-        ],
-        "example": [
-          "manual.sablelife.retaliation.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.retaliation.troubleshooting"
+          "manual.sablelife.wireless_channels.troubleshooting"
         ]
       }
     },
@@ -234,10 +127,7 @@
       "title": "manual.sablelife.chapter.survival_core",
       "sections": {
         "usage": [
-          "manual.sablelife.survival_core.usage"
-        ],
-        "settings": [
-          "manual.sablelife.survival_core.settings"
+          "manual.sablelife.survival_core.brief_usage"
         ],
         "example": [
           "manual.sablelife.survival_core.example"
@@ -248,15 +138,56 @@
       }
     },
     {
+      "id": "survival_heart_core",
+      "title": "manual.sablelife.chapter.survival_heart_core",
+      "sections": {
+        "usage": [
+          "manual.sablelife.survival_heart_core.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.survival_heart_core.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.survival_heart_core.troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "natural_spawning",
+      "title": "manual.sablelife.chapter.natural_spawning",
+      "sections": {
+        "usage": [
+          "manual.sablelife.natural_spawning.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.natural_spawning.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.natural_spawning.troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "server_limits",
+      "title": "manual.sablelife.chapter.server_limits",
+      "sections": {
+        "usage": [
+          "manual.sablelife.server_limits.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.server_limits.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.server_limits.troubleshooting"
+        ]
+      }
+    },
+    {
       "id": "move_set",
       "title": "dashboard.sablelife.type_move_set",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_move_set",
-          "manual.sablelife.move_set.did_you_know"
-        ],
-        "settings": [
-          "manual.sablelife.move_set.settings"
+          "manual.sablelife.move_set.brief_usage"
         ],
         "example": [
           "manual.sablelife.move_set.example"
@@ -272,10 +203,7 @@
       "title": "dashboard.sablelife.type_health_phase",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_health_phase"
-        ],
-        "settings": [
-          "manual.sablelife.health_phase.settings"
+          "manual.sablelife.health_phase.brief_usage"
         ],
         "example": [
           "manual.sablelife.health_phase.example"
@@ -291,10 +219,7 @@
       "title": "dashboard.sablelife.type_damage_accumulation",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_damage_accumulation"
-        ],
-        "settings": [
-          "manual.sablelife.damage_accumulation.settings"
+          "manual.sablelife.damage_accumulation.brief_usage"
         ],
         "example": [
           "manual.sablelife.damage_accumulation.example"
@@ -310,10 +235,7 @@
       "title": "dashboard.sablelife.type_sequence",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_sequence"
-        ],
-        "settings": [
-          "manual.sablelife.sequence.settings"
+          "manual.sablelife.sequence.brief_usage"
         ],
         "example": [
           "manual.sablelife.sequence.example"
@@ -329,10 +251,7 @@
       "title": "dashboard.sablelife.type_wireless_redstone",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_wireless_redstone"
-        ],
-        "settings": [
-          "manual.sablelife.wireless_redstone.settings"
+          "manual.sablelife.wireless_redstone.brief_usage"
         ],
         "example": [
           "manual.sablelife.wireless_redstone.example"
@@ -348,10 +267,7 @@
       "title": "dashboard.sablelife.type_command",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_command"
-        ],
-        "settings": [
-          "manual.sablelife.command.settings"
+          "manual.sablelife.command.brief_usage"
         ],
         "example": [
           "manual.sablelife.command.example"
@@ -367,10 +283,7 @@
       "title": "dashboard.sablelife.type_sensor",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_sensor"
-        ],
-        "settings": [
-          "manual.sablelife.sensor.settings"
+          "manual.sablelife.sensor.brief_usage"
         ],
         "example": [
           "manual.sablelife.sensor.example"
@@ -386,10 +299,7 @@
       "title": "dashboard.sablelife.type_navigation",
       "sections": {
         "usage": [
-          "manual.sablelife.navigation.usage"
-        ],
-        "settings": [
-          "manual.sablelife.navigation.settings"
+          "manual.sablelife.navigation.brief_usage"
         ],
         "example": [
           "manual.sablelife.navigation.example"
@@ -401,570 +311,11 @@
       "module": "navigation"
     },
     {
-      "id": "melee",
-      "title": "dashboard.sablelife.type_melee",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_melee"
-        ],
-        "settings": [
-          "manual.sablelife.melee.settings",
-          "manual.sablelife.melee.epic_guard"
-        ],
-        "example": [
-          "manual.sablelife.melee.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.melee.troubleshooting"
-        ]
-      },
-      "module": "melee"
-    },
-    {
-      "id": "flame",
-      "title": "dashboard.sablelife.type_flame",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_flame"
-        ],
-        "settings": [
-          "manual.sablelife.flame.settings"
-        ],
-        "example": [
-          "manual.sablelife.flame.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.flame.troubleshooting"
-        ]
-      },
-      "module": "flame"
-    },
-    {
-      "id": "arrow",
-      "title": "dashboard.sablelife.type_arrow",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_arrow"
-        ],
-        "settings": [
-          "manual.sablelife.arrow.settings"
-        ],
-        "example": [
-          "manual.sablelife.arrow.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.arrow.troubleshooting"
-        ]
-      },
-      "module": "arrow"
-    },
-    {
-      "id": "gun",
-      "title": "dashboard.sablelife.type_gun",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_gun"
-        ],
-        "settings": [
-          "manual.sablelife.gun.settings"
-        ],
-        "example": [
-          "manual.sablelife.gun.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.gun.troubleshooting"
-        ]
-      },
-      "module": "gun"
-    },
-    {
-      "id": "mortar",
-      "title": "dashboard.sablelife.type_mortar",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_mortar"
-        ],
-        "settings": [
-          "manual.sablelife.mortar.settings"
-        ],
-        "example": [
-          "manual.sablelife.mortar.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.mortar.troubleshooting"
-        ]
-      },
-      "module": "mortar"
-    },
-    {
-      "id": "surface_field",
-      "module": "surface_field",
-      "title": "manual.sablelife.chapter.surface_field",
-      "sections": {
-        "usage": [
-          "manual.sablelife.surface_field.usage"
-        ],
-        "settings": [
-          "manual.sablelife.surface_field.settings"
-        ],
-        "example": [
-          "manual.sablelife.surface_field.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.surface_field.troubleshooting"
-        ]
-      }
-    },
-    {
-      "id": "homing",
-      "title": "dashboard.sablelife.type_homing",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_homing"
-        ],
-        "settings": [
-          "manual.sablelife.homing.settings"
-        ],
-        "example": [
-          "manual.sablelife.homing.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.homing.troubleshooting"
-        ]
-      },
-      "module": "homing"
-    },
-    {
-      "id": "laser",
-      "title": "dashboard.sablelife.type_laser",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_laser"
-        ],
-        "settings": [
-          "manual.sablelife.laser.settings"
-        ],
-        "example": [
-          "manual.sablelife.laser.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.laser.troubleshooting"
-        ]
-      },
-      "module": "laser"
-    },
-    {
-      "id": "sphere_blast",
-      "title": "dashboard.sablelife.type_sphere_blast",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_sphere_blast"
-        ],
-        "settings": [
-          "manual.sablelife.sphere_blast.settings"
-        ],
-        "example": [
-          "manual.sablelife.sphere_blast.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.sphere_blast.troubleshooting"
-        ]
-      },
-      "module": "sphere_blast"
-    },
-    {
-      "id": "slash",
-      "title": "dashboard.sablelife.type_slash",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_slash"
-        ],
-        "settings": [
-          "manual.sablelife.slash.settings"
-        ],
-        "example": [
-          "manual.sablelife.slash.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.slash.troubleshooting"
-        ]
-      },
-      "module": "slash"
-    },
-    {
-      "id": "ground_strike",
-      "title": "dashboard.sablelife.type_ground_strike",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_ground_strike"
-        ],
-        "settings": [
-          "manual.sablelife.ground_strike.settings"
-        ],
-        "example": [
-          "manual.sablelife.ground_strike.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.ground_strike.troubleshooting"
-        ]
-      },
-      "module": "ground_strike"
-    },
-    {
-      "id": "quake",
-      "title": "dashboard.sablelife.type_quake",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_quake"
-        ],
-        "settings": [
-          "manual.sablelife.quake.settings"
-        ],
-        "example": [
-          "manual.sablelife.quake.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.quake.troubleshooting"
-        ]
-      },
-      "module": "quake"
-    },
-    {
-      "id": "pull",
-      "title": "dashboard.sablelife.type_pull",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_pull"
-        ],
-        "settings": [
-          "manual.sablelife.pull.settings"
-        ],
-        "example": [
-          "manual.sablelife.pull.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.pull.troubleshooting"
-        ]
-      },
-      "module": "pull"
-    },
-    {
-      "id": "freeze",
-      "title": "dashboard.sablelife.type_freeze",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_freeze"
-        ],
-        "settings": [
-          "manual.sablelife.freeze.settings"
-        ],
-        "example": [
-          "manual.sablelife.freeze.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.freeze.troubleshooting"
-        ]
-      },
-      "module": "freeze"
-    },
-    {
-      "id": "grab",
-      "title": "dashboard.sablelife.type_grab",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_grab"
-        ],
-        "settings": [
-          "manual.sablelife.grab.settings"
-        ],
-        "example": [
-          "manual.sablelife.grab.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.grab.troubleshooting"
-        ]
-      },
-      "module": "grab"
-    },
-    {
-      "id": "pulse",
-      "title": "dashboard.sablelife.type_pulse",
-      "sections": {
-        "usage": [
-          "manual.sablelife.pulse.usage"
-        ],
-        "settings": [
-          "manual.sablelife.pulse.settings"
-        ],
-        "example": [
-          "manual.sablelife.pulse.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.pulse.troubleshooting"
-        ]
-      },
-      "module": "pulse"
-    },
-    {
-      "id": "arena",
-      "title": "dashboard.sablelife.type_arena",
-      "sections": {
-        "usage": [
-          "manual.sablelife.arena.usage",
-          "manual.sablelife.arena.respawn_notes"
-        ],
-        "settings": [
-          "manual.sablelife.arena.settings",
-          "manual.sablelife.arena.range_buffs",
-          "manual.sablelife.arena.respawn"
-        ],
-        "example": [
-          "manual.sablelife.arena.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.arena.troubleshooting"
-        ]
-      },
-      "module": "arena"
-    },
-    {
-      "id": "armor",
-      "title": "dashboard.sablelife.type_armor",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_armor"
-        ],
-        "settings": [
-          "manual.sablelife.armor.settings"
-        ],
-        "example": [
-          "manual.sablelife.armor.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.armor.troubleshooting"
-        ]
-      },
-      "module": "armor"
-    },
-    {
-      "id": "linear_movement",
-      "title": "dashboard.sablelife.type_linear_movement",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_linear_movement",
-          "manual.sablelife.linear_movement.did_you_know"
-        ],
-        "settings": [
-          "manual.sablelife.linear_movement.settings"
-        ],
-        "example": [
-          "manual.sablelife.linear_movement.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.linear_movement.troubleshooting"
-        ]
-      },
-      "module": "linear_movement"
-    },
-    {
-      "id": "auto_facing",
-      "title": "dashboard.sablelife.type_auto_facing",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_auto_facing"
-        ],
-        "settings": [
-          "manual.sablelife.auto_facing.settings"
-        ],
-        "example": [
-          "manual.sablelife.auto_facing.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.auto_facing.troubleshooting"
-        ]
-      },
-      "module": "auto_facing"
-    },
-    {
-      "id": "signal_turn",
-      "title": "dashboard.sablelife.type_signal_turn",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_signal_turn"
-        ],
-        "settings": [
-          "manual.sablelife.signal_turn.settings"
-        ],
-        "example": [
-          "manual.sablelife.signal_turn.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.signal_turn.troubleshooting"
-        ]
-      },
-      "module": "signal_turn"
-    },
-    {
-      "id": "gyroscope",
-      "title": "dashboard.sablelife.type_gyroscope",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_gyroscope"
-        ],
-        "settings": [
-          "manual.sablelife.gyroscope.settings"
-        ],
-        "example": [
-          "manual.sablelife.gyroscope.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.gyroscope.troubleshooting"
-        ]
-      },
-      "module": "gyroscope"
-    },
-    {
-      "id": "particles",
-      "title": "dashboard.sablelife.type_particles",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_particles"
-        ],
-        "settings": [
-          "manual.sablelife.particles.settings"
-        ],
-        "example": [
-          "manual.sablelife.particles.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.particles.troubleshooting"
-        ]
-      },
-      "module": "particles"
-    },
-    {
-      "id": "item_display",
-      "title": "dashboard.sablelife.type_item_display",
-      "sections": {
-        "usage": [
-          "manual.sablelife.item_display.usage"
-        ],
-        "settings": [
-          "manual.sablelife.item_display.settings"
-        ],
-        "example": [
-          "manual.sablelife.item_display.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.item_display.troubleshooting"
-        ]
-      },
-      "module": "item_display"
-    },
-    {
-      "id": "trigger_sound",
-      "title": "dashboard.sablelife.type_trigger_sound",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_trigger_sound"
-        ],
-        "settings": [
-          "manual.sablelife.trigger_sound.settings"
-        ],
-        "example": [
-          "manual.sablelife.trigger_sound.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.trigger_sound.troubleshooting"
-        ]
-      },
-      "module": "trigger_sound"
-    },
-    {
-      "id": "sound",
-      "title": "dashboard.sablelife.type_sound",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_sound"
-        ],
-        "settings": [
-          "manual.sablelife.sound.settings"
-        ],
-        "example": [
-          "manual.sablelife.sound.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.sound.troubleshooting"
-        ]
-      },
-      "module": "sound"
-    },
-    {
-      "id": "bgm",
-      "title": "dashboard.sablelife.type_bgm",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_bgm"
-        ],
-        "settings": [
-          "manual.sablelife.bgm.settings"
-        ],
-        "example": [
-          "manual.sablelife.bgm.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.bgm.troubleshooting"
-        ]
-      },
-      "module": "bgm"
-    },
-    {
-      "id": "loot",
-      "title": "dashboard.sablelife.type_loot",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_loot"
-        ],
-        "settings": [
-          "manual.sablelife.loot.settings"
-        ],
-        "example": [
-          "manual.sablelife.loot.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.loot.troubleshooting"
-        ]
-      },
-      "module": "loot"
-    },
-    {
-      "id": "hover_anchor",
-      "title": "dashboard.sablelife.type_hover_anchor",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_hover_anchor"
-        ],
-        "settings": [
-          "manual.sablelife.hover_anchor.settings"
-        ],
-        "example": [
-          "manual.sablelife.hover_anchor.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.hover_anchor.troubleshooting"
-        ]
-      },
-      "module": "hover_anchor"
-    },
-    {
       "id": "hit_counter",
       "title": "dashboard.sablelife.type_hit_counter",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_hit_counter"
-        ],
-        "settings": [
-          "manual.sablelife.hit_counter.settings"
+          "manual.sablelife.hit_counter.brief_usage"
         ],
         "example": [
           "manual.sablelife.hit_counter.example"
@@ -976,72 +327,12 @@
       "module": "hit_counter"
     },
     {
-      "id": "health_adjustment",
-      "title": "dashboard.sablelife.type_health_adjustment",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_health_adjustment"
-        ],
-        "settings": [
-          "manual.sablelife.health_adjustment.settings"
-        ],
-        "example": [
-          "manual.sablelife.health_adjustment.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.health_adjustment.troubleshooting"
-        ]
-      },
-      "module": "health_adjustment"
-    },
-    {
-      "id": "visual_shockwave",
-      "title": "dashboard.sablelife.type_visual_shockwave",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_visual_shockwave"
-        ],
-        "settings": [
-          "manual.sablelife.visual_shockwave.settings"
-        ],
-        "example": [
-          "manual.sablelife.visual_shockwave.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.visual_shockwave.troubleshooting"
-        ]
-      },
-      "module": "visual_shockwave"
-    },
-    {
-      "id": "distortion_trail",
-      "title": "dashboard.sablelife.type_distortion_trail",
-      "sections": {
-        "usage": [
-          "dashboard.sablelife.description_distortion_trail"
-        ],
-        "settings": [
-          "manual.sablelife.distortion_trail.settings"
-        ],
-        "example": [
-          "manual.sablelife.distortion_trail.example"
-        ],
-        "troubleshooting": [
-          "manual.sablelife.distortion_trail.troubleshooting"
-        ]
-      },
-      "module": "distortion_trail"
-    },
-    {
       "id": "signal_logic",
       "title": "dashboard.sablelife.type_signal_logic",
       "module": "signal_logic",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_signal_logic"
-        ],
-        "settings": [
-          "manual.sablelife.signal_logic.settings"
+          "manual.sablelife.signal_logic.brief_usage"
         ],
         "example": [
           "manual.sablelife.signal_logic.example"
@@ -1057,10 +348,7 @@
       "module": "combat_event",
       "sections": {
         "usage": [
-          "dashboard.sablelife.description_combat_event"
-        ],
-        "settings": [
-          "manual.sablelife.combat_event.settings"
+          "manual.sablelife.combat_event.brief_usage"
         ],
         "example": [
           "manual.sablelife.combat_event.example"
@@ -1071,23 +359,596 @@
       }
     },
     {
+      "id": "melee",
+      "title": "dashboard.sablelife.type_melee",
+      "sections": {
+        "usage": [
+          "manual.sablelife.melee.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.melee.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.melee.brief_troubleshooting"
+        ]
+      },
+      "module": "melee"
+    },
+    {
+      "id": "flame",
+      "title": "dashboard.sablelife.type_flame",
+      "sections": {
+        "usage": [
+          "manual.sablelife.flame.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.flame.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.flame.brief_troubleshooting"
+        ]
+      },
+      "module": "flame"
+    },
+    {
+      "id": "arrow",
+      "title": "dashboard.sablelife.type_arrow",
+      "sections": {
+        "usage": [
+          "manual.sablelife.arrow.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.arrow.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.arrow.brief_troubleshooting"
+        ]
+      },
+      "module": "arrow"
+    },
+    {
+      "id": "gun",
+      "title": "dashboard.sablelife.type_gun",
+      "sections": {
+        "usage": [
+          "manual.sablelife.gun.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.gun.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.gun.brief_troubleshooting"
+        ]
+      },
+      "module": "gun"
+    },
+    {
+      "id": "mortar",
+      "title": "dashboard.sablelife.type_mortar",
+      "sections": {
+        "usage": [
+          "manual.sablelife.mortar.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.mortar.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.mortar.brief_troubleshooting"
+        ]
+      },
+      "module": "mortar"
+    },
+    {
+      "id": "surface_field",
+      "module": "surface_field",
+      "title": "manual.sablelife.chapter.surface_field",
+      "sections": {
+        "usage": [
+          "manual.sablelife.surface_field.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.surface_field.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.surface_field.brief_troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "homing",
+      "title": "dashboard.sablelife.type_homing",
+      "sections": {
+        "usage": [
+          "manual.sablelife.homing.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.homing.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.homing.brief_troubleshooting"
+        ]
+      },
+      "module": "homing"
+    },
+    {
+      "id": "laser",
+      "title": "dashboard.sablelife.type_laser",
+      "sections": {
+        "usage": [
+          "manual.sablelife.laser.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.laser.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.laser.brief_troubleshooting"
+        ]
+      },
+      "module": "laser"
+    },
+    {
+      "id": "sphere_blast",
+      "title": "dashboard.sablelife.type_sphere_blast",
+      "sections": {
+        "usage": [
+          "manual.sablelife.sphere_blast.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.sphere_blast.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.sphere_blast.brief_troubleshooting"
+        ]
+      },
+      "module": "sphere_blast"
+    },
+    {
+      "id": "slash",
+      "title": "dashboard.sablelife.type_slash",
+      "sections": {
+        "usage": [
+          "manual.sablelife.slash.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.slash.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.slash.brief_troubleshooting"
+        ]
+      },
+      "module": "slash"
+    },
+    {
+      "id": "ground_strike",
+      "title": "dashboard.sablelife.type_ground_strike",
+      "sections": {
+        "usage": [
+          "manual.sablelife.ground_strike.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.ground_strike.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.ground_strike.brief_troubleshooting"
+        ]
+      },
+      "module": "ground_strike"
+    },
+    {
+      "id": "quake",
+      "title": "dashboard.sablelife.type_quake",
+      "sections": {
+        "usage": [
+          "manual.sablelife.quake.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.quake.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.quake.brief_troubleshooting"
+        ]
+      },
+      "module": "quake"
+    },
+    {
+      "id": "pull",
+      "title": "dashboard.sablelife.type_pull",
+      "sections": {
+        "usage": [
+          "manual.sablelife.pull.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.pull.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.pull.brief_troubleshooting"
+        ]
+      },
+      "module": "pull"
+    },
+    {
+      "id": "freeze",
+      "title": "dashboard.sablelife.type_freeze",
+      "sections": {
+        "usage": [
+          "manual.sablelife.freeze.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.freeze.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.freeze.brief_troubleshooting"
+        ]
+      },
+      "module": "freeze"
+    },
+    {
+      "id": "grab",
+      "title": "dashboard.sablelife.type_grab",
+      "sections": {
+        "usage": [
+          "manual.sablelife.grab.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.grab.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.grab.brief_troubleshooting"
+        ]
+      },
+      "module": "grab"
+    },
+    {
+      "id": "pulse",
+      "title": "dashboard.sablelife.type_pulse",
+      "sections": {
+        "usage": [
+          "manual.sablelife.pulse.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.pulse.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.pulse.brief_troubleshooting"
+        ]
+      },
+      "module": "pulse"
+    },
+    {
       "id": "summoned_weapon",
       "module": "summoned_weapon",
       "title": "manual.sablelife.chapter.summoned_weapon",
       "sections": {
         "usage": [
-          "manual.sablelife.summoned_weapon.usage"
-        ],
-        "settings": [
-          "manual.sablelife.summoned_weapon.settings"
+          "manual.sablelife.summoned_weapon.brief_usage"
         ],
         "example": [
-          "manual.sablelife.summoned_weapon.example"
+          "manual.sablelife.summoned_weapon.brief_example"
         ],
         "troubleshooting": [
-          "manual.sablelife.summoned_weapon.troubleshooting"
+          "manual.sablelife.summoned_weapon.brief_troubleshooting"
         ]
       }
+    },
+    {
+      "id": "arena",
+      "title": "dashboard.sablelife.type_arena",
+      "sections": {
+        "usage": [
+          "manual.sablelife.arena.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.arena.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.arena.brief_troubleshooting"
+        ]
+      },
+      "module": "arena"
+    },
+    {
+      "id": "armor",
+      "title": "dashboard.sablelife.type_armor",
+      "sections": {
+        "usage": [
+          "manual.sablelife.armor.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.armor.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.armor.brief_troubleshooting"
+        ]
+      },
+      "module": "armor"
+    },
+    {
+      "id": "linear_movement",
+      "title": "dashboard.sablelife.type_linear_movement",
+      "sections": {
+        "usage": [
+          "manual.sablelife.linear_movement.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.linear_movement.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.linear_movement.brief_troubleshooting"
+        ]
+      },
+      "module": "linear_movement"
+    },
+    {
+      "id": "auto_facing",
+      "title": "dashboard.sablelife.type_auto_facing",
+      "sections": {
+        "usage": [
+          "manual.sablelife.auto_facing.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.auto_facing.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.auto_facing.brief_troubleshooting"
+        ]
+      },
+      "module": "auto_facing"
+    },
+    {
+      "id": "signal_turn",
+      "title": "dashboard.sablelife.type_signal_turn",
+      "sections": {
+        "usage": [
+          "manual.sablelife.signal_turn.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.signal_turn.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.signal_turn.brief_troubleshooting"
+        ]
+      },
+      "module": "signal_turn"
+    },
+    {
+      "id": "gyroscope",
+      "title": "dashboard.sablelife.type_gyroscope",
+      "sections": {
+        "usage": [
+          "manual.sablelife.gyroscope.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.gyroscope.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.gyroscope.brief_troubleshooting"
+        ]
+      },
+      "module": "gyroscope"
+    },
+    {
+      "id": "particles",
+      "title": "dashboard.sablelife.type_particles",
+      "sections": {
+        "usage": [
+          "manual.sablelife.particles.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.particles.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.particles.brief_troubleshooting"
+        ]
+      },
+      "module": "particles"
+    },
+    {
+      "id": "health_bar",
+      "title": "manual.sablelife.chapter.health_bar",
+      "module": "health_bar",
+      "sections": {
+        "usage": [
+          "manual.sablelife.health_bar.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.health_bar.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.health_bar.brief_troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "item_display",
+      "title": "dashboard.sablelife.type_item_display",
+      "sections": {
+        "usage": [
+          "manual.sablelife.item_display.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.item_display.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.item_display.brief_troubleshooting"
+        ]
+      },
+      "module": "item_display"
+    },
+    {
+      "id": "trigger_sound",
+      "title": "dashboard.sablelife.type_trigger_sound",
+      "sections": {
+        "usage": [
+          "manual.sablelife.trigger_sound.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.trigger_sound.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.trigger_sound.brief_troubleshooting"
+        ]
+      },
+      "module": "trigger_sound"
+    },
+    {
+      "id": "sound",
+      "title": "dashboard.sablelife.type_sound",
+      "sections": {
+        "usage": [
+          "manual.sablelife.sound.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.sound.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.sound.brief_troubleshooting"
+        ]
+      },
+      "module": "sound"
+    },
+    {
+      "id": "bgm",
+      "title": "dashboard.sablelife.type_bgm",
+      "sections": {
+        "usage": [
+          "manual.sablelife.bgm.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.bgm.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.bgm.brief_troubleshooting"
+        ]
+      },
+      "module": "bgm"
+    },
+    {
+      "id": "loot",
+      "title": "dashboard.sablelife.type_loot",
+      "sections": {
+        "usage": [
+          "manual.sablelife.loot.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.loot.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.loot.brief_troubleshooting"
+        ]
+      },
+      "module": "loot"
+    },
+    {
+      "id": "hover_anchor",
+      "title": "dashboard.sablelife.type_hover_anchor",
+      "sections": {
+        "usage": [
+          "manual.sablelife.hover_anchor.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.hover_anchor.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.hover_anchor.brief_troubleshooting"
+        ]
+      },
+      "module": "hover_anchor"
+    },
+    {
+      "id": "health_adjustment",
+      "title": "dashboard.sablelife.type_health_adjustment",
+      "sections": {
+        "usage": [
+          "manual.sablelife.health_adjustment.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.health_adjustment.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.health_adjustment.brief_troubleshooting"
+        ]
+      },
+      "module": "health_adjustment"
+    },
+    {
+      "id": "visual_shockwave",
+      "title": "dashboard.sablelife.type_visual_shockwave",
+      "sections": {
+        "usage": [
+          "manual.sablelife.visual_shockwave.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.visual_shockwave.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.visual_shockwave.brief_troubleshooting"
+        ]
+      },
+      "module": "visual_shockwave"
+    },
+    {
+      "id": "distortion_trail",
+      "title": "dashboard.sablelife.type_distortion_trail",
+      "sections": {
+        "usage": [
+          "manual.sablelife.distortion_trail.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.distortion_trail.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.distortion_trail.brief_troubleshooting"
+        ]
+      },
+      "module": "distortion_trail"
+    },
+    {
+      "id": "blueprint_spawn",
+      "title": "dashboard.sablelife.type_blueprint_spawn",
+      "module": "blueprint_spawn",
+      "sections": {
+        "usage": [
+          "manual.sablelife.blueprint_spawn.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.blueprint_spawn.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.blueprint_spawn.brief_troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "entity_hitbox",
+      "title": "dashboard.sablelife.type_entity_hitbox",
+      "module": "entity_hitbox",
+      "sections": {
+        "usage": [
+          "manual.sablelife.entity_hitbox.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.entity_hitbox.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.entity_hitbox.brief_troubleshooting"
+        ]
+      }
+    },
+    {
+      "id": "block_interaction",
+      "title": "manual.sablelife.chapter.block_interaction",
+      "sections": {
+        "usage": [
+          "manual.sablelife.block_interaction.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.block_interaction.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.block_interaction.brief_troubleshooting"
+        ]
+      },
+      "module": "block_interaction"
     }
   ]
 }

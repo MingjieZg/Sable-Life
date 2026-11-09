@@ -43,12 +43,14 @@ public final class PhotomancyRespawnBridge {
   var tag=blueprint.save();ArenaRespawnLimits.check("template",tag.sizeInBytes(),dev.sablelife.SableLifeServerConfig.arenaTemplateBytes());return tag;
  }
  public static ArenaRespawns.Build create(CompoundTag template,CompoundTag saved,Vec3 center){return new Build(template,saved,center);}
+ public static ArenaRespawns.Build createSpawn(CompoundTag template,CompoundTag saved,Vec3 center,org.joml.Quaterniond rotation){return new Build(template,saved,center,rotation,true);}
  private static final class Build implements ArenaRespawns.Build {
   final UUID tickGroup=UUID.randomUUID();
   final SableBlueprint blueprint;final BlueprintBuildProgress progress;final BlueprintPlacementPlan plan;
-  final boolean legacyIncremental;boolean directDone;dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession session;
-  Build(CompoundTag template,CompoundTag saved,Vec3 center){blueprint=SableBlueprint.load(template);progress=saved.isEmpty()?new BlueprintBuildProgress():BlueprintBuildProgress.load(saved);plan=BlueprintPlacementPlan.legacy(blueprint,center);directDone=saved.getBoolean("SableLifeDirectDone");legacyIncremental=!saved.isEmpty()&&!saved.getBoolean("SableLifeDirect");}
-  @Override public AABB bounds(){var b=blueprint.hasCanonicalBounds()?blueprint.canonicalBounds():blueprint.rootBounds();return new AABB(b.minX(),b.minY(),b.minZ(),b.maxX(),b.maxY(),b.maxZ()).move(plan.originVec3());}
+  final boolean legacyIncremental,spawnGeometry;boolean directDone;dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession session;
+  Build(CompoundTag template,CompoundTag saved,Vec3 center){this(template,saved,center,null,false);}
+  Build(CompoundTag template,CompoundTag saved,Vec3 center,org.joml.Quaterniond rotation,boolean spawn){blueprint=SableBlueprint.load(template);progress=saved.isEmpty()?new BlueprintBuildProgress():BlueprintBuildProgress.load(saved);plan=spawn?SpawnTemplateBridge.plan(blueprint,center,rotation):BlueprintPlacementPlan.legacy(blueprint,center);spawnGeometry=spawn;directDone=saved.getBoolean("SableLifeDirectDone");legacyIncremental=!saved.isEmpty()&&!saved.getBoolean("SableLifeDirect");}
+  @Override public AABB bounds(){if(spawnGeometry)return SpawnTemplateBridge.bounds(blueprint,plan);var b=blueprint.hasCanonicalBounds()?blueprint.canonicalBounds():blueprint.rootBounds();return new AABB(b.minX(),b.minY(),b.minZ(),b.maxX(),b.maxY(),b.maxZ()).move(plan.originVec3());}
   @Override public String step(ServerLevel level){
    if(!legacyIncremental)return placeDirect(level);
    return stepLegacy(level);

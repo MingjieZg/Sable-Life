@@ -31,6 +31,9 @@ public final class ModuleEffects {
         var key = ResourceLocation.tryParse(id);
         return key != null && BuiltInRegistries.MOB_EFFECT.containsKey(key) && id.length() <= 80;
     }
+    public static List<Entry> forCore(dev.sablelife.heart.HeartBlockEntity core,VirtualModule module){
+        return core.isSurvivalCore()?List.of():module.effects();
+    }
     public static ListTag save(List<Entry> effects) {
         var tag = new ListTag(); effects.forEach(e -> tag.add(e.save())); return tag;
     }

@@ -18,7 +18,7 @@ import java.util.*;
 @PrefixGameTestTemplate(false)
 public final class ModuleAvailabilityGameTests {
     private static ModConfigSpec.BooleanValue setting(boolean redstone,String type){
-        return (ModConfigSpec.BooleanValue)SableLifeServerConfig.SPEC.getValues().get(List.of("modules",redstone?"redstoneCore":"lifeCore",type));
+        return (ModConfigSpec.BooleanValue)SableLifeServerConfig.SPEC.getValues().get(List.of("modules",redstone?"redstoneCore":"heartCore",type));
     }
     private static HeartBlockEntity core(GameTestHelper h,boolean redstone,int x){
         var level=h.getLevel();var pos=h.absolutePos(new BlockPos(x,6,3));
@@ -27,16 +27,162 @@ public final class ModuleAvailabilityGameTests {
         return (HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());
     }
     private static boolean offered(HeartBlockEntity core,String type){return core.modules().snapshot(core,true).getList("AvailableTypes",8).stream().anyMatch(t->t.getAsString().equals(type));}
+    @GameTest(template="combat",batch="block_interaction",timeoutTicks=30)
+    public static void BlockInteractionUsesOneNearestBlockAndRepeatsOnlyOnSchedule(GameTestHelper h){
+        var core=core(h,true,3);
+        var mark=core.getBlockPos().east();
+        var anchor=ModuleAnchor.create(core,mark,Direction.NORTH);
+        var worldMark=BlockPos.containing(anchor.world(core,false));
+        var point=worldMark.north(3);
+        var near=point.east();
+        var far=near.above();
+        var level=h.getLevel();
+        level.setBlockAndUpdate(worldMark.below(),Blocks.STONE.defaultBlockState());
+        level.setBlockAndUpdate(worldMark.west().below(),Blocks.STONE.defaultBlockState());
+        level.setBlockAndUpdate(point,Blocks.CHEST.defaultBlockState());
+        level.setBlockAndUpdate(near,Blocks.OAK_TRAPDOOR.defaultBlockState());
+        level.setBlockAndUpdate(far,Blocks.OAK_TRAPDOOR.defaultBlockState());
+        var module=core.modules().add("block_interaction");
+        module.anchors(List.of(anchor));
+        module.edit("interactionSize",3,"");
+        module.edit("startDistance",3,"");
+        var open=net.minecraft.world.level.block.TrapDoorBlock.OPEN;
+        core.modules().tick(core);
+        h.assertTrue(level.getBlockState(near).getValue(open)&&!level.getBlockState(far).getValue(open),"Closest trapdoor was not the only target");
+        h.runAfterDelay(3,()->{
+            h.assertTrue(level.getBlockState(near).getValue(open),"One-shot interaction repeated while held");
+            module.edit("interactionMode",1,"");
+            module.edit("interactionInterval",2,"");
+            core.modules().clearRuntime();
+            core.modules().tick(core);
+            h.assertTrue(!level.getBlockState(near).getValue(open),"Repeat did not interact on activation");
+        });
+        h.runAfterDelay(5,()->{
+            h.assertTrue(level.getBlockState(near).getValue(open)&&!level.getBlockState(far).getValue(open),"Repeat timing or nearest target changed");
+            h.succeed();
+        });
+    }
+    @GameTest(template="combat",batch="block_interaction_offset")
+    public static void InteractionOffsetsMoveTheSearchAndSelectOnlyTheNearestBlock(GameTestHelper h){
+        var core=core(h,true,3);
+        var level=h.getLevel();
+        var mark=core.getBlockPos().east();
+        var anchor=ModuleAnchor.create(core,mark,Direction.EAST);
+        var worldMark=BlockPos.containing(anchor.world(core,false));
+        var target=worldMark.east(3).above();
+        var original=worldMark.above();
+        level.setBlockAndUpdate(target,Blocks.OAK_TRAPDOOR.defaultBlockState());
+        level.setBlockAndUpdate(original,Blocks.OAK_TRAPDOOR.defaultBlockState());
+        var module=core.modules().add("block_interaction");
+        module.anchors(List.of(anchor));
+        h.assertTrue(module.value("interactionSize")==1,"Interaction box should default to one block");
+        module.edit("startDistance",3,"");
+        module.edit("interactionOffsetY",1,"");
+        core.modules().tick(core);
+        var open=net.minecraft.world.level.block.TrapDoorBlock.OPEN;
+        h.assertTrue(level.getBlockState(target).getValue(open)&&!level.getBlockState(original).getValue(open),
+                "Interaction stayed at the mark instead of moving the search box");
+        h.succeed();
+    }
+
+    @GameTest(template="combat",batch="block_interaction_structure")
+    public static void StructureInteractionStaysOnTheMarkedPart(GameTestHelper h){
+        var core=core(h,true,3);
+        var level=h.getLevel();
+        var part=core.getBlockPos().east();
+        level.setBlockAndUpdate(part,Blocks.OAK_TRAPDOOR.defaultBlockState());
+        var anchor=ModuleAnchor.create(core,part,Direction.UP);
+        var world=BlockPos.containing(anchor.world(core,false));
+        level.setBlockAndUpdate(world,Blocks.OAK_TRAPDOOR.defaultBlockState());
+        var module=core.modules().add("block_interaction");
+        module.anchors(List.of(anchor));
+        module.edit("interactionSpace",1,"");
+        core.modules().tick(core);
+        var open=net.minecraft.world.level.block.TrapDoorBlock.OPEN;
+        h.assertTrue(level.getBlockState(part).getValue(open)&&!level.getBlockState(world).getValue(open),
+                "Structure mode operated the overlapping world block");
+        module.edit("interactionSpace",0,"");
+        core.modules().clearRuntime();
+        core.modules().tick(core);
+        h.assertTrue(level.getBlockState(part).getValue(open)&&level.getBlockState(world).getValue(open),
+                "World mode did not operate the world block independently");
+        h.succeed();
+    }
+
+    @GameTest(template="combat",batch="block_interaction_protected_structure")
+    public static void OwnInteractionModuleWorksInsideAProtectedLivingStructure(GameTestHelper h){
+        var core=core(h,false,3);
+        var level=h.getLevel();
+        var player=TestActors.creative(level);
+        var part=core.getBlockPos().east();
+        level.setBlockAndUpdate(part,Blocks.OAK_TRAPDOOR.defaultBlockState());
+        var module=core.modules().add("block_interaction");
+        module.anchors(List.of(ModuleAnchor.create(core,part,Direction.UP)));
+        module.edit("interactionSpace",1,"");
+        core.tryActivate(player);
+        h.assertTrue(!core.allowSurvivalInteraction(),"Fixture should deny external survival clicks");
+        core.modules().tick(core);
+        h.assertTrue(level.getBlockState(part).getValue(net.minecraft.world.level.block.TrapDoorBlock.OPEN),
+                "Core's own module was blocked by its external interaction policy");
+        var actor=net.neoforged.neoforge.common.util.FakePlayerFactory.get(level,
+                new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(),"OtherActor"));
+        h.assertTrue(!dev.sablelife.ownership.BodyInteraction.allowed(actor,part),"Module bypass leaked after interaction");
+        h.succeed();
+    }
+
+    @GameTest(template="combat",batch="laser_vertical_sweep")
+    public static void VerticalLaserSweepFollowsTheMarkedPartAxes(GameTestHelper h){
+        var body=new org.joml.Quaterniond();
+        var forward=new net.minecraft.world.phys.Vec3(0,0,-1);
+        var start=ModuleLaser.sweep(forward,body,0,90,0);
+        var end=ModuleLaser.sweep(forward,body,0,90,1);
+        h.assertTrue(start.y<-.7&&end.y>.7,"Vertical sweep did not span both sides of center");
+        var combined=ModuleLaser.sweep(forward,body,90,90,1);
+        h.assertTrue(Math.abs(combined.x)>.49&&combined.y>.7,"Combined sweep lost either yaw or pitch");
+        h.assertTrue(Double.isFinite(ModuleLaser.sweep(new net.minecraft.world.phys.Vec3(0,1,0),body,90,90,1).lengthSqr()),
+                "A vertical mark produced a degenerate sweep axis");
+        h.succeed();
+    }
+
+    @GameTest(template="combat",batch="redstone_safe_travel")
+    public static void RedstoneMoveSetRunsOnlySafeTravel(GameTestHelper h){
+        var core=core(h,true,3);var author=TestActors.creative(h.getLevel());
+        author.setPos(ModuleArena.corePosition(core));
+        var menu=new HeartDashboardMenu(1,author.getInventory(),core);
+        var option=setting(true,"linear_movement");boolean previous=option.get();
+        try{
+            h.assertTrue(previous&&offered(core,"linear_movement"),"Travel was unavailable by default");
+            var preset=new VirtualModule("linear_movement");
+            preset.edit("moveForce",1,"");preset.edit("moveObstruction",1,"");
+            h.assertTrue(menu.action(author,core.modules().revision(),preset.id(),"add_preset","linear_movement",0,ModulePreset.portable(preset.save()).toString()),"Travel preset was rejected");
+            var travel=core.modules().all().getFirst();
+            h.assertTrue(travel.value("linearMode")==1&&travel.value("moveForce")==0&&travel.value("moveObstruction")==0,"Preset bypassed safe Travel");
+            h.assertTrue(!menu.action(author,core.modules().revision(),travel.id(),"edit","moveForce",1,""),"Editor unlocked forced travel");
+            travel.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));
+            travel.edit("chargeTime",0,"");travel.edit("travelSpeed",10,"");
+            var table=core.modules().add("move_set");
+            table.moveSet().edit("add",0,"",core.modules());
+            table.moveSet().edit("action_add",0,"0|"+travel.id(),core.modules());
+            var origin=ModuleArena.corePosition(core);
+            core.modules().tick(core);
+            double moved=origin.distanceTo(ModuleArena.corePosition(core));
+            h.assertTrue(moved>.1&&moved<.6&&core.health().state()==HeartState.DORMANT,"Move Set failed to drive a continuous step: "+moved);
+            option.set(false);
+            h.assertTrue(!HeartModules.triggered(travel,core),"Travel stayed active after its server switch was disabled");
+            h.succeed();
+        }finally{option.set(previous);}
+    }
     @GameTest(template="combat",batch="server_module_policy")
     public static void OptionalPresentationDefaultsOffAndSurvivalEditorsRunWhenEnabled(GameTestHelper h){
         var core=core(h,true,3);var author=net.neoforged.neoforge.common.util.FakePlayerFactory.get(h.getLevel(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),"OptionalControlAuthor"));
         author.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);author.setPos(SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter()));
         var menu=new HeartDashboardMenu(1,author.getInventory(),core);var previous=new HashMap<String,Boolean>();
         try{
-            h.assertTrue(RedstoneCorePolicy.TYPES.size()==14,"Expected nine control and five optional presentation types");
+            h.assertTrue(RedstoneCorePolicy.TYPES.size()==17,"Expected seventeen supported modules");
             for(String type:RedstoneCorePolicy.OPTIONAL_TYPES){
                 var option=setting(true,type);previous.put(type,option.get());
-                h.assertTrue(!option.get()&&!offered(core,type),"Optional presentation enabled by default: "+type);
+                h.assertTrue(option.get()&&offered(core,type),"Presentation module disabled by default: "+type);
+                option.set(false);
                 h.assertTrue(!menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"False option accepted add");
                 option.set(true);
                 h.assertTrue(offered(core,type)&&menu.action(author,core.modules().revision(),new UUID(0,0),"add",type,0,""),"True option unavailable: "+type);
@@ -65,7 +211,7 @@ public final class ModuleAvailabilityGameTests {
             core.modules().tick(core);
             h.assertTrue(!ModuleItemDisplay.showing(core,display)&&core.modules().all().stream().noneMatch(m->HeartModules.triggered(m,core)),"False left presentation active");
             h.assertTrue(saved.equals(core.modules().save().getList("Modules",10)),"Disabling erased presentation configuration");
-            h.assertTrue(!ModuleAvailability.enabled(true,"sound")&&!ModuleAvailability.enabled(true,"bgm")&&!ModuleAvailability.enabled(true,"move_set"),"Unrequested capabilities opened");
+            h.assertTrue(!ModuleAvailability.enabled(true,"sound")&&!ModuleAvailability.enabled(true,"bgm")&&ModuleAvailability.enabled(true,"move_set"),"Unrequested capabilities opened");
             h.succeed();
         }finally{previous.forEach((type,value)->setting(true,type).set(value));}
     }
@@ -76,7 +222,7 @@ public final class ModuleAvailabilityGameTests {
         Runnable restore=()->{lifeSwitch.set(previousLife);controlSwitch.set(previousControl);};
         try{
             lifeSwitch.set(true);controlSwitch.set(true);
-            h.assertTrue(ModuleAvailability.available(false).size()==44&&ModuleAvailability.available(true).size()==9,"Default module tables differ");
+            h.assertTrue(ModuleAvailability.available(false).size()==VirtualModule.AVAILABLE_TYPES.size()&&ModuleAvailability.available(true).size()==RedstoneCorePolicy.TYPES.size(),"Default module tables differ");
             h.assertTrue(!ModuleAvailability.enabled(true,"health_phase")&&setting(true,"health_phase")==null,"Redstone config granted life capability");
             for(var c:List.of(life,control)){
                 author.setPos(SableBodyProbe.toWorld(h.getLevel(),c.getBlockPos().getCenter()));
@@ -119,5 +265,38 @@ public final class ModuleAvailabilityGameTests {
                 finally{restore.run();}
             });
         }catch(Throwable failure){restore.run();throw failure;}
+    }
+    @GameTest(template="combat",batch="survival_heart_core_editing")
+    public static void ServerSwitchGrantsAndRevokesSurvivalLifeCoreEditing(GameTestHelper h) {
+        var setting = (ModConfigSpec.BooleanValue) SableLifeServerConfig.SPEC.getValues().get("allowEditHeartCoreUnderSurvivalMode");
+        boolean previous = setting.get();
+        try {
+            var core = core(h, false, 3);
+            var player = TestActors.creative(h.getLevel());
+            player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            player.setPos(SableBodyProbe.toWorld(h.getLevel(), core.getBlockPos().getCenter()));
+            var dashboard = new HeartDashboardMenu(1, player.getInventory(), core);
+            var settings = new HeartSettingsMenu(2, player.getInventory(), core);
+            var loot = new HeartLootMenu(3, player.getInventory(), core);
+            var lootModule = core.modules().add("loot");
+            var partLoot = new VirtualLootMenu(4, player.getInventory(), core, lootModule);
+            var wireless = new HeartWirelessMenu(5, player.getInventory(), core, 0);
+            var sample = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EMERALD);
+            setting.set(false);
+            h.assertTrue(!dashboard.stillValid(player) && !settings.action(player,"xp",100,"") && !core.setDeathTemplate(player,0,sample), "Disabled switch allowed survival edits");
+            setting.set(true);
+            h.assertTrue(dashboard.stillValid(player) && settings.stillValid(player) && loot.stillValid(player) && partLoot.stillValid(player) && wireless.stillValid(player), "Enabled switch did not open all editor paths");
+            h.assertTrue(settings.action(player,"xp",100,"") && core.deathExperience()==100, "Survival XP edit failed");
+            h.assertTrue(core.setDeathTemplate(player,0,sample) && core.lootTemplates().getFirst().is(net.minecraft.world.item.Items.EMERALD), "Survival loot edit failed");
+            h.assertTrue(settings.action(player,"crushEnabled",1,"") && core.terrainSettings().enabled(), "Survival terrain setting failed");
+            h.assertTrue(dashboard.action(player,core.modules().revision(),new UUID(0,0),"add","laser",0,""), "Survival attack module edit failed");
+            h.assertTrue(!dashboard.action(player,core.modules().revision(),new UUID(0,0),"add","command",0,""), "Switch granted command authoring permission");
+            core.tryActivate(player);
+            h.assertTrue(core.health().state()==HeartState.ALIVE && dashboard.stillValid(player) && !core.canEdit(player), "Active core editor bypassed the state restriction");
+            setting.set(false);
+            h.assertTrue(!dashboard.stillValid(player) && !settings.stillValid(player) && !loot.stillValid(player) && !partLoot.stillValid(player) && !wireless.stillValid(player), "Open menus retained access after revocation");
+            h.assertTrue(core.deathExperience()==100 && core.terrainSettings().enabled(), "Revocation erased authored settings");
+            h.succeed();
+        } finally { setting.set(previous); }
     }
 }

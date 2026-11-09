@@ -15,6 +15,10 @@ backups/
 # Local runtime files and private material
 .gradle*/
 .codex-remote-attachments/
+.codex-attachments/
+/diagnostics/
+/creations/
+/releases/
 exports/
 logs/
 config/

@@ -37,19 +37,19 @@ public final class HeartCopycatModel extends BakedModelWrapper<BakedModel> {
     public HeartCopycatModel(BakedModel original) { super(original); }
 
     @SubscribeEvent public static void bake(ModelEvent.ModifyBakingResult event) {
-        for(var block:java.util.List.of(SableLife.HEART.get(),SableLife.REDSTONE_CORE.get()))for (var state : block.getStateDefinition().getPossibleStates()) {
+        for(var block:java.util.List.of(SableLife.HEART.get(),SableLife.REDSTONE_CORE.get(),SableLife.SURVIVAL_LIFE_CORE.get()))for (var state : block.getStateDefinition().getPossibleStates()) {
             var key = BlockModelShaper.stateToModelLocation(state);
             event.getModels().computeIfPresent(key, (id, model) -> new HeartCopycatModel(model));
         }
     }
 
     @SubscribeEvent public static void colors(RegisterColorHandlersEvent.Block event) {
-        event.register(HeartBlock.wrappedColor(), SableLife.HEART.get(),SableLife.REDSTONE_CORE.get());
+        event.register(HeartBlock.wrappedColor(), SableLife.HEART.get(),SableLife.REDSTONE_CORE.get(),SableLife.SURVIVAL_LIFE_CORE.get());
     }
 
     private static BlockState material(ModelData data) {
         var state = data.get(CopycatModel.MATERIAL_PROPERTY);
-        return state == null || AllBlocks.COPYCAT_BASE.has(state) || (state.is(SableLife.HEART.get())||state.is(SableLife.REDSTONE_CORE.get())) ? null : state;
+        return state == null || AllBlocks.COPYCAT_BASE.has(state) || state.getBlock() instanceof HeartBlock ? null : state;
     }
 
     private static BakedModel model(BlockState state) {

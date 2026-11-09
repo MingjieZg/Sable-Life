@@ -198,6 +198,32 @@ public final class ArenaRespawnScenarios {
   h.assertTrue(ArenaRespawns.record(actor,core,arena),"Actual 64000-block native template rejected");var saved=ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess());var data=ArenaRespawns.load(saved,l.registryAccess()).save(new CompoundTag(),l.registryAccess());var row=data.getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(core.creatureId())).findFirst().orElseThrow();h.assertTrue(dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(row.getCompound("Template")).blockCount()==64000,"Large native template lost blocks on save/load");var build=dev.sablelife.compat.photomancy.PhotomancyRespawnBridge.create(row.getCompound("Template"),new CompoundTag(),arena.arenaCenter().add(0,60,0));h.assertTrue(build.step(l).equals("DONE")&&build.heart(l)!=null,"Actual 64000-block template did not restore in one native call");h.assertTrue(build.bodies().size()==1,"Giant direct placement duplicated parts");for(var id:build.bodies()){var restoredBody=(dev.ryanhcode.sable.sublevel.ServerSubLevel)dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(l).getSubLevel(id);long[] count={0};for(var holder:restoredBody.getPlot().getLoadedChunks())for(var section:holder.getChunk().getSections())if(!section.hasOnlyAir())section.getStates().count((state,n)->{if(!state.isAir())count[0]+=n;});h.assertTrue(count[0]==64000,"Giant native restoration lost blocks");dev.sablelife.compat.StructureRemovalApi.remove(l,restoredBody);}ArenaRespawns.clear(actor,core,arena);dev.sablelife.compat.StructureRemovalApi.remove(l,body);h.succeed();
  }
 
+ public static void namedTimer(GameTestHelper h,boolean legacyUnnamed){
+  var s=setup(h,false);var l=h.getLevel();
+  h.assertTrue(s.core.editCore(s.actor,"name",0,"Old recorded name"),"Initial name edit failed");
+  h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Capture failed");
+  String raw=legacyUnnamed?"":"&a&lArena Guardian";
+  h.assertTrue(s.core.editCore(s.actor,"name",0,raw),"Latest creature name edit failed");s.core.tryActivate(s.actor);s.core.forceDeath();
+  var saved=ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess());
+  var row=saved.getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(s.core.creatureId())).findFirst().orElseThrow();
+  h.assertTrue(row.getString("CreatureName").equals(raw),"Countdown did not capture the latest name at death");
+  if(legacyUnnamed)row.remove("CreatureName");
+  l.getServer().overworld().getDataStorage().set("sablelife_arena_respawns",ArenaRespawns.load(saved,l.registryAccess()));
+  h.runAfterDelay(3,()->{
+   var current=ArenaRespawns.get(l.getServer()).save(new CompoundTag(),l.registryAccess()).getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(s.core.creatureId())).findFirst().orElseThrow();
+   h.assertTrue(current.getString("CreatureName").equals(raw),"Reload lost the creature name");
+   var text=(net.minecraft.world.entity.Display.TextDisplay)l.getEntity(current.getUUID("Display"));
+   h.assertTrue(text!=null,"Countdown display missing after reload");
+   var label=((dev.sablelife.mixin.RespawnTextDisplayAccess)(Object)text).sablelife$getText();
+   h.assertTrue(label.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t&&t.getKey().equals("arena_respawn.sablelife.named"),"Name wrapper broke arena shader label identification");
+   var args=((net.minecraft.network.chat.contents.TranslatableContents)label.getContents()).getArgs();var name=(net.minecraft.network.chat.Component)args[0];var countdown=(net.minecraft.network.chat.Component)args[1];
+   h.assertTrue(name.getString().equals(legacyUnnamed?net.minecraft.network.chat.Component.translatable("entity.sablelife.creature").getString():"Arena Guardian"),"Name did not appear before countdown");
+   h.assertTrue(countdown.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t&&t.getKey().equals("arena_respawn.sablelife.countdown")&&countdown.getSiblings().size()==2,"Countdown/progress content changed");
+   if(!legacyUnnamed){var formatted=new boolean[]{false};name.visit((style,value)->{if(value.contains("Arena Guardian"))formatted[0]=style.isBold()&&style.getColor()!=null&&style.getColor().getValue()==0x55FF55;return Optional.empty();},net.minecraft.network.chat.Style.EMPTY);h.assertTrue(formatted[0]&&countdown.getStyle().getColor()==null,"Name formatting was lost or leaked to countdown");}
+   s.actor.setPos(text.position());l.getServer().getCommands().performPrefixedCommand(s.actor.createCommandSourceStack().withPermission(4),"sablelife_respawn cancel");
+   h.assertTrue(text.isRemoved(),"Named countdown was not cleaned on cancellation");h.succeed();
+  });
+ }
  public static void groundedTimer(GameTestHelper h){
   var s=setup(h,false);var l=h.getLevel();var center=s.arena.arenaCenter().add(0,150,0);s.arena.arenaCenter(center,l.dimension().location().toString());
   var ground=new BlockPos((int)Math.floor(center.x),h.absolutePos(new BlockPos(0,5,0)).getY(),(int)Math.floor(center.z));l.setBlockAndUpdate(ground,Blocks.STONE.defaultBlockState());

@@ -3,10 +3,8 @@ package dev.sablelife.client;
 import dev.sablelife.SableLife;
 import dev.sablelife.attack.ModuleArrow;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.*;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.neoforged.api.distmarker.Dist;
@@ -32,9 +30,10 @@ public final class ModuleArrowRenderer extends ArrowRenderer<ModuleArrow> {
             super.render(arrow, yaw, partial, pose, buffers, light); pose.popPose(); return;
         }
         pose.pushPose();
-        pose.mulPose(Axis.YP.rotationDegrees(Mth.lerp(partial, arrow.yRotO, arrow.getYRot())));
-        pose.mulPose(Axis.XP.rotationDegrees(-Mth.lerp(partial, arrow.xRotO, arrow.getXRot())));
-        pose.mulPose(Axis.YP.rotationDegrees(-90)); pose.mulPose(Axis.ZP.rotationDegrees(-45));
+        if(arrow.facesCamera()){
+            pose.mulPose(entityRenderDispatcher.cameraOrientation());
+            pose.mulPose(dev.sablelife.attack.ProjectileItemPose.local(arrow.itemRotation()));
+        }else pose.mulPose(dev.sablelife.attack.ProjectileItemPose.flight(Mth.lerp(partial,arrow.yRotO,arrow.getYRot()),Mth.lerp(partial,arrow.xRotO,arrow.getXRot()),arrow.itemRotation()));
         ProjectileItemRenderer.render(items,item,arrow.level(),arrow.getId(),arrow.visualSize(),pose,buffers,light);
         pose.popPose();
     }

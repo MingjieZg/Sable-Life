@@ -75,12 +75,14 @@ public final class ManualClientPreview {
         ParticleTravelClientCheck.run(mc);
         try(var reader=mc.getResourceManager().openAsReader(ResourceLocation.fromNamespaceAndPath("sablelife","lang/en_us.json"))) {
             var strings=JsonParser.parseReader(reader).getAsJsonObject();
+            var missing=new java.util.LinkedHashSet<String>();
             for(String type:VirtualModule.AVAILABLE_TYPES)for(var f:ModuleFields.forType(type)) {
                 String key="dashboard.sablelife."+f.key();
                 if(f.key().endsWith("RgbSet"))continue; // Internal editor control is not a manual field.
-                if(!strings.has(key))throw new AssertionError("Missing manual field label: "+key);
-                if(f.choices().size()>1&&!f.choices().contains("library"))for(String option:f.choices())if(!strings.has("dashboard.sablelife.choice_"+option))throw new AssertionError("Missing manual choice: "+option);
+                if(!strings.has(key))missing.add("field: "+key);
+                if(f.choices().size()>1&&!f.choices().contains("library"))for(String option:f.choices())if(!strings.has("dashboard.sablelife.choice_"+option))missing.add("choice: "+option);
             }
+            if(!missing.isEmpty())throw new AssertionError("Missing manual labels: "+String.join(", ",missing));
         }
     }
 }

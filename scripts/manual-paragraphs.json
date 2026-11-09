@@ -1,106 +1,62 @@
 {
   "schema_note": {
     "en_us": [
-      "Color rows",
-      "Some fields"
+      "These chapters describe ordinary Heart Core modules. Other core types and server switches may restrict them."
     ],
     "zh_cn": [
-      "颜色行",
-      "部分属性"
+      "模块章节以普通生命核心为准，其他核心与服务器开关可能限制功能。"
     ]
   },
   "getting_started.settings": {
     "en_us": [
-      "Sneak +",
-      "Ordinary terrain",
-      "Release is"
+      "Heart Core: practice in Creative mode. Survival editing is disabled by default; administrators can enable it.",
+      "Survival Heart Core: editable in Survival mode, with Energy costs for health and paid abilities. Read its chapter before activating.",
+      "Redstone Core: runs supported controls on an assembled structure, without creature health or life activation."
     ],
     "zh_cn": [
-      "潜行+",
-      "普通地形",
-      "Release是"
+      "普通生命核心：先在创造模式练习，默认不允许生存编辑，管理员可另行开放。",
+      "生存生命核心：可在生存模式编辑，生命值和收费技能使用能量；激活前请阅读其独立章节。",
+      "红石核心：在已组装结构上运行支持的控制功能，没有生命值，也无需生命化。"
     ]
   },
   "getting_started.troubleshooting": {
     "en_us": [
-      "Release does",
-      "Holding a block"
+      "Release before changing locked settings; controls intended for live use remain available. Sneak-right-click activates a dormant Heart Core but does not release an active creature.",
+      "Use an empty hand to open the core; holding a block can disguise it instead. Release keeps saved settings but does not restore removed blocks or give death rewards."
     ],
     "zh_cn": [
-      "Release不",
-      "手持方块"
-    ]
-  },
-  "simple_start.usage": {
-    "en_us": [
-      "Search localized"
-    ],
-    "zh_cn": [
-      "可搜索"
-    ]
-  },
-  "simple_start.settings": {
-    "en_us": [
-      "Life Core"
-    ],
-    "zh_cn": [
-      "生命核心"
-    ]
-  },
-  "simple_start.troubleshooting": {
-    "en_us": [
-      "Renaming preserves"
-    ],
-    "zh_cn": [
-      "改名保留"
+      "锁定设置变灰时，先解除生命化；允许实时操作的控件仍可使用。潜行时空手右键可以激活休眠核心，不会解除已激活的生命体。",
+      "打开核心时请空手，手持方块可能改为伪装核心。解除会保留已保存设置，但不会恢复已移除的方块，也不会触发死亡奖励。"
     ]
   },
   "module_management.settings": {
     "en_us": [
-      "Search by",
-      "Use the arrows",
-      "Preset Delete",
-      "Enter a name",
-      "Enable/Disable",
-      "Language, left",
-      "Density adjusts",
-      "Mouse wheel"
+      "Find and reorder\nSidebar search spans pages and accepts names, types or original numbers; #12 matches module 12 exactly. Clear search to see all. Arrows beside Add reorder modules.",
+      "Copy or remove\nCopy inserts an independent module after the original, retaining marks/rules/channels/action references but no runtime. Recheck those bindings before using both. Locked editing or the module limit prevents copying. Disable keeps settings; Delete requires a second click."
     ],
     "zh_cn": [
-      "可按中文",
-      "添加模块旁",
-      "删除预设",
-      "输入名称",
-      "Enable/Disable",
-      "显示密度左侧",
-      "Density调整",
-      "数值框滚轮"
+      "查找与排序\n侧栏搜索跨页匹配名字、类型和原编号，#12 精确找模块 12；清空搜索显示全部。添加旁的箭头可排序。",
+      "复制与移除\n复制在原模块后插入独立副本，保留标记／规则／频道／动作引用，不保留运行状态；同时使用前请检查绑定。编辑锁定或达到上限时不能复制。禁用保留设置，删除需第二次点击确认。"
     ]
   },
   "module_management.troubleshooting": {
     "en_us": [
-      "A renamed module",
-      "Module enabled"
+      "Server module switches are under [modules.heartCore], [modules.redstoneCore] and [modules.survivalHeartCore]. Setting one to false hides it from Add and suspends existing instances while keeping their settings. Re-enable it to restore operation. These switches cannot give a core an unsupported ability. For a module that still does not run, use the checklist in Getting Started."
     ],
     "zh_cn": [
-      "改名不改变",
-      "模块启用"
+      "服务端模块开关分别位于 [modules.heartCore]、[modules.redstoneCore] 和 [modules.survivalHeartCore]。false 会从添加列表隐藏模块，并停止已有实例运行，设置仍保留；重新开启后恢复。这些开关不能让核心获得原本不支持的能力。其他无反应情况，请使用“核心入门”的排查清单。"
     ]
   },
   "marking_system.usage": {
-    "en_us": [
-      "Arena is"
-    ],
-    "zh_cn": [
-      "Arena例外"
-    ]
+    "en_us": [],
+    "zh_cn": []
   },
   "marking_system.settings": {
     "en_us": [
-      "Area:",
-      "Particle Area and",
-      "Navigation asks",
-      "Core modules"
+      "Area mark: Melee and Particle Area use two block corners on the same rigid body. Each axis can span up to 32 blocks, including both corners. Two articulated parts can be connected to the same creature without being the same rigid body.",
+      "Particle Area stores its two-corner mark separately from the single mark used by point patterns.",
+      "For Target alignment, choose a horizontal face that points toward the structure's front. For Arena, choose a terrain or structure point to use as its fixed world center.",
+      "Core modules do not need a mark. Wireless redstone can transmit externally without a marked output face."
     ],
     "zh_cn": [
       "范围：",
@@ -111,9 +67,9 @@
   },
   "marking_system.troubleshooting": {
     "en_us": [
-      "A wrong body",
-      "Destroyed/disconnected",
-      "For particles"
+      "A second corner on another rigid body, or beyond the allowed size, is rejected. Choose a valid corner or cancel. Selection expires after two minutes and can also end if permissions or configuration change.",
+      "A required mark becomes invalid if its part is destroyed or disconnected. Clearing it returns the module to Not marked and disables its Preview.",
+      "For particles, clearing the Area mark does not erase the separately stored point mark."
     ],
     "zh_cn": [
       "错误主体",
@@ -123,19 +79,18 @@
   },
   "preview_system.settings": {
     "en_us": [
-      "Not marked",
-      "Some core/no-Mark"
+      "Preview can be unavailable if a required mark is missing, its part is disconnected, or you lack permission. Some modules have a dedicated editor or do not use a mark preview at all.",
+      "Wireless redstone can transmit externally without a mark even when its marked-output Preview is unavailable. A valid mark does not activate the module by itself."
     ],
     "zh_cn": [
-      "未标记",
       "部分核心"
     ]
   },
   "preview_system.troubleshooting": {
     "en_us": [
-      "Linear movement",
-      "For area marks",
-      "Effect previews"
+      "A red Linear movement path or destination indicates a collision problem, not a trigger problem.",
+      "For an area mark, inspect the full rotated volume rather than only its center.",
+      "Effect previews demonstrate visuals and audio. Previewing a death effect does not kill the creature."
     ],
     "zh_cn": [
       "直线移动",
@@ -145,35 +100,46 @@
   },
   "core.usage": {
     "en_us": [
-      "Death XP",
-      "Maximum health"
+      "Health regenerates after the configured quiet period following damage. It cannot revive a dying or dead creature. Configure drops through Whole-body loot on the module dashboard."
     ],
     "zh_cn": [
-      "死亡经验",
-      "最大生命滚轮每格5 HP"
+      "受到伤害后，需等待设定时间才开始回血；回血不能复活正在死亡或已死亡的生命体。战利品在模块主页面的掉落战利品中配置。"
     ]
   },
   "core.settings": {
     "en_us": [
-      "Set an integer",
-      "Death delay is",
-      "Force chunk loading",
-      "Each stage",
-      "Adaptive defense",
-      "At sustained"
+      "Interaction\nSurvival interaction defaults Off. Off locks supported devices and their open inventories for Survival/Adventure players while active; Creative is unaffected. On permits interaction, while mining and placement retain separate rules. Core status remains accessible. Dormant/released builds and Redstone Cores use normal rules; third-party remote controls may need adapters.",
+      "Adaptive defense\nDefaults: Off, 100 HP/s threshold, 80% maximum, 1-second window. Damage is measured after part armor, before adaptive reduction. Sustained 200 DPS approaches 50% reduction; 1,000 DPS reaches the 80% cap. These are not a hard DPS cap or invulnerability window.",
+      "Other defense\nKnockback resistance defaults 0%; 100% blocks supported Melee/Shockwave/Earthquake impulses, not their damage. Attraction, self-movement, gravity and native collisions are unaffected. Full heal on player kill defaults Off; it requires an attributed Survival/Adventure player death. Totems and later environmental or damage-over-time kills do not count.",
+      "Terrain breaking\nCollision terrain breaking defaults Off. When enabled: contact delay 0, support protection On, visual debris On, block drops Off. It breaks at actual block shapes, not empty gaps in the bounding box, before Travel step assist. Other Sable structures are not removed. Containers may release contents even with block drops Off. Server budgets apply.",
+      "Protected blocks\nUp to 128 block IDs or #tags. Load preset merges 20 common natural blocks without duplicates. Inventory samples consume no items; Shift-click adds, right-click removes, Confirm commits and Cancel discards. Non-block items are ignored. Grid entries show full IDs on hover; tags use books and itemless blocks use barriers.",
+      "Targets\nTarget Whitelist & Factions excludes listed usernames from automatic targeting, including All; names ignore case and may be offline. Rename entries when players rename. It does not protect against stray projectiles.",
+      "Each creature has one faction; players may join several. Public factions are open; private factions need a creator/operator invitation and acceptance in Details. Invites use UUIDs and online/previously seen names. Select a faction to assign this creature; None clears its assignment. Leaving as a player does not remove existing creatures. Only creators/operators manage privacy, members, deletion and alliances.",
+      "Alliances are direct and require both factions to agree; A-B and B-C do not ally A-C. Either side may end its alliance. Same-faction/allied creatures skip automatic targeting. Friendly Fire covers incidental Sable Life damage within a faction; allied damage requires both sides to allow it. Other mods' weapons are outside these switches. Factions grant no editor, mining or interaction access; unknown copied UUIDs create no alliance.",
+      "Priority and Owner\nPriority ranks eligible targets when selecting/reselecting: Nearest, Players First, Sable-Life Creature First or Other mob first. Existing locks and multi-target rules remain. Owner is optional and case-insensitive; Owner mode selects only that player, even if whitelisted, and waits if unavailable. Other automatic attacks and direct module damage exclude the owner. Owner grants no editing access and can appear in death messages.",
+      "World and death\nVoid death height checks the active core's world-space center: strictly below it kills regardless of defense. Default: dimension minimum Y (-64 Overworld; 0 Nether/End). Dormant builds and Redstone Cores are unaffected. Right-click Apply restores the default.",
+      "Force chunk loading defaults Off; On follows active/dying connected parts. Release, core removal, cleanup completion or switching Off releases tickets. Limits: 256 target chunks per creature, 1,024 server-wide.",
+      "Death delay is 0-60 seconds. Death effects play at zero health; vanish effects after the delay. Each has its own sound mix; Restore resets only that stage. Core names support standard & formatting and &#RRGGBB within 64 characters. Direct module kills use the launch-time styled name; later environmental/status deaths use vanilla attribution."
     ],
     "zh_cn": [
-      "保护页",
-      "Death delay限制",
-      "强制区块加载",
-      "每阶段",
-      "自适应防御",
-      "持续200"
+      "生存交互\n默认关闭：激活时禁止生存／冒险玩家操作支持的装置，并关闭其已打开的物品栏；创造玩家不受影响。开启后允许交互，挖掘与放置仍遵循各自规则。核心状态仍可查看。休眠／已解除的结构和红石核心保持普通交互；其他模组的远程控制可能需要适配。",
+      "动态免伤\n默认关闭，阈值 100 HP/s、最高免伤 80%、窗口 1 秒。统计部位免伤后的伤害，再计算动态减伤。持续 200 DPS 时约减伤 50%，1,000 DPS 时达到 80% 上限；阈值不是硬性 DPS 上限，窗口也不是无敌时间。",
+      "其他防御\n击退抗性默认 0%；100% 可挡住支持的近战、冲击波和地震波推力，不减少其伤害。牵引、自身移动、重力和原生碰撞不受影响。击杀玩家回满血默认关闭，需归因于生命体的生存／冒险玩家死亡；图腾、后续环境或持续状态伤害致死不计入。",
+      "碰撞破坏地形\n默认关闭。开启后的默认值：接触延迟 0、支撑保护开、飞散碎屑开、方块掉落关。只按实际方块形状破坏，不清空边界内的空隙，并先于直线移动的跨步辅助处理；不会移除其他 Sable 结构。碎屑只是视觉粒子。容器可能自行掉出内容物，即使方块掉落关闭。受服务器预算限制。",
+      "保护方块列表\n最多 128 个方块 ID 或 #标签。“载入预设”合并 20 种常见自然方块并去重。物品栏取样不消耗物品：Shift 点击添加、右键移除、确认提交、取消放弃；忽略非方块物品。悬停图标可看完整 ID，标签用书本、无物品形态的方块用屏障表示。",
+      "目标白名单\n添加后立即排除自动选取，包括 All；名字不分大小写，支持离线名字。玩家改名后需更新。白名单不提供流弹免伤。",
+      "阵营\n每个生命体加入一个阵营，玩家可加入多个。公开阵营可直接加入；私人阵营需创建者／管理员邀请，并在详情中接受。邀请使用 UUID，名字需在线或曾在服务器出现。点击阵营分配当前生命体，None 清除其归属；玩家退阵营不会移除已有生命体。只有创建者／管理员能管理公开状态、成员、删除和结盟。",
+      "结盟与友伤\n结盟需双方同意，且只对直接结盟生效：A-B、B-C 不代表 A-C 结盟，任一方可解除。友军和盟军不自动互相选为目标。友伤开关只控制阵营内本模组伤害；盟军伤害需双方都允许。其他模组武器不在此范围。阵营不授予编辑、挖掘或交互权限；从其他世界复制未知 UUID 不会建立联盟。",
+      "优先级与 Owner\n优先级在筛选后选取／重选目标：最近、玩家优先、Sable-Life 生命体优先或其他生物优先；不改变已有锁定和多目标规则。Owner 可留空，名字不分大小写。Owner 目标模式只选该玩家，即使其在白名单中；不可用时等待，不换人。其他自动攻击和直接模块伤害排除 Owner。Owner 不授予编辑权限，可出现在击杀播报中。",
+      "世界与死亡\n虚空死亡高度检查激活核心的世界中心，严格低于该高度即死亡，不受防御影响。默认采用维度最低 Y：主世界 -64，下界／末地 0；休眠结构和红石核心不受影响。右键确认按钮恢复默认。",
+      "强制区块加载默认关闭；开启后跟随激活／死亡中的相连部件。关闭、解除、移除核心或清理完成会撤出票据。上限为每只 256 个目标区块、全服 1,024 个。",
+      "死亡延迟为 0-60 秒。血量归零播放死亡特效，延迟后播放消失特效；两阶段声音独立，“恢复”只重置对应阶段。名字支持标准 & 格式与 &#RRGGBB，合计最多 64 字符。模块直接击杀采用发射时保存的格式化名字；后续环境／状态致死采用原版归因。"
     ]
   },
   "core.troubleshooting": {
     "en_us": [
-      "See Death delay"
+      "Physically removing the core is not a normal damage hit and is not prevented by adaptive defense.",
+      "For cleanup while away from the area or after closing the world, see Death delay and chunk unloading."
     ],
     "zh_cn": [
       "离开范围"
@@ -181,8 +147,8 @@
   },
   "death_unloading.settings": {
     "en_us": [
-      "With Force",
-      "Exiting a single-player"
+      "With Force chunk loading Off, cleanup and loot/XP wait for the chunks they need to be loaded naturally. With it On, the active or dying connected structure stays loaded, and required reward chunks are held until settlement, within the loading limits.",
+      "Closing a single-player world, stopping the server or pausing its ticks saves the remaining delay. Time spent offline is not deducted."
     ],
     "zh_cn": [
       "强制加载Off",
@@ -191,7 +157,8 @@
   },
   "death_unloading.example": {
     "en_us": [
-      "If you closed"
+      "2. Wait 20 seconds, then teleport away for 45 seconds while the server keeps ticking. On return, the delay has already expired. Cleanup and reward settlement proceed when the required chunks are available; the 40-second remainder does not restart.",
+      "3. Compare this with closing the single-player world after the first 20 seconds. Reopening resumes with about 40 seconds left, regardless of how long you were away."
     ],
     "zh_cn": [
       "若前20秒"
@@ -211,8 +178,8 @@
   },
   "triggers.settings": {
     "en_us": [
-      "Move set actions",
-      "Attack Interval"
+      "For an action scheduled by a Move set, choose the Move set trigger. For a reaction to damage, choose Hurt and configure its response mode, signal duration and cooldown.",
+      "Attack Interval and a sound layer's Start time are separate settings. One controls repeated attacks; the other delays audio playback."
     ],
     "zh_cn": [
       "Move set动作",
@@ -221,21 +188,19 @@
   },
   "triggers.troubleshooting": {
     "en_us": [
-      "Do not treat"
+      "Internal wireless reads channel output; External RX reads received input. Channel numbers are local, while external red/blue items choose the frequency. See Wireless Channels for the four connection routes."
     ],
     "zh_cn": [
-      "内部频道"
+      "内部无线读取频道输出，外部接收读取 RX 输入。频道编号属于本核心，外部红蓝物品才决定频率。四种内外连接见“无线频道”章节。"
     ]
   },
   "sound_timeline.settings": {
     "en_us": [
-      "Dashed natural",
-      "Mouse wheel"
+      "A positive Limit stops playback after that many seconds. Fade uses the final part of that time: with Limit 1.5 and Fade 0.5, fading starts at 1 second and playback stops at 1.5 seconds. Fade 0 stops immediately at the limit. If Fade is longer than Limit, fading uses the whole playback period. A sound that ends naturally is not extended by fading.",
+      "Dashed tails on the timeline do not show measured file lengths.",
+      "Scroll over Start, Pitch, Volume, Limit or Fade to adjust it by 0.1. Range changes by 8. Fade accepts 0–600 seconds."
     ],
-    "zh_cn": [
-      "虚线尾部",
-      "开始、音调、音量、上限"
-    ]
+    "zh_cn": []
   },
   "sound_timeline.troubleshooting": {
     "en_us": [
@@ -246,14 +211,8 @@
     ]
   },
   "survival_core.settings": {
-    "en_us": [
-      "Assemble the body first;",
-      "Triggers are Always,"
-    ],
-    "zh_cn": [
-      "先组装主体，",
-      "触发方式为"
-    ]
+    "en_us": [],
+    "zh_cn": []
   },
   "survival_core.troubleshooting": {
     "en_us": [
@@ -265,7 +224,10 @@
   },
   "move_set.settings": {
     "en_us": [
-      "Rules and timing"
+      "The Move set itself stores the conditions and timeline. It does not need a separate dispatcher, and existing saved rules load automatically.",
+      "Separate Move sets select and run independently. If they schedule the same module, their action windows are combined: the module stays triggered while at least one window is active. It still has one runtime and its own interval. A second overlapping window does not duplicate, queue or restart it.",
+      "Ignore conditions when selecting moves is a switch in the outer Move set properties, below Edit move set. It is Off by default. Turn it On for behavior such as target-free mechanical wandering. It skips target, distance, cone, line-of-sight and health checks for every move in that controller.",
+      "While that switch is On, target, health, distance, cone and line-of-sight controls are gray. Priority, Weight, Move cooldown, Move time, Rest after move and Consecutive repeats remain editable. Their saved values are kept. Cooldowns, busy time, Rest and repeat settings still apply, and invalid actions or server-disabled modules still prevent selection."
     ],
     "zh_cn": [
       "条件与调度"
@@ -273,8 +235,9 @@
   },
   "move_set.troubleshooting": {
     "en_us": [
-      "Running damage",
-      "Wireless redstone"
+      "Wireless redstone and Command can be valid without a mark when using their supported unmarked behavior.",
+      "Shared modules and channels are not reserved for one controller. For example, action windows of 0â€“3 seconds and 2â€“5 seconds keep a shared module triggered continuously from 0â€“5 seconds. Use separate module instances and channels for independent behavior. Overlapping sequence outputs on one channel use the highest strength.",
+      "Hover over the small ? beside the move status to see broken references, including the module name, number, first affected action and reason. Repeated references to the same module appear once. The list updates after you repair them."
     ],
     "zh_cn": [
       "运行中",
@@ -283,8 +246,10 @@
   },
   "navigation.settings": {
     "en_us": [
-      "Reverse redstone",
-      "The player designs"
+      "You can assign six internal outputs: Left, Right, Up, Down, Forward and Backward. Channel 0 leaves a direction unbound. Left/Right and Up/Down are angular corrections and drop to zero when aligned. Forward/Backward indicate bearing; Forward can reach 15 when aligned.",
+      "Create and enable the channels in Wireless. Choose Sequence-controlled internal output, or external transmission if needed, and leave Latch Off. These outputs preserve their actual strength; the channel's fixed-strength and pulse settings do not reshape them. Sources sharing a channel combine by highest strength.",
+      "Losing the target or trigger, disabling or deleting the module, or cleanup removes this module's contribution to the signal. Deleting a channel unbinds matching references and adjusts later ones.",
+      "Owner follows only the player named in this core's Owner setting, including Creative players and names on the exclusion list. Other target modes exclude the owner. The player must be online, in the same dimension and within search range; otherwise no target is selected."
     ],
     "zh_cn": [
       "反转红石",
@@ -293,7 +258,9 @@
   },
   "melee.settings": {
     "en_us": [
-      "Hit limit"
+      "Hit limit applies separately to each target during one continuous activation. A value of 0 allows unlimited hits, still spaced by Interval. Burn time is 0–30 seconds, default 0. Only a successful damage hit ignites the target; a blocked hit does not.",
+      "Length extension adds space along the first marked face's direction. Width and height add to the full dimensions, divided equally between both sides. All three extensions default to 0 and accept 0–128 blocks. The extended area follows the part and its configured angles.",
+      "Use Preview to align the attack volume with the visible weapon. Changing an item display's scale does not automatically resize the damage area."
     ],
     "zh_cn": [
       "命中上限按"
@@ -301,8 +268,12 @@
   },
   "flame.settings": {
     "en_us": [
-      "Particle opens",
-      "Effect adds"
+      "Open Particle to choose normal fire, soul fire or a mixture of supported particles. Each selection has its own size and lifetime. Lifetime 0 lets the particles cover the journey.",
+      "Effect applies status effects on successful hits. Direct Damage and Burn are configured separately.",
+      "To leave an area after impact, select a Persistent area damage template. Configure its damage and particles there; enable Ignite on contact in the template if it should keep targets burning after contact.",
+      "Start distance moves the launch point along the original selected direction first. The horizontal and vertical firing angles then change the stream's direction at that point; they do not rotate the positioning offset. Both default to 0. Horizontal accepts -180 to 180 degrees, with positive values turning right. Vertical accepts -90 to 90 degrees, with positive values turning up.",
+      "For example, Start distance 2 places the outlet two blocks ahead along the original direction. A vertical angle of -45 then sends the stream downward from that outlet. In Preview, cyan shows the positioning line and yellow marks the launch point. A Summoned weapon uses its own launch position and direction.",
+      "Fan spreads sideways around the firing direction. Fan angle sets the opening (5–180°), and End radius sets the vertical half-thickness at the curved outer edge."
     ],
     "zh_cn": [
       "Particle打开",
@@ -311,7 +282,9 @@
   },
   "flame.example": {
     "en_us": [
-      "Set Burn"
+      "2. Open Particle to select the flame appearance, size and lifetime. If needed, open Effect and add Slowness with a duration and level.",
+      "3. Set Burn to 0 if the attack should not ignite targets. Damage, burning and potion effects are separate settings.",
+      "4. Use Preview to check the outlet and direction, then trigger the module against a test target. Start with a moderate Width."
     ],
     "zh_cn": [
       "不想点燃"
@@ -319,8 +292,7 @@
   },
   "flame.troubleshooting": {
     "en_us": [
-      "Effects follow",
-      "Existing blue-fire"
+      "Status effects require successful hits and follow the same hit interval. If firing seems intermittent, check the trigger, direction and Interval. Older blue-fire and size settings are converted automatically."
     ],
     "zh_cn": [
       "Effect跟随",
@@ -329,23 +301,38 @@
   },
   "arrow.settings": {
     "en_us": [
-      "Explosion and"
+      "Straight uses the mark. Target position samples visible eligible targets at firing; one uses core priority, Multiple target sends a full volley to each (up to 64). Search range defaults 64, maximum 256, independent of flight range. No target means no shot; there is no homing or movement prediction.",
+      "Launch point\nStart distance offsets along the original direction. Angles/fan change flight from that point without rotating the offset; positive horizontal turns right, vertical up. Summoned weapon supplies its own origin/direction. Cyan Preview lines show positioning; yellow marks the muzzle.",
+      "Impact\nLanding sound is independent of Fire sound: untouched default uses native arrow audio, a custom mix replaces it, empty is silent. Entity-hit audio is unchanged; explosive block impacts may also play it. Settings survive projectile save/reload.",
+      "Optional Persistent area damage uses supporting ground for entity hits or the terrain impact face. Configure its shape/duration/damage/burning in that template; none selected means no extra area.",
+      "Custom item visuals\nAlways faces camera suits flat icons such as snowballs. Local X/Y/Z rotation defaults 0, accepts -180 to 180 degrees. Ordinary orientation follows flight; camera-facing offsets follow the viewer instead. These change only the model, not trajectory, gravity, hitbox or Energy cost."
     ],
     "zh_cn": [
-      "爆炸与"
+      "直线沿标记；目标位置在发射时读取可见合法目标。单目标按核心优先级，多目标向每个目标发射完整一批，最多 64 个。搜索范围默认 64、最大 256，与飞行射程独立；无目标不发射，不追踪或预判。",
+      "发射点\n初始距离沿原方向偏移；角度／扇形只改变该点之后的飞行，不旋转位置偏移。水平正值向右，竖直正值向上；召唤武装提供自己的原点／方向。青色预览线表示定位，黄点表示发射点。",
+      "命中\n落地声独立于发射声：未修改时用原版箭声，自定义音轨替换，空音轨静音；不改变实体命中声，爆炸落地也可播放。弹射物保存／重载后保留声音设置。",
+      "可选持续范围伤害模板，实体命中用支撑地面，地形命中用实际表面；形状／时长／伤害／燃烧在模板设置，未选就没有附加区域。",
+      "自定义物品外观\n始终面向镜头适合雪球等平面图标。本地 X/Y/Z 旋转默认 0、范围 -180 到 180 度；普通模式相对飞行方向，面向镜头模式相对观看者。只改模型，不改轨迹、重力、碰撞箱或能量费用。"
     ]
   },
   "gun.settings": {
     "en_us": [
-      "Explosion and"
+      "Straight uses the mark. Target position samples visible eligible targets at firing. One uses core priority; Multiple target sends a full volley to each (up to 64). Search range defaults 64, maximum 256, independent of flight range. No target means no shot. Bullets do not home or lead targets.",
+      "Launch and visuals\nStart distance offsets along the original direction to clear the body; angles/fan change flight without rotating that offset. Positive horizontal turns right, vertical up. Summoned weapon supplies its own origin/direction. Cyan Preview lines show positioning; yellow marks the muzzle.",
+      "Custom item X/Y/Z rotation is local to flight, -180 to 180 degrees, default 0. It changes appearance, not aim, trajectory, collision or Energy cost. Mortar models similarly follow their arc; camera-facing arrows use viewer-relative offsets.",
+      "Impact area\nSelect a Persistent area damage template for an extra area: supporting ground on entity hits, actual impact face on terrain. Set shape, duration, particles, damage and burning in the template. No template means no extra area."
     ],
     "zh_cn": [
-      "爆炸与"
+      "直线沿标记；目标位置在发射时读取可见合法目标。单目标按核心优先级，多目标向每个目标发射完整一批，最多 64 个。搜索范围默认 64、最大 256，与飞行射程独立；无目标不发射，不追踪或预判。",
+      "发射与外观\n初始距离沿原方向移出身体，角度／扇形不旋转位置偏移；水平正值向右，竖直正值向上。召唤武装提供自己的原点／方向；预览青线表示定位，黄点表示发射点。",
+      "自定义物品 X/Y/Z 旋转相对飞行方向，默认 0、范围 -180 到 180 度。只改外观，不改瞄准、轨迹、碰撞或费用；迫击炮模型同样跟随弧线，面向镜头的箭矢则相对观看者旋转。",
+      "命中区域\n可选持续范围伤害模板：实体命中放到支撑地面，地形命中用实际表面。形状、时长、粒子、伤害和燃烧在模板设置；未选则没有附加区域。"
     ]
   },
   "homing.settings": {
     "en_us": [
-      "Target filters"
+      "Target filters, tracking and lifetime control pursuit after launch.",
+      "Area damage on impact can use a Persistent area damage template. Projectiles from the same salvo that hit the same patch refresh its duration rather than stacking damage. No impact area appears during deployment, charging or flight before contact."
     ],
     "zh_cn": [
       "目标/追踪"
@@ -353,30 +340,38 @@
   },
   "laser.settings": {
     "en_us": [
-      "Tracking and"
+      "The default continuous beam follows the moving muzzle, supports RGB color and interpolates between visual updates each frame. The legacy style keeps its particle beam. Extra particles are optional; their spacing is 0.25–32 blocks (default 4), with at most 64 sample positions per beam per tick and the shared player visual budget. Smaller spacing makes them denser. Particles already emitted retain their normal lifetime and may leave trails. Visual settings do not change hit width or damage timing.",
+      "Terrain cutting\nBreak blocks defaults Off. Clear whole line removes breakable centerline blocks; Cut forward advances from the first obstruction at Breaking speed (default 16 blocks/s), checked every firing tick, independently of hit interval. Allow enough burst time to reach the distance.",
+      "Own connected parts are skipped; unbreakable/protected blocks and unloaded chunks stop cutting. No block-item drops are created, but container removal may release contents. Trigger loss/burst end stops cutting. Charge and Preview do not break terrain.",
+      "Origin and impact\nStart distance offsets along the original direction; angles/sweep turn the beam there, not the offset. Positive horizontal turns right, vertical up. Target modes aim from that point; Summoned weapon supplies its own origin/direction. Preview uses cyan positioning and a yellow origin.",
+      "An optional Persistent area damage template uses supporting ground for entity contacts or the impact face for terrain. Its shape, duration, particles, damage and burning are configured in the template."
     ],
     "zh_cn": [
-      "追踪及"
+      "默认连续光束跟随移动发射口，支持 RGB 颜色，并在两次视觉更新之间逐帧平滑过渡。旧粒子样式继续保留。自选额外粒子的间距为 0.25–32 格，默认 4 格，越小越密；每束每个游戏刻最多 64 个采样位置，并受玩家共享显示预算限制。已生成的粒子按自身寿命消失，可能留下拖尾。视觉设置不改变伤害宽度或命中时序。",
+      "切割地形\n破坏方块默认关。整线清除移除中心线可破坏方块；向前切割从首个障碍按切割速度推进，默认 16 格／秒，每个发射 tick 检查，与实体命中间隔独立。需留够一轮发射时间才能到达远处。",
+      "跳过自身相连部件；不可破坏／受保护方块和未加载区块会阻挡。不产生方块物品，但容器移除可能掉出内容物。信号结束或一轮结束即停切；蓄力和预览不破坏。",
+      "原点与命中\n初始距离沿原方向偏移，角度／扫射只从该点转动，不旋转位置偏移；水平正值向右、竖直正值向上。目标模式从此处瞄准，召唤武装提供自己的原点／方向。预览青线表示定位，黄点表示原点。",
+      "可选持续范围伤害模板：实体接触用支撑地面，地形接触用命中面；形状、时长、粒子、伤害与燃烧在模板设置。"
     ]
   },
   "sphere_blast.settings": {
     "en_us": [
-      "Start distance",
-      "New modules",
-      "At explosion",
-      "Charging and explosion"
+      "At target needs no mark. It records eligible target positions when charging begins. Multiple target Off selects one using the core's target priority; On charges a sphere at each eligible target, up to 64. Search range and effect radius are separate. One batch shares a cooldown. No eligible target means no cast.",
+      "The sphere stays at its recorded world position during charging; it does not follow the structure or target. A target can leave before the explosion.",
+      "Charging defaults to Small flame and Firework particles. They travel toward the center at Charging speed, default 2 blocks per second. Speed does not change Charge time. The explosion ends the charging particles, so a short charge can cut slow travel short.",
+      "At explosion, selected charging and explosion particles expand to Blast radius at a fixed 12 blocks per second. This animation does not change the damage radius.",
+      "Charging and explosion have separate particle selections and sound mixes. Hit Effects are separate, and block destruction defaults Off."
     ],
     "zh_cn": [
-      "Start distance",
       "新模块",
-      "爆炸时",
-      "蓄力/爆炸"
+      "爆炸时"
     ]
   },
   "sphere_blast.example": {
     "en_us": [
-      "Select both",
-      "In Move set"
+      "2. Preview the positioning line and sphere. Configure charging and explosion particles and sound mixes separately.",
+      "3. Activate the module and observe the charge followed by one explosion.",
+      "4. In a Move set, give the action enough time to complete charging."
     ],
     "zh_cn": [
       "设置两阶段",
@@ -385,8 +380,8 @@
   },
   "sphere_blast.troubleshooting": {
     "en_us": [
-      "Only loaded",
-      "Block destruction"
+      "The attack only runs at loaded destinations and does not load remote terrain. Each explosion damages each eligible target once rather than adding a duplicate vanilla hit.",
+      "Block destruction uses vanilla TNT resistance rules. It does not guarantee removal of every block inside the damage radius."
     ],
     "zh_cn": [
       "仅在已加载",
@@ -395,20 +390,23 @@
   },
   "slash.settings": {
     "en_us": [
-      "Count 1",
-      "RGB defaults",
-      "Interval is"
+      "Straight uses the mark. Target position samples visible eligible targets at release; one uses core priority, Multiple target sends a full volley to each, up to 64. Search range (default 64, maximum 256) is separate from flight range. No target means no release. Blades do not home or lead targets; angle offsets still apply.",
+      "Impact and blocking\nAn optional Persistent area damage template appears on supporting ground for entity hits, or the actual impact face for terrain. Set its shape/duration/damage/burning in that template. Ignite target is separate (default Off, up to 30 seconds), can work on an accepted zero-damage hit and does not apply vanilla fire status to mechanical creatures.",
+      "Can be blocked defaults Off. On allows frontal vanilla shields and supported Epic Fight guards/parries; rear hits land. Blocking prevents direct damage, ignition, effects and impact area for that defender, without removing the blade.",
+      "Launch and sound\nStart distance offsets along the original direction; angles/fan change flight, not that offset. Positive horizontal turns right, vertical up. Summoned weapon supplies its own origin/direction. Preview uses cyan positioning and a yellow launch point. Release sound plays once per volley; Flight sound follows each blade until it ends. Duration 0 loops the flight layer; a positive duration limits it. Either mix may be empty."
     ],
     "zh_cn": [
-      "数量1",
-      "RGB默认",
-      "Interval为"
+      "直线沿标记；目标位置在释放时读取可见合法目标。单目标按核心优先级，多目标向每个目标发射完整一批，最多 64 个。搜索范围默认 64、最大 256，与飞行射程独立；无目标不释放，不追踪或预判，角度偏移仍生效。",
+      "命中与格挡\n可选持续范围伤害模板：实体命中放到支撑地面，地形命中用实际表面，形状／时长／伤害／燃烧在模板设置。直接点燃独立，默认关、最长 30 秒；接受的零伤害命中也可点燃普通实体，机械生命体不获得原版着火状态。",
+      "可格挡默认关。开启后正面可被原版盾牌或支持的 Epic Fight 防御／弹反挡下，背面仍命中。被挡者免受本次直接伤害、点燃、效果和命中区域，不删除整道刀光。",
+      "发射与声音\n初始距离沿原方向偏移，角度／扇形只改飞行方向；水平正值向右、竖直正值向上。召唤武装提供自己的原点／方向。预览青线表示定位、黄点表示发射点。释放声每批一次，飞行声跟随每道刀光到结束；时长 0 循环，正数限制该层时长，两个音轨均可留空。"
     ]
   },
   "slash.example": {
     "en_us": [
-      "Set count",
-      "Add effects"
+      "2. Preview the direction and blade size. Set Count to 3 and Fan to 60 degrees for three flight paths. Angle offsets change their shared heading.",
+      "3. Configure Release sound and Flight sound independently. Add any hit effects you need.",
+      "4. Trigger the module directly or schedule it in a Move set. Each volley plays one release mix; each flying blade has its own flight mix."
     ],
     "zh_cn": [
       "数量3",
@@ -417,10 +415,9 @@
   },
   "slash.troubleshooting": {
     "en_us": [
-      "Launch frames",
-      "A required mark",
-      "At 256",
-      "Sound starts"
+      "A blade's launch position and direction are fixed in world space after release. Later structure rotation does not steer it. Terrain on its center path stops it, and targeting excludes targets hidden behind walls. It does not destroy terrain.",
+      "Losing a required mark or trigger stops new launches. Already launched blades continue flying. Hurt Once releases one volley; death or Release clears active blades.",
+      "At 256 active blades per module, further launches wait for space without deleting existing blades. Release audio begins at the launch position and supports delayed layers."
     ],
     "zh_cn": [
       "发射框架",
@@ -431,8 +428,11 @@
   },
   "pull.settings": {
     "en_us": [
-      "Stopping distance",
-      "Defaults:"
+      "Warning time runs before active pulling. Pull duration, strength and speed control the action. Default warning and pulling sounds are beacon activation and beacon ambience.",
+      "For spherical attraction, the outer shell shows the capture area. Repeated particle streams converge from its surface toward the center. The cross marks the pull point and the small ring shows stopping distance. Select particles and RGB colors for the streams, or leave the selection empty to use dust in the Warning color.",
+      "Target-position mode can release at one target or, with Multiple target On, at each eligible target up to 64. Centers are recorded when warning starts and do not chase later movement. Search range and effect radius are separate. One batch shares a cooldown, and no eligible target means no cast.",
+      "For a directional funnel, use Mark mode and configure Length, Start radius, End radius and horizontal/vertical angles. Start distance positions it before the angles are applied. Equal radii make a cylinder. Target-position mode remains spherical.",
+      "Stable suction gradually reduces sideways drift and compensates for gravity during active pulling. It does not disable gravity permanently or bypass collision and speed limits."
     ],
     "zh_cn": [
       "停止距离是",
@@ -441,37 +441,43 @@
   },
   "arena.settings": {
     "en_us": [
-      "Nearby-player death",
-      "No-nearby-player"
+      "With Iris active, respawn text and progress use a world-positioned HUD overlay after shader rendering, retaining distance scaling. This does not change normal text displays."
     ],
     "zh_cn": [
-      "附近玩家死亡",
-      "无附近玩家"
+      "开启 Iris 光影时，重生文字与进度在光影后按世界位置绘制到 HUD，并保留距离缩放；不改变普通文字实体。"
     ]
   },
   "linear_movement.settings": {
     "en_us": [
-      "Teleport checks"
+      "Stop before target measures mark-to-target-center distance, not a gap between hitboxes. Use target height Off keeps current height/horizontal distance; On uses the recorded height and 3D distance. Creative-player inclusion is separate. Owner mode selects only the named owner, even if whitelisted, and waits if unavailable; other target modes exclude that owner.",
+      "Teleport or Travel\nTeleport moves after charging; Travel moves gradually. Both check loaded destinations and world borders. Force movement (default Off) skips collision prechecks, not those checks; forced Travel maintains its planned route until normal physics resumes at the end. Charge/departure/arrival effects are separate.",
+      "Gravity Travel\nDefault Off. On drives connected parts horizontally while retaining relative limb motion, vertical velocity and rotation; vertical aim and Force are ignored. Only actual horizontal progress counts. A blocked run times out; ending brakes horizontal motion without suspending the build.",
+      "Step assist\nTravel only, gravity On or Off; default Off. Grounded parts can lift the whole build together over 0.3 seconds, braking vertical velocity. Default height 1 block (0.1-2), cooldown 0.3 seconds. Clear the obstruction and regain clear ground contact before another step; limbs cannot stack lifts. There is no headroom guarantee, and sparse/rotated builds may tip. Gravity resumes after a gravity-assisted lift; without gravity, route height stays raised until movement ends. Lift does not count as forward progress. Terrain breaking runs first.",
+      "Turning and Preview\nTravel can steer with Auto facing or Signal turning; fixed-direction routes turn with the structure without resetting distance. Target routes keep their recorded destination. Teleport pauses turning through its completion tick. Active Signal turning takes precedence over Auto facing; Hover anchor/Gyroscope retain their priorities. Preview shows the current heading, not future steering or a predicted landing."
     ],
     "zh_cn": [
-      "传送检查"
+      "提前停止距离按标记点到目标中心计算，不是两者碰撞箱的间隙。“采用目标高度”关：保持当前高度、计算水平距离；开：采用记录高度和三维距离。是否包含创造玩家另设。Owner 模式只选指定玩家，即使其在白名单中，不可用就等待；其他模式排除 Owner。",
+      "传送或行进\n传送在蓄力后移动，行进逐步移动；都保留目标区块加载与世界边界检查。强制移动默认关，开启只跳过碰撞预检；强制行进维持计划位移，结束后恢复正常物理。蓄力／出发／到达特效独立。",
+      "受重力影响\n仅行进，默认关。开启后给相连部件共同的水平驱动，保留肢体相对运动、竖直速度与旋转；忽略竖直瞄准和强制移动。只统计实际水平前进，顶墙不算；受阻最终超时。结束会制动水平移动，不把结构悬在空中。",
+      "跨步辅助\n仅行进，重力开／关都可用，默认关。着地部件发现合适障碍时，全体用 0.3 秒同步抬升并制动竖直速度。默认高度 1 格（0.1-2）、冷却 0.6 秒。需越过障碍并重新清楚着地才能再抬，不同肢体不能叠加；不保证头顶空间，稀疏／倾斜结构仍可能翻倒。重力模式抬升后恢复重力；无重力模式把路线高度保持到动作结束，抬升不算前进。先处理碰撞破坏，再判跨步。",
+      "转向与预览\n行进可配合自动朝向／信号转向，固定方向路线随结构转动，不重置距离；目标路线仍去已记录位置。传送从蓄力到完成 tick 暂停转向。信号转向优先于自动朝向，悬停锚点／陀螺仪保留各自优先级。预览只显示当前朝向，不预测后续转弯或落点。"
     ]
   },
   "auto_facing.settings": {
     "en_us": [
-      "Horizontal tracking",
-      "Line of sight"
+      "Horizontal tracking turns the structure around its vertical axis. Vertical tracking can also tilt the whole structure. The Creative-player option allows eligible Creative players to be selected.",
+      "Line of sight defaults Off. On requires a visible eligible target; the visibility check ignores the creature's own connected structure.",
+      "Owner follows only the player named in Core settings, even if that name is on the exclusion list. It still respects this module's Creative-player option. Other target modes exclude the owner. No online matching player in range means no target."
     ],
     "zh_cn": [
-      "默认水平",
-      "Line of sight"
+      "默认水平"
     ]
   },
   "auto_facing.troubleshooting": {
     "en_us": [
-      "Collision check",
-      "Off skips",
-      "Direct movement"
+      "Collision check defaults On. Terrain and structure bounds can block unsafe rotation. Blocked vertical rotation can still allow a clear horizontal turn. Off skips those checks and turns through intersecting terrain at the configured speed.",
+      "Teleport takes priority over turning. Otherwise, the first available Auto facing module controls it, unless a higher-priority controller is active. Target alignment only outputs signals for a mechanism you build.",
+      "Continuous Travel can turn with Auto facing or Signal turning. Fixed-direction Travel updates its direction with the structure; target-position Travel keeps its recorded destination. Active Signal turning takes precedence over Auto facing. Hover anchor and a recovering Gyroscope can also pause turning. Preview shows the current heading, not later steering."
     ],
     "zh_cn": [
       "碰撞判定",
@@ -481,21 +487,23 @@
   },
   "particles.settings": {
     "en_us": [
-      "Ring height 0",
-      "Random/Even",
-      "Line/Ring/Sphere Propagation",
-      "Motion trail"
+      "Pattern and motion\nRing height 0 makes a circle; positive height makes a hollow cylinder along Direction. Random/Even and Sphere Inside/Surface control distribution. Line/Ring/Sphere can propagate outward/inward at blocks per tick; Life 0 covers the path. Motion trail fills movement/rotation gaps; Only while moving gates emission. Density applies to each selected type.",
+      "Particle picker\nColor, Life and Size are per selection. Effect/Instant effect/Entity effect/Dust and bundled Sable types support RGB; Presets restores appearance while retaining your custom color. Block/item payloads are unsupported. All are cosmetic.",
+      "Bundled Sable shapes\nSearch sable: electric arc, smoke, energy mote, branching lightning, streak spark, expanding/contracting rings, crescent shard, soft fog and starburst. Life 0 uses native lifetimes; Size 1 is the baseline. Arcs are camera-facing flashes, not lightning joining two marks; their bends change every 2 ticks. Bright particles do not light nearby blocks.",
+      "Rings face the camera around their own centers, not attack boundaries. Fog grows upward; sparks drift outward without supplied velocity. Fixed starburst stays upright; Starburst chooses and keeps a random angle. Old configurations retain Fixed. Iris uses the standard translucent renderer; without it, soft alpha. Color/lifetime/size/animation work in both."
     ],
     "zh_cn": [
-      "圆环高度0",
-      "Random/Even",
-      "Line/Ring/Sphere的",
-      "Motion trail"
+      "形状与运动\n环高度 0 为圆，正数沿方向延伸为空心圆柱。随机／均匀、球内部／表面控制分布。线／环／球可按每 tick 格数向外／向内传播，寿命 0 自动覆盖路径。运动轨迹填补移动／旋转间隙，仅移动时控制是否发射。密度对每种已选粒子分别生效。",
+      "粒子选择器\n每项独立设置颜色、寿命与尺寸。效果／瞬间效果／实体效果／尘埃及内置 Sable 粒子支持 RGB；预设恢复外观并保留自定义颜色。暂不支持方块／物品载荷，粒子都不造成伤害。",
+      "内置形状\n搜索 sable 可找到电弧、烟雾、能量光点、分支闪电、流光火花、扩张／收缩光环、月牙、柔雾与星芒。寿命 0 用原生时长，尺寸 1 为基准。电弧是面向镜头的闪光，不连接两个标记点；每 2 tick 改变折线。明亮粒子不会照亮方块。",
+      "光环围绕自身中心且面向镜头，不表示攻击边界。柔雾上升扩张，无速度的火花向外漂移。固定星芒保持直立，普通星芒随机角度后保持；旧配置保留固定款。Iris 下用标准半透明渲染，否则用柔边渲染；颜色、寿命、尺寸与动画均保留。"
     ]
   },
   "particles.example": {
     "en_us": [
-      "Switch to Area"
+      "2. Switch to Area and mark two corners on one rigid body. Switching back to Sphere keeps the separately stored point mark.",
+      "3. For a tube, choose Ring with Radius 2, Ring height 8, direction Up and Density 32. Preview shows three circular sections and the side edges. Raise Density if the particle wall looks too sparse.",
+      "4. Use the particle picker to adjust Color, Life and Size separately from the pattern dimensions. Line also supports placed or spray modes."
     ],
     "zh_cn": [
       "切Area"
@@ -503,7 +511,7 @@
   },
   "particles.troubleshooting": {
     "en_us": [
-      "Native friction"
+      "Controlled propagation is not shortened by native friction or gravity. A custom lifetime shorter than the journey still makes the particle disappear early."
     ],
     "zh_cn": [
       "受控路径"

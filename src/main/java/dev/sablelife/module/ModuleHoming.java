@@ -33,7 +33,7 @@ public final class ModuleHoming {
         return ModuleTargets.query(level, heart.creatureId(),new AABB(center,center).inflate(range), e -> eligible(e,m))
                 .stream().filter(e -> e.getBoundingBox().getCenter().distanceToSqr(center)<=range*range
                         && (m.value("lineOfSight")==0 || ModuleTargets.visible(level,heart.creatureId(),center,e)))
-                .sorted(Comparator.comparingDouble(e -> e.getBoundingBox().getCenter().distanceToSqr(center)))
+                .sorted(ModuleTargets.comparator(heart,e -> e.getBoundingBox().getCenter().distanceToSqr(center)))
                 .limit(m.value("targetMultiple")==1 ? 64 : 1).toList();
     }
     public static boolean eligible(LivingEntity e,VirtualModule m) {
@@ -54,7 +54,7 @@ public final class ModuleHoming {
             if(!s.shots.isEmpty() || now<s.due || !HeartModules.triggered(m,heart)) continue;
             var center=ModuleCombat.origin(heart,m,true);
             if(targets(level,heart,m,center).isEmpty()) { s.due=now+10; continue; }
-            if(!heart.modules().hurtTriggers.start(m)) continue;
+            if(!heart.modules().hurtTriggers.start(m)||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,1)) continue;
             int index=0;
             for(var point:formation(heart,m)) {
                 var shot=ModuleShot.homing(level,point,center,m,heart,index++);

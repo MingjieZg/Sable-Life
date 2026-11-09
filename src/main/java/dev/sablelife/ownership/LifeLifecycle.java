@@ -30,20 +30,27 @@ import java.util.UUID;
 public final class LifeLifecycle extends SavedData {
     private final Map<UUID, Death> deaths = new HashMap<>();
     private record Completion(UUID parent,String partName) {}
-    private final Map<UUID,Completion> completed = new HashMap<>();
+    private final Map<UUID,Completion> completed = new java.util.LinkedHashMap<>();
+    private final Set<UUID> externallyRemoved = new HashSet<>();
+    boolean externallyRemoved(UUID id) { return externallyRemoved.contains(id); }
+    void rememberExternalRemoval(UUID id) { if (externallyRemoved.add(id)) setDirty(); }
+    void forgetExternalRemoval(UUID id) { if (externallyRemoved.remove(id)) setDirty(); }
     private int cleanupTurn;
     public int pendingCount(){return deaths.size();}
     public int completedCount(){return completed.size();}
     private boolean recorded(UUID id){return deaths.containsKey(id)||completed.containsKey(id);}
     private void complete(UUID id,Death death){
         completed.put(id,new Completion(death.parent,death.partName));deaths.remove(id);
-        unbreakable.remove(id);explosionProtected.remove(id);interactionAllowed.remove(id);setDirty();
+        unbreakable.remove(id);explosionProtected.remove(id);interactionAllowed.remove(id);miningDrops.remove(id);setDirty();
     }
     private final Set<UUID> unbreakable = new HashSet<>();
     private final Set<UUID> explosionProtected = new HashSet<>();
     private final Set<UUID> interactionAllowed = new HashSet<>();
     public void setInteractionAllowed(UUID id,boolean enabled){if(enabled?interactionAllowed.add(id):interactionAllowed.remove(id))setDirty();}
     public boolean interactionAllowed(UUID id){return interactionAllowed.contains(id);}
+    private final Set<UUID> miningDrops = new HashSet<>();
+    public void setMiningDrops(UUID id,boolean enabled){if(enabled?miningDrops.add(id):miningDrops.remove(id))setDirty();}
+    public boolean miningDrops(UUID id){return miningDrops.contains(id);}
     public static LifeLifecycle get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(new Factory<>(LifeLifecycle::new, LifeLifecycle::load), "sablelife_lifecycle");
     }
@@ -55,7 +62,7 @@ public final class LifeLifecycle extends SavedData {
         if (enabled ? explosionProtected.remove(id) : explosionProtected.add(id)) setDirty();
     }
     public boolean explodable(UUID id) { return !explosionProtected.contains(id); }
-    public void cancel(UUID id) { deaths.entrySet().removeIf(e -> e.getKey().equals(id) || id.equals(e.getValue().parent)); completed.entrySet().removeIf(e->e.getKey().equals(id)||id.equals(e.getValue().parent)); unbreakable.remove(id); explosionProtected.remove(id);interactionAllowed.remove(id); setDirty(); }
+    public void cancel(UUID id) { deaths.entrySet().removeIf(e -> e.getKey().equals(id) || id.equals(e.getValue().parent)); completed.entrySet().removeIf(e->e.getKey().equals(id)||id.equals(e.getValue().parent)); unbreakable.remove(id); explosionProtected.remove(id);interactionAllowed.remove(id);miningDrops.remove(id); setDirty(); }
     public boolean isDying(UUID id) { return recorded(id); }
     public boolean finished(UUID id){return completed.containsKey(id)&&deaths.values().stream().noneMatch(d->id.equals(d.parent));}
     public boolean deathDue(UUID id){var job=deaths.get(id);return job!=null&&!job.cleaned&&job.remaining==0;}
@@ -90,9 +97,30 @@ public final class LifeLifecycle extends SavedData {
         }
         deaths.put(id, death); setDirty(); return true;
     }
+    public boolean scheduleNaturalRemoval(HeartBlockEntity heart) {
+        if (!(heart.getLevel() instanceof ServerLevel level) || recorded(heart.creatureId())) return false;
+        var point = SableBodyProbe.toWorld(level, heart.getBlockPos().getCenter());
+        deaths.put(heart.creatureId(), new Death(level.dimension().location(), point, 0,
+                ResourceLocation.withDefaultNamespace("empty"), 0, true));
+        setDirty();
+        return true;
+    }
+    /** Administrative encounter cleanup never settles a pending death's rewards or effects. */
+    public void expediteNaturalRemoval(UUID owner){
+        boolean changed=false;
+        for(var entry:deaths.entrySet())if(owner.equals(entry.getKey())||owner.equals(entry.getValue().parent)){
+            var death=entry.getValue();
+            if(death.remaining!=0||!death.rewarded||!death.presentation.isEmpty()||!death.presentationPlayed||death.forceLoading){
+                death.remaining=0;death.rewarded=true;death.presentation=new CompoundTag();death.effect=null;death.presentationPlayed=true;death.forceLoading=false;changed=true;
+            }
+        }
+        if(changed)setDirty();
+    }
     public void schedule(HeartBlockEntity heart) {
         if (recorded(heart.creatureId())) return;
         var level = (ServerLevel) heart.getLevel();
+        // A delayed callback must not settle an already deleted and retired core again.
+        if(heart.isRemoved()&&!BodyOwnership.get(level).hasOwned(heart.creatureId()))return;
         Vec3 point = SableBodyProbe.toWorld(level, Vec3.atCenterOf(heart.getBlockPos()));
         var death = new Death(level.dimension().location(), point,
                 heart.health().remainingDeathTicks(), heart.deathLoot(), heart.deathExperience(), false);
@@ -103,6 +131,7 @@ public final class LifeLifecycle extends SavedData {
         }
         deaths.put(heart.creatureId(), death);
         ArenaRespawns.death(heart);
+        BlueprintSpawns.death(heart);
         death.forceLoading=heart.forceChunkLoading();
         death.presentation=heart.removalPresentation().save();
         setDirty();
@@ -110,7 +139,33 @@ public final class LifeLifecycle extends SavedData {
     }
     public static void tick(ServerTickEvent.Post event) {
         for (var level : event.getServer().getAllLevels()) BodyOwnership.get(level).flushRemoved(level);
-        get(event.getServer()).tickDeaths(event.getServer());
+        var lifecycle=get(event.getServer());
+        lifecycle.tickDeaths(event.getServer());
+        lifecycle.retireCompleted(event.getServer());
+    }
+    /** Bounded round-robin maintenance; persisted ownership also covers unloaded fragments. */
+    public void retireCompleted(MinecraftServer server){
+        if(completed.isEmpty()||server.overworld().getGameTime()%20!=0)return;
+        var pendingOwners=new HashSet<UUID>();
+        deaths.forEach((id,death)->pendingOwners.add(death.parent==null?id:death.parent));
+        int budget=Math.min(64,completed.size());
+        for(int i=0;i<budget;i++){
+            var next=completed.entrySet().iterator().next();
+            UUID id=next.getKey();Completion completion=next.getValue();
+            UUID owner=completion.parent==null?id:completion.parent;
+            boolean retained=pendingOwners.contains(owner);
+            for(var level:server.getAllLevels()){
+                var ownership=BodyOwnership.get(level);
+                retained|=ownership.hasOwned(owner)||ownership.hasPart(id)||LoadedCoreIndex.find(level,owner)!=null;
+            }
+            if(!retained){
+                BlueprintSpawns.retireIdleOwner(server,owner);
+                ArenaRespawns.retireIdleOwner(server,owner);
+                retained=BlueprintSpawns.referencesDeath(server,owner)||ArenaRespawns.referencesDeath(server,owner);
+            }
+            completed.remove(id);
+            if(retained)completed.put(id,completion);else setDirty();
+        }
     }
     public void tickDeaths(MinecraftServer server) {
         int remainingBlocks=dev.sablelife.SableLifeServerConfig.deathCleanupBlocksPerTick(),remainingVisits=16384,wholeSlots=1;
@@ -194,6 +249,10 @@ public final class LifeLifecycle extends SavedData {
     }
     public static LifeLifecycle load(CompoundTag tag, HolderLookup.Provider registries) {
         var data = new LifeLifecycle();
+        for (var value : tag.getList("ExternallyRemoved", 10)) {
+            var entry = (CompoundTag) value;
+            if (entry.hasUUID("Id")) data.externallyRemoved.add(entry.getUUID("Id"));
+        }
         var jobs = tag.getList("Deaths", 10);
         for (int i = 0; i < jobs.size(); i++) {
             var job = jobs.getCompound(i);
@@ -228,6 +287,7 @@ public final class LifeLifecycle extends SavedData {
             data.deaths.remove(job.getUUID("Id"));
         }
         for(var value:tag.getList("InteractionAllowed",10)){var entry=(CompoundTag)value;if(entry.hasUUID("Id"))data.interactionAllowed.add(entry.getUUID("Id"));}
+        for(var value:tag.getList("MiningDrops",10)){var entry=(CompoundTag)value;if(entry.hasUUID("Id"))data.miningDrops.add(entry.getUUID("Id"));}
         var locked = tag.getList("Unbreakable", 10);
         for (int i = 0; i < locked.size(); i++) if (locked.getCompound(i).hasUUID("Id")) data.unbreakable.add(locked.getCompound(i).getUUID("Id"));
         var explosions = tag.getList("ExplosionProtected", 10);
@@ -255,9 +315,17 @@ public final class LifeLifecycle extends SavedData {
         });
         tag.put("Deaths", jobs);
         var settled=new ListTag();completed.forEach((id,death)->{var job=new CompoundTag();job.putUUID("Id",id);if(death.parent!=null)job.putUUID("Parent",death.parent);if(!death.partName.isEmpty())job.putString("PartName",death.partName);settled.add(job);});tag.put("CompletedDeaths",settled);
+        var removed = new ListTag();
+        for (var id : externallyRemoved) {
+            var entry = new CompoundTag();
+            entry.putUUID("Id", id);
+            removed.add(entry);
+        }
+        tag.put("ExternallyRemoved", removed);
         var locked = new ListTag();
         unbreakable.forEach(id -> { var value = new CompoundTag(); value.putUUID("Id", id); locked.add(value); });
         tag.put("Unbreakable", locked);
+        var drops=new ListTag();miningDrops.forEach(id->{var entry=new CompoundTag();entry.putUUID("Id",id);drops.add(entry);});tag.put("MiningDrops",drops);
         var explosions = new ListTag();
         explosionProtected.forEach(id -> { var value = new CompoundTag(); value.putUUID("Id", id); explosions.add(value); });
         tag.put("ExplosionProtected", explosions);

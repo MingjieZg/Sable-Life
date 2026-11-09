@@ -11,7 +11,9 @@ Instead of spawning a traditional Minecraft entity, Sable Life gives life direct
 
 ## Current Version
 
-**0.1.320**
+**0.1.403**
+
+[中文更新清单](docs/releases/0.1.403.md) · [English changelog](docs/releases/0.1.403_EN.md) · [Stress-test results](docs/performance/STRESS_TESTS_EN.md)
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
@@ -32,11 +34,11 @@ Create and Sable have minimum versions without upper version caps. The developme
 
 Create: Aeronautics is part of the primary intended gameplay environment, but is not currently declared as a hard runtime dependency.
 
-### Optional for Arena automatic respawn
+### Optional for blueprint features
 
 - **Sable Photomancy**, version **1.0.1 or newer**, with a compatible blueprint API. Version 1.0.1 is the compiled and tested baseline; newer versions are checked by required interfaces rather than an exact version match.
 
-Without a compatible Photomancy installation, automatic respawn is disabled while other Sable Life features remain available. The server log identifies an incompatible API. See [Photomancy compatibility](docs/PHOTOMANCY_COMPATIBILITY.md) for the contract and limits.
+Blueprint placement, Arena automatic respawn and natural blueprint spawning require compatible Photomancy interfaces. Other modules remain available without these features. The server log identifies an incompatible API. See [Photomancy compatibility](docs/PHOTOMANCY_COMPATIBILITY.md) for the contract and limits.
 
 ## What Sable Life Can Do
 
@@ -52,20 +54,31 @@ A Life can be configured to:
 - Trigger custom sounds, particles, visual effects, and combat feedback
 - Protect its physical body from normal block breaking
 - Drop configurable whole-body or limb loot
-- Respawn through Arena systems #Required **Sable-Photomancy**
+- Respawn through Arena systems using **Sable Photomancy**
+- Spawn blueprints through modules or configurable natural-spawn rules
+- Use factions, invitations, alliances and player targeting exclusions
+- Add configurable entity hitboxes and world-space health bars with creature names
 - Combine multiple modules into custom boss mechanics
+
+## Three cores
+
+- **Heart Core:** author creatures with health, combat, loot and boss mechanics. Survival editing is disabled by default and can be enabled by administrators.
+- **Survival Heart Core:** editable in Survival, with material-based Energy for health and paid abilities. Servers control fuel values, module availability and pricing.
+- **Redstone Core:** automate assembled structures through supported control and presentation modules, without creature health or life activation.
+
+The in-game manual covers setup and examples. Move Set, Wireless Channel and Wireless Redstone are the main controls for automation.
 
 ## The Structure Is the Body
 
-Sable Life does not rely on a traditional entity-sized hitbox.
+The structure itself receives body damage. Optional Entity Hitbox modules add configurable entity receivers for ordinary entity-based combat; Hybrid mode lets both entry points share creature health and part-damage rules.
 
 The actual physical blocks of the construct form its body. Different sections can function as body parts, attack points, limbs, weapons, sensors, or other mechanical systems.
 
-This allows large or unusually shaped creations to behave more naturally than they would with one invisible entity hitbox.
+Receivers can also attract supported hostile or retaliating mobs. Dimensions, offsets and active limits are configurable.
 
 ## Compatibility Notice
 
-Sable Life uses physical block-based bodies rather than traditional Minecraft entity hitboxes. Weapons, spells, or other mechanics specifically designed to damage entity hitboxes may require dedicated compatibility support before they can damage a Life correctly.
+Structure-body damage and entity-receiver damage use different entry points. Standard entity damage can reach configured receivers; direct structure hits may require a weapon adapter. Neither path guarantees every mod's custom weapon or secondary effects.
 
 Combat integration versions:
 
@@ -100,7 +113,9 @@ For addon authors, see the [public body combat API guide](docs/COMBAT_API.md) fo
 
 ## Server Module Configuration
 
-The server's `sablelife-server.toml` provides fixed boolean module switches under `[modules.lifeCore]` (44 types) and `[modules.redstoneCore]` (nine control types enabled by default, plus five optional presentation types disabled by default). The optional types are Visual Effects, Distortion trail, Particle effects, Item display and Trigger sound. Setting a switch to `false` hides that type from the Add catalog and suspends existing modules without deleting their settings. Multiplayer clients follow the server's availability list.
+The server's `sablelife-server.toml` provides module switches under `[modules.heartCore]`, `[modules.survivalHeartCore]` and `[modules.redstoneCore]`. Supported Redstone Core modules are enabled by default. Setting a switch to `false` hides that type from the Add catalog and suspends existing modules without deleting their settings. Multiplayer clients follow the server's availability list.
+
+`allowEditHeartCoreUnderSurvivalMode` controls ordinary Heart Core Survival editing separately from the Survival Heart Core. `enableWildEncounters` is the master switch for natural blueprint spawning. Spawn caps, workbench protection, projection limits and Energy costs are server-configurable.
 
 See [module availability and configuration](docs/MODULE_AVAILABILITY.md) for examples, existing-module behavior and runtime reset details.
 

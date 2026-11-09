@@ -133,10 +133,8 @@ public final class ParticlePattern {
         var frame=frame(heart,m); var forward=frame.forward; var side=side(forward); var up=side.cross(forward).normalize();
         int shape=(int)m.value("particlePattern");double radius=m.value("particleRadius");
         if(shape==0||shape==1&&expanded(m)) {
-            for(int axis=0;axis<3;axis++)for(int a=-1;a<=1;a+=2)for(int b=-1;b<=1;b+=2)for(int step=0;step<=8;step++) {
-                double[] v={frame.half.x,frame.half.y,frame.half.z};v[axis]*=(step/4.-1);v[(axis+1)%3]*=a;v[(axis+2)%3]*=b;
-                outline(player,frame.center.add(ContactBox.rotate(frame.rotation,new Vec3(v[0],v[1],v[2]))));
-            }
+            MarkOutline.send(player,MarkOutline.Kind.DETAIL,0x33FF66,MarkOutline.box(frame.half.scale(-1),frame.half,
+                point->frame.center.add(ContactBox.rotate(frame.rotation,point))));
         } else if(shape==2) {
             for(int i=0;i<=32;i++)outline(player,frame.center.add(ContactBox.rotate(frame.rotation,forward.scale(m.value("particleLength")*i/32.))));
         } else if(shape==3&&m.value("particleRingHeight")>0) {

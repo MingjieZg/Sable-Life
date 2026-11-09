@@ -52,6 +52,11 @@ public final class IronSpellsBodyBridge {
    if(shot instanceof FireArrowProjectile&&hit instanceof BlockHitResult block){
     var core=SableBodyProbe.findActivatedHeart(level,block.getBlockPos());if(core!=null){direct=core.creatureId();BodyCombatApi.projectile(shot,block,shot.getDamage());}
    }
+   if(shot instanceof FireArrowProjectile&&hit instanceof EntityHitResult entity&&entity.getEntity() instanceof dev.sablelife.combat.EntityHitbox box){
+    // Native direct damage owns the receiver hit, including its cancellation/resistance hooks.
+    // Exclude the whole creature from the separate splash adapter, not just this one proxy entity.
+    if(dev.sablelife.combat.EntityHitboxes.hybrid(box.core()))direct=box.core().creatureId();
+   }
    var excluded=direct==null?java.util.Set.<java.util.UUID>of():java.util.Set.of(direct);
    var center=SableBodyProbe.toWorld(level,hit.getLocation());double radius=shot.getExplosionRadius();float damage=shot.getDamage()*(shot instanceof FireArrowProjectile?.5F:1);
    // Match the original explosion's raised visibility origin, not TNT damage or destruction settings.

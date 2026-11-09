@@ -20,6 +20,9 @@ import java.util.UUID;
 public final class ModuleShot extends Entity implements ItemSupplier {
     private static final EntityDataAccessor<ItemStack> ITEM = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.ITEM_STACK);
     private static final EntityDataAccessor<Integer> KIND = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<org.joml.Vector3f> ITEM_ROTATION = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.VECTOR3);
+    public org.joml.Vector3f itemRotation(){return new org.joml.Vector3f(entityData.get(ITEM_ROTATION));}
+    public boolean customFlightItem(){return !entityData.get(ITEM).isEmpty()&&(entityData.get(KIND)==0||mortar());}
     private static final EntityDataAccessor<Float> HITBOX = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Boolean> FALLING_FIXED = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<org.joml.Vector3f> FALLING_ROTATION = SynchedEntityData.defineId(ModuleShot.class, EntityDataSerializers.VECTOR3);
@@ -138,11 +141,12 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         this(SableLife.MODULE_SHOT.get(), level);
         entityData.set(KIND, module.type().equals("mortar") ? 1 : 0);
         entityData.set(ITEM, module.projectileItem(level.registryAccess()));
+        entityData.set(ITEM_ROTATION,ProjectileItemPose.from(module));
         entityData.set(HITBOX, (float) module.value(mortar() ? "projectileHitbox" : "bulletHitbox")); refreshDimensions();
         setPos(origin); setDeltaMovement(velocity); damage = (float) module.value("damage");
         mortarWarningColor = dev.sablelife.module.ModuleColors.packed(module,"mortarWarningColor");
         if(dev.sablelife.module.ModuleSurfaceField.impactAttack(module)&&module.impactFieldId()!=null)impactConfig=VirtualModule.load(module.save());
-        range = mortar() ? 2048 : module.value("range"); blast = ModuleBlast.settings(module); trail = module.particleEntries(); owner = heart.creatureId();
+        range = mortar() ? 2048 : module.value("range"); blast = ModuleBlast.settings(module,dev.sablelife.module.ModuleEffects.forCore(heart,module)); trail = module.particleEntries(); owner = heart.creatureId();
         getPersistentData().putUUID("SableLifeAttackOwner", owner);
         ModuleDamage.nameProjectile(this,heart);AttackHitCredit.attach(this,heart,module);blast.putString(ModuleDamage.ATTACK_NAME,heart.creatureName());
     }
@@ -162,7 +166,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     }
     @Override public void refreshDimensions() { super.refreshDimensions(); setBoundingBox(makeBoundingBox()); }
     @Override public ItemStack getItem() { return entityData.get(ITEM).isEmpty() ? new ItemStack(homingProjectile() ? Items.AIR : entityData.get(KIND) != 0 ? Items.FIRE_CHARGE : Items.IRON_NUGGET) : entityData.get(ITEM).copy(); }
-    @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(ITEM, ItemStack.EMPTY); builder.define(KIND, 0); builder.define(HITBOX, .2F); builder.define(FALLING_SIZE,.5F);builder.define(FALLING_FIXED,false);builder.define(FALLING_ROTATION,new org.joml.Vector3f()); }
+    @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(ITEM, ItemStack.EMPTY); builder.define(KIND, 0); builder.define(ITEM_ROTATION,new org.joml.Vector3f()); builder.define(HITBOX, .2F); builder.define(FALLING_SIZE,.5F);builder.define(FALLING_FIXED,false);builder.define(FALLING_ROTATION,new org.joml.Vector3f()); }
     @Override public EntityDimensions getDimensions(Pose pose) { float size = entityData.get(HITBOX); return EntityDimensions.fixed(size, size); }
     @Override public void onSyncedDataUpdated(EntityDataAccessor<?> key) { super.onSyncedDataUpdated(key); if (key.equals(HITBOX)) refreshDimensions(); }
     private BlockHitResult blockHit(ServerLevel world, Vec3 start, Vec3 end) {
@@ -202,7 +206,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
             var block = blockHit(world, start, end);
             var stop = block.getType() == HitResult.Type.MISS ? end : SableBodyProbe.toWorld(world, block.getLocation());
             var entity = ProjectileUtil.getEntityHitResult(world, this, start, stop, new AABB(start, stop).inflate(entityData.get(HITBOX) / 2. + .3),
-                    e -> e instanceof LivingEntity living && living.isAlive() && !e.isSpectator() && !(e instanceof Player p && p.isCreative()), entityData.get(HITBOX) / 2F);
+                    e -> e instanceof LivingEntity living && !dev.sablelife.combat.OwnerPlayers.protectedFromProjectile(e,this)&&living.isAlive() && !e.isSpectator() && !(e instanceof Player p && p.isCreative()), entityData.get(HITBOX) / 2F);
             if (entity != null) {
                 var victim = (LivingEntity) entity.getEntity();
                 stop = victim.getBoundingBox().inflate(entityData.get(HITBOX) / 2.).clip(start, stop).orElse(entity.getLocation());
@@ -228,6 +232,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     }
     @Override protected void addAdditionalSaveData(CompoundTag tag) {
         if (!entityData.get(ITEM).isEmpty()) tag.put("Item", entityData.get(ITEM).save(level().registryAccess()));
+        tag.put("ProjectileItemRotation",ProjectileItemPose.save(itemRotation()));
         tag.putFloat("FallingItemSize",fallingItemSize());tag.putBoolean("FallingFixed",entityData.get(FALLING_FIXED));var rotation=fallingItemAngles();tag.putFloat("FallingItemX",rotation.x);tag.putFloat("FallingItemY",rotation.y);tag.putFloat("FallingItemZ",rotation.z);
         tag.putFloat("Hitbox", entityData.get(HITBOX)); tag.putInt("Kind", entityData.get(KIND)); tag.putFloat("Damage", damage); tag.putDouble("Range", range);
         tag.putDouble("Traveled", traveled); tag.putInt("Age", age); tag.put("Blast", blast.copy());
@@ -245,6 +250,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         }
     }
     @Override protected void readAdditionalSaveData(CompoundTag tag) {
+        entityData.set(ITEM_ROTATION,ProjectileItemPose.read(tag.getCompound("ProjectileItemRotation")));
         entityData.set(ITEM, ItemStack.parseOptional(level().registryAccess(), tag.getCompound("Item")));
         entityData.set(FALLING_FIXED,tag.getBoolean("FallingFixed"));entityData.set(FALLING_ROTATION,new org.joml.Vector3f(visualAngle(tag.getFloat("FallingItemX")),visualAngle(tag.getFloat("FallingItemY")),visualAngle(tag.getFloat("FallingItemZ"))));
         entityData.set(KIND, Math.clamp(tag.getInt("Kind"), 0, 3)); visualLife = Math.clamp(tag.getInt("VisualLife"), 1, 640); damage = Math.clamp(tag.getFloat("Damage"), 0F, 1000F);

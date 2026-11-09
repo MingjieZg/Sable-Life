@@ -222,6 +222,83 @@ public final class DispatchRedstoneGameTests {
         h.runAfterDelay(8,()->h.assertTrue(target.getHealth()==18,"Fast flame did not reach nearby target promptly"));
         h.runAfterDelay(12,()->{h.assertTrue(target.getHealth()==18,"Denser visual particles increased hit frequency");target.discard();h.succeed();});
     }
+    @GameTest(template="combat",batch="flame_fan_hits",timeoutTicks=40)
+    public static void FanFlameHitsSidewaysButRespectsAngleThicknessAndCover(GameTestHelper h) {
+        var level = h.getLevel();
+        var heart = fixture(h, 100);
+        var module = heart.modules().add("flame");
+        module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos(), Direction.NORTH)));
+        module.edit("flameShape", 1, "");
+        module.edit("flameFanAngle", 90, "");
+        module.edit("flameSpeed", 4, "");
+        module.edit("range", 6, "");
+        module.edit("width", 1.25, "");
+        module.edit("burn", 0, "");
+        module.edit("damage", 2, "");
+        module.edit("interval", 20, "");
+        var start = ModuleCombat.nozzle(heart, module);
+        var side = fanTarget(level, module.id(), start.add(3, -.7, -4));
+        var outside = fanTarget(level, module.id(), start.add(4, -.7, -2));
+        var above = fanTarget(level, module.id(), start.add(3, 2.5, -4));
+        var covered = fanTarget(level, module.id(), start.add(0, -.7, -4));
+        var wall = BlockPos.containing(start.add(0, 0, -2));
+        for (int y = -2; y <= 1; y++) level.setBlockAndUpdate(wall.above(y), Blocks.STONE.defaultBlockState());
+        heart.tryActivate(FakePlayerFactory.getMinecraft(level));
+        heart.modules().tick(heart);
+        float[] firstHitHealth = {20};
+        h.runAfterDelay(5, () -> {
+            firstHitHealth[0] = side.getHealth();
+            h.assertTrue(firstHitHealth[0] < 20, "Fan missed the lateral target");
+        });
+        h.runAfterDelay(9, () -> {
+            h.assertTrue(side.getHealth() == firstHitHealth[0], "Fan bypassed the hit cooldown");
+            h.assertTrue(outside.getHealth() == 20 && above.getHealth() == 20 && covered.getHealth() == 20,
+                    "Out of fan HP=" + outside.getHealth() + ", above=" + above.getHealth() + ", covered=" + covered.getHealth());
+            var restored = VirtualModule.load(module.save());
+            h.assertTrue(FlameFanGeometry.angle(restored) == 90 && restored.value("width") == 1.25,
+                    "Fan angle or end radius lost on save");
+            for (var target : List.of(side, outside, above, covered)) target.discard();
+            h.succeed();
+        });
+    }
+
+    private static net.minecraft.world.entity.animal.Cow fanTarget(net.minecraft.server.level.ServerLevel level, UUID module, net.minecraft.world.phys.Vec3 feet) {
+        var target = new net.minecraft.world.entity.animal.Cow(EntityType.COW, level) {
+            @Override public boolean hurt(net.minecraft.world.damagesource.DamageSource source, float amount) {
+                if (!(source instanceof dev.sablelife.attack.CreatureAttackSource attack) || !module.equals(attack.creatureModule())) return false;
+                return super.hurt(source, amount);
+            }
+        };
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        target.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(20);
+        target.setHealth(20);
+        target.setPos(feet);
+        level.addFreshEntity(target);
+        return target;
+    }
+
+    @GameTest(template="combat",batch="flame_fan_packet_geometry")
+    public static void FanParticlesStayWithinCurvedFrontAndThickness(GameTestHelper h) {
+        var origin = net.minecraft.world.phys.Vec3.ZERO;
+        var direction = new net.minecraft.world.phys.Vec3(0, 0, 1);
+        var jet = new ModuleNetworking.FlameJet(origin, direction, .8, 8, 3, 0, 1, 42, List.of(), 100);
+        var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), h.getLevel().registryAccess());
+        try {
+            ModuleNetworking.FlameJet.CODEC.encode(buffer, jet);
+            h.assertTrue(ModuleNetworking.FlameJet.CODEC.decode(buffer).equals(jet), "Jet packet lost fan angle");
+        } finally { buffer.release(); }
+        boolean spread = false;
+        for (var birth : FlameJetGeometry.births(jet)) {
+            var end = birth.origin().add(birth.velocity().scale(jet.range() / jet.speed()));
+            h.assertTrue(Math.abs(Math.hypot(end.x, end.z) - 8) < 1e-6 && Math.abs(end.y) <= 3
+                    && Math.abs(Math.atan2(end.x, end.z)) <= Math.toRadians(50), "Particle left the fan outline");
+            spread |= Math.abs(end.x) > 3;
+        }
+        h.assertTrue(spread && FlameFanGeometry.angle(new VirtualModule("flame")) == 0, "Fan did not spread or changed the cone default");
+        h.succeed();
+    }
+
     private static VirtualModule movement(HeartBlockEntity heart) {
         var m=heart.modules().add("linear_movement");m.edit("trigger",0,"");m.edit("interval",1000,"");
         m.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos(),Direction.NORTH)));return m;
@@ -296,8 +373,9 @@ public final class DispatchRedstoneGameTests {
             h.assertTrue(list.getCompound(0).getString("MovementPhase").equals("blocked"),"Travel did not report blocking");h.succeed();
         });
     }
-    private static HeartBlockEntity fixture(GameTestHelper h) {
-        var level=h.getLevel(); var pos=h.absolutePos(new BlockPos(4,6,4));
+    private static HeartBlockEntity fixture(GameTestHelper h) { return fixture(h, 6); }
+    private static HeartBlockEntity fixture(GameTestHelper h, int height) {
+        var level=h.getLevel(); var pos=h.absolutePos(new BlockPos(4,height,4));
         level.setBlockAndUpdate(pos,SableLife.HEART.get().defaultBlockState());
         level.setBlockAndUpdate(pos.east(),Blocks.IRON_BLOCK.defaultBlockState());
         level.setBlockAndUpdate(pos.east(2),Blocks.REDSTONE_LAMP.defaultBlockState());

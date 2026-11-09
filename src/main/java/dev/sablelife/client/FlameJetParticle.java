@@ -72,9 +72,10 @@ public final class FlameJetParticle extends FlameParticle {
     public static void receive(ModuleNetworking.FlameJet jet) {
         var mc=Minecraft.getInstance();if(mc.level==null||mc.player==null||sprites==null||soulSprites==null)return;
         var o=jet.origin();var d=jet.direction();
-        if(!Double.isFinite(o.x+o.y+o.z+d.x+d.y+d.z+jet.speed()+jet.range()+jet.width())
+        if(!Double.isFinite(o.x+o.y+o.z+d.x+d.y+d.z+jet.speed()+jet.range()+jet.width()+jet.fanAngle())
                 ||d.lengthSqr()<.99||d.lengthSqr()>1.01||jet.speed()<.1||jet.speed()>4
                 ||jet.range()<1||jet.range()>32||jet.width()<.25||jet.width()>4
+                ||jet.fanAngle()!=0&&(jet.fanAngle()<5||jet.fanAngle()>180)
                 ||jet.appearance()<0||jet.appearance()>1||!Float.isFinite(jet.size())||jet.size()<.1F||jet.size()>4
                 ||mc.player.position().distanceToSqr(o)>128*128)return;
         if(budgetLevel!=mc.level||budgetTick!=mc.level.getGameTime()) {

@@ -3,12 +3,11 @@ package dev.sablelife.module;
 import dev.sablelife.heart.*;
 import net.minecraft.server.level.*;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.core.particles.DustParticleOptions;
 import java.util.*;
 
 /** At most one displacement controls a connected machine; Forced paths use frozen translation origins so terrain response cannot erase forward progress. */
 public final class ModuleLinearMovement {
-    private static final class State { long ready,chargeEnd,travelEnd; boolean gravity,holdStepHeight,steerable; final GravityTravel.Session stepping=new GravityTravel.Session(); int phase; Vec3 offset=Vec3.ZERO,direction,goal,forceOrigin,lastCore; double distance,progress,driveSpeed; List<LinearMovementGeometry.Body> bodies=List.of(),forceStart=List.of(); String status="idle"; }
+    private static final class State { long ready,chargeEnd,travelEnd; boolean gravity,holdStepHeight,steerable; final GravityTravel.Session stepping=new GravityTravel.Session(); int phase; Vec3 offset=Vec3.ZERO,direction,goal,forceOrigin,lastCore; double distance,progress,driveSpeed; List<LinearMovementGeometry.Body> bodies=List.of(),forceStart=List.of(); String status="idle",followOwner=""; }
     public boolean gravityActive(){return gravityMovedThisTick||states.values().stream().anyMatch(s->s.phase>0&&s.gravity);}
     public boolean locksRotation(){return movedThisTick&&!gravityMovedThisTick||states.values().stream().anyMatch(s->s.phase>0&&!s.gravity);}
     public record Plan(Vec3 delta,Vec3 goal){}
@@ -49,9 +48,9 @@ public final class ModuleLinearMovement {
         if(module.value("moveAim")==0){var dir=LinearMovementGeometry.direction(heart,module);if(GravityTravel.enabled(module))dir=GravityTravel.horizontal(dir).normalize();return new Plan(dir.scale(module.value("moveDistance")),null);}
         if(!(heart.getLevel() instanceof ServerLevel level))return null;
         var start=point(heart,module);double range=module.value("moveTargetRange");
-        var target=ModuleTargets.query(level,heart.creatureId(),new net.minecraft.world.phys.AABB(start,start).inflate(range),e->
-            e instanceof net.minecraft.world.entity.player.Player p&&p.isCreative()?module.value("facingCreative")==1&&p.isAlive()&&!p.isSpectator()&&(module.value("target")==0||module.value("target")==2):ModuleTargets.matches(e,module))
-            .stream().map(e->dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter())).filter(p->p.distanceToSqr(start)<=range*range).min(Comparator.comparingDouble(p->p.distanceToSqr(start))).orElse(null);
+        var target=ModuleTargets.queryForModule(level,heart,module,new net.minecraft.world.phys.AABB(start,start).inflate(range),e->
+            e instanceof net.minecraft.world.entity.player.Player p&&p.isCreative()?module.value("facingCreative")==1&&p.isAlive()&&!p.isSpectator()&&(module.value("target")==0||module.value("target")==2||module.value("target")==4):ModuleTargets.matches(e,module))
+            .stream().filter(e->dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).distanceToSqr(start)<=range*range).min(ModuleTargets.comparator(heart,e->dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).distanceToSqr(start))).map(e->dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter())).orElse(null);
         if(target==null)return null;if(module.value("moveTargetVertical")==0||GravityTravel.enabled(module))target=new Vec3(target.x,start.y,target.z);var delta=towards(start,target,module.value("moveStopDistance"));return new Plan(delta,start.add(delta));
     }
     private static void effect(ServerLevel level,VirtualModule module,String stage,Vec3 point,boolean sound){
@@ -61,18 +60,21 @@ public final class ModuleLinearMovement {
     private static void finish(HeartBlockEntity heart,VirtualModule module,State s,String status){if(s.gravity&&s.phase==2&&heart.getLevel() instanceof ServerLevel level)GravityTravel.stop(level,s.bodies);s.stepping.clear();s.phase=0;s.status=status;s.bodies=List.of();s.forceStart=List.of();heart.modules().hurtTriggers.completed(module);}
     public void tick(HeartBlockEntity heart){
         if(!(heart.getLevel() instanceof ServerLevel level))return;
-        if(heart.health().state()!=HeartState.ALIVE||!heart.wireless().master()){clear();return;}
+        if(!heart.operational()||!heart.wireless().master()){clear();return;}
         long now=level.getGameTime();if(lastTick==now)return;lastTick=now;movedThisTick=false;teleportedThisTick=false;gravityMovedThisTick=states.values().stream().anyMatch(s->s.phase>0&&s.gravity);var keep=new HashSet<UUID>();
         boolean busy=states.values().stream().anyMatch(s->s.phase>0);
         for(var module:heart.modules().all()){
-            if(!module.type().equals("linear_movement"))continue;keep.add(module.id());var s=states.computeIfAbsent(module.id(),ignored->new State());
+            if(!module.type().equals("linear_movement"))continue;
+            if(heart.isControlCore())RedstoneCorePolicy.constrainMovement(module);
+            keep.add(module.id());var s=states.computeIfAbsent(module.id(),ignored->new State());
             if(s.phase>0&&(s.gravity!=GravityTravel.enabled(module)||s.steerable!=(module.value("linearMode")==1))){finish(heart,module,s,"cancelled");continue;}
             if(!HeartModules.triggered(module,heart)){if(s.phase>0)finish(heart,module,s,"cancelled");continue;}
+            if(s.phase>0&&module.value("target")==4&&module.value("moveAim")==1&&(!s.followOwner.equalsIgnoreCase(heart.relations().ownerName())||plan(heart,module)==null)){finish(heart,module,s,"no_target");continue;}
             if(s.phase==0){
                 if(busy||now<s.ready)continue;
                 var plan=plan(heart,module);if(plan==null){s.status="no_target";s.ready=now+5;if(ModuleHurt.once(module))heart.modules().hurtTriggers.finish(module.id());continue;}
                 if(!heart.modules().hurtTriggers.start(module))continue;
-                s.gravity=GravityTravel.enabled(module);s.steerable=module.value("linearMode")==1;s.progress=0;s.driveSpeed=0;s.lastCore=null;s.holdStepHeight=false;s.stepping.clear();s.goal=plan.goal();s.ready=now+(long)module.value("interval");
+                s.gravity=GravityTravel.enabled(module);s.steerable=module.value("linearMode")==1;s.progress=0;s.driveSpeed=0;s.lastCore=null;s.holdStepHeight=false;s.stepping.clear();s.goal=plan.goal();s.followOwner=heart.relations().ownerName();s.ready=now+(long)module.value("interval");
                 if(plan.delta().lengthSqr()<.00000001){finish(heart,module,s,"close");continue;}
                 s.bodies=LinearMovementGeometry.capture(heart);s.offset=Vec3.ZERO;
                 if(s.bodies.isEmpty()){finish(heart,module,s,"blocked");s.ready=now+20;continue;}
@@ -121,7 +123,7 @@ public final class ModuleLinearMovement {
                     double correction=baseline.position().y+s.offset.y-reference.position().y;
                     if(Math.abs(correction)>1e-6){
                         var aligned=LinearMovementGeometry.forcedDestination(s.bodies,s.bodies,new Vec3(0,correction,0));
-                        if(!LinearMovementGeometry.loadedDestination(level,aligned)||!LinearMovementGeometry.move(level,aligned,Vec3.ZERO)){finish(heart,module,s,"blocked");continue;}
+                        if(heart.isControlCore()&&!LinearMovementGeometry.clear(level,s.bodies,Vec3.ZERO,new Vec3(0,correction,0),true)||!LinearMovementGeometry.loadedDestination(level,aligned)||!LinearMovementGeometry.move(level,aligned,Vec3.ZERO)){finish(heart,module,s,"blocked");continue;}
                         s.bodies=LinearMovementGeometry.capture(heart);departure=point(heart,module);
                     }
                 }
@@ -129,7 +131,7 @@ public final class ModuleLinearMovement {
                 var stepDirection=GravityTravel.horizontal(s.direction).normalize();
                 if(heart.terrainBreaker().advance(heart,s.bodies,s.direction.scale(module.value("travelSpeed")/20))){s.status="travelling";continue;}
                 if(heart.terrainBreaker().brokeThisTick(now))s.stepping.clear();
-                var stepping=GravityTravel.step(level,module,s.bodies,stepDirection,module.value("travelSpeed"),s.stepping);
+                var stepping=GravityTravel.step(level,heart.isControlCore(),module,s.bodies,stepDirection,module.value("travelSpeed"),s.stepping);
                 if(!stepping.valid()){finish(heart,module,s,"blocked");continue;}
                 if(stepping.lift()>0){
                     s.holdStepHeight=true;s.bodies=LinearMovementGeometry.capture(heart);departure=point(heart,module);movedThisTick=true;
@@ -172,10 +174,9 @@ public final class ModuleLinearMovement {
         var level=(ServerLevel)heart.getLevel();var start=point(heart,module);var plan=plan(heart,module);if(plan==null){player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.no_cast_target"),true);return;}var delta=plan.delta();var bodies=LinearMovementGeometry.capture(heart);
         boolean path=module.value("linearMode")==1||module.value("moveObstruction")==0;
         boolean clear=GravityTravel.enabled(module)?LinearMovementGeometry.loadedDestination(level,LinearMovementGeometry.forcedDestination(bodies,bodies,delta)):module.value("moveForce")==1?LinearMovementGeometry.loadedDestination(level,LinearMovementGeometry.forcedDestination(bodies,bodies,delta)):LinearMovementGeometry.clear(level,bodies,Vec3.ZERO,delta,path);
-        var dust=new DustParticleOptions(new org.joml.Vector3f(clear?.2F:1,clear?1:.1F,.2F),1);
-        int steps=Math.clamp((int)(delta.length()*4),8,512);for(int i=0;i<=steps;i++){var p=start.add(delta.scale(i/(double)steps));level.sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);}
-        for(var b:bodies){var box=b.box().move(delta);for(int edge=0;edge<12;edge++)for(int i=0;i<=8;i++){
-            double t=i/8.,x,y,z;if(edge<4){x=box.minX+(box.maxX-box.minX)*t;y=(edge&1)==0?box.minY:box.maxY;z=(edge&2)==0?box.minZ:box.maxZ;}else if(edge<8){y=box.minY+(box.maxY-box.minY)*t;x=(edge&1)==0?box.minX:box.maxX;z=(edge&2)==0?box.minZ:box.maxZ;}else{z=box.minZ+(box.maxZ-box.minZ)*t;x=(edge&1)==0?box.minX:box.maxX;y=(edge&2)==0?box.minY:box.maxY;}level.sendParticles(player,dust,true,x,y,z,1,0,0,0,0);
-        }}player.displayClientMessage(net.minecraft.network.chat.Component.translatable(GravityTravel.enabled(module)?"dashboard.sablelife.move_gravity_preview":module.value("linearMode")==1&&module.value("moveStep")==1?"dashboard.sablelife.move_step_preview":"dashboard.sablelife.move_preview_"+(clear?"clear":"blocked")),true);
+        MarkOutline.send(player,MarkOutline.Kind.DETAIL,clear?0x33FF33:0xFF1A33,List.of(start,start.add(delta)));
+        if(!bodies.isEmpty())net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+                new MovementPreview(level.dimension().location(),bodies.stream().map(b->b.body().getUniqueId()).toList(),delta,clear));
+        player.displayClientMessage(net.minecraft.network.chat.Component.translatable(GravityTravel.enabled(module)?"dashboard.sablelife.move_gravity_preview":module.value("linearMode")==1&&module.value("moveStep")==1?"dashboard.sablelife.move_step_preview":"dashboard.sablelife.move_preview_"+(clear?"clear":"blocked")),true);
     }
 }

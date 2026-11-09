@@ -1,4 +1,4 @@
 {
-  "parent": "minecraft:item/handheld",
-  "textures": { "layer0": "minecraft:item/shears" }
+  "parent": "minecraft:item/generated",
+  "textures": { "layer0": "sablelife:item/creative_release_tool" }
 }

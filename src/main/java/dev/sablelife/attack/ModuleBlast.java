@@ -18,8 +18,11 @@ public final class ModuleBlast {
     private static final java.util.List<Wave> waves = new java.util.ArrayList<>();
     public static void stopped(net.neoforged.neoforge.event.server.ServerStoppedEvent event) { waves.removeIf(w->w.world.getServer()==event.getServer()); }
     public static CompoundTag settings(VirtualModule module) {
+        return settings(module,module.effects());
+    }
+    public static CompoundTag settings(VirtualModule module,java.util.List<dev.sablelife.module.ModuleEffects.Entry> effects) {
         var tag = new CompoundTag();
-        tag.put("Effects", dev.sablelife.module.ModuleEffects.save(module.effects()));
+        tag.put("Effects", dev.sablelife.module.ModuleEffects.save(effects));
         tag.putBoolean("Enabled", module.value("explode") == 1);
         tag.putFloat("Damage", (float) module.value("blastDamage"));
         tag.putFloat("Radius", (float) module.value("blastRadius"));
@@ -33,6 +36,11 @@ public final class ModuleBlast {
         return tag;
     }
     public static void configure(Entity arrow, VirtualModule module) { var tag=settings(module);if(arrow.getPersistentData().contains(ModuleDamage.ATTACK_NAME))tag.putString(ModuleDamage.ATTACK_NAME,arrow.getPersistentData().getString(ModuleDamage.ATTACK_NAME));arrow.getPersistentData().put(KEY, tag); }
+    public static void configure(Entity arrow, VirtualModule module,java.util.List<dev.sablelife.module.ModuleEffects.Entry> effects) {
+        var tag=settings(module,effects);
+        if(arrow.getPersistentData().contains(ModuleDamage.ATTACK_NAME))tag.putString(ModuleDamage.ATTACK_NAME,arrow.getPersistentData().getString(ModuleDamage.ATTACK_NAME));
+        arrow.getPersistentData().put(KEY,tag);
+    }
     public static void impact(ProjectileImpactEvent event) {
         if (event.isCanceled() || !(event.getEntity().level() instanceof ServerLevel world)
                 || !(event.getRayTraceResult() instanceof BlockHitResult hit)) return;
@@ -48,7 +56,7 @@ public final class ModuleBlast {
         float radius = Math.clamp(tag.getFloat("Radius"), .5F, 16F), damage = Math.clamp(tag.getFloat("Damage"), 0F, 1000F);
         var effects = dev.sablelife.module.ModuleEffects.load(tag.getList("Effects", 10));
         var owner=source!=null && source.getPersistentData().hasUUID("SableLifeAttackOwner") ? source.getPersistentData().getUUID("SableLifeAttackOwner") : null;
-        for (var victim : dev.sablelife.module.ModuleTargets.query(world,owner, new AABB(point, point).inflate(radius),
+        for (var victim : dev.sablelife.module.ModuleTargets.damageQuery(world,owner, new AABB(point, point).inflate(radius),
                 e -> e.isAlive() && !e.isSpectator() && !(e instanceof Player p && p.isCreative()))) {
             var box = victim.getBoundingBox();
             var nearest = new Vec3(Math.clamp(point.x, box.minX, box.maxX), Math.clamp(point.y, box.minY, box.maxY), Math.clamp(point.z, box.minZ, box.maxZ));

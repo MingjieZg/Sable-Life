@@ -12,6 +12,9 @@ public final class PullVisual {
         return center.add(Math.cos(angle)*r*radius,y*radius,Math.sin(angle)*r*radius);
     }
     public static List<ParticleTravelPacket> particles(VirtualModule module,Vec3 center,Vec3 destination,long remaining,long time){
+        return particles(module,center,destination,remaining,time,null);
+    }
+    public static List<ParticleTravelPacket> particles(VirtualModule module,Vec3 center,Vec3 destination,long remaining,long time,PullGeometry shape){
         if(remaining<=0)return List.of();
         var entries=module.particleEntries();
         if(entries.isEmpty()){
@@ -20,7 +23,7 @@ public final class PullVisual {
         }
         double radius=module.value("pullRadius");var result=new ArrayList<ParticleTravelPacket>();
         for(int i=0;i<STREAM_POINTS;i++){
-            var entry=entries.get(i%entries.size());var from=shell(center,radius,i,STREAM_POINTS,time*.035);
+            var entry=entries.get(i%entries.size());var from=shape==null?shell(center,radius,i,STREAM_POINTS,time*.035):shape.boundary((i+.5)/STREAM_POINTS,i*Math.PI*(3-Math.sqrt(5))+time*.035);
             int ticks=Math.clamp((int)Math.ceil(from.distanceTo(destination)*1.25),6,24);
             int life=(int)Math.max(1,Math.min(remaining,entry.ticks()>0?entry.ticks():ticks+1));
             result.add(new ParticleTravelPacket(entry.id(),from,destination,ticks,life,entry.size(),entry.color()));

@@ -48,6 +48,7 @@ public final class IronAreaBodyBridge {
   var center=SableBodyProbe.toWorld(level,hit.getLocation());boolean skull=shot instanceof io.redspace.ironsspellbooks.entity.spells.WitherSkullProjectile;
   UUID direct=null;
   if(skull&&hit instanceof BlockHitResult block){var core=SableBodyProbe.findActivatedHeart(level,block.getBlockPos());if(core!=null&&!core.isControlCore()){direct=core.creatureId();BodyCombatApi.projectile(shot,block,shot.getDamage());}}
+  if(skull&&hit instanceof EntityHitResult entity&&entity.getEntity() instanceof dev.sablelife.combat.EntityHitbox box&&dev.sablelife.combat.EntityHitboxes.hybrid(box.core()))direct=box.core().creatureId();
   for(var contact:BodySphereQuery.query(level,center,shot.position(),shot.getExplosionRadius())){
    if(contact.core().creatureId().equals(direct))continue;
    float damage=shot.getDamage();

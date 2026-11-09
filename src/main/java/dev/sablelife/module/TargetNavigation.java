@@ -47,7 +47,7 @@ public final class TargetNavigation {
         return ContactBox.rotate(new Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation()), Vec3.atLowerCornerOf(front(module).getNormal()));
     }
     private boolean eligible(ServerLevel level, HeartBlockEntity heart, VirtualModule module, LivingEntity entity, Vec3 center) {
-        if (!entity.isAlive() || entity.isSpectator() || entity instanceof Player p && p.isCreative()) return false;
+        if (!entity.isAlive() || entity.isSpectator() || entity instanceof Player p && p.isCreative()&&module.value("target")!=4) return false;
         if (!ModuleTargets.matches(entity,module)) return false;
         Vec3 point = SableBodyProbe.toWorld(level, entity.getBoundingBox().getCenter());
         if (point.distanceToSqr(center) > Math.pow(module.value("radius"), 2)) return false;
@@ -59,13 +59,13 @@ public final class TargetNavigation {
         var anchor = module.anchors().getFirst(); var body = anchor.body(heart); var center = anchor.world(heart, false);
         var pos = anchor.position(body);
         for (var face : Direction.values()) signals.putIfAbsent(new ModuleSignals.Face(pos, face), 0);
-        LivingEntity target = ModuleTargets.resolve(level,state.target,heart.creatureId());
+        LivingEntity target = ModuleTargets.resolveForModule(level,state.target,heart,module);
         if (level.getGameTime() >= state.nextSearch || target != null && !target.isAlive()) {
             state.nextSearch = level.getGameTime() + 5;
             if (module.value("targetLock") != 0 || target == null || !eligible(level, heart, module, target, center)) {
-                target = ModuleTargets.query(level, heart.creatureId(), new AABB(center, center).inflate(module.value("radius") + 2),
+                target = ModuleTargets.queryForModule(level, heart, module, new AABB(center, center).inflate(module.value("radius") + 2),
                         e -> eligible(level, heart, module, e, center)).stream()
-                        .min(Comparator.<LivingEntity>comparingDouble(e -> SableBodyProbe.toWorld(level, e.getBoundingBox().getCenter()).distanceToSqr(center))
+                        .min(ModuleTargets.comparator(heart,e -> SableBodyProbe.toWorld(level, e.getBoundingBox().getCenter()).distanceToSqr(center))
                                 .thenComparing(e -> e.getUUID().toString())).orElse(null);
             }
             state.target = target == null ? null : target.getUUID();

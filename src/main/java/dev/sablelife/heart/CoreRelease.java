@@ -15,5 +15,16 @@ public final class CoreRelease {
         var point=SableBodyProbe.toWorld(level,heart.getBlockPos().getCenter());level.playSound(null,point.x,point.y,point.z,net.minecraft.sounds.SoundEvents.AMETHYST_BLOCK_CHIME,net.minecraft.sounds.SoundSource.BLOCKS,.7f,1.2f);
         player.closeContainer();player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.sablelife.released",reset),true);return true;
     }
+    public static boolean releaseSurvival(HeartBlockEntity heart,Player player){
+        if(!heart.isSurvivalCore()||!heart.resetForSurvival(player))return false;
+        MarkingSessions.cancel(player);
+        var point=SableBodyProbe.toWorld(heart.getLevel(),heart.getBlockPos().getCenter());
+        heart.getLevel().playSound(null,point.x,point.y,point.z,net.minecraft.sounds.SoundEvents.AMETHYST_BLOCK_CHIME,
+                net.minecraft.sounds.SoundSource.BLOCKS,.7f,1.2f);
+        player.closeContainer();
+        player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.sablelife.released",1),true);
+        return true;
+    }
+
     private CoreRelease(){}
 }

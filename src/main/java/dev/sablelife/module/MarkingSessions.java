@@ -28,6 +28,7 @@ public final class MarkingSessions {
         if(module.type().equals("visual_shockwave"))ModuleShockwave.preview(player,heart,module);
         previews.put(player.getUUID(), new Preview(heart, module.id(), player.level().getGameTime() + 100));
         if(module.type().equals("visual_shockwave"))previewModule(player,heart,module);
+        if(module.type().equals("blueprint_spawn"))dev.sablelife.ownership.BlueprintSpawns.preview(player,heart,module,true);
         player.closeContainer();
     }
     public static boolean start(Player player, HeartBlockEntity heart, VirtualModule module) {
@@ -35,7 +36,7 @@ public final class MarkingSessions {
         if (!(player instanceof ServerPlayer server) || !heart.canEdit(player)) return false;
         sessions.put(player.getUUID(), new Session(heart, module.id(), heart.modules().revision(), player.level().getGameTime() + 2400, new ArrayList<>()));
         player.closeContainer(); PacketDistributor.sendToPlayer(server, new ModuleNetworking.MarkState(true));
-        player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + (module.type().equals("arena") ? "arena_point" : List.of("auto_facing","signal_turn").contains(module.type()) ? "auto_facing_point" : module.type().equals("navigation") ? "navigation_point" : module.area() ? "first" : "point")), true); return true;
+        player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + (module.type().equals("blueprint_spawn")?(dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module)?"blueprint_follow":"blueprint_point"):module.type().equals("arena") ? "arena_point" : List.of("auto_facing","signal_turn").contains(module.type()) ? "auto_facing_point" : module.type().equals("navigation") ? "navigation_point" : module.area() ? "first" : "point")), true); return true;
     }
     public static void cancel(Player player) {
         if (sessions.remove(player.getUUID()) != null && player instanceof ServerPlayer server) {
@@ -51,7 +52,7 @@ public final class MarkingSessions {
         var hit=player.level().clip(new ClipContext(eye,eye.add(player.getLookAngle().scale(player.blockInteractionRange()+1)),ClipContext.Block.OUTLINE,ClipContext.Fluid.NONE,player));
         if(hit.getType()!=HitResult.Type.MISS)return false;
         var module=session.heart.modules().find(session.module);
-        module.clearMarks();session.heart.modules().changed();session.heart.setChanged();
+        if(module.type().equals("blueprint_spawn")){if(dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module))module.anchors(List.of());else module.clearFixedPoint();}else module.clearMarks();session.heart.modules().changed();session.heart.setChanged();
         previews.entrySet().removeIf(e->e.getValue().heart==session.heart&&e.getValue().module.equals(session.module));
         sessions.remove(player.getUUID());DashboardSelection.set(session.heart,player.getUUID(),module.id());
         if(player instanceof ServerPlayer server)PacketDistributor.sendToPlayer(server,new ModuleNetworking.MarkState(false));
@@ -76,7 +77,7 @@ public final class MarkingSessions {
         if (!valid(player, session)) { cancel(player); return; }
         if (player.isShiftKeyDown()) { cancel(player); session.heart.openDashboard(player); return; }
         var module = session.heart.modules().find(session.module);
-        if (module.type().equals("arena")) {
+        if (module.type().equals("arena") || module.type().equals("blueprint_spawn")&&!dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module)) {
             // Arena marking uses a world-space server ray, independently of ordinary limb marking.
             // Sable returns plot block coordinates for body hits; terrain hits remain world blocks.
             Vec3 eye = player.getEyePosition();
@@ -96,13 +97,13 @@ public final class MarkingSessions {
             if (hit.getType() != HitResult.Type.BLOCK || !hit.getBlockPos().equals(pos)) return;
         }
         // Reach/occlusion was checked above. A ray to the block center is not the clicked face.
-        select(player, pos, List.of("wireless_redstone", "particles", "melee", "distortion_trail").contains(module.type()) ? event.getFace() : hit.getDirection());
+        select(player, pos, List.of("wireless_redstone", "particles", "melee", "distortion_trail", "blueprint_spawn", "block_interaction").contains(module.type()) ? event.getFace() : hit.getDirection());
     }
     /** Call only after a server-authoritative reach/shape ray; package API also supports integration tests. */
     public static boolean select(Player player, BlockPos pos, Direction face) {
         var session = sessions.get(player.getUUID()); if (session == null || !valid(player, session)) return false;
         var module = session.heart.modules().find(session.module);
-        if (module.type().equals("arena")) {
+        if (module.type().equals("arena") || module.type().equals("blueprint_spawn")&&!dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module)) {
             if (player.level().getBlockState(pos).isAir()) return false;
             var body = dev.ryanhcode.sable.Sable.HELPER.getContaining(player.level(), pos);
             Vec3 center = body == null ? pos.getCenter() : body.logicalPose().transformPosition(pos.getCenter());
@@ -128,7 +129,10 @@ public final class MarkingSessions {
         }
         module.anchors(session.points); session.heart.modules().changed(); session.heart.setChanged();
         sessions.remove(player.getUUID());
-        if (player instanceof ServerPlayer server) PacketDistributor.sendToPlayer(server, new ModuleNetworking.MarkState(false));
+        if (player instanceof ServerPlayer server) {
+            PacketDistributor.sendToPlayer(server, new ModuleNetworking.MarkState(false));
+            if(module.type().equals("block_interaction"))ModuleBlockInteraction.preview(server,session.heart,module);
+        }
         session.heart.openDashboard(player); return true;
     }
     public static void tick(ServerTickEvent.Post event) {
@@ -148,7 +152,7 @@ public final class MarkingSessions {
             if (!valid(player, session)) { cancel(player); continue; }
             if (player.level().getGameTime() % 5 == 0) {
                 var module = session.heart.modules().find(session.module);
-                player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + (module.type().equals("arena") ? "arena_point" : List.of("auto_facing","signal_turn").contains(module.type()) ? "auto_facing_point" : module.type().equals("navigation") ? "navigation_point" : module.area()
+                player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + (module.type().equals("blueprint_spawn")?(dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module)?"blueprint_follow":"blueprint_point"):module.type().equals("arena") ? "arena_point" : List.of("auto_facing","signal_turn").contains(module.type()) ? "auto_facing_point" : module.type().equals("navigation") ? "navigation_point" : module.area()
                         ? session.points.isEmpty() ? "first" : "second" : "point")), true);
                 preview(player, session.heart, session.points);
                 if(module.type().equals("visual_shockwave")&&session.points.isEmpty())previewModule(player,session.heart,module);
@@ -156,25 +160,31 @@ public final class MarkingSessions {
         }
     }
     public static void preview(ServerPlayer player, HeartBlockEntity heart, List<ModuleAnchor> anchors) {
-        var level = (ServerLevel) player.level();
         if (anchors.isEmpty()) return;
-        var a = anchors.getFirst(); if (!a.status(heart).equals("valid")) return;
-        if (anchors.size() == 2 && anchors.get(1).status(heart).equals("valid") && a.bodyId().equals(anchors.get(1).bodyId())) {
-            var body = a.body(heart); var ap = a.position(body); var bp = anchors.get(1).position(body);
-            double[] min = {Math.min(ap.getX(), bp.getX()), Math.min(ap.getY(), bp.getY()), Math.min(ap.getZ(), bp.getZ())};
-            double[] max = {Math.max(ap.getX(), bp.getX()) + 1, Math.max(ap.getY(), bp.getY()) + 1, Math.max(ap.getZ(), bp.getZ()) + 1};
-            for (int axis = 0; axis < 3; axis++) for (int p = 0; p < 2; p++) for (int q = 0; q < 2; q++) for (int step = 0; step <= 16; step++) {
-                double[] v = min.clone(); v[axis] = min[axis] + (max[axis] - min[axis]) * step / 16.;
-                v[(axis + 1) % 3] = p == 0 ? min[(axis + 1) % 3] : max[(axis + 1) % 3];
-                v[(axis + 2) % 3] = q == 0 ? min[(axis + 2) % 3] : max[(axis + 2) % 3];
-                particle(level, player, body.logicalPose().transformPosition(new Vec3(v[0], v[1], v[2])));
-            }
-        } else {
-            var body = a.body(heart); Vec3 start = a.position(body).getCenter(); Vec3 normal = Vec3.atLowerCornerOf(a.face().getNormal());
-            for (int i = 0; i <= 10; i++) particle(level, player, body.logicalPose().transformPosition(start.add(normal.scale(i / 5.))));
+        var first=anchors.getFirst();
+        if(!first.status(heart).equals("valid"))return;
+        var body=first.body(heart);
+        var start=first.position(body);
+        boolean area=anchors.size()==2&&anchors.get(1).status(heart).equals("valid")&&first.bodyId().equals(anchors.get(1).bodyId());
+        var end=area?anchors.get(1).position(body):start;
+        var min=new Vec3(Math.min(start.getX(),end.getX()),Math.min(start.getY(),end.getY()),Math.min(start.getZ(),end.getZ())).subtract(.002,.002,.002);
+        var max=new Vec3(Math.max(start.getX(),end.getX())+1,Math.max(start.getY(),end.getY())+1,Math.max(start.getZ(),end.getZ())+1).add(.002,.002,.002);
+        var pose=body.logicalPose();
+        var edges=MarkOutline.box(min,max,pose::transformPosition);
+        if(!area){
+            var center=start.getCenter();
+            edges.add(pose.transformPosition(center));
+            edges.add(pose.transformPosition(center.add(Vec3.atLowerCornerOf(first.face().getNormal()).scale(2))));
         }
+        MarkOutline.send(player,MarkOutline.Kind.MARK,MarkOutline.MARK_COLOR,edges);
     }
     private static void previewModule(ServerPlayer player, HeartBlockEntity heart, VirtualModule module) {
+        if(module.type().equals("block_interaction")){
+            if(!module.anchors().isEmpty()&&module.anchors().getFirst().status(heart).equals("valid"))
+                ModuleBlockInteraction.preview(player,heart,module);
+            return;
+        }
+        if(module.type().equals("entity_hitbox")){dev.sablelife.combat.EntityHitboxes.preview(player,heart,module);return;}
         if(module.type().equals("distortion_trail")){ModuleDistortionTrail.preview(player,heart,module);return;}
         if(module.type().equals("visual_shockwave")){
             if(!List.of("valid","disabled").contains(HeartModules.status(module,heart)))return;
@@ -192,29 +202,42 @@ public final class MarkingSessions {
         if (List.of("wireless_redstone", "sensor").contains(module.type())) {
             if (module.anchors().isEmpty() || !List.of("valid","disabled").contains(HeartModules.status(module,heart)) || !module.anchors().getFirst().status(heart).equals("valid")) return;
             var anchor = module.anchors().getFirst(); var body = anchor.body(heart);
-            var center = anchor.position(body).getCenter(); var level = (ServerLevel) player.level();
-            var dust = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.2F, 1, .4F), 1.2F);
-            for (var face : Direction.values()) if (module.type().equals("wireless_redstone") && module.value("redstoneFaces") == 0 || face == anchor.face()) {
-                var normal = Vec3.atLowerCornerOf(face.getNormal());
-                var u = face.getAxis() == Direction.Axis.X ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0);
-                var v = normal.cross(u); var surface = center.add(normal.scale(.505));
-                for (int edge = 0; edge < 4; edge++) for (int i = 0; i <= 8; i++) {
-                    double t = -.45 + .9 * i / 8.;
-                    var p = surface.add(u.scale(edge < 2 ? t : edge == 2 ? -.45 : .45))
-                            .add(v.scale(edge < 2 ? edge == 0 ? -.45 : .45 : t));
-                    var world = body.logicalPose().transformPosition(p);
-                    level.sendParticles(player, dust, true, world.x, world.y, world.z, 1, 0, 0, 0, 0);
+            var center=anchor.position(body).getCenter();
+            var pose=body.logicalPose();
+            var edges=new ArrayList<Vec3>();
+            boolean wireless=module.type().equals("wireless_redstone");
+            for(var face:Direction.values())if(wireless&&module.value("redstoneFaces")==0||face==anchor.face()){
+                var normal=Vec3.atLowerCornerOf(face.getNormal());
+                var u=(face.getAxis()==Direction.Axis.X?new Vec3(0,1,0):new Vec3(1,0,0)).scale(.45);
+                var v=normal.cross(u);
+                var surface=center.add(normal.scale(.505));
+                var corners=List.of(surface.subtract(u).subtract(v),surface.add(u).subtract(v),surface.add(u).add(v),surface.subtract(u).add(v));
+                for(int i=0;i<4;i++){
+                    edges.add(pose.transformPosition(corners.get(i)));
+                    edges.add(pose.transformPosition(corners.get((i+1)%4)));
+                }
+                if(wireless){
+                    for(int stripe=-2;stripe<=2;stripe++){
+                        double t=stripe/3.0;
+                        var from=corners.get(0).add(u.scale(2*Math.max(t,0))).add(v.scale(2*Math.max(-t,0)));
+                        var to=corners.get(2).subtract(u.scale(2*Math.max(-t,0))).subtract(v.scale(2*Math.max(t,0)));
+                        edges.add(pose.transformPosition(from));
+                        edges.add(pose.transformPosition(to));
+                    }
                 }
             }
+            MarkOutline.send(player,MarkOutline.Kind.DETAIL,0x33FF66,edges);
             player.displayClientMessage(Component.translatable(module.type().equals("sensor") ? "dashboard.sablelife.sensor_output_help" : "dashboard.sablelife.redstone_help"), true);
             if (module.type().equals("wireless_redstone")) return;
         }
         if(module.type().equals("summoned_weapon")&&!module.anchors().isEmpty()&&module.anchors().getFirst().status(heart).equals("valid")){ModuleSummonedWeapon.preview(player,heart,module);return;}
+        if(module.type().equals("health_bar")&&!module.anchors().isEmpty()&&module.anchors().getFirst().status(heart).equals("valid")){ModuleHealthBar.preview(player,heart,module);return;}
         if(module.type().equals("item_display")&&!module.anchors().isEmpty()&&module.anchors().getFirst().status(heart).equals("valid")){ModuleItemDisplay.preview(player,heart,module);return;}
         if (module.type().equals("particles")) {
             if (!HeartModules.status(module, heart).equals("valid") && !HeartModules.status(module, heart).equals("disabled")) return;
             ParticlePattern.preview(player, heart, module); return;
         }
+        if(module.type().equals("blueprint_spawn")){dev.sablelife.ownership.BlueprintSpawns.preview(player,heart,module);return;}
         if (module.type().equals("arena")) {
             var level = (ServerLevel) player.level();
             var red = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1, .2F, .2F), 1.4F);
@@ -230,7 +253,7 @@ public final class MarkingSessions {
                 var p = playerCenter.add(x * module.value("warningRange"), .2, z * module.value("warningRange"));
                 level.sendParticles(player, yellow, true, p.x, p.y, p.z, 1, 0, 0, 0, 0);
             }
-            player.displayClientMessage(Component.translatable("dashboard.sablelife.arena_help"), true); return;
+            player.displayClientMessage(Component.translatable("dashboard.sablelife.arena_preview_help"), true); return;
         }
         if (module.type().equals("ground_strike") && HeartModules.status(module, heart).equals("valid")) {
             for (var point : ModuleGroundStrike.pattern((ServerLevel) player.level(), heart, module)) {
@@ -270,24 +293,17 @@ public final class MarkingSessions {
         if (module.anchors().isEmpty() || !module.anchors().getFirst().status(heart).equals("valid")) return;
         var level = (ServerLevel) player.level();
         if (module.type().equals("melee")) {
-            var anchor = module.anchors().getFirst(); var body = anchor.body(heart); var geometry=MeleeGeometry.frame(heart,module);var center=geometry.center();
-            var size = geometry.half(); double[] half = {size.x, size.y, size.z};
-            for (int axis = 0; axis < 3; axis++) for (int a : new int[]{-1, 1}) for (int b : new int[]{-1, 1}) for (int step = 0; step <= 20; step++) {
-                double[] delta = new double[3]; delta[axis] = -half[axis] + 2 * half[axis] * step / 20.;
-                delta[(axis + 1) % 3] = a * half[(axis + 1) % 3]; delta[(axis + 2) % 3] = b * half[(axis + 2) % 3];
-                particle(level, player, center.add(dev.sablelife.attack.ContactBox.rotate(geometry.rotation(), new Vec3(delta[0], delta[1], delta[2]))));
-            }
+            var geometry=MeleeGeometry.frame(heart,module);
+            var half=geometry.half();
+            var edges=MarkOutline.box(half.scale(-1),half,point->geometry.center().add(dev.sablelife.attack.ContactBox.rotate(geometry.rotation(),point)));
+            MarkOutline.send(player,MarkOutline.Kind.VOLUME,MarkOutline.MARK_COLOR,edges);
         } else if (module.type().equals("loot") || module.type().equals("armor")) {
-            var anchor = module.anchors().getFirst(); preview(player, heart, List.of(anchor, anchor));
-            var box = anchor.body(heart).boundingBox();
-            double[] min = {box.minX(), box.minY(), box.minZ()}, max = {box.maxX(), box.maxY(), box.maxZ()};
-            var dust = new net.minecraft.core.particles.DustParticleOptions(module.type().equals("armor") ? new org.joml.Vector3f(.2F, .8F, 1) : new org.joml.Vector3f(.95F, .65F, .2F), 1.2F);
-            for (int axis = 0; axis < 3; axis++) for (int a = 0; a < 2; a++) for (int b = 0; b < 2; b++) for (int step = 0; step <= 20; step++) {
-                double[] v = min.clone(); v[axis] = min[axis] + (max[axis] - min[axis]) * step / 20.;
-                v[(axis + 1) % 3] = a == 0 ? min[(axis + 1) % 3] : max[(axis + 1) % 3];
-                v[(axis + 2) % 3] = b == 0 ? min[(axis + 2) % 3] : max[(axis + 2) % 3];
-                level.sendParticles(player, dust, true, v[0], v[1], v[2], 1, 0, 0, 0, 0);
-            }
+            var anchor=module.anchors().getFirst();preview(player,heart,List.of(anchor,anchor));
+            var box=anchor.body(heart).boundingBox();
+            var min=new Vec3(box.minX(),box.minY(),box.minZ());
+            var max=new Vec3(box.maxX(),box.maxY(),box.maxZ());
+            MarkOutline.send(player,MarkOutline.Kind.DETAIL,module.type().equals("armor")?0x33CCFF:0xF2A633,
+                    MarkOutline.box(min,max,java.util.function.UnaryOperator.identity()));
             player.displayClientMessage(Component.translatable("dashboard.sablelife." + (module.type().equals("armor") ? "armor_preview_help" : "loot_preview_help")), true);
         } else if (module.type().equals("trigger_sound") && module.value("contactMode") == 1) {
             var start = ModuleEvents.contactStart(heart, module);
@@ -306,14 +322,23 @@ public final class MarkingSessions {
             var rotation = new org.joml.Quaterniond(anchor.body(heart).logicalPose().orientation());
             var front = TargetNavigation.front(module);
             var directions = new net.minecraft.core.Direction[] {front, front.getCounterClockWise(), front.getClockWise(), front.getOpposite(), net.minecraft.core.Direction.UP, net.minecraft.core.Direction.DOWN};
-            var colors = new org.joml.Vector3f[] {new org.joml.Vector3f(1, .8F, .2F), new org.joml.Vector3f(1, .2F, .2F), new org.joml.Vector3f(.2F, .5F, 1), new org.joml.Vector3f(.7F, .7F, .7F), new org.joml.Vector3f(.2F, 1, .4F), new org.joml.Vector3f(.8F, .3F, 1)};
+            int[] colors = {0xFFCC33, 0xFF3333, 0x3380FF, 0xB3B3B3, 0x33FF66, 0xCC4DFF};
+            var kinds = new MarkOutline.Kind[] {MarkOutline.Kind.ALIGN_FRONT, MarkOutline.Kind.ALIGN_LEFT,
+                    MarkOutline.Kind.ALIGN_RIGHT, MarkOutline.Kind.ALIGN_BACK, MarkOutline.Kind.ALIGN_UP, MarkOutline.Kind.ALIGN_DOWN};
             for (int d = 0; d < directions.length; d++) {
                 var vector = dev.sablelife.attack.ContactBox.rotate(rotation, Vec3.atLowerCornerOf(directions[d].getNormal()));
-                var dust = new net.minecraft.core.particles.DustParticleOptions(colors[d], 1.2F);
-                for (int i = 1; i <= 20; i++) {
-                    var point = center.add(vector.scale(i * .15));
-                    level.sendParticles(player, dust, true, point.x, point.y, point.z, 1, 0, 0, 0, 0);
+                var tip = center.add(vector.scale(3));
+                var edges = new ArrayList<Vec3>();
+                edges.add(center); edges.add(tip);
+                if (d == 0) {
+                    // Four arrowhead wings remain readable while viewing the marked front from above or the side.
+                    for (var wing : new Vec3[] {Vec3.atLowerCornerOf(front.getClockWise().getNormal()),
+                            Vec3.atLowerCornerOf(front.getCounterClockWise().getNormal()), new Vec3(0, 1, 0), new Vec3(0, -1, 0)}) {
+                        edges.add(tip);
+                        edges.add(tip.subtract(vector.scale(.6)).add(dev.sablelife.attack.ContactBox.rotate(rotation, wing).scale(.35)));
+                    }
                 }
+                MarkOutline.send(player, kinds[d], colors[d], edges);
             }
             for (int plane = 0; plane < 3; plane++) for (int i = 0; i < 48; i++) {
                 double a = Math.PI * 2 * i / 48, x = Math.cos(a) * module.value("radius"), y = Math.sin(a) * module.value("radius");
@@ -358,7 +383,25 @@ public final class MarkingSessions {
             for(var direction:directions) {
             double range = module.type().equals("flame") ? module.value("range") : module.type().equals("gun") ? module.value("range") : 8;
             double width = module.type().equals("flame") ? module.value("width") : module.value("endRadius") * range / 8;
-            if(module.type().equals("flame"))PacketDistributor.sendToPlayer(player,new ModuleNetworking.FlameJet(start,direction,module.value("flameSpeed"),range,width,0,1F,module.id().getLeastSignificantBits()^level.getGameTime(),module.particleEntries()));
+            if (module.type().equals("flame")) {
+                double fanAngle = FlameFanGeometry.angle(module);
+                PacketDistributor.sendToPlayer(player,new ModuleNetworking.FlameJet(start,direction,module.value("flameSpeed"),range,width,0,1F,module.id().getLeastSignificantBits()^level.getGameTime(),module.particleEntries(),fanAngle));
+                if (fanAngle > 0) {
+                    var fan = FlameFanGeometry.create(start, direction, range, width, fanAngle);
+                    for (int i = 0; i <= 24; i++) {
+                        double angle = fan.halfAngle() * (2 * i / 24. - 1);
+                        double distance = range * i / 24.;
+                        for (int sign : new int[]{-1, 1}) {
+                            particle(level, player, fan.point(range, angle, sign));
+                            particle(level, player, fan.point(distance, -fan.halfAngle(), sign));
+                            particle(level, player, fan.point(distance, fan.halfAngle(), sign));
+                        }
+                    }
+                    for (int i = -4; i <= 4; i++) for (int edge : new int[]{-1, 1})
+                        particle(level, player, fan.point(range, edge * fan.halfAngle(), i / 4.));
+                    continue;
+                }
+            }
             var side = direction.cross(Math.abs(direction.y) > .9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize(); var up = side.cross(direction).normalize();
             for (int i = 0; i <= 32; i++) particle(level, player, start.add(direction.scale(range * i / 32)));
             for (int ring = 1; ring <= 3; ring++) for (int i = 0; i < 32; i++) {

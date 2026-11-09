@@ -4,4 +4,5 @@ package dev.sablelife.attack;
 public interface CreatureAttackSource {
     java.util.UUID creatureOwner();
     default java.util.UUID creatureModule(){return null;}
+    default String playerOwner(){return "";}
 }

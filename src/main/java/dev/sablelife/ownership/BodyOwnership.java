@@ -44,6 +44,7 @@ public final class BodyOwnership extends SavedData {
         }
     }
     private static long chunkKey(BlockPos pos){return net.minecraft.world.level.ChunkPos.asLong(pos.getX()>>4,pos.getZ()>>4);}
+    java.util.Set<Long> trackedChunks(){return byChunk.keySet();}
     java.util.Set<Long> chunkRecords(long chunk){return byChunk.getOrDefault(chunk,java.util.Set.of());}
     boolean matchesCleanup(BlockPos pos,UUID id,boolean part){return id.equals(part?parts.get(pos.asLong()):owners.get(pos.asLong()));}
     java.util.Set<Long> cleanupPositions(UUID id,boolean part){return (part?byPart:byOwner).getOrDefault(id,java.util.Set.of());}
@@ -55,6 +56,17 @@ public final class BodyOwnership extends SavedData {
         for(var key:byOwner.getOrDefault(creature,java.util.Set.of())){
             var body=Sable.HELPER.getContaining(level,BlockPos.of(key));
             if(body!=null&&!body.isRemoved())result.add(body.getUniqueId());
+        }
+        return result;
+    }
+    /** The value flags bodies claimed by a limb-loot job. */
+    Map<UUID, Boolean> limbBodies(ServerLevel level, UUID creature) {
+        var result = new HashMap<UUID, Boolean>();
+        for (long position : byOwner.getOrDefault(creature, java.util.Set.of())) {
+            var pos = BlockPos.of(position);
+            var body = Sable.HELPER.getContaining(level, pos);
+            if (body == null || body.isRemoved()) continue;
+            result.merge(body.getUniqueId(), parts.containsKey(position), Boolean::logicalOr);
         }
         return result;
     }
@@ -144,9 +156,7 @@ public final class BodyOwnership extends SavedData {
                 if(result.removed()>0){removed+=result.removed();continue;}
                 if(examined>=visits){cursor.add(position);break;}
             }
-            var point=dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,pos.getCenter());boolean erased;
-            BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()+1);
-            try{dev.sablelife.compat.BodyDecorationCleanup.discardForBlock(level,pos);dev.sablelife.compat.MountedContraptionCleanup.discardForDeath(level.getBlockEntity(pos));erased=level.removeBlock(pos,false);}finally{BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);}
+            var point=dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,pos.getCenter());boolean erased=eraseOwnedBlock(level,pos);
             if(erased){
                 if(smoke-->0){if(effect!=null)effect.emit(level,point);else dev.sablelife.module.ModuleParticles.send(level,net.minecraft.core.particles.ParticleTypes.POOF,point.x,point.y,point.z,6,.35,.35,.35,.04);}
                 forget(pos);removed++;
@@ -154,6 +164,16 @@ public final class BodyOwnership extends SavedData {
         }
         if(!index.containsKey(id))cursors.remove(id);
         return new CleanupResult(removed,examined);
+    }
+    static boolean eraseOwnedBlock(ServerLevel level,BlockPos pos) {
+        BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()+1);
+        try {
+            dev.sablelife.compat.BodyDecorationCleanup.discardForBlock(level,pos);
+            dev.sablelife.compat.MountedContraptionCleanup.discardForDeath(level.getBlockEntity(pos));
+            return level.removeBlock(pos,false);
+        } finally {
+            BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()-1);
+        }
     }
     /** Release only the selected orphan fragment, never the distant active parent. */
     public boolean releaseFragment(ServerLevel level, BlockPos clicked) {

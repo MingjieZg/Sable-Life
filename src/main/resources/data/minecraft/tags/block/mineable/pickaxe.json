@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "sablelife:heart"
+    "sablelife:heart",
+    "sablelife:survival_heart_core"
   ]
 }

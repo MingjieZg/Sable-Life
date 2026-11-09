@@ -26,9 +26,11 @@ public final class LifeUiStyle {
     public static Button button(Component label, int x, int y, int width, int height, Runnable action) { return new StyledButton(label, x, y, width, height, action); }
     public static void reverse(Button button, Runnable action) { if (button instanceof StyledButton styled) styled.reverse = action; }
     public static void bookmark(Button button, int color) { if (button instanceof StyledButton styled) styled.bookmark = color; }
+    public static void fill(Button button,int color){if(button instanceof StyledButton styled)styled.fill=color;}
     private static final class StyledButton extends Button {
         private Runnable reverse;
         private int bookmark;
+        private int fill;
         StyledButton(Component label, int x, int y, int width, int height, Runnable action) { super(x, y, width, height, label, b -> action.run(), DEFAULT_NARRATION); }
         @Override public boolean mouseClicked(double x, double y, int button) {
             if (button == 1 && reverse != null && active && visible && isMouseOver(x, y)) {
@@ -40,7 +42,7 @@ public final class LifeUiStyle {
             var font = Minecraft.getInstance().font;
             int x = getX(), y = getY();
             g.fill(x, y, x + getWidth(), y + getHeight(), active && isHoveredOrFocused() ? 0xFFD2BADF : 0xFF16141C);
-            g.fill(x + 1, y + 1, x + getWidth() - 1, y + getHeight() - 1, active ? 0xFF625968 : 0xFF34313B);
+            g.fill(x + 1, y + 1, x + getWidth() - 1, y + getHeight() - 1, active ? (fill==0?0xFF625968:fill) : 0xFF34313B);
             int inset = bookmark == 0 ? 0 : 7;
             if (bookmark != 0) {
                 // An inset bookmark keeps the original hover/focus outline visible.

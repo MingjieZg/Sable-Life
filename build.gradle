@@ -46,6 +46,55 @@ neoForge {
             gameDirectory = file('runs/server')
             programArgument '--nogui'
         }
+        wildMsptServer {
+            server()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('msptDirectory').getOrElse('runs/wild-mspt'))
+            systemProperty 'sablelife.wildMspt', 'true'
+            jvmArguments.addAll '-Xms1G', '-Xmx3G'
+            programArgument '--nogui'
+        }
+        autonomousMsptServer {
+            server()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('autonomousDirectory').getOrElse('runs/autonomous-mspt-01'))
+            systemProperty 'sablelife.autonomousMspt', 'true'
+            systemProperty 'sablelife.autonomousPopulations', providers.gradleProperty('autonomousPopulations').getOrElse('2,8,16,32,64')
+            jvmArguments.addAll '-Xms2G', '-Xmx8G'
+            programArgument '--nogui'
+        }
+        wildLifecycleServer {
+            server()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('lifecycleDirectory').getOrElse('runs/wild-lifecycle-isolated'))
+            systemProperty 'sablelife.wildLifecycle', 'true'
+            systemProperty 'sablelife.wildLifecycleStage', providers.gradleProperty('lifecycleStage').getOrElse('prepare')
+            jvmArguments.addAll '-Xms1G', '-Xmx3G'
+            programArgument '--nogui'
+        }
+        workbenchBenchmarkServer {
+            server()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('workbenchDirectory').getOrElse('runs/workbench-benchmark-isolated'))
+            systemProperty 'sablelife.workbenchBenchmark', 'true'
+            systemProperty 'sablelife.workbenchStage', providers.gradleProperty('workbenchStage').getOrElse('benchmark')
+            jvmArguments.addAll '-Xms1G', '-Xmx3G'
+            programArgument '--nogui'
+        }
+        hitboxMsptServer {
+            server()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('hitboxDirectory').getOrElse('runs/hitbox-mspt-isolated'))
+            systemProperty 'sablelife.hitboxMspt', 'true'
+            systemProperty 'sablelife.hitboxProfile', providers.gradleProperty('hitboxProfile').getOrElse('full')
+            jvmArguments.addAll '-Xms1G', '-Xmx4G'
+            programArgument '--nogui'
+        }
         panelPreview {
             client()
             sourceSet = sourceSets.gameTest
@@ -66,7 +115,7 @@ neoForge {
             client()
             sourceSet = sourceSets.gameTest
             loadedMods = [mods.sablelife, mods.sablelife_tests]
-            gameDirectory = file('runs/module-picker-preview')
+            gameDirectory = file(providers.gradleProperty('modulePickerDirectory').getOrElse('runs/module-picker-preview'))
             systemProperty 'sablelife.pickerPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
@@ -77,6 +126,61 @@ neoForge {
             gameDirectory = file('runs/language-preview')
             systemProperty 'sablelife.languagePreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        patternVisualPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('patternVisualDirectory').getOrElse('runs/pattern-visual-preview'))
+            systemProperty 'sablelife.patternVisualPreview', 'true'
+            systemProperty 'sablelife.patternShaders', providers.gradleProperty('shaderParticleTests').getOrElse('false')
+            programArguments.addAll '--width', '1600', '--height', '900'
+        }
+        healthBarShaderPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/health-bar-shader-preview')
+            systemProperty 'sablelife.healthBarWorldPreview', 'true'
+            systemProperty 'sablelife.healthBarShaderTests', 'true'
+            systemProperty 'sablelife.healthBarShaderLimit', providers.gradleProperty('healthBarShaderLimit').getOrElse('5')
+            programArguments.addAll '--width', '1600', '--height', '900'
+        }
+        healthBarWaterPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('healthBarWaterDirectory').getOrElse('runs/health-bar-water-preview'))
+            systemProperty 'sablelife.healthBarWaterPreview', 'true'
+            systemProperty 'sablelife.healthBarWaterShaders', providers.gradleProperty('shaderParticleTests').getOrElse('false')
+            systemProperty 'sablelife.healthBarWaterMode', providers.gradleProperty('healthBarWaterMode').getOrElse('0')
+            systemProperty 'sablelife.healthBarWaterEnd', providers.gradleProperty('healthBarWaterEnd').getOrElse('8')
+            programArguments.addAll '--width', '1600', '--height', '900'
+        }
+        gyroscopeOutlinePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('gyroPreviewDirectory').getOrElse('runs/gyroscope-outline-preview'))
+            systemProperty 'sablelife.gyroOutlinePreview', 'true'
+            systemProperty 'sablelife.gyroOutlineShaders', providers.gradleProperty('shaderParticleTests').getOrElse('false')
+            programArguments.addAll '--width', '1600', '--height', '900'
+        }
+        movementOutlinePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('movementPreviewDirectory').getOrElse('runs/movement-outline-preview'))
+            systemProperty 'sablelife.movementOutlinePreview', 'true'
+            programArguments.addAll '--width', '1600', '--height', '900'
+        }
+        healthBarWorldPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('healthBarDirectory').getOrElse('runs/health-bar-world-preview'))
+            systemProperty 'sablelife.healthBarWorldPreview', 'true'
+            programArguments.addAll '--width', '1600', '--height', '900'
         }
         itemDisplayPreview {
             client()
@@ -110,6 +214,15 @@ neoForge {
             systemProperty 'sablelife.linearTargetPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
+        manualColorPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('manualColorDirectory').getOrElse('runs/manual-colors-397-20261108'))
+            systemProperty 'sablelife.manualColorPreview', 'true'
+            systemProperty 'sablelife.briefManualPreview', providers.gradleProperty('briefManualPreview').getOrElse('false')
+            programArguments.addAll '--width', '1600', '--height', '1000'
+        }
         manualPreview {
             client()
             sourceSet = sourceSets.gameTest
@@ -117,6 +230,73 @@ neoForge {
             gameDirectory = file('runs/manual-preview')
             systemProperty 'sablelife.manualPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
+        }
+        manualIllustratedPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('manualIllustratedDirectory').getOrElse('runs/manual-illustrated-preview'))
+            systemProperty 'sablelife.manualIllustratedPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '900'
+        }
+        ownerPlayerPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/owner-player-preview')
+            systemProperty 'sablelife.ownerPlayerPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '900'
+        }
+        entityHitboxPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/entity-hitbox-preview')
+            systemProperty 'sablelife.entityHitboxPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '900'
+        }
+        targetPriorityPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/target-priority-preview')
+            systemProperty 'sablelife.targetPriorityPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '900'
+        }
+        blueprintWorldPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/blueprint-world-preview')
+            systemProperty 'sablelife.blueprintWorldPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '900'
+        }
+        blueprintSpawnPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('blueprintPreviewDirectory').getOrElse('runs/blueprint-spawn-preview'))
+            systemProperty 'sablelife.blueprintSpawnPreview', 'true'
+            systemProperty 'sablelife.blueprintPreviewLanguage', providers.gradleProperty('blueprintPreviewLanguage').getOrElse('en_us')
+            systemProperty 'sablelife.blueprintPreviewStart', providers.gradleProperty('blueprintPreviewStart').getOrElse('0')
+            systemProperty 'sablelife.blueprintPreviewEnd', providers.gradleProperty('blueprintPreviewEnd').getOrElse('56')
+            programArguments.addAll '--width', '1280', '--height', '900'
+        }
+        moveIgnorePreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/move-ignore-preview')
+            systemProperty 'sablelife.moveIgnorePreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '900'
+        }
+        relationsPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file('runs/relations-preview')
+            systemProperty 'sablelife.relationsPreview', 'true'
+            programArguments.addAll '--width', '1280', '--height', '900'
         }
         managementPreview {
             client()
@@ -181,6 +361,7 @@ neoForge {
             gameDirectory = file("runs/shockwave-preview")
             systemProperty "sablelife.shockwavePreview", "true"
             systemProperty "sablelife.shockwaveWorldPreview", providers.gradleProperty("shockwaveWorldPreview").getOrElse("false")
+            systemProperty "sablelife.radialBlurWorldPreview", providers.gradleProperty("radialBlurWorldPreview").getOrElse("false")
             programArguments.addAll "--width", "1280", "--height", "720"
         }
         adaptiveDashboardPreview {
@@ -251,7 +432,7 @@ neoForge {
             client()
             sourceSet = sourceSets.gameTest
             loadedMods = [mods.sablelife, mods.sablelife_tests]
-            gameDirectory = file('runs/loot-editor-preview')
+            gameDirectory = file(providers.gradleProperty('lootEditorDirectory').getOrElse('runs/loot-editor-preview'))
             systemProperty 'sablelife.lootEditorPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
@@ -294,6 +475,15 @@ neoForge {
             gameDirectory = file('runs/arena-respawn-preview')
             systemProperty 'sablelife.arenaRespawnPreview', 'true'
             programArguments.addAll '--width', '1920', '--height', '1080'
+        }
+        sharkSchematicPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('sharkPreviewDirectory').getOrElse('runs/shark-schematic-preview-20261109'))
+            systemProperty 'sablelife.sharkPreview', 'true'
+            systemProperty 'sablelife.sharkDirectory', file('creations/shark_head5').absolutePath
+            programArguments.addAll '--width', '1600', '--height', '1000'
         }
         terrainSettingsPreview {
             client()
@@ -385,6 +575,26 @@ neoForge {
             systemProperty 'sablelife.defensePreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
+        coreModuleAuditClient {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('coreAuditDirectory').getOrElse('runs/core-module-audit-client-397-20261108'))
+            systemProperty 'sablelife.coreModuleAudit', 'true'
+            systemProperty 'sablelife.corePatternUi', providers.gradleProperty('corePatternUi').getOrElse('false')
+            systemProperty 'sablelife.survivalAimOnly', providers.gradleProperty('survivalAimOnly').getOrElse('false')
+            systemProperty 'sablelife.propertyHelpPreview', providers.gradleProperty('propertyHelpPreview').getOrElse('false')
+            systemProperty 'sablelife.propertyHelpOnly', providers.gradleProperty('propertyHelpOnly').getOrElse('false')
+            programArguments.addAll '--width', '1600', '--height', '900'
+        }
+        laserControlsPreview {
+            client()
+            sourceSet = sourceSets.gameTest
+            loadedMods = [mods.sablelife, mods.sablelife_tests]
+            gameDirectory = file(providers.gradleProperty('laserControlsDirectory').getOrElse('runs/laser-factions-400-client-20261108'))
+            systemProperty 'sablelife.laserControlsPreview', 'true'
+            programArguments.addAll '--width', '1600', '--height', '1000'
+        }
         gameTestServer {
             type = 'gameTestServer'
             sourceSet = sourceSets.gameTest
@@ -394,13 +604,17 @@ neoForge {
             if(providers.gradleProperty('dragonReplayTests').getOrElse('false')=='true') systemProperty 'sablelife.dragonReplayTemplate', file('.dev/dragon-template.nbt').absolutePath
             if(providers.gradleProperty('arenaAddonTests').getOrElse('false')=='true') systemProperty 'sablelife.arenaReplayTemplate', file('.dev/arena-replay/template.nbt').absolutePath
             systemProperty 'sablelife.expectCleanupCrash', providers.gradleProperty('expectCleanupCrash').getOrElse('false')
-            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_redstone_preview_tests,sablelife_summon_tests,sablelife_freeze_tests,sablelife_terrain_tests,sablelife_signal_tests,sablelife_surface_tests,sablelife_cleanup_regression_tests,sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests,sablelife_plot_read_tests')
+            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('gameTestNamespaces').getOrElse('sablelife_rotation_obstacle_tests,sablelife_redstone_preview_tests,sablelife_summon_tests,sablelife_freeze_tests,sablelife_terrain_tests,sablelife_signal_tests,sablelife_surface_tests,sablelife_cleanup_regression_tests,sablelife_audit_tests,sablelife_combat_tests,sablelife_chunk_tests,sablelife_cleanup_tests,sablelife_arena_tests,sablelife_blast_tests,sablelife_control_tests,sablelife_core_ui_tests,sablelife_defense_tests,sablelife_facing_tests,sablelife_lifecycle_tests,sablelife_marker_tests,sablelife_melee_tests,sablelife_particle_tests,sablelife_quake_tests,sablelife_redstone_core_tests,sablelife_sound_tests,sablelife_plot_read_tests')
         }
-        configureEach { logLevel = org.slf4j.event.Level.INFO }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+            if(providers.gradleProperty('valkyrieReplayTests').getOrElse('false')=='true') systemProperty 'sablelife.valkyrieReplay', 'true'
+        }
     }
 }
 
 dependencies {
+    if (providers.gradleProperty('artificeTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/artifice-testmods', include: ['*.jar'])
     if(providers.gradleProperty('shaderParticleTests').getOrElse('false')=='true') {
         gameTestRuntimeOnly fileTree(dir: '.dev/shader-test-mods', include: ['iris*.jar'])
         gameTestRuntimeOnly fileTree(dir: '.dev/shader-merged', include: ['*.jar'])
@@ -426,6 +640,8 @@ dependencies {
     if(providers.gradleProperty('dragonToolgunTests').getOrElse('false')=='true') gameTestRuntimeOnly files('.dev/dragon-toolgun.jar')
     if(providers.gradleProperty('dragonReplayTests').getOrElse('false')=='true') gameTestRuntimeOnly fileTree(dir: '.dev/dragon-replay-mods', include: ['*.jar'])
     if(providers.gradleProperty('arenaAddonTests').getOrElse('false')=='true') gameTestRuntimeOnly fileTree(dir: '.dev/arena-addon-mods', include: ['*.jar'])
+    if(providers.gradleProperty('valkyrieReplayTests').getOrElse('false')=='true') gameTestRuntimeOnly fileTree(dir: '.dev/valkyrie-replay-mods', include: ['*.jar'])
+    if(providers.gradleProperty('autonomousReplayTests').getOrElse('false')=='true') gameTestRuntimeOnly fileTree(dir: '.dev/autonomous-replay-mods', include: ['*.jar'])
     if (providers.gradleProperty('cleanupCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/cleanup-mods', include: ['*.jar'])
     if (providers.gradleProperty('epicFightTests').getOrElse('false') == 'true') gameTestRuntimeOnly files('.dev/epicfight/epic-fight-21.17.3.1-mc1.21.1-neoforge.jar')
     runtimeOnly files('.dev/mods/create-1.21.1-6.0.10.jar')
@@ -433,7 +649,11 @@ dependencies {
     runtimeOnly files('.dev/mods/Jade-1.21.1-NeoForge-15.10.6.jar')
     if(providers.gradleProperty('photomancyRuntime').getOrElse('true')=='true') runtimeOnly files('.dev/mods/sable-photomancy-1.0.1.jar')
     runtimeOnly files('.dev/mods/ldlib2-neoforge-1.21.1-2.2.17-all.jar')
-    if (providers.gradleProperty('weaponCompatTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/test-mods', include: ['*.jar'])
+    if (providers.gradleProperty('weaponCompatTests').getOrElse('false') == 'true') {
+        // The mounted-cleanup fixture already supplies CBC and its projectile library.
+        def weaponIncludes = providers.gradleProperty('mountedCleanupTests').getOrElse('false')=='true' ? ['tacz-*.jar'] : ['*.jar']
+        gameTestRuntimeOnly fileTree(dir: '.dev/test-mods', include: weaponIncludes)
+    }
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.ow2.asm:asm-tree:9.8'

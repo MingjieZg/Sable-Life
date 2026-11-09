@@ -18,16 +18,16 @@ public final class ModuleAutoFacing {
     public String state(UUID id){return states.getOrDefault(id,"idle");}
     public static boolean eligible(LivingEntity target,VirtualModule module){
         if(!target.isAlive()||target.isSpectator())return false;
-        if(target instanceof Player player&&player.isCreative()&&module.value("facingCreative")==1)return module.value("target")==0||module.value("target")==2;
+        if(target instanceof Player player&&player.isCreative())return module.value("facingCreative")==1&&(module.value("target")==0||module.value("target")==2||module.value("target")==4);
         return ModuleTargets.matches(target,module);
     }
     public static LivingEntity selectTarget(ServerLevel level,HeartBlockEntity heart,VirtualModule module,Vec3 pivot){
         double range=module.value("facingRange");boolean sight=module.value("lineOfSight")==1;
         var ownBodies=sight?new HashSet<>(SableBodyProbe.inspect(level,heart.getBlockPos()).connectedBodies()):Set.<UUID>of();
-        return ModuleTargets.query(level,heart.creatureId(),new AABB(pivot,pivot).inflate(range),e->eligible(e,module)).stream()
+        return ModuleTargets.queryForModule(level,heart,module,new AABB(pivot,pivot).inflate(range),e->eligible(e,module)).stream()
                 .filter(e->e.getBoundingBox().getCenter().distanceToSqr(pivot)<=range*range)
                 .filter(e->!sight||dev.sablelife.sense.SensorGeometry.visible(level,heart.creatureId(),pivot,e.getBoundingBox().getCenter(),e instanceof ModuleTargets.LifeTarget?e.getUUID():null,ownBodies))
-                .min(Comparator.<LivingEntity>comparingDouble(e->e.getBoundingBox().getCenter().distanceToSqr(pivot)).thenComparing(e->e.getUUID().toString())).orElse(null);
+                .min(ModuleTargets.comparator(heart,e->e.getBoundingBox().getCenter().distanceToSqr(pivot)).thenComparing(e->e.getUUID().toString())).orElse(null);
     }
     public void tick(HeartBlockEntity heart,boolean movementBusy){tick(heart,movementBusy,false);}
     public void tick(HeartBlockEntity heart,boolean movementBusy,boolean preserveTranslation){

@@ -27,7 +27,7 @@ public final class BodyCombatApi {
    double damage=damageAtDistance.applyAsDouble(hit.distance());if(!Double.isFinite(damage)||damage<=0)continue;
    var core=hit.core();if(core.getLevel()!=level||core.isRemoved()||core.isControlCore()||!core.creatureId().equals(BodyOwnership.get(level).owner(hit.block())))continue;
    var data=source.getPersistentData();if(data.hasUUID("SableLifeAttackOwner")&&!core.acceptsLifeAttack(data.getUUID("SableLifeAttackOwner")))continue;
-   if(core.damageAt(hit.block(),(float)Math.min(damage,HeartHealth.MAX_CONFIGURED_HEALTH)))hits++;
+   if(core.modules().damageBoxes.bodyDamage(core,source,hit.block(),(float)Math.min(damage,HeartHealth.MAX_CONFIGURED_HEALTH),false,true))hits++;
   }return hits;
  }
  private BodyCombatApi(){}

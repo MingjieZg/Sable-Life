@@ -60,7 +60,7 @@ public final class OptionalWeaponGameTests {
    contraption.getBlocks().put(BlockPos.ZERO,new net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate.StructureBlockInfo(BlockPos.ZERO,Blocks.GLASS.defaultBlockState(),null));
    var cannon=(com.simibubi.create.content.contraptions.AbstractContraptionEntity)cannonType.getMethod("create",Level.class,com.simibubi.create.content.contraptions.Contraption.class,Direction.class,controllerType).invoke(null,level,contraption,Direction.NORTH,mount);
    cannon.setPos(pos.above(2).getCenter());mount.getClass().getMethod("attach",cannonType).invoke(mount,cannon);
-   if(owned){var id=UUID.randomUUID();var data=dev.sablelife.ownership.BodyOwnership.get(level);data.bind(pos,id);data.cleanLoaded(level,id,256);h.assertTrue(cannon.isRemoved()&&!contraption.disassembled&&level.getBlockState(pos.above(2)).isAir(),"Death cleanup restored an assembled cannon: "+key);}
+   if(owned){var id=UUID.randomUUID();var data=dev.sablelife.ownership.BodyOwnership.get(level);var lifecycle=dev.sablelife.ownership.LifeLifecycle.get(level.getServer());data.bind(pos,id);lifecycle.schedulePart(level,id,UUID.randomUUID(),"Mount",pos.getCenter(),0,net.minecraft.resources.ResourceLocation.withDefaultNamespace("empty"),0);try{data.cleanLoaded(level,id,256);h.assertTrue(cannon.isRemoved()&&!contraption.disassembled&&level.getBlockState(pos.above(2)).isAir(),"Death cleanup restored an assembled cannon: "+key);}finally{lifecycle.cancel(id);}}
    else {mount.getClass().getMethod("disassemble").invoke(mount);h.assertTrue(cannon.isRemoved()&&contraption.disassembled,"Ordinary cannon disassembly was intercepted: "+key);level.removeBlock(pos,false);}
   }
   h.succeed();

@@ -21,11 +21,11 @@ public final class ModuleItemDisplay {
         var anchor=m.anchors().getFirst();var body=anchor.body(core);if(body==null)return;
         var center=localPoint(anchor,body,m);double half=m.value("displaySize")/2;
         var rotation=new org.joml.Quaterniond().rotationXYZ(Math.toRadians(m.value("displayRotX")),Math.toRadians(m.value("displayRotY")),Math.toRadians(m.value("displayRotZ")));
-        var dust=new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1,.85F,.25F),1);
-        for(int axis=0;axis<3;axis++)for(int side=0;side<4;side++)for(int step=0;step<=8;step++){
-            var point=new org.joml.Vector3d();point.setComponent(axis,-half+2*half*step/8);point.setComponent((axis+1)%3,(side&1)==0?-half:half);point.setComponent((axis+2)%3,(side&2)==0?-half:half);rotation.transform(point);
-            var world=body.logicalPose().transformPosition(center.add(point.x,point.y,point.z));((ServerLevel)player.level()).sendParticles(player,dust,true,world.x,world.y,world.z,1,0,0,0,0);
-        }
+        var extent=new Vec3(half,half,half);
+        MarkOutline.send(player,MarkOutline.Kind.DETAIL,0xFFD940,MarkOutline.box(extent.scale(-1),extent,point->{
+            var rotated=rotation.transform(new org.joml.Vector3d(point.x,point.y,point.z));
+            return body.logicalPose().transformPosition(center.add(rotated.x,rotated.y,rotated.z));
+        }));
     }
     public void tick(HeartBlockEntity core){
         if(!(core.getLevel() instanceof ServerLevel level))return;

@@ -29,8 +29,15 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
     private final List<EditBox> starts=new ArrayList<>(), durations=new ArrayList<>(), ruleInputs=new ArrayList<>();
     private final List<Button> ruleChoices=new ArrayList<>(), applyButtons=new ArrayList<>();
     private final List<ModuleFields.Field> ruleFields;
-    private static List<ModuleFields.Field> rulesFor(HeartDashboardMenu menu){return ModuleFields.moveRules().stream()
-            .filter(f->!menu.snapshot().getBoolean("ControlCore")||!Set.of("phaseLower","phaseUpper").contains(f.key())).toList();}
+    private static List<ModuleFields.Field> rulesFor(HeartDashboardMenu menu){
+        var rules=ModuleFields.moveRules();
+        if(!menu.snapshot().getBoolean("ControlCore"))return rules;
+        var fields=new ArrayList<>(rules);
+        fields.removeIf(f->Set.of("phaseLower","phaseUpper").contains(f.key()));
+        var keys=fields.stream().map(ModuleFields.Field::key).toList();
+        Collections.swap(fields,keys.indexOf("target"),keys.indexOf("dispatchRepeat"));
+        return List.copyOf(fields);
+    }
     public MoveSetScreen(HeartDashboardMenu menu,Inventory inventory,Component title,UUID tableId){super(menu,inventory,title);this.tableId=tableId;this.ruleFields=rulesFor(menu);}
     public MoveSetScreen(HeartDashboardMenu menu,Inventory inventory,Component title,UUID tableId,int move){this(menu,inventory,title,tableId);initialMove=move;}
     private Component tr(String key){return Component.translatable("moveset.sablelife."+key);}
@@ -38,7 +45,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
     private Component moveName(MoveSet.Move m){return m.config().name().isBlank()?Component.translatable("moveset.sablelife.move_number",moves.indexOf(m)+1):Component.literal(m.config().name());}
     private MoveSet.Move current(){return moves.stream().filter(m->m.config().id().equals(selected)).findFirst().orElse(null);}
     private List<MoveSet.Move> filtered(){return moves.stream().filter(m->moveName(m).getString().toLowerCase(Locale.ROOT).contains(searchText.toLowerCase(Locale.ROOT))).toList();}
-    private List<VirtualModule> candidates(){return modules.stream().filter(m->MoveSet.TARGETS.contains(m.type())&&moduleName(m).getString().toLowerCase(Locale.ROOT).contains(pickerText.toLowerCase(Locale.ROOT))).toList();}
+    private List<VirtualModule> candidates(){return modules.stream().filter(m->MoveSet.TARGETS.contains(m.type())&&(!snapshot.getBoolean("ControlCore")||dev.sablelife.heart.RedstoneCorePolicy.allowed(m))&&moduleName(m).getString().toLowerCase(Locale.ROOT).contains(pickerText.toLowerCase(Locale.ROOT))).toList();}
     private VirtualModule target(UUID id){return modules.stream().filter(m->m.id().equals(id)).findFirst().orElse(null);}
     private Button button(Component label,int x,int y,int w,int h,Runnable run){return addRenderableWidget(LifeUiStyle.button(label,leftPos+x,topPos+y,w,h,run));}
     private EditBox input(int x,int y,int w,int max,Component label){var b=addRenderableWidget(new EditBox(font,leftPos+x,topPos+y,w,16,label));b.setMaxLength(max);return b;}
@@ -105,7 +112,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         button(Component.literal("›"),imageWidth-35,imageHeight-45,25,18,()->{rulePage=Math.min((ruleFields.size()-1)/ruleSlots,rulePage+1);rebuildWidgets();});
     }
     private void applyAction(int n,boolean duration){var box=duration?durations.get(n):starts.get(n);try{double v=Double.parseDouble(box.getValue());if(!Double.isFinite(v)||v<(duration?.05:0)||v>(duration?600:599.95))throw new NumberFormatException();send(duration?"action_duration":"action_start",v,Integer.toString(actionPage*actionSlots+n));box.setFocused(false);box.setTextColor(0xFFFFFF);}catch(NumberFormatException e){box.setTextColor(0xFF7777);}}
-    private void applyRule(int n){int at=rulePage*ruleSlots+n;if(at>=ruleFields.size())return;var f=ruleFields.get(at);if(current()==null||f.key().equals("dispatchWeight")&&current().priority())return;var box=ruleInputs.get(n);try{double v=Double.parseDouble(box.getValue())*f.scale();if(!Double.isFinite(v)||v<f.min()||v>f.max())throw new NumberFormatException();send(f.key(),v,"");box.setFocused(false);box.setTextColor(0xFFFFFF);}catch(NumberFormatException e){box.setTextColor(0xFF7777);}}
+    private void applyRule(int n){int at=rulePage*ruleSlots+n;if(at>=ruleFields.size())return;var f=ruleFields.get(at);if(current()==null||ModuleMoveSet.ruleLocked(table,f.key(),snapshot.getBoolean("ControlCore"))||f.key().equals("dispatchWeight")&&current().priority())return;var box=ruleInputs.get(n);try{double v=Double.parseDouble(box.getValue())*f.scale();if(!Double.isFinite(v)||v<f.min()||v>f.max())throw new NumberFormatException();send(f.key(),v,"");box.setFocused(false);box.setTextColor(0xFFFFFF);}catch(NumberFormatException e){box.setTextColor(0xFF7777);}}
     @Override protected void containerTick(){super.containerTick();ticks++;sync();}
     private void sync(){
         snapshot=menu.snapshot();var list=snapshot.getList("Modules",10);var loaded=new ArrayList<VirtualModule>();table=null;
@@ -123,7 +130,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         for(int i=0;i<moveButtons.size();i++){var b=moveButtons.get(i);int n=movePage*moveSlots+i;b.visible=n<rows.size();if(b.visible){var m=rows.get(n);b.setMessage(Component.literal(m.config().id().equals(selected)?"▶ ":"").append(moveName(m)).append(" · ").append(m.priority()?tr("priority_short"):Component.literal("W"+(int)m.config().value("dispatchWeight"))).append(" / "+seconds(m.config().value("dispatchCooldown"))+"s"));b.setTooltip(Tooltip.create(moveStatus(m)));}}
         tabActions.active=tabRules.active=current!=null;
         if(picking){var choices=candidates();for(int i=0;i<pickerButtons.size();i++){var b=pickerButtons.get(i);int n=pickerPage*pickerButtons.size()+i;b.visible=n<choices.size();b.active=editable&&current!=null;if(b.visible){var m=choices.get(n);b.setMessage(moduleName(m).copy().append(" #"+(modules.indexOf(m)+1)));LifeUiStyle.bookmark(b,ModuleCategory.of(m.type()).color);b.setTooltip(Tooltip.create(tr("bind_help")));}}return;}
-        if(rules){for(int i=0;i<ruleSlots;i++){int n=rulePage*ruleSlots+i;var box=ruleInputs.get(i);var b=ruleChoices.get(i);boolean show=current!=null&&n<ruleFields.size();var f=show?ruleFields.get(n):null;box.visible=show&&!f.choice();b.visible=show&&(f.choice()||f.key().equals("dispatchWeight"));box.active=b.active=editable&&show;applyButtons.get(i+1).visible=box.visible;
+        if(rules){for(int i=0;i<ruleSlots;i++){int n=rulePage*ruleSlots+i;var box=ruleInputs.get(i);var b=ruleChoices.get(i);boolean show=current!=null&&n<ruleFields.size();var f=show?ruleFields.get(n):null;box.visible=show&&!f.choice();b.visible=show&&(f.choice()||f.key().equals("dispatchWeight"));box.active=b.active=editable&&show&&!ModuleMoveSet.ruleLocked(table,f.key(),snapshot.getBoolean("ControlCore"));applyButtons.get(i+1).visible=box.visible;applyButtons.get(i+1).active=box.active;box.setEditable(box.active);if(!box.active)box.setFocused(false);
             if(show){
                 var help=Tooltip.create(Component.translatable("moveset.sablelife.rule_help_"+f.key()));box.setTooltip(help);b.setTooltip(help);
                 boolean probability=f.key().equals("dispatchWeight");
@@ -166,7 +173,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         if(picking){text(g,tr("bind_help"),leftPos+rightX,topPos+imageHeight-15,rightWidth,0xC8BAD5);return;}
         if(rules){for(int i=0;i<ruleSlots;i++){int n=rulePage*ruleSlots+i;if(n<ruleFields.size()){
             var key=ruleFields.get(n).key();int y=topPos+95+i*20;
-            text(g,key.equals("dispatchWeight")?tr("probability"):Component.translatable("moveset.sablelife.rule_label_"+key),leftPos+rightX,y,rightWidth/2-5,0xE1D5E8);
+            text(g,key.equals("dispatchWeight")?tr("probability"):Component.translatable("moveset.sablelife.rule_label_"+key),leftPos+rightX,y,rightWidth/2-5,ModuleMoveSet.ruleLocked(table,key,snapshot.getBoolean("ControlCore"))?0x77717D:0xE1D5E8);
             if(key.equals("lineOfSight"))text(g,Component.translatable("dashboard.sablelife.line_of_sight_note"),leftPos+rightX+rightWidth/2+40,y,rightWidth/2-40,0xBDC5D4);
             else if(List.of("dispatchFront","phaseUpper","phaseLower").contains(key))text(g,Component.translatable("moveset.sablelife.note_"+key),leftPos+rightX,y+9,rightWidth/2-5,0xBDC5D4);
         }}text(g,Component.literal((rulePage+1)+" / "+((ruleFields.size()+ruleSlots-1)/ruleSlots)),leftPos+rightX+38,topPos+imageHeight-40,rightWidth-80,0xC8BAD5);

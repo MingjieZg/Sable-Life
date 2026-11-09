@@ -13,7 +13,7 @@ public final class TargetCastOrigin {
   return ModuleTargets.query(level,core.creatureId(),new AABB(origin,origin).inflate(range),e->m.type().equals("freeze")?ModuleFreeze.matches(e,m):ModuleTargets.matches(e,m)).stream()
    .filter(e->SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).distanceToSqr(origin)<=range*range)
    .filter(e->!m.type().equals("pull")||m.value("lineOfSight")==1||ModuleTargets.visible(level,core.creatureId(),origin,e))
-   .sorted(Comparator.comparingDouble(e->SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).distanceToSqr(origin)))
+   .sorted(ModuleTargets.comparator(core,e->SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).distanceToSqr(origin)))
    .limit(m.value("targetMultiple")==1?64:1).map(e->SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter())).filter(p->level.hasChunkAt(net.minecraft.core.BlockPos.containing(p))).toList();
  }
  public static Vec3 point(HeartBlockEntity core,VirtualModule m){var points=points(core,m);return points.isEmpty()?null:points.getFirst();}

@@ -13,7 +13,7 @@ public final class ProjectileAim {
         var level=(ServerLevel)heart.getLevel();double range=m.value("targetRange");
         return ModuleTargets.query(level,heart.creatureId(),new AABB(origin,origin).inflate(range),e->ModuleTargets.matches(e,m)).stream()
             .filter(e->{double distance=SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).distanceToSqr(origin);return distance>1e-8&&distance<=range*range&&ModuleTargets.visible(level,heart.creatureId(),origin,e);})
-            .sorted(Comparator.comparingDouble(e->SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).distanceToSqr(origin)))
+            .sorted(ModuleTargets.comparator(heart,e->SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).distanceToSqr(origin)))
             .limit(m.value("targetMultiple")==1?64:1)
             .map(e->SableBodyProbe.toWorld(level,e.getBoundingBox().getCenter()).subtract(origin).normalize()).toList();
     }

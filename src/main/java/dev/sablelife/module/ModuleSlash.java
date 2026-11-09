@@ -40,6 +40,7 @@ public final class ModuleSlash {
    if(now>=s.due&&s.blades.size()+(int)m.value("slashCount")<=MAX_FLYING){
     var mark=ModuleCombat.nozzle(heart,m);var directions=ProjectileAim.directions(heart,m,mark).stream().limit((MAX_FLYING-s.blades.size())/(int)m.value("slashCount")).toList();
     if(directions.isEmpty()||!EmitterRuntime.start(m,heart))continue;
+    if(!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,directions.size())){s.due=now+(long)m.value("interval");continue;}
     var cast=EmitterRuntime.copy(m);for(var base:directions)for(var frame:frames(base,m))s.blades.add(new Blade(mark,frame,cast));s.due=now+(long)m.value("interval");ModuleAudio.play(server,m,"flightSound",mark);
    }
   }
@@ -51,7 +52,7 @@ public final class ModuleSlash {
     if(!server.hasChunkAt(BlockPos.containing(to))){stopSound(server,b);iterator.remove();continue;}
     var end=SensorGeometry.beamEnd(server,heart.creatureId(),from,to);boolean blocked=end.distanceToSqr(to)>.000001;
     var bounds=new AABB(from,end).inflate(b.cast.value("slashLength")/2+b.cast.value("slashWidth"));
-    for(var victim:ModuleTargets.query(server,heart.creatureId(),bounds,e->ModuleTargets.matches(e,b.cast)&&!b.hits.contains(e.getUUID()))){
+    for(var victim:ModuleTargets.damageQuery(server,heart.creatureId(),bounds,e->ModuleTargets.matches(e,b.cast)&&!b.hits.contains(e.getUUID()))){
      if(!intersects(from,end,b.frame,b.cast.value("slashLength"),b.cast.value("slashWidth"),victim.getBoundingBox())||!ModuleTargets.visible(server,heart.creatureId(),from,victim))continue;
      b.hits.add(victim.getUUID());
      var contact=dev.sablelife.combat.SegmentBoxContact.closest(from,end,victim.getBoundingBox(),new Vec3(1,1,1)).point();
@@ -64,7 +65,7 @@ public final class ModuleSlash {
      }else accepted=ModuleDamage.hurt(victim,source,(float)b.cast.value("damage"),heart,b.cast);
      if(accepted){
       SurfaceFieldImpact.entity(heart,b.cast,contact,b.frame.direction,victim.getUUID());
-      ModuleEffects.apply(victim,b.cast.effects(),null);
+      ModuleEffects.apply(victim,ModuleEffects.forCore(heart,b.cast),null);
       if(b.cast.value("slashIgnite")==1&&b.cast.value("burn")>0&&!(victim instanceof ModuleTargets.LifeTarget))victim.igniteForSeconds((int)b.cast.value("burn"));
      }
     }

@@ -1,6 +1,6 @@
 package dev.sablelife.mixin;
 
-import dev.sablelife.ownership.BodyOwnership;
+import dev.sablelife.ownership.BodyProtection;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -17,6 +17,6 @@ public abstract class BodyLootMixin {
     @Inject(method = "getDrops", at = @At("HEAD"), cancellable = true)
     private void sableLife$noMaterials(LootParams.Builder params, CallbackInfoReturnable<List<ItemStack>> cir) {
         var origin = params.getOptionalParameter(LootContextParams.ORIGIN);
-        if (origin != null && BodyOwnership.protects(params.getLevel(), BlockPos.containing(origin))) cir.setReturnValue(List.of());
+        if (origin != null && BodyProtection.suppressDrops(params.getLevel(), BlockPos.containing(origin))) cir.setReturnValue(List.of());
     }
 }

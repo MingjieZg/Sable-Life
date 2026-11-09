@@ -137,7 +137,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
                 var tag = (CompoundTag) entry;
                 if (!tag.contains(ARENA) || !tag.hasUUID("Id")) continue;
                 var module = heart.modules().find(tag.getUUID("Id"));
-                if (module == null || !module.type().equals("arena")) continue;
+                if (module == null || !java.util.List.of("arena","blueprint_spawn").contains(module.type())) continue;
                 var offset = tag.getCompound(ARENA);
                 var local = context.storagePos().getCenter().add(offset.getDouble("X"), offset.getDouble("Y"), offset.getDouble("Z"));
                 module.arenaCenter(context.subLevel().logicalPose().transformPosition(local), context.level().dimension().location().toString());
@@ -150,7 +150,9 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
 
     private static void resetRuntime(CompoundTag tag) {
         tag.remove("BoundBody"); tag.remove("CombatMusicHits");
-        tag.putString("LifeState", "DORMANT"); tag.putFloat("Health", tag.getFloat("MaxHealth"));
+        boolean survival=tag.contains("SurvivalTokens",4);
+        if(survival)tag.putLong("SurvivalTokens",0);
+        tag.putString("LifeState", "DORMANT"); tag.putFloat("Health", survival?0:tag.getFloat("MaxHealth"));
         tag.putInt("RemainingDeathTicks", 0);
         tag.getCompound("Wireless").putLong("Elapsed", 0);
     }

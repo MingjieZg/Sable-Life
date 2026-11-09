@@ -3,6 +3,8 @@ import net.minecraft.gametest.framework.*;
 import net.neoforged.neoforge.gametest.*;
 @GameTestHolder("sablelife_respawn_tests") @PrefixGameTestTemplate(false)
 public final class ArenaRespawnGameTests {
+ @GameTest(template="combat",batch="respawn_named_timer",timeoutTicks=100) public static void CountdownKeepsLatestFormattedNameAfterRecordReload(GameTestHelper h){ArenaRespawnScenarios.namedTimer(h,false);}
+ @GameTest(template="combat",batch="respawn_legacy_name",timeoutTicks=100) public static void LegacyUnnamedCountdownUsesDefaultCreatureName(GameTestHelper h){ArenaRespawnScenarios.namedTimer(h,true);}
  @GameTest(template="combat",batch="respawn_cycle",timeoutTicks=360) public static void RecordedBodyRespawnsActiveWithMarksAndInventory(GameTestHelper h){ArenaRespawnScenarios.cycle(h,false);}
  @GameTest(template="combat",batch="respawn_resume",timeoutTicks=360) public static void LegacyMidPlacementSaveReloadDoesNotDuplicateBody(GameTestHelper h){ArenaRespawnScenarios.cycle(h,true);}
  @GameTest(template="combat",batch="respawn_permissions") public static void RecordRequiresCreativeOperatorAndRejectsWrongModule(GameTestHelper h){ArenaRespawnScenarios.permissions(h);}

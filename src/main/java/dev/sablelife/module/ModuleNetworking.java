@@ -9,12 +9,42 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import java.util.UUID;
 
 public final class ModuleNetworking {
+    public record BlueprintPreview(ResourceLocation dimension,net.minecraft.world.phys.Vec3 min,net.minecraft.world.phys.Vec3 max,net.minecraft.world.phys.Vec3 anchor,net.minecraft.world.phys.Vec3 forward,int duration,UUID projection,org.joml.Quaternionf rotation) implements CustomPacketPayload {
+        public BlueprintPreview(ResourceLocation dimension,net.minecraft.world.phys.Vec3 min,net.minecraft.world.phys.Vec3 max,
+                                net.minecraft.world.phys.Vec3 anchor,net.minecraft.world.phys.Vec3 forward) {
+            this(dimension,min,max,anchor,forward,12);
+        }
+        public BlueprintPreview(ResourceLocation dimension,net.minecraft.world.phys.Vec3 min,net.minecraft.world.phys.Vec3 max,
+                                net.minecraft.world.phys.Vec3 anchor,net.minecraft.world.phys.Vec3 forward,int duration){
+            this(dimension,min,max,anchor,forward,duration,null,null);
+        }
+        public static final Type<BlueprintPreview> TYPE=new Type<>(ResourceLocation.fromNamespaceAndPath(SableLife.MOD_ID,"blueprint_preview"));
+        private static void point(RegistryFriendlyByteBuf b,net.minecraft.world.phys.Vec3 v){b.writeDouble(v.x);b.writeDouble(v.y);b.writeDouble(v.z);}
+        private static net.minecraft.world.phys.Vec3 point(RegistryFriendlyByteBuf b){return new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble());}
+        public static final StreamCodec<RegistryFriendlyByteBuf,BlueprintPreview> CODEC=StreamCodec.of((b,p)->{
+            b.writeResourceLocation(p.dimension);point(b,p.min);point(b,p.max);point(b,p.anchor);point(b,p.forward);b.writeVarInt(p.duration);
+            b.writeBoolean(p.projection!=null);
+            if(p.projection!=null){
+                b.writeUUID(p.projection);
+                var q=p.rotation;
+                b.writeFloat(q.x);b.writeFloat(q.y);b.writeFloat(q.z);b.writeFloat(q.w);
+            }
+        },b->{
+            var dimension=b.readResourceLocation();
+            var min=point(b);var max=point(b);var anchor=point(b);var forward=point(b);
+            int duration=b.readVarInt();
+            return b.readBoolean()?new BlueprintPreview(dimension,min,max,anchor,forward,duration,b.readUUID(),
+                    new org.joml.Quaternionf(b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat())):
+                    new BlueprintPreview(dimension,min,max,anchor,forward,duration);
+        });
+        @Override public Type<BlueprintPreview> type(){return TYPE;}
+    }
     public record Action(int container, int revision, UUID module, String operation, String key, double value, String text) implements CustomPacketPayload {
         public static final Type<Action> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(SableLife.MOD_ID, "module_action"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Action> CODEC = StreamCodec.of((buf, p) -> {
             buf.writeVarInt(p.container); buf.writeVarInt(p.revision); buf.writeUUID(p.module);
-            buf.writeUtf(p.operation, 16); buf.writeUtf(p.key, 64); buf.writeDouble(p.value); buf.writeUtf(p.text, p.operation.equals("add_preset") ? ModulePreset.MAX_TEXT : p.operation.equals("commands") ? CommandProgram.MAX_TEXT+8 : p.operation.equals("sound_timeline") ? 256 : 80);
-        }, buf -> { int container=buf.readVarInt(),revision=buf.readVarInt();var module=buf.readUUID();var operation=buf.readUtf(16);var key=buf.readUtf(64);double value=buf.readDouble();return new Action(container,revision,module,operation,key,value,buf.readUtf(operation.equals("add_preset")?ModulePreset.MAX_TEXT:operation.equals("commands")?CommandProgram.MAX_TEXT+8:operation.equals("sound_timeline")?256:80)); });
+            buf.writeUtf(p.operation, 16); buf.writeUtf(p.key, 64); buf.writeDouble(p.value); buf.writeUtf(p.text, p.operation.equals("add_preset") ? ModulePreset.MAX_TEXT : p.operation.equals("commands") ? CommandProgram.MAX_TEXT+8 : p.operation.equals("sound_timeline") ? 256 : p.operation.equals("wild_encounter") && (p.key.equals("conditions") || p.key.endsWith("_rule")) ? 16000 : 80);
+        }, buf -> { int container=buf.readVarInt(),revision=buf.readVarInt();var module=buf.readUUID();var operation=buf.readUtf(16);var key=buf.readUtf(64);double value=buf.readDouble();return new Action(container,revision,module,operation,key,value,buf.readUtf(operation.equals("add_preset")?ModulePreset.MAX_TEXT:operation.equals("commands")?CommandProgram.MAX_TEXT+8:operation.equals("sound_timeline")?256:operation.equals("wild_encounter")&&(key.equals("conditions")||key.endsWith("_rule"))?16000:80)); });
         @Override public Type<Action> type() { return TYPE; }
     }
     public record MarkState(boolean active) implements CustomPacketPayload {
@@ -34,20 +64,29 @@ public final class ModuleNetworking {
         @Override public Type<ParticleVisual> type() { return TYPE; }
     }
     /** Describes births at the nozzle; existing particles advance locally, rather than re-drawing a trail. */
-    public record FlameJet(net.minecraft.world.phys.Vec3 origin,net.minecraft.world.phys.Vec3 direction,double speed,double range,double width,int appearance,float size,long seed,java.util.List<ModuleParticles.Entry> particles) implements CustomPacketPayload {
+    public record FlameJet(net.minecraft.world.phys.Vec3 origin,net.minecraft.world.phys.Vec3 direction,double speed,double range,double width,int appearance,float size,long seed,java.util.List<ModuleParticles.Entry> particles,double fanAngle) implements CustomPacketPayload {
         public FlameJet { particles=java.util.List.copyOf(particles.stream().limit(ModuleParticles.LIMIT).toList()); }
+        public FlameJet(net.minecraft.world.phys.Vec3 origin,net.minecraft.world.phys.Vec3 direction,double speed,double range,
+                        double width,int appearance,float size,long seed,java.util.List<ModuleParticles.Entry> particles) {
+            this(origin,direction,speed,range,width,appearance,size,seed,particles,0);
+        }
         public FlameJet(net.minecraft.world.phys.Vec3 origin,net.minecraft.world.phys.Vec3 direction,double speed,double range,double width,int appearance,float size,long seed){this(origin,direction,speed,range,width,appearance,size,seed,java.util.List.of(new ModuleParticles.Entry(appearance==1?"minecraft:soul_fire_flame":"minecraft:flame",0,size)));}
         private static java.util.List<ModuleParticles.Entry> entries(RegistryFriendlyByteBuf b){var tag=b.readNbt();if(tag==null)return java.util.List.of();var ids=ModuleParticles.load(tag.getList("Ids",8));return ModuleParticles.loadEntries(tag.getList("Entries",10),ids);}
         public static final Type<FlameJet> TYPE=new Type<>(ResourceLocation.fromNamespaceAndPath(SableLife.MOD_ID,"flame_jet"));
         public static final StreamCodec<RegistryFriendlyByteBuf,FlameJet> CODEC=StreamCodec.of((b,p)->{
             b.writeDouble(p.origin.x);b.writeDouble(p.origin.y);b.writeDouble(p.origin.z);
             b.writeDouble(p.direction.x);b.writeDouble(p.direction.y);b.writeDouble(p.direction.z);
-            b.writeDouble(p.speed);b.writeDouble(p.range);b.writeDouble(p.width);b.writeVarInt(p.appearance);b.writeFloat(p.size);b.writeLong(p.seed);var tag=new net.minecraft.nbt.CompoundTag();tag.put("Ids",ModuleParticles.save(p.particles.stream().map(ModuleParticles.Entry::id).toList()));tag.put("Entries",ModuleParticles.saveEntries(p.particles));b.writeNbt(tag);
-        },b->new FlameJet(new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble()),new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble()),b.readDouble(),b.readDouble(),b.readDouble(),b.readVarInt(),b.readFloat(),b.readLong(),entries(b)));
+            b.writeDouble(p.speed);b.writeDouble(p.range);b.writeDouble(p.width);b.writeVarInt(p.appearance);b.writeFloat(p.size);b.writeLong(p.seed);var tag=new net.minecraft.nbt.CompoundTag();tag.put("Ids",ModuleParticles.save(p.particles.stream().map(ModuleParticles.Entry::id).toList()));tag.put("Entries",ModuleParticles.saveEntries(p.particles));b.writeNbt(tag);b.writeDouble(p.fanAngle);
+        },b->new FlameJet(new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble()),new net.minecraft.world.phys.Vec3(b.readDouble(),b.readDouble(),b.readDouble()),b.readDouble(),b.readDouble(),b.readDouble(),b.readVarInt(),b.readFloat(),b.readLong(),entries(b),b.readDouble()));
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("26");
+        var registrar = event.registrar("46");
+        registrar.playToClient(MovementPreview.TYPE,MovementPreview.CODEC,(packet,ctx)->dev.sablelife.client.MovementPreviewClient.receive(packet));
+        registrar.playToClient(LaserVisual.TYPE,LaserVisual.CODEC,(packet,ctx)->dev.sablelife.client.LaserVisualClient.receive(packet));
+        registrar.playToClient(BlueprintProjection.TYPE,BlueprintProjection.CODEC,(p,ctx)->dev.sablelife.client.BlueprintPreviewClient.receive(p));
+        registrar.playToClient(MarkOutline.TYPE,MarkOutline.CODEC,(p,ctx)->dev.sablelife.client.BlueprintPreviewClient.receive(p));
+        registrar.playToClient(BlueprintPreview.TYPE,BlueprintPreview.CODEC,(p,ctx)->dev.sablelife.client.BlueprintPreviewClient.receive(p));
         registrar.playToServer(Action.TYPE, Action.CODEC, (p, ctx) -> {
             if (p.operation.equals("cancel")) { MarkingSessions.cancel(ctx.player()); return; }
             if (!AuthoringRateLimit.allow(ctx.player(), p.operation.equals("add_preset") ? 20 : 1)) return;
@@ -74,6 +113,8 @@ public final class ModuleNetworking {
                 menu.action(ctx.player(), p.module, p.key, p.value, p.text);
             else if (ctx.player().containerMenu instanceof dev.sablelife.sound.SoundTimelineMenu menu && menu.containerId == p.container && p.operation.equals("sound_timeline"))
                 menu.action(ctx.player(),p.revision,p.key,p.module,p.value,p.text);
+            else if (ctx.player().containerMenu instanceof dev.sablelife.ownership.WildEncounterMenu menu && menu.containerId == p.container && p.operation.equals("wild_encounter"))
+                menu.action(ctx.player(), p.key, p.text);
             else if (ctx.player().containerMenu instanceof dev.sablelife.heart.HeartSettingsMenu menu && menu.containerId == p.container && p.operation.equals("core"))
                 menu.action(ctx.player(), p.key, p.value, p.text);
         });
@@ -82,6 +123,7 @@ public final class ModuleNetworking {
         registrar.playToClient(DistortionTrailPacket.TYPE,DistortionTrailPacket.CODEC,(p,ctx)->dev.sablelife.client.DistortionTrailClient.receive(p));
         registrar.playToClient(VisualFilterPacket.TYPE,VisualFilterPacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ShockwaveZoomPacket.TYPE,ShockwaveZoomPacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
+        registrar.playToClient(PatternVisual.TYPE,PatternVisual.CODEC,(p,ctx)->dev.sablelife.client.PatternVisualClient.receive(p));
         registrar.playToClient(ShockwavePacket.TYPE,ShockwavePacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ItemDisplayPacket.TYPE,ItemDisplayPacket.CODEC,(p,ctx)->dev.sablelife.client.ModuleItemDisplayClient.receive(p));
         registrar.playToClient(FlameJet.TYPE,FlameJet.CODEC,(p,ctx)->dev.sablelife.client.FlameJetParticle.receive(p));

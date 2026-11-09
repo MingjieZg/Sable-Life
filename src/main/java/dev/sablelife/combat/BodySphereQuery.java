@@ -24,13 +24,16 @@ public final class BodySphereQuery {
  }
  /** Exact union of at most 16 attack boxes; body enclosing bounds only choose candidates. */
  public static List<Hit> queryVolumes(ServerLevel level,Vec3 eye,java.util.List<dev.sablelife.attack.AttackVolume> volumes){
+  return queryVolumes(level,null,eye,volumes);
+ }
+ public static List<Hit> queryVolumes(ServerLevel level,UUID attacker,Vec3 eye,java.util.List<dev.sablelife.attack.AttackVolume> volumes){
   if(level==null||eye==null||!Double.isFinite(eye.lengthSqr())||volumes==null||volumes.isEmpty()||volumes.size()>16)return List.of();
   AABB bounds=null;for(var v:volumes){if(v==null||!v.valid())return List.of();bounds=bounds==null?v.bounds():bounds.minmax(v.bounds());}
   var center=bounds.getCenter();double radius=Math.sqrt(bounds.getXsize()*bounds.getXsize()+bounds.getYsize()*bounds.getYsize()+bounds.getZsize()*bounds.getZsize())/2;
   if(!Double.isFinite(radius)||radius<=0||radius>256||center.distanceToSqr(eye)>256*256||Math.abs(center.x)>30000000||Math.abs(center.y)>30000000||Math.abs(center.z)>30000000)return List.of();
   var hits=new ArrayList<Hit>();var budget=CollisionWorkBudget.begin(level);
   for(var core:LoadedCoreIndex.query(level,bounds)){
-   if(core.isControlCore()||core.isRemoved()||core.health().state()!=HeartState.ALIVE)continue;
+   if(core.isControlCore()||core.isRemoved()||core.health().state()!=HeartState.ALIVE||attacker!=null&&!core.acceptsLifeAttack(attacker))continue;
    var hit=nearest(level,core,center,eye,radius,budget,volumes,null);if(hit!=null)hits.add(hit);
    if(hits.size()>=64||CollisionWorkBudget.exhausted(level))break;
   }hits.sort(Comparator.comparingDouble(Hit::distance));return List.copyOf(hits);

@@ -89,7 +89,7 @@ public class HeartBlock extends CopycatBlock {
             else {
                 player.displayClientMessage(heart.status(), false);
                 player.displayClientMessage(heart.interactionHint(), true);
-                if (player.isCreative()) heart.openLastEditor(player);
+                if (heart.canAccessEditor(player)) heart.openLastEditor(player);
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);

@@ -7,7 +7,15 @@ public final class SurfaceFieldSettings {
     public static boolean visible(VirtualModule m,String key){
         if(m.type().equals("visual_shockwave")){
             if(List.of("filterColor","filterStrength","filterFadeIn","filterFadeOut").contains(key))return m.value("filterEnabled")==1;
-            if(List.of("shockRadius","shockReverse","shockExpansion","shockWidth","shockDistortion","shockBlur").contains(key))return m.value("shockWaveEnabled")==1;
+            if(key.equals("shockPattern"))return m.value("shockWaveEnabled")==1;
+            if(List.of("visualColor","visualSize","visualTime","visualSpeed","visualStart","visualPlacement","visualSymbol").contains(key)){
+                boolean world=m.value("shockWaveEnabled")==1&&m.value("shockPattern")>=2;
+                if(key.equals("visualSymbol"))return world&&m.value("shockPattern")==8;
+                if(List.of("visualStart","visualPlacement").contains(key)&&m.value("shockContact")==1)return false;
+                return world;
+            }
+            if(List.of("shockRadialStrength","shockRadialTime","shockRadialClear").contains(key))return m.value("shockWaveEnabled")==1&&m.value("shockPattern")==1;
+            if(List.of("shockRadius","shockReverse","shockExpansion","shockWidth","shockDistortion","shockBlur").contains(key))return m.value("shockWaveEnabled")==1&&m.value("shockPattern")==0;
             if(List.of("shockShake","shockShakeTime").contains(key))return m.value("shockShakeEnabled")==1;
             if(List.of("shockZoom","shockZoomTime").contains(key))return m.value("shockZoomEnabled")==1;
         }

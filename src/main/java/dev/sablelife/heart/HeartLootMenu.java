@@ -51,7 +51,7 @@ public final class HeartLootMenu extends ChestMenu {
         if(key.equals("back")){heart.openDashboard(player);return true;}
         if(revision!=heart.modules().revision()) {refresh();sendAllDataToRemote();return false;}
         int slot;try{slot=Integer.parseInt(text);}catch(NumberFormatException e){return false;}
-        boolean accepted=heart.editLootRule(player,slot,key,value);
+        boolean accepted=key.equals("copy_inventory")?copyInventory(player,slot):heart.editLootRule(player,slot,key,value);
         if(accepted)heart.modules().changed();refresh();sendAllDataToRemote();return accepted;
     }
     private void metadata(){var tag=new net.minecraft.nbt.CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("Editable",heart.canEditTemplates(viewer));tag.putBoolean("Weighted",heart.weighted());tag.putInt("Rolls",heart.rolls());tag.putInt("MaxRule",100);tag.putUUID("Id",heart.creatureId());tag.putInt("Revision",heart.modules().revision());for(int i=0;i<27;i++)tag.putInt("Rule"+i,heart.weighted()?heart.weight(i):heart.chance(i));getContainer().getItem(40).set(DataComponents.CUSTOM_DATA,net.minecraft.world.item.component.CustomData.of(tag));}
@@ -62,7 +62,7 @@ public final class HeartLootMenu extends ChestMenu {
         getContainer().setItem(slot, display);
     }
     @Override public boolean stillValid(Player player) {
-        return player.isCreative() && !heart.isRemoved() && player.level() == heart.getLevel()
+        return heart.canAccessEditor(player)
                 && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart
                 && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(
                         SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
@@ -95,16 +95,20 @@ public final class HeartLootMenu extends ChestMenu {
         super.clicked(slot, button, type, player);
         refresh(); sendAllDataToRemote();
     }
-    @Override public ItemStack quickMoveStack(Player player, int slot) {
+    private boolean copyInventory(Player player, int slot) {
         if (slot >= MENU_SLOTS && slot < slots.size() && stillValid(player) && heart.canEditTemplates(player)) {
             var sample = slots.get(slot).getItem();
             if (!sample.isEmpty()) {
                 var templates = heart.lootTemplates();
                 for (int i = 0; i < TEMPLATE_SLOTS; i++) if (templates.get(i).isEmpty()) {
-                    heart.setLootTemplate(player, i, sample); break;
+                    return heart.setLootTemplate(player, i, sample);
                 }
             }
         }
+        return false;
+    }
+    /** Ghost copies use one explicit editor action, never vanilla bulk-transfer retries. */
+    @Override public ItemStack quickMoveStack(Player player, int slot) {
         refresh(); sendAllDataToRemote();
         return ItemStack.EMPTY;
     }

@@ -8,14 +8,28 @@ import java.util.List;
 import java.util.UUID;
 
 public final class HeartModules {
+    private final HeartBlockEntity owner;
+    private int templateRevision=Integer.MIN_VALUE;
+    private UUID templateCreature;
+    public HeartModules(){this(null);}
+    public HeartModules(HeartBlockEntity owner){this.owner=owner;}
+    private void reconcileTemplates(HeartBlockEntity heart){
+        if(templateRevision==revision&&heart.creatureId().equals(templateCreature))return;
+        dev.sablelife.ownership.BlueprintSpawns.reconcile(heart);
+        dev.sablelife.ownership.ArenaRespawns.reconcile(heart);
+        templateRevision=revision;templateCreature=heart.creatureId();
+    }
     // A full old core may contain 32 sound modules, each with embedded BGM.
     public static final int LIMIT = 256;
     public static int authoringLimit(){return dev.sablelife.SableLifeServerConfig.maximumModulesPerCreature();}
     private final List<VirtualModule> modules = new ArrayList<>();
     private int revision;
     private long lastPolicy=Long.MIN_VALUE;
+    public final dev.sablelife.combat.EntityHitboxes damageBoxes=new dev.sablelife.combat.EntityHitboxes();
+    public final ModuleArmor.Billing armorBilling=new ModuleArmor.Billing();
     public final ModuleSummonedWeapon summonedWeapons=new ModuleSummonedWeapon();
     private final ModuleItemDisplay itemDisplays=new ModuleItemDisplay();
+    public final ModuleHealthBar healthBars=new ModuleHealthBar();
     public final ModuleSurfaceField surfaceFields=new ModuleSurfaceField();
     private final ModuleCombat combat = new ModuleCombat();
     private final ModuleEvents events = new ModuleEvents();
@@ -60,8 +74,17 @@ public final class HeartModules {
         if(heart.operational()&&(!heart.isControlCore()||heart.wireless().master()))for(var m:modules)if(m.enabled()&&ModuleFields.forType(m.type()).stream().anyMatch(f->f.choices().equals(List.of("library")))&&status(m,heart).equals("valid"))active.add(m.id());
         for(var id:audioModules)if(!active.contains(id))ModuleAudio.stop(level,id);audioModules.clear();audioModules.addAll(active);
     }
-    public void tick(HeartBlockEntity heart) { long policy=ModuleAvailability.mask(heart.isControlCore());if(lastPolicy!=policy){if(lastPolicy!=Long.MIN_VALUE)clearRuntime();lastPolicy=policy;} if(heart.isControlCore()){audioLifecycle(heart);signalLogic.tick(heart);sequence.tick(heart);boolean hoverBusy=hoverAnchor.tick(heart);boolean gyroBusy=gyroscope.tick(heart,hoverAnchor.locksRotation(),false,hoverAnchor.rotationPivot(heart));boolean manualBusy=signalTurn.tick(heart,hoverBusy||gyroBusy);autoFacing.tick(heart,hoverBusy||gyroBusy||manualBusy);events.tick(heart);combat.tick(heart);itemDisplays.tick(heart);shockwave.tick(heart);distortionTrail.tick(heart);return;}audioLifecycle(heart); hurtTriggers.tick(heart); healthPhase.tick(heart); combatEvents.tick(heart); signalLogic.tick(heart); moveSets.tick(heart); sequence.tick(heart); hitCounter.tick(heart); healthAdjustment.tick(heart); commands.tick(heart); boolean hoverBusy=hoverAnchor.tick(heart); if(hoverBusy)linearMovement.clear();else linearMovement.tick(heart); boolean gyroBusy=gyroscope.tick(heart,hoverAnchor.locksRotation()||linearMovement.locksRotation(),linearMovement.gravityActive(),hoverAnchor.rotationPivot(heart));boolean manualBusy=signalTurn.tick(heart,hoverBusy||linearMovement.blocksTurning()||gyroBusy,linearMovement.preserveTranslation());autoFacing.tick(heart,hoverBusy||linearMovement.blocksTurning()||gyroBusy||manualBusy,linearMovement.preserveTranslation()); ModuleLoot.tick(heart); events.tick(heart); combat.tick(heart); summonedWeapons.tick(heart); surfaceFields.tick(heart); arena.tick(heart); groundStrike.tick(heart); sphereBlast.tick(heart); slash.tick(heart); laser.tick(heart); pull.tick(heart);freeze.tick(heart);grab.tick(heart); quake.tick(heart); homing.tick(heart);itemDisplays.tick(heart);shockwave.tick(heart);distortionTrail.tick(heart); }
-    public void clearRuntime() { summonedWeapons.clear(); signalLogic.clear();combatEvents.clear(); surfaceFields.clear(); distortionTrail.clear(); shockwave.clear(); hitCounter.clear();healthAdjustment.clear(); hoverAnchor.clear(); if(audioLevel!=null)audioModules.forEach(id->ModuleAudio.stop(audioLevel,id));audioModules.clear();audioLevel=null; linearMovement.clear(); gyroscope.clear(); signalTurn.clear(); autoFacing.clear(); commands.clear(); hurtTriggers.clear(); combat.clear(); events.clear(); arena.clear(); groundStrike.clear(); sphereBlast.clear(); slash.clear(); laser.clear(); pull.clear();freeze.clear();grab.clear(); quake.clear(); homing.clear(); moveSets.clear(); sequence.clear(); healthPhase.clear(); damageAccumulation.clear(); }
+    public void tick(HeartBlockEntity heart) { reconcileTemplates(heart); long policy=ModuleAvailability.mask(heart);if(lastPolicy!=policy){if(lastPolicy!=Long.MIN_VALUE)clearRuntime();lastPolicy=policy;} if(heart.isControlCore()){audioLifecycle(heart);moveSets.tick(heart);signalLogic.tick(heart);sequence.tick(heart);tickMotion(heart);events.tick(heart);combat.tick(heart);itemDisplays.tick(heart);shockwave.tick(heart);distortionTrail.tick(heart);return;}audioLifecycle(heart); damageBoxes.tick(heart); dev.sablelife.ownership.BlueprintSpawns.tickCore(heart); hurtTriggers.tick(heart); healthPhase.tick(heart); combatEvents.tick(heart); signalLogic.tick(heart); moveSets.tick(heart); sequence.tick(heart); armorBilling.tick(heart); hitCounter.tick(heart); healthAdjustment.tick(heart); commands.tick(heart); tickMotion(heart); ModuleLoot.tick(heart); events.tick(heart); combat.tick(heart); summonedWeapons.tick(heart); surfaceFields.tick(heart); arena.tick(heart); groundStrike.tick(heart); sphereBlast.tick(heart); slash.tick(heart); laser.tick(heart); pull.tick(heart);freeze.tick(heart);grab.tick(heart); quake.tick(heart); homing.tick(heart);itemDisplays.tick(heart);healthBars.tick(heart);shockwave.tick(heart);distortionTrail.tick(heart); }
+    private final ModuleBlockInteraction blockInteraction=new ModuleBlockInteraction();
+    private void tickMotion(HeartBlockEntity heart) {
+        blockInteraction.tick(heart);
+        boolean hoverBusy=hoverAnchor.tick(heart);
+        if(hoverBusy)linearMovement.clear();else linearMovement.tick(heart);
+        boolean gyroBusy=gyroscope.tick(heart,hoverAnchor.locksRotation()||linearMovement.locksRotation(),linearMovement.gravityActive(),hoverAnchor.rotationPivot(heart));
+        boolean manualBusy=signalTurn.tick(heart,hoverBusy||linearMovement.blocksTurning()||gyroBusy,linearMovement.preserveTranslation());
+        autoFacing.tick(heart,hoverBusy||linearMovement.blocksTurning()||gyroBusy||manualBusy,linearMovement.preserveTranslation());
+    }
+    public void clearRuntime() { armorBilling.clear(); blockInteraction.clear(); damageBoxes.clear(); summonedWeapons.clear(); signalLogic.clear();combatEvents.clear(); surfaceFields.clear(); distortionTrail.clear(); shockwave.clear(); hitCounter.clear();healthAdjustment.clear(); hoverAnchor.clear(); if(audioLevel!=null)audioModules.forEach(id->ModuleAudio.stop(audioLevel,id));audioModules.clear();audioLevel=null; linearMovement.clear(); gyroscope.clear(); signalTurn.clear(); autoFacing.clear(); commands.clear(); hurtTriggers.clear(); combat.clear(); events.clear(); arena.clear(); groundStrike.clear(); sphereBlast.clear(); slash.clear(); laser.clear(); pull.clear();freeze.clear();grab.clear(); quake.clear(); homing.clear(); moveSets.clear(); sequence.clear(); healthPhase.clear(); damageAccumulation.clear(); }
     public List<VirtualModule> all() { return List.copyOf(modules); }
     public VirtualModule find(UUID id) { return modules.stream().filter(m -> m.id().equals(id)).findFirst().orElse(null); }
     public int revision() { return revision; }
@@ -79,7 +102,11 @@ public final class HeartModules {
         var tag=original.save();tag.putUUID("Id",UUID.randomUUID());var duplicate=VirtualModule.load(tag);
         modules.add(modules.indexOf(original)+1,duplicate);changed();return duplicate;
     }
-    public boolean remove(UUID id) { boolean removed = modules.removeIf(m -> m.id().equals(id)); if (removed) changed(); return removed; }
+    public boolean remove(UUID id) {
+        boolean removed=modules.removeIf(m->m.id().equals(id));
+        if(removed){changed();if(owner!=null)reconcileTemplates(owner);}
+        return removed;
+    }
     public boolean reorder(UUID id,int direction){
         if(Math.abs(direction)!=1)return false;
         for(int i=0;i<modules.size();i++)if(modules.get(i).id().equals(id)){
@@ -94,15 +121,19 @@ public final class HeartModules {
     }
     public CompoundTag phaseRuntime(UUID module){return healthPhase.snapshot(module);}
     public CompoundTag snapshot(HeartBlockEntity heart, boolean editable) {
-        var tag = save();var available=new ListTag();for(String type:ModuleAvailability.available(heart.isControlCore()))available.add(net.minecraft.nbt.StringTag.valueOf(type));tag.put("AvailableTypes",available);tag.putInt("ModuleLimit",authoringLimit());tag.putBoolean("ControlCore",heart.isControlCore());tag.putBoolean("ControlReady",heart.operational());if(heart.isControlCore()){var graph=dev.sablelife.compat.sable.SableBodyProbe.inspect(heart.getLevel(),heart.getBlockPos());tag.putString("ControlStatus",!graph.assembled()?"unassembled":graph.otherHearts()>0?"duplicate":heart.wireless().master()?"ready":"paused");} tag.putBoolean("Editable", editable); tag.putString("LifeState", heart.health().state().name());
+        var tag = save();var available=new ListTag();for(String type:ModuleAvailability.available(heart))available.add(net.minecraft.nbt.StringTag.valueOf(type));tag.put("AvailableTypes",available);tag.putInt("ModuleLimit",authoringLimit());tag.putBoolean("ControlCore",heart.isControlCore());tag.putBoolean("SurvivalCore",heart.isSurvivalCore());if(heart.isSurvivalCore())tag.putLong("SurvivalTokens",heart.survivalTokenBalance());tag.putBoolean("ControlReady",heart.operational());if(heart.isControlCore()){var graph=dev.sablelife.compat.sable.SableBodyProbe.inspect(heart.getLevel(),heart.getBlockPos());tag.putString("ControlStatus",!graph.assembled()?"unassembled":graph.otherHearts()>0?"duplicate":heart.wireless().master()?"ready":"paused");} tag.putBoolean("Editable", editable); tag.putString("LifeState", heart.health().state().name());
         tag.putString("HeartName", heart.displayName().getString());
         tag.putDouble("HealthPercent", heart.health().current() / (double) heart.health().maximum() * 100);
         tag.putBoolean("BgmStarted", heart.combatMusicHits() > 0);
+        tag.putBoolean("HybridDamage",dev.sablelife.combat.EntityHitboxes.hybrid(heart));
         var list = tag.getList("Modules", 10);
         for (int i = 0; i < modules.size(); i++) {
             list.getCompound(i).putString("Status", status(modules.get(i), heart));
             list.getCompound(i).putBoolean("TriggerPowered", triggered(modules.get(i), heart));
             var module = modules.get(i);
+            if(heart.isSurvivalCore())dev.sablelife.heart.SurvivalTokens.writeEstimate(heart,module,list.getCompound(i));
+            if(module.type().equals("entity_hitbox"))list.getCompound(i).putBoolean("ReceiverActive",damageBoxes.entities().stream().anyMatch(e->e.moduleId().equals(module.id())));
+            if(module.type().equals("blueprint_spawn"))list.getCompound(i).put("BlueprintSpawn",dev.sablelife.ownership.BlueprintSpawns.snapshot(heart,module));
             if(module.type().equals("arena"))list.getCompound(i).put("RespawnRuntime",dev.sablelife.ownership.ArenaRespawns.snapshot(heart,module.id()));
             list.getCompound(i).put("HurtRuntime", hurtTriggers.snapshot(module.id(),heart.getLevel().getGameTime()));
             if(SignalRules.supported(module.type()))list.getCompound(i).put("SignalRuntime",module.type().equals("signal_logic")?signalLogic.snapshot(module.id()):combatEvents.snapshot(module.id()));
@@ -151,6 +182,7 @@ public final class HeartModules {
     }
     public static String status(VirtualModule module, HeartBlockEntity heart) {
         if(!ModuleAvailability.enabled(heart,module))return "server_disabled";
+        if(heart.isSurvivalCore()&&!dev.sablelife.heart.SurvivalLifeCorePolicy.allowsCast(module))return "survival_cast_blocked";
         if(heart.isControlCore()&&!dev.sablelife.heart.RedstoneCorePolicy.allowed(module))return "disabled";
         if (!module.known()) return "unknown";
         if (module.commandApprovalRequired()) return "command_locked";
@@ -161,6 +193,7 @@ public final class HeartModules {
         if(module.type().equals("armor")&&module.value("armorWholeBody")==1)return module.enabled()?"valid":"disabled";
         if (module.invalidated()) return "destroyed";
         if (module.detached()) return "disconnected";
+        if (module.type().equals("blueprint_spawn")){if(!dev.sablelife.ownership.BlueprintSpawns.available())return "blueprint_compat";if(dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module)){if(module.anchors().size()!=1)return "unmarked";var mark=module.anchors().getFirst().status(heart);if(!mark.equals("valid"))return mark;}else{if(module.arenaCenter()==null)return "unmarked";if(!heart.getLevel().dimension().location().toString().equals(module.arenaDimension()))return "unloaded";}return module.enabled()?"valid":"disabled";}
         if (module.type().equals("arena")) {
             if (module.arenaCenter() == null) return "unmarked";
             if (!heart.getLevel().dimension().location().toString().equals(module.arenaDimension())) return "unloaded";
@@ -187,10 +220,10 @@ public final class HeartModules {
     }
     /** Also used for the final hurt event, immediately after health enters its death countdown. */
     public static boolean controlPowered(VirtualModule module, HeartBlockEntity heart) {
-        if (!(heart.getLevel() instanceof net.minecraft.server.level.ServerLevel server) || module.anchors().isEmpty() && !module.type().equals("bgm") && !module.type().equals("arena") && !module.coreModule() && !module.type().equals("wireless_redstone")&&!TargetCastOrigin.targeted(module)) return false;
+        if (!(heart.getLevel() instanceof net.minecraft.server.level.ServerLevel server) || module.anchors().isEmpty() && !module.type().equals("bgm") && !module.type().equals("arena") && !module.type().equals("blueprint_spawn") && !module.coreModule() && !module.type().equals("wireless_redstone")&&!TargetCastOrigin.targeted(module)) return false;
         boolean powered = switch ((int) module.value("trigger")) {
             case 0 -> true;
-            case 1 -> (module.coreModule() || module.type().equals("arena") || TargetCastOrigin.targeted(module) || module.anchors().isEmpty()) ? dev.sablelife.attack.ModulePower.hasControlSignal(server, heart.getBlockPos()) : module.importData().getBoolean("LegacyPower")
+            case 1 -> (module.coreModule() || module.type().equals("arena") || module.type().equals("blueprint_spawn") || TargetCastOrigin.targeted(module) || module.anchors().isEmpty()) ? dev.sablelife.attack.ModulePower.hasControlSignal(server, heart.getBlockPos()) : module.importData().getBoolean("LegacyPower")
                     ? dev.sablelife.attack.ModulePower.hasSignal(server, module.anchors().getFirst().position(module.anchors().getFirst().body(heart)))
                     : dev.sablelife.attack.ModulePower.hasControlSignal(server, module.anchors().getFirst().position(module.anchors().getFirst().body(heart)));
             case 2 -> heart.wireless().output((int) module.value("channel")) > 0;
@@ -203,6 +236,7 @@ public final class HeartModules {
     }
     public void load(CompoundTag tag) {
         clearRuntime();
+        templateRevision=Integer.MIN_VALUE;templateCreature=null;
         modules.clear(); revision = tag.getInt("Revision"); var list = tag.getList("Modules", 10);
         for (int i = 0; i < Math.min(LIMIT, list.size()); i++) {
             if(list.getCompound(i).getString("Type").equals("dispatch"))continue; // Removed standalone scheduler, not a move row.

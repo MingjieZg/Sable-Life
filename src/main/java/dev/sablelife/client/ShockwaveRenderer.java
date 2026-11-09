@@ -29,7 +29,26 @@ public final class ShockwaveRenderer {
  public static void render(RenderTarget target,List<ShockwaveClient.Wave> waves,Vec3 camera,Matrix4f view,Matrix4f projection,double time,float scale,VisualFilterState.Tint filter){
   if(!ready()||scale<=0||target.width<=0||target.height<=0||target.width>8192||target.height>8192||GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)!=target.frameBufferId)return;
   var chosen=waves.stream().filter(w->time>=w.born()&&time-w.born()<w.packet().expansion()).sorted(Comparator.comparingLong(ShockwaveClient.Wave::born).reversed().thenComparingDouble(w->camera.distanceToSqr(w.packet().point()))).toList();
-  var projected=new ArrayList<float[]>();for(var w:chosen){if(projected.size()>=ShockwaveClient.MAX_WAVES)break;var p=w.packet();var screen=ShockwaveMath.project(p.point(),camera,view,projection);if(screen==null)continue;float fade=(float)ShockwaveMath.attenuation(camera.distanceTo(p.point()),p.range())*scale;double age=time-w.born();double radius=ShockwaveMath.radius(age,p.expansion(),p.radius(),p.reverse());if(fade<=0||p.distortion()==0&&p.blur()==0)continue;projected.add(new float[]{screen.x(),screen.y(),(float)Math.min(8,screen.unitRadius()*radius),(float)Math.max(1f/target.height,screen.unitRadius()*Math.min(p.width(),Math.max(.01,radius*.5))),p.distortion()*fade*(float)ShockwaveMath.waveStrength(age,p.expansion()),p.blur()*fade*(float)ShockwaveMath.waveStrength(age,p.expansion()),0,0});}
+  var projected=new ArrayList<float[]>();
+  for(var w:chosen){
+   if(projected.size()>=ShockwaveClient.MAX_WAVES)break;
+   var p=w.packet();var screen=ShockwaveMath.project(p.point(),camera,view,projection);
+   if(screen==null)continue;
+   float fade=(float)ShockwaveMath.attenuation(camera.distanceTo(p.point()),p.range())*scale;
+   double age=time-w.born();
+   if(fade<=0||p.distortion()==0&&p.blur()==0)continue;
+   if(p.pattern()==1){
+    float strength=p.blur()*fade*(float)ShockwaveMath.envelope(age,p.expansion());
+    if(strength<=0)continue;
+    projected.add(new float[]{screen.x(),screen.y(),0,1,0,strength,1,p.clearRadius()});
+   }else{
+    double radius=ShockwaveMath.radius(age,p.expansion(),p.radius(),p.reverse());
+    float strength=fade*(float)ShockwaveMath.waveStrength(age,p.expansion());
+    projected.add(new float[]{screen.x(),screen.y(),(float)Math.min(8,screen.unitRadius()*radius),
+            (float)Math.max(1f/target.height,screen.unitRadius()*Math.min(p.width(),Math.max(.01,radius*.5))),
+            p.distortion()*strength,p.blur()*strength,0,0});
+   }
+  }
   if(projected.isEmpty()&&filter.alpha()<=0)return;
   boolean depth=GL11.glIsEnabled(GL11.GL_DEPTH_TEST),blend=GL11.glIsEnabled(GL11.GL_BLEND),cull=GL11.glIsEnabled(GL11.GL_CULL_FACE),mask=GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);var oldShader=RenderSystem.getShader();int oldRead=GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);int[] viewport=new int[4],scissorBox=new int[4];GL11.glGetIntegerv(GL11.GL_VIEWPORT,viewport);GL11.glGetIntegerv(GL11.GL_SCISSOR_BOX,scissorBox);boolean scissor=GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
   try{

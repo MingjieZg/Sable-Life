@@ -25,5 +25,6 @@ public final class CreatureNames {
         if(!text.isEmpty())result.append(Component.literal(text.toString()).setStyle(style));return result;
     }
     public static Component killer(String raw){var name=formatted(raw);return name.getString().isBlank()?Component.literal("block"):name;}
+    public static Component killer(String raw,String owner){var name=killer(raw);return owner==null||owner.isBlank()?name:Component.translatable("death.attack.sablelife.owned_name",Component.literal(owner),name);}
     private CreatureNames(){}
 }

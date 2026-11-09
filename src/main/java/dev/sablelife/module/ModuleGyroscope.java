@@ -80,13 +80,32 @@ public final class ModuleGyroscope {
         states.keySet().retainAll(keep);recovering.retainAll(keep);return controlled;
     }
     public static void preview(net.minecraft.server.level.ServerPlayer player,HeartBlockEntity heart,VirtualModule module) {
-        var center=module.anchors().getFirst().world(heart,false);var current=down(heart,module);var level=player.serverLevel();
-        var cyan=new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.2F,.8F,1F),1.2F);
-        var orange=new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1F,.6F,.2F),1.2F);
-        var green=new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.2F,1F,.4F),1.2F);
-        for(int n=0;n<=20;n++) { var p=center.add(DOWN.scale(n/10.));level.sendParticles(player,cyan,true,p.x,p.y,p.z,1,0,0,0,0);if(current!=null){p=center.add(current.scale(n/10.));level.sendParticles(player,orange,true,p.x,p.y,p.z,1,0,0,0,0);} }
+        var center=module.anchors().getFirst().world(heart,false);var current=down(heart,module);
+        // Use existing short-lived outline slots and the shared shader-compatible line material.
+        // Different arrow lengths keep both tips readable when the calibrated axis is level.
+        MarkOutline.send(player,MarkOutline.Kind.ALIGN_DOWN,0x33CCFF,arrow(center,DOWN,2.6));
+        MarkOutline.send(player,MarkOutline.Kind.DETAIL,0xFF9933,current==null?List.of():arrow(center,current,2.2));
         double angle=Math.toRadians(module.value("gyroTilt")),radius=2*Math.sin(angle),height=-2*Math.cos(angle);
-        for(int n=0;n<32;n++) { double a=n*Math.PI*2/32;var p=center.add(Math.cos(a)*radius,height,Math.sin(a)*radius);level.sendParticles(player,green,true,p.x,p.y,p.z,1,0,0,0,0); }
+        var edges=new ArrayList<Vec3>(104);
+        if(Math.abs(radius)<1E-6){
+            var tip=center.add(0,height,0);edges.add(tip.add(-.12,0,0));edges.add(tip.add(.12,0,0));
+            edges.add(tip.add(0,0,-.12));edges.add(tip.add(0,0,.12));edges.add(center);edges.add(tip);
+        }else{
+            for(int n=0;n<48;n++){
+                double a=n*Math.PI*2/48,b=(n+1)*Math.PI*2/48;
+                edges.add(center.add(Math.cos(a)*radius,height,Math.sin(a)*radius));
+                edges.add(center.add(Math.cos(b)*radius,height,Math.sin(b)*radius));
+            }
+            for(int n=0;n<4;n++){double a=n*Math.PI/2;edges.add(center);edges.add(center.add(Math.cos(a)*radius,height,Math.sin(a)*radius));}
+        }
+        MarkOutline.send(player,MarkOutline.Kind.VOLUME,0x33FF66,edges);
         player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.gyro_preview_help"),true);
+    }
+    private static List<Vec3> arrow(Vec3 center,Vec3 direction,double length){
+        var axis=direction.normalize();var tip=center.add(axis.scale(length));
+        var u=axis.cross(Math.abs(axis.y)>.9?new Vec3(0,0,1):new Vec3(0,1,0)).normalize();var v=axis.cross(u);
+        var base=tip.subtract(axis.scale(.28));var edges=new ArrayList<Vec3>(10);edges.add(center);edges.add(tip);
+        for(var side:List.of(u,u.scale(-1),v,v.scale(-1))){edges.add(tip);edges.add(base.add(side.scale(.13)));}
+        return edges;
     }
 }

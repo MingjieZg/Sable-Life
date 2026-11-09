@@ -1,8 +1,8 @@
-# Arena respawn and Sable Photomancy
+# Blueprint features and Sable Photomancy
 
 Starting with Sable Life **0.1.314**, Arena automatic respawn accepts Sable Photomancy **1.0.1 or newer** when its required blueprint interfaces remain compatible. **1.0.1** is the compilation and native-test baseline, not an exact runtime version gate.
 
-Photomancy is optional for the mod, but required for recording Arena respawn templates and rebuilding the structure after death. Arena boundaries and other Sable Life features do not require automatic respawn. Recording still requires a creative operator.
+Photomancy is optional for the mod, but required for Blueprint Spawner placement, natural blueprint spawning, recording Arena respawn templates and rebuilding structures after death. Other Sable Life modules remain available without these features. Arena template recording still requires a creative operator.
 
 ## What is checked
 

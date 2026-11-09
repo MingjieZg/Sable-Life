@@ -21,6 +21,7 @@ public final class ModulePull {
         final PullCycle clock = new PullCycle();
         final Map<UUID,Integer> victims = new HashMap<>();
         List<Vec3> centers=List.of();
+        List<PullGeometry> geometry=List.of();
         long nextScan;
     }
     private final Map<UUID, State> states = new HashMap<>();
@@ -39,19 +40,22 @@ public final class ModulePull {
         if(TargetCastOrigin.targeted(module))return TargetCastOrigin.point(heart,module);
         return ModuleCombat.origin(heart, module, true);
     }
+    private static boolean directional(VirtualModule module){return module.value("pullShape")==1&&!TargetCastOrigin.targeted(module);}
+    private static PullGeometry geometry(HeartBlockEntity heart,VirtualModule module,Vec3 center){return new PullGeometry(center,ModuleCombat.direction(heart,module),module.value("pullLength"),module.value("pullStartRadius"),module.value("pullEndRadius"));}
     private static boolean eligible(LivingEntity entity, VirtualModule module) {
         return ModuleTargets.matches(entity,module);
     }
-    private static boolean inRange(LivingEntity entity, VirtualModule module, Vec3 center) {
+    private static boolean inRange(LivingEntity entity, VirtualModule module, Vec3 center, PullGeometry shape) {
+        if(shape!=null)return shape.contains(entity.getBoundingBox().getCenter());
         return entity.getBoundingBox().getCenter().distanceToSqr(center) <= module.value("pullRadius") * module.value("pullRadius");
     }
     private static boolean visible(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 point, LivingEntity target) {
         return module.value("lineOfSight") == 1 || ModuleTargets.visible(level, heart.creatureId(), point, target);
     }
-    private static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center, Vec3 point) {
-        return ModuleTargets.query(level, heart.creatureId(), new AABB(center, center).inflate(module.value("pullRadius")),
-                        entity -> eligible(entity, module) && inRange(entity, module, center) && visible(level, heart, module, point, entity))
-                .stream().sorted(Comparator.comparingDouble(entity -> entity.getBoundingBox().getCenter().distanceToSqr(center))).limit(MAX_TARGETS).toList();
+    private static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center, Vec3 point, PullGeometry shape) {
+        return ModuleTargets.query(level, heart.creatureId(), shape==null?new AABB(center, center).inflate(module.value("pullRadius")):shape.bounds(),
+                        entity -> eligible(entity, module) && inRange(entity, module, center,shape) && visible(level, heart, module, point, entity))
+                .stream().sorted(ModuleTargets.comparator(heart,entity -> entity.getBoundingBox().getCenter().distanceToSqr(center))).limit(MAX_TARGETS).toList();
     }
     private static void particle(ServerLevel level, ServerPlayer viewer, DustParticleOptions dust, Vec3 point) {
         if (viewer == null) dev.sablelife.module.ModuleParticles.send(level, dust, point.x, point.y, point.z, 1, 0, 0, 0, 0);
@@ -60,7 +64,8 @@ public final class ModulePull {
     private static DustParticleOptions color(VirtualModule module, String key, float size) {
         return new DustParticleOptions(ModuleColors.vector(module,key),size);
     }
-    private static void draw(ServerLevel level, ServerPlayer viewer, VirtualModule module, Vec3 center, Vec3 point, boolean pulling, long remaining) {
+    private static void draw(ServerLevel level, ServerPlayer viewer, VirtualModule module, Vec3 center, Vec3 point, boolean pulling, long remaining, PullGeometry shape) {
+        if(shape!=null){var dust=color(module,"pullWarningColor",.65F);for(int i=0;i<40;i++){double angle=Math.PI*2*i/40;particle(level,viewer,dust,shape.boundary(0,angle));particle(level,viewer,dust,shape.boundary(1,angle));}for(int side=0;side<8;side++)for(int i=0;i<=16;i++)particle(level,viewer,dust,shape.boundary(i/16.,Math.PI*2*side/8));for(var packet:PullVisual.particles(module,center,point,remaining,level.getGameTime(),shape))for(var player:viewer==null?level.players():List.of(viewer))if(dev.sablelife.compat.sable.SableBodyProbe.toWorld(level,player.position()).distanceToSqr(center)<=512*512&&VisualBudget.allow(player,1))net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);return;}
         var boundary = color(module, "pullWarningColor", .65F);
         double radius = module.value("pullRadius");
         for (int i = 0; i < PullVisual.BOUNDARY_POINTS; i++) {
@@ -89,7 +94,7 @@ public final class ModulePull {
     }
     public static void preview(ServerPlayer player, HeartBlockEntity heart, VirtualModule module) {
         var points=TargetCastOrigin.targeted(module)?TargetCastOrigin.points(heart,module):List.of(destination(heart,module));if(points.isEmpty()){player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.no_cast_target"),true);return;}
-        for(var point:points)draw((ServerLevel) player.level(), player, module, point, point, false, (long)module.value("pullWarning"));
+        for(var point:points)draw((ServerLevel) player.level(), player, module, point, point, false, (long)module.value("pullWarning"),directional(module)?geometry(heart,module,point):null);
         player.displayClientMessage(net.minecraft.network.chat.Component.translatable("dashboard.sablelife.pull_preview_help"), true);
     }
     public void tick(HeartBlockEntity heart){tick(heart,heart.modules().all());}
@@ -108,29 +113,33 @@ public final class ModulePull {
             if(points.isEmpty())continue;
             boolean canStart=false;
             if(state.clock.ready(now)&&now>=state.nextScan){
-                canStart=points.stream().anyMatch(p->!targets(level,heart,module,p,p).isEmpty())&&EmitterRuntime.start(module,heart);state.nextScan=now+5;
+                canStart=points.stream().anyMatch(p->!targets(level,heart,module,p,p,directional(module)?geometry(heart,module,p):null).isEmpty())&&EmitterRuntime.start(module,heart)&&dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,points.size());state.nextScan=now+5;
             }
             var phase=state.clock.tick(now,(int)module.value("pullWarning"),(int)module.value("pullDuration"),(int)module.value("interval"),canStart);
             if(phase==PullCycle.Phase.WAITING){if(before!=phase){stop(module.id());EmitterRuntime.completed(module,heart);state.victims.clear();}continue;}
-            if(before==PullCycle.Phase.WAITING){state.centers=List.copyOf(points);for(var point:points)ModuleAudio.play(level,module,"warningSound",point);}
+            if(before==PullCycle.Phase.WAITING){state.centers=List.copyOf(points);state.geometry=directional(module)?points.stream().map(p->geometry(heart,module,p)).toList():List.of();for(var point:points)ModuleAudio.play(level,module,"warningSound",point);}
             var destinations=TargetCastOrigin.targeted(module)?state.centers:List.of(destination(heart,module));
             if(phase==PullCycle.Phase.PULLING&&before!=phase){
                 stop(module.id());
                 for(int i=0;i<state.centers.size();i++){
                     var center=state.centers.get(i);var point=destinations.get(i);ModuleAudio.play(level,module,"pullSound",point);
-                    for(var victim:targets(level,heart,module,center,point)){
+                    for(var victim:targets(level,heart,module,center,point,state.geometry.isEmpty()?null:state.geometry.get(i))){
                         var old=state.victims.get(victim.getUUID());
                         if(old==null||victim.getBoundingBox().getCenter().distanceToSqr(point)<victim.getBoundingBox().getCenter().distanceToSqr(destinations.get(old)))state.victims.put(victim.getUUID(),i);
                     }
                 }
             }
-            if(now%4==0||before==PullCycle.Phase.WAITING)for(int i=0;i<state.centers.size();i++)draw(level,null,module,state.centers.get(i),destinations.get(i),phase==PullCycle.Phase.PULLING,phase==PullCycle.Phase.WARNING?state.clock.fireAt()-now:25);
+            if(now%4==0||before==PullCycle.Phase.WAITING)for(int i=0;i<state.centers.size();i++)draw(level,null,module,state.centers.get(i),destinations.get(i),phase==PullCycle.Phase.PULLING,phase==PullCycle.Phase.WARNING?state.clock.fireAt()-now:25,state.geometry.isEmpty()?null:state.geometry.get(i));
             if(phase!=PullCycle.Phase.PULLING)continue;
             for(var id:List.copyOf(state.victims.keySet())){
                 int index=state.victims.get(id);var center=state.centers.get(index);var point=destinations.get(index);
                 var entity=ModuleTargets.resolve(level,id,heart.creatureId());
-                if(!(entity instanceof LivingEntity victim)||!eligible(victim,module)||!inRange(victim,module,center)||!visible(level,heart,module,point,victim)){state.victims.remove(id);continue;}
+                if(!(entity instanceof LivingEntity victim)||!eligible(victim,module)||!inRange(victim,module,center,state.geometry.isEmpty()?null:state.geometry.get(index))||!visible(level,heart,module,point,victim)){state.victims.remove(id);continue;}
                 var delta = point.subtract(victim.getBoundingBox().getCenter()); double distance = delta.length();
+                if(module.value("pullMotion")==1){
+                    double gravity=victim instanceof ModuleTargets.LifeTarget||victim.isNoGravity()?0:victim.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.GRAVITY);
+                    victim.setDeltaMovement(PullSuction.velocity(victim.getDeltaMovement(),delta,module.value("pullStrength"),module.value("pullSpeed"),module.value("pullStop"),gravity));victim.hurtMarked=true;continue;
+                }
                 if (distance < 1e-6) continue;
                 var direction = delta.scale(1 / distance);
                 double acceleration = PullMotion.acceleration(distance, victim.getDeltaMovement().dot(direction), module.value("pullStrength"), module.value("pullSpeed"), module.value("pullStop"));

@@ -17,7 +17,8 @@ public abstract class ProtectedBodyMiningMixin {
         if(!held||mc.level==null||mc.player==null||mc.gameMode==null||mc.player.isSpectator()
                 ||!(mc.hitResult instanceof BlockHitResult hit)||hit.getType()!=net.minecraft.world.phys.HitResult.Type.BLOCK)return;
         var heart=SableBodyProbe.findActivatedHeart(mc.level,hit.getBlockPos());
-        if(heart!=null&&!heart.allowBreaking()) {
+        if(heart!=null&&(!heart.allowBreaking()
+                ||!mc.player.isCreative()&&!heart.isSurvivalCore()&&heart.getBlockPos().equals(hit.getBlockPos()))) {
             mc.gameMode.stopDestroyBlock();
             ci.cancel();
         }

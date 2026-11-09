@@ -26,6 +26,7 @@ public final class ModuleLaser {
         long nextWarning;
         boolean warningUpdated;
         long trackedAt = Long.MIN_VALUE;
+        final Set<UUID> viewers=new HashSet<>();
     }
     private final Map<UUID, State> states = new HashMap<>();
     private ServerLevel level;
@@ -34,7 +35,19 @@ public final class ModuleLaser {
     public String phase(UUID id) { var s = states.get(id); return s == null || !s.casting ? "waiting" : s.firing ? "firing" : "charging"; }
     public void clear() { if (level != null) states.keySet().forEach(this::stop); states.clear(); level = null; }
     private UUID audioOwner;
-    private void stop(UUID id) { sound(audioOwner==null?id:audioOwner, "", Vec3.ZERO, true); }
+    private void stop(UUID id) {
+        var visualId=audioOwner==null?id:audioOwner;
+        sound(visualId, "", Vec3.ZERO, true);
+        var state=states.get(id);
+        if(state!=null)hide(visualId,state);
+    }
+    private void hide(UUID id,State state){
+        for(var viewer:state.viewers){
+            var player=level.getServer().getPlayerList().getPlayer(viewer);
+            if(player!=null&&player.level()==level)net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,LaserVisual.stop(id));
+        }
+        state.viewers.clear();
+    }
     private void sound(UUID id, String sound, Vec3 point, boolean stop) {
         if (!stop && sound.isEmpty()) return;
         for (var player : level.players()) if (stop || player.position().distanceToSqr(point) <= 128 * 128)
@@ -49,7 +62,7 @@ public final class ModuleLaser {
         return ModuleTargets.query(level, heart.creatureId(), new AABB(start, start).inflate(range), e -> eligible(e, m))
                 .stream().filter(e -> e.getBoundingBox().getCenter().distanceToSqr(start) <= range * range
                         && ModuleTargets.visible(level, heart.creatureId(), start, e))
-                .sorted(Comparator.comparingDouble(e -> e.getBoundingBox().getCenter().distanceToSqr(start)))
+                .sorted(ModuleTargets.comparator(heart,e -> e.getBoundingBox().getCenter().distanceToSqr(start)))
                 .limit(m.value("targetMultiple") == 1 ? 64 : 1).toList();
     }
     private static Vec3 direction(HeartBlockEntity heart, VirtualModule m, State state) {
@@ -75,10 +88,11 @@ public final class ModuleLaser {
         var direction = ModuleCombat.direction(heart, m);
         if (sweeping(m) && state.casting) {
             long now = heart.getLevel().getGameTime();
-            double progress = Math.clamp((double) (now - state.fireAt) / Math.max(1, state.finishAt - state.fireAt - 1), 0, 1);
-            double angle = Math.toRadians(m.value("sweepAngle")) * (progress - .5);
-            var up = dev.sablelife.attack.ContactBox.rotate(new org.joml.Quaterniond(m.anchors().getFirst().body(heart).logicalPose().orientation()), new Vec3(0, 1, 0));
-            direction = dev.sablelife.attack.ContactBox.rotate(new org.joml.Quaterniond().rotationAxis(angle, up.x, up.y, up.z), direction);
+            var rotation = m.anchors().getFirst().body(heart).logicalPose().orientation();
+            double horizontal = m.value("sweepAngle"), vertical = m.value("verticalSweepAngle");
+            direction = sweep(direction, new org.joml.Quaterniond(rotation), horizontal, vertical,
+                    LaserSweep.fraction(horizontal, m.value("sweepSpeed"), now - state.fireAt, state.finishAt - state.fireAt),
+                    LaserSweep.fraction(vertical, m.value("verticalSweepSpeed"), now - state.fireAt, state.finishAt - state.fireAt));
         }
         return direction;
     }
@@ -99,19 +113,47 @@ public final class ModuleLaser {
         axis = axis.normalize();
         return dev.sablelife.attack.ContactBox.rotate(new org.joml.Quaterniond().rotationAxis(Math.acos(dot) * fraction, axis.x, axis.y, axis.z), current).normalize();
     }
-    private static boolean sweeping(VirtualModule m) { return m.value("laserAim") == 0 && m.value("sweepAngle") != 0; }
+    public static Vec3 sweep(Vec3 direction, org.joml.Quaterniond body, double horizontal, double vertical, double progress) {
+        return sweep(direction, body, horizontal, vertical, progress, progress);
+    }
+    public static Vec3 sweep(Vec3 direction, org.joml.Quaterniond body, double horizontal, double vertical, double horizontalProgress, double verticalProgress) {
+        var up = dev.sablelife.attack.ContactBox.rotate(body, new Vec3(0, 1, 0));
+        var yaw = new org.joml.Quaterniond().rotationAxis(Math.toRadians(horizontal) * (horizontalProgress - .5), up.x, up.y, up.z);
+        var forward = dev.sablelife.attack.ContactBox.rotate(yaw, direction);
+        var side = forward.cross(up);
+        if (side.lengthSqr() < 1e-8)
+            side = dev.sablelife.attack.ContactBox.rotate(yaw, dev.sablelife.attack.ContactBox.rotate(body, new Vec3(1, 0, 0)));
+        side = side.normalize();
+        return dev.sablelife.attack.ContactBox.rotate(
+                new org.joml.Quaterniond().rotationAxis(Math.toRadians(vertical) * (verticalProgress - .5), side.x, side.y, side.z), forward);
+    }
+
+    private static boolean sweeping(VirtualModule m) {
+        return m.value("laserAim") == 0 && (m.value("sweepAngle") != 0 || m.value("verticalSweepAngle") != 0);
+    }
+
+    private static boolean continuousVisual(VirtualModule m) {
+        return m.value("laserVisualStyle") == 0;
+    }
     public static DustParticleOptions color(VirtualModule m) {
         return new DustParticleOptions(ModuleColors.vector(m,"beamColor"),(float)Math.clamp(m.value("beamWidth")*2,.2,4));
     }
     private static void draw(ServerLevel level, ServerPlayer viewer, VirtualModule m, Vec3 start, Vec3 end, boolean charge) {
+        boolean baseVisible = viewer != null || charge || !continuousVisual(m);
+        boolean customVisible = !charge && viewer == null && !m.particles().isEmpty();
+        if (!baseVisible && !customVisible) return;
         int count = Math.clamp((int) Math.ceil(start.distanceTo(end) * 3), 2, 192);
         var dust = charge ? new DustParticleOptions(new Vector3f(.7F,.7F,.7F), .4F) : color(m);
-        for (int i = 0; i <= count; i++) {
+        if (baseVisible) for (int i = 0; i <= count; i++) {
             var p = start.lerp(end, (double) i / count);
             if (viewer != null) level.sendParticles(viewer, dust, true, p.x, p.y, p.z, 1, 0, 0, 0, 0);
-            else dev.sablelife.module.ModuleParticles.send(level, dust, p.x, p.y, p.z, 1, 0, 0, 0, 0);
-            if (!charge && viewer == null && i % 12 == 0 && !m.particles().isEmpty()) {
-                var particle = m.particleEntry(m.particles().get((i / 12 + (int) (level.getGameTime() % m.particles().size())) % m.particles().size()));
+            else if (baseVisible) dev.sablelife.module.ModuleParticles.send(level, dust, p.x, p.y, p.z, 1, 0, 0, 0, 0);
+        }
+        if (customVisible) {
+            int samples = LaserSweep.particleSamples(start.distanceTo(end), m.value("laserParticleSpacing"));
+            for (int i = 0; i < samples; i++) {
+                var p = start.lerp(end, (double) i / Math.max(1, samples - 1));
+                var particle = m.particleEntry(m.particles().get((i + (int) (level.getGameTime() % m.particles().size())) % m.particles().size()));
                 if (particle != null) dev.sablelife.module.ModuleParticles.send(level, particle, p.x, p.y, p.z, 1, m.value("beamWidth") / 2, m.value("beamWidth") / 2, m.value("beamWidth") / 2, 0);
             }
         }
@@ -131,10 +173,9 @@ public final class ModuleLaser {
         var dir = direction(heart, m, state); var start = origin;
         draw(level, player, m, start, SensorGeometry.beamEnd(level, heart.creatureId(), start, start.add(dir.scale(m.value("beamLength")))), false);
         if (sweeping(m)) {
-            state.casting = true; state.fireAt = level.getGameTime(); state.finishAt = state.fireAt + 1;
+            var rotation = new org.joml.Quaterniond(m.anchors().getFirst().body(heart).logicalPose().orientation());
             for (int edge = 0; edge < 2; edge++) {
-                state.fireAt = level.getGameTime() - edge; state.finishAt = state.fireAt + 2;
-                dir = direction(heart, m, state); start = origin;
+                dir = sweep(ModuleCombat.direction(heart,m), rotation, m.value("sweepAngle"), m.value("verticalSweepAngle"), edge); start = origin;
                 draw(level, player, m, start, SensorGeometry.beamEnd(level, heart.creatureId(), start, start.add(dir.scale(m.value("beamLength")))), true);
             }
         }
@@ -158,6 +199,7 @@ public final class ModuleLaser {
                     if (targets.isEmpty()) continue;
                     s.beams = targets.stream().map(target -> { var beam = new State(); beam.target = target; return beam; }).toList();
                 } else s.beams = List.of(new State());
+                if(!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,s.beams.size())){s.beams=List.of();s.ready=now+5;continue;}
                 s.casting = true; s.firing = false; s.hits = 0;
                 s.fireAt = now + (long) m.value("chargeTime");
                 s.finishAt = s.fireAt + (long) m.value("beamHits") * (long) m.value("hitInterval");
@@ -174,21 +216,28 @@ public final class ModuleLaser {
             boolean hit = s.firing && now >= s.nextHit && s.hits < m.value("beamHits");
             if (hit) { s.nextHit = now + (long) m.value("hitInterval"); s.hits++; }
             var damaged = new HashSet<UUID>();
+            var visualEnds=new ArrayList<LaserVisual.End>();
+            var body=!external&&s.firing&&continuousVisual(m)?m.anchors().getFirst().body(heart):null;
             for (var beam : s.beams) {
-                if (m.value("laserAim") == 1 && (!eligible(beam.target, m)
+                if (m.value("laserAim") == 1 && (!dev.sablelife.heart.CoreRelations.targetAllowed(level,heart.creatureId(),beam.target)||!eligible(beam.target, m)
                         || beam.target.getBoundingBox().getCenter().distanceToSqr(origin) > m.value("beamLength") * m.value("beamLength"))) continue;
                 beam.firing = s.firing;
                 var dir = direction(heart, m, beam); var start = origin;
                 var endpoint=start.add(dir.scale(m.value("beamLength")));
                 var end=s.firing&&m.value("laserBreakBlocks")==1?LaserBlockCut.cut(level,heart,m,start,endpoint,beam.cut,now):SensorGeometry.beamEnd(level,heart.creatureId(),start,endpoint);
+                if(s.firing&&continuousVisual(m)){
+                    boolean local=body!=null&&m.value("laserAim")==0&&end.distanceToSqr(endpoint)<1e-6;
+                    visualEnds.add(new LaserVisual.End(local?body.logicalPose().transformPositionInverse(end):end,local));
+                }
                 if (s.firing || (m.value("laserAim") == 1 ? beam.warningUpdated : now % 4 == 0)) draw(level, null, m, start, end, !s.firing);
                 if (!s.firing) {
-                    ModuleParticles.send(level, color(m), start.x, start.y, start.z, 3, .15, .15, .15, 0); continue;
+                    ModuleParticles.send(level, color(m), start.x, start.y, start.z, 3, .15, .15, .15, 0);
+                    continue;
                 }
                 if(end.distanceToSqr(endpoint)>1e-6)SurfaceFieldImpact.terrainEnd(heart,m,end,dir);
                 if (!hit) continue;
                 double radius = m.value("beamWidth") / 2;
-                for (var victim : ModuleTargets.query(level, heart.creatureId(), new AABB(start, end).inflate(radius), e -> eligible(e, m))) {
+                for (var victim : ModuleTargets.damageQuery(level, heart.creatureId(), new AABB(start, end).inflate(radius), e -> eligible(e, m))) {
                     var box = victim.getBoundingBox().inflate(radius);
                     if (!box.contains(start) && box.clip(start, end).isEmpty()) continue;
                     if (!ModuleTargets.visible(level, heart.creatureId(), start, victim)) continue;
@@ -198,6 +247,16 @@ public final class ModuleLaser {
                         ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"),heart,m);
                     }
                 }
+            }
+            var visualId=audioOwner==null?m.id():audioOwner;
+            if(visualEnds.isEmpty()){hide(visualId,s);continue;}
+            var color=ModuleColors.vector(m,"beamColor");
+            int rgb=(Math.round(color.x*255)<<16)|(Math.round(color.y*255)<<8)|Math.round(color.z*255);
+            var packet=new LaserVisual(visualId,body==null?null:body.getUniqueId(),origin,
+                    body==null?null:body.logicalPose().transformPositionInverse(origin),(float)m.value("beamWidth"),rgb,visualEnds);
+            for(var player:level.players())if(player.position().distanceToSqr(origin)<=192*192){
+                net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);
+                s.viewers.add(player.getUUID());
             }
         }
         for (var id : List.copyOf(states.keySet())) if (!active.contains(id)) { stop(id); states.remove(id); }

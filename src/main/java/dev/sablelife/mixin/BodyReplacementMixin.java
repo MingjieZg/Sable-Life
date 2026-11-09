@@ -20,7 +20,8 @@ public abstract class BodyReplacementMixin {
             var previous = chunk.getBlockState(pos);
             // Plot coordinates are reused. Protection belongs to an existing block, never to air
             // left behind by an external deletion. Clear stale ownership before the write gate.
-            if (previous.isAir() && !state.isAir()) BodyOwnership.get(level).forget(pos);
+            // Assembly clears the destination and installs the incoming ownership before copying blocks.
+            if (previous.isAir() && !state.isAir() && BodyOwnership.MOVING.get() == 0) BodyOwnership.get(level).forget(pos);
             else if (!previous.is(state.getBlock()) && dev.sablelife.ownership.BodyProtection.locked(level, pos))
                 cir.setReturnValue(null);
         }

@@ -8,12 +8,12 @@ import java.util.ArrayList;
 
 /** Persistent authoring settings shared by the dashboard and validated server runtime. */
 public final class VirtualModule {
-    public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
+    public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction");
     /** New-module catalog grouped by sidebar color: signal, weapon, function. */
     public static final List<String> AVAILABLE_TYPES = List.of(
             "move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation",
             "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon",
-            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "item_display", "trigger_sound", "sound", "bgm", "loot");
+            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction");
     public record Emitter(net.minecraft.world.phys.Vec3 position,net.minecraft.world.phys.Vec3 direction,org.joml.Quaterniond rotation,UUID audioOwner){}
     private Emitter emitter;
     public Emitter emitter(){return emitter;}
@@ -66,7 +66,7 @@ public final class VirtualModule {
     public net.minecraft.world.phys.Vec3 arenaCenter() { return arenaCenter; }
     public String arenaDimension() { return arenaDimension; }
     public void arenaCenter(net.minecraft.world.phys.Vec3 point, String dimension) {
-        if (!type.equals("arena") || !Double.isFinite(point.x) || !Double.isFinite(point.y) || !Double.isFinite(point.z)
+        if (!List.of("arena","blueprint_spawn").contains(type) || !Double.isFinite(point.x) || !Double.isFinite(point.y) || !Double.isFinite(point.z)
                 || Math.abs(point.x) > 30000000 || Math.abs(point.z) > 30000000 || Math.abs(point.y) > 30000000
                 || net.minecraft.resources.ResourceLocation.tryParse(dimension) == null) return;
         arenaCenter = point; arenaDimension = dimension; invalidated = detached = false;
@@ -161,7 +161,10 @@ public final class VirtualModule {
         this.id = id; this.type = type;
         if(SignalRules.supported(type))signalRules().add();
         for(var f:ModuleFields.HURT_FIELDS) settings.putDouble(f.key(),f.initial());
-        ModuleFields.forType(type).forEach(f -> settings.putDouble(f.key(), f.initial()));
+        ModuleFields.forType(type).forEach(f -> {
+            if(f.choices().equals(List.of("library")))settings.putString(f.key(), "");
+            else settings.putDouble(f.key(), f.initial());
+        });
         if(type.equals("mortar")||type.equals("ground_strike")){var child=new VirtualModule("particles");child.editParticle("add","minecraft:explosion");movementParticles.put("Impact",child);}
         if(type.equals("summoned_weapon")){
             projectileItem.putString("id","minecraft:dispenser");projectileItem.putInt("count",1);
@@ -171,7 +174,7 @@ public final class VirtualModule {
         if(type.equals("surface_field"))particles.add("minecraft:effect");
         if(type.equals("flame"))particles.add("minecraft:flame");
         if (type.equals("linear_movement")) {
-            trigger=1;
+            trigger=2;
             for(String stage:List.of("Charge","Departure","Arrival")){var selection=new VirtualModule("particles");selection.editParticle("add",stage.equals("Charge")?"minecraft:portal":stage.equals("Departure")?"minecraft:poof":"minecraft:portal");movementParticles.put(stage,selection);}
             settings.putString("moveChargeSound","minecraft:block.respawn_anchor.charge");settings.putString("moveDepartureSound","minecraft:entity.enderman.teleport");settings.putString("moveArrivalSound","minecraft:entity.enderman.teleport");
         }
@@ -234,6 +237,7 @@ public final class VirtualModule {
     private List<ModuleAnchor> activeAnchors() { return type.equals("particles") && !area() ? particlePointAnchors : anchors; }
     public List<ModuleAnchor> anchors() { return List.copyOf(activeAnchors()); }
     public void clearMarks() { anchors(List.of()); arenaCenter=null; arenaDimension=""; }
+    public void clearFixedPoint(){if(List.of("arena","blueprint_spawn").contains(type)){arenaCenter=null;arenaDimension="";invalidated=false;detached=false;}}
     public void anchors(List<ModuleAnchor> values) { if (type.equals("gyroscope") && !anchors().equals(values)) gyroDown = null; var active = activeAnchors(); active.clear(); active.addAll(values); invalidated = false; detached = false; }
     public CompoundTag lootSamples() { return lootSamples.copy(); }
     public void lootSamples(CompoundTag tag) { lootSamples = tag.copy(); importData.putBoolean("TableMode", false); }
@@ -339,7 +343,7 @@ public final class VirtualModule {
                     if(color!=null&&(key.endsWith("Red")||key.endsWith("Green")||key.endsWith("Blue")))settings.putDouble(color+"RgbSet",1);
                     double next = Math.clamp(value, field.min(), field.max());
                     if(color!=null)next=Math.round(next);
-                    if (field.scale() == 20 || field.choice() || (type.equals("signal_turn")||type.equals("navigation"))&&key.endsWith("Channel") || List.of("slashCount","slashRed","slashGreen","slashBlue","arrows", "burn", "rolls", "radius", "innerRadius", "direction", "effectLevel", "density", "strikeRays", "strikeRandomCount", "beamHits", "sensorChannel", "sensorPower", "accumChannel", "accumPower", "phaseChannel", "phasePower", "resetChannel", "redstoneChannel", "redstonePower", "quakeWaves", "homingCount", "summonCount", "meleeHitLimit","hitThreshold","hitSource","hitChannel","hitPower").contains(key)) next = Math.round(next);
+                    if (field.scale() == 20 || field.choice() || (type.equals("signal_turn")||type.equals("navigation"))&&key.endsWith("Channel") || List.of("slashCount","slashRed","slashGreen","slashBlue","arrows", "burn", "rolls", "radius", "innerRadius", "direction", "effectLevel", "density", "strikeRays", "strikeRandomCount", "beamHits", "sensorChannel", "sensorPower", "accumChannel", "accumPower", "phaseChannel", "phasePower", "resetChannel", "redstoneChannel", "redstonePower", "quakeWaves", "homingCount", "summonCount", "interactionSize", "meleeHitLimit","hitThreshold","hitSource","hitChannel","hitPower").contains(key)) next = Math.round(next);
                     if (key.equals("innerRadius")) next = Math.min(next, value("radius") - 1);
                     settings.putDouble(key, next);
                     if (key.equals("particlePattern")) { invalidated = false; detached = false; }

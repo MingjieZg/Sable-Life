@@ -1,4 +1,4 @@
 {
   "parent": "minecraft:item/generated",
-  "textures": { "layer0": "minecraft:item/paper" }
+  "textures": { "layer0": "sablelife:item/data_copier" }
 }

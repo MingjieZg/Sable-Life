@@ -78,7 +78,7 @@ public final class BodyCombat {
         damage += enchantmentBonus * strength;
         if (!Float.isFinite(damage) || damage <= 0) return;
         float before = heart.health().current();
-        if (!heart.damageAt(hit.getBlockPos(), Math.min(damage, HeartHealth.MAX_CONFIGURED_HEALTH))) return;
+        if (!heart.modules().damageBoxes.bodyDamage(heart,player,hit.getBlockPos(),Math.min(damage,HeartHealth.MAX_CONFIGURED_HEALTH),false,false)) return;
         LAST_MELEE_TICK.put(player, now);
         player.resetAttackStrengthTicker();
         feedback((ServerLevel) player.level(), hit, heart, before - heart.health().current(), player, critical);
@@ -150,7 +150,7 @@ public final class BodyCombat {
         int damage = Mth.ceil(Math.min(rawDamage, HeartHealth.MAX_CONFIGURED_HEALTH));
         if (arrow.isCritArrow()) damage += arrow.getRandom().nextInt(damage / 2 + 2);
         float before = heart.health().current();
-        if (!heart.damageAt(hit.getBlockPos(), Math.min(damage, HeartHealth.MAX_CONFIGURED_HEALTH))) return;
+        if (!heart.modules().damageBoxes.bodyDamage(heart,arrow,hit.getBlockPos(),Math.min(damage,HeartHealth.MAX_CONFIGURED_HEALTH),true,false)) return;
         dev.sablelife.attack.AttackHitCredit.record(arrow,Math.max(0,before-heart.health().current()));
         hits.putBoolean(creature, true);
         arrow.getPersistentData().put(ARROW_HITS, hits);
@@ -167,6 +167,11 @@ public final class BodyCombat {
         level.playSound(null, worldHit.x, worldHit.y, worldHit.z,
                 critical ? SoundEvents.PLAYER_ATTACK_CRIT : SoundEvents.PLAYER_ATTACK_STRONG,
                 SoundSource.BLOCKS, 0.7F, critical ? 1.0F : 0.8F);
+        damageMessage(heart,damage,attacker);
+    }
+
+    /** Shared action-bar feedback; entity receivers call this only after deduplicated HP settlement. */
+    static void damageMessage(HeartBlockEntity heart,float damage,Player attacker){
         if (attacker != null) {
             attacker.displayClientMessage(Component.translatable("message.sablelife.hit", rounded(damage),
                     rounded(heart.health().current()), rounded(heart.health().maximum())).withStyle(

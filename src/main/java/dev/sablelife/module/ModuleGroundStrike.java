@@ -78,7 +78,7 @@ public final class ModuleGroundStrike {
         } else if (module.value("strikeMode") == 2) {
             ModuleTargets.query(level, heart.creatureId(), new AABB(origin, origin).inflate(module.value("strikeRange")), e -> eligible(e, module))
                     .stream().filter(e -> { double distance = ModuleArena.horizontalDistance(SableBodyProbe.toWorld(level, e.position()), origin); return distance >= module.value("strikeStart") && distance <= module.value("strikeRange"); })
-                    .sorted(Comparator.comparingDouble(e -> SableBodyProbe.toWorld(level, e.position()).distanceToSqr(origin))).limit(module.value("targetMultiple") == 1 ? 64 : 1)
+                    .sorted(ModuleTargets.comparator(heart,e -> SableBodyProbe.toWorld(level, e.position()).distanceToSqr(origin))).limit(module.value("targetMultiple") == 1 ? 64 : 1)
                     .forEach(e -> { var p = floor(level, heart, SableBodyProbe.toWorld(level, e.position())); if (p != null) result.add(p); });
         } else {
             var direction = ModuleCombat.direction(heart, module); direction = new Vec3(direction.x, 0, direction.z).normalize();
@@ -100,6 +100,15 @@ public final class ModuleGroundStrike {
         var offset = GroundStrikeScatter.sample(inner, outer, radial, angular);
         return origin.add(offset.x(), 0, offset.z());
     }
+    /** Geometric maximum before terrain and loaded-position checks. */
+    public static int plannedPointCount(VirtualModule module){
+        if(module.value("strikeStart")>module.value("strikeRange"))return 0;
+        if(module.value("strikeMode")==3)return (int)module.value("strikeRandomCount");
+        if(module.value("strikeMode")==2)return module.value("targetMultiple")==1?64:1;
+        int rays=module.value("strikeMode")==1?(int)module.value("strikeRays"):1;
+        return layers(module)*rays+(module.value("strikeStart")==0?1:0);
+    }
+
     private static double firstDistance(VirtualModule module) { return module.value("strikeStart") > 0 ? module.value("strikeStart") : Math.min(module.value("strikeStep"), module.value("strikeRange")); }
     private static int layers(VirtualModule module) {
         int rays = module.value("strikeMode") == 1 ? (int) module.value("strikeRays") : 1;
@@ -121,7 +130,12 @@ public final class ModuleGroundStrike {
             if (!module.type().equals("ground_strike") || !EmitterRuntime.active(module, heart)) continue;
             active.add(module.id()); var state = states.computeIfAbsent(module.id(), ignored -> new State());
             if (now >= state.due && state.pending.isEmpty() && EmitterRuntime.start(module,heart)) {
-                var points = pattern(level, heart, module); var origin = ModuleCombat.baseOrigin(heart,module);
+                var points = pattern(level, heart, module);
+                if(!points.isEmpty()&&!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,points.size())){
+                    state.due=now+(long)module.value("interval");
+                    continue;
+                }
+                var origin = ModuleCombat.baseOrigin(heart,module);
                 int randomIndex = 0;
                 for (var p : points) {
                     double distance = ModuleArena.horizontalDistance(p, origin);
@@ -171,7 +185,7 @@ public final class ModuleGroundStrike {
         if(strike.impactVisual.custom())strike.impactVisual.emit(level,strike.point);
         else dev.sablelife.module.ModuleParticles.send(level, ParticleTypes.EXPLOSION, strike.point.x, strike.point.y + .2, strike.point.z, Math.clamp((int) (strike.radius * 3), 2, 32), strike.radius * .3, .2, strike.radius * .3, 0);
         ModuleAudio.play(level,module.audioId(),strike.impactSound,strike.point);
-        for (var victim : ModuleTargets.query(level, heart.creatureId(), new AABB(strike.point, strike.point).inflate(strike.radius), e -> eligible(e, module))) {
+        for (var victim : ModuleTargets.damageQuery(level, heart.creatureId(), new AABB(strike.point, strike.point).inflate(strike.radius), e -> eligible(e, module))) {
             var box = victim.getBoundingBox();
             var nearest = new Vec3(Math.clamp(strike.point.x, box.minX, box.maxX), Math.clamp(strike.point.y, box.minY, box.maxY), Math.clamp(strike.point.z, box.minZ, box.maxZ));
             if (nearest.distanceToSqr(strike.point) > strike.radius * strike.radius) continue;

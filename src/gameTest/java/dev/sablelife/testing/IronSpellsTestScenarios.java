@@ -26,6 +26,22 @@ import java.util.*;
 public final class IronSpellsTestScenarios {
  private static HeartBlockEntity core(GameTestHelper h){return core(h,0);}
  private static HeartBlockEntity core(GameTestHelper h,int offset){var level=h.getLevel();var p=h.absolutePos(new BlockPos(5,40,5+offset));var blocks=List.of(p,p.east(),p.east(2));for(var b:blocks)level.setBlockAndUpdate(b,b.equals(p)?SableLife.HEART.get().defaultBlockState():Blocks.IRON_BLOCK.defaultBlockState());var body=SubLevelAssemblyHelper.assembleBlocks(level,p,blocks,new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+2,p.getY(),p.getZ()));var c=(HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());c.configure(1000,60);c.tryActivate(TestActors.creative(level));return c;}
+ public static void hybridProjectile(GameTestHelper h,int kind){
+  var c=core(h);var m=c.modules().add("entity_hitbox");m.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos().east(2),Direction.EAST)));m.edit("hitboxDamageMode",1,"");m.edit("hitboxWidth",2,"");c.modules().damageBoxes.tick(c);
+  if(kind==5){var armor=c.modules().add("armor");armor.anchors(m.anchors());ArmorTestSupport.set(c,armor,-100);}
+  h.runAfterDelay(4,()->{
+   var level=h.getLevel();var center=SableBodyProbe.toWorld(level,c.getBlockPos().east(2).getCenter());var caster=TestActors.creative(level);caster.setPos(center.add(5,0,0));caster.setHealth(10);
+   AbstractMagicProjectile shot=switch(kind){case 0->new MagicMissileProjectile(level,caster);case 1,4->new FireArrowProjectile(level,caster);case 2->new MagicFireball(level,caster);default->new io.redspace.ironsspellbooks.entity.spells.blood_slash.BloodSlashProjectile(level,caster);};
+   shot.setPos(center.add(1.5,0,0));shot.setDeltaMovement(-3,0,0);shot.setNoGravity(true);shot.setDamage(20);shot.setExplosionRadius(4);
+   java.util.function.Consumer<net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent> cancel=e->{if(kind==4&&e.getEntity() instanceof EntityHitbox box&&box.core()==c)e.setCanceled(true);};
+   net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(net.neoforged.bus.api.EventPriority.HIGHEST,cancel);
+   boolean old=ServerConfigs.SPELL_GREIFING.get();try{ServerConfigs.SPELL_GREIFING.set(true);shot.tick();c.modules().damageBoxes.flush(c);
+    float loss=1000-c.health().current();if(kind==4||kind==5){h.assertTrue(loss==0&&caster.getHealth()==10,"Canceled/immune spell damaged core or granted lifesteal: kind="+kind+" loss="+loss+" caster="+caster.getHealth());}else h.assertTrue(loss>0&&loss<=20.001,"Hybrid native spell lost or duplicated damage: kind="+kind+" loss="+loss);
+    if(kind==0||kind==1)h.assertTrue(Math.abs(loss-20)<.01,"Direct spell lost its full damage: "+loss);
+    if(kind==3)h.assertTrue(Math.abs(caster.getHealth()-(10+loss*.15))<.01,"Blood slash healed more than actual core loss");
+   }finally{net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(cancel);ServerConfigs.SPELL_GREIFING.set(old);shot.discard();}h.succeed();
+  });
+ }
  private static long entities(ServerLevel l){return java.util.stream.StreamSupport.stream(l.getAllEntities().spliterator(),false).count();}
  private static final class AddonMissile extends MagicMissileProjectile {
   Vec3 impact;AddonMissile(ServerLevel l,LivingEntity caster){super(l,caster);}

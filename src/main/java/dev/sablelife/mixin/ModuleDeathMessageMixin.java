@@ -15,6 +15,6 @@ public abstract class ModuleDeathMessageMixin {
     private void sablelife$projectileDeath(LivingEntity victim,CallbackInfoReturnable<Component> cir){
         var source=(DamageSource)(Object)this;var projectile=source.getDirectEntity();
         if(projectile!=null&&projectile.getPersistentData().contains(ModuleDamage.ATTACK_NAME))
-            cir.setReturnValue(ModuleDamage.deathMessage(victim,CreatureNames.killer(projectile.getPersistentData().getString(ModuleDamage.ATTACK_NAME))));
+            cir.setReturnValue(ModuleDamage.deathMessage(victim,CreatureNames.killer(projectile.getPersistentData().getString(ModuleDamage.ATTACK_NAME),projectile.getPersistentData().getString(ModuleDamage.ATTACK_PLAYER_OWNER))));
     }
 }

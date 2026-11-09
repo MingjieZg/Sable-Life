@@ -10,7 +10,7 @@ public final class PhotomancyApiContract {
     static final String API = "dev/rew1nd/sableschematicapi/";
     private static final String BRIDGE = "dev/sablelife/compat/photomancy/";
     private static final List<String> CONSUMERS = List.of(BRIDGE+"HeartBlueprintMapper", BRIDGE+"HeartBlueprintMapper$1",
-            BRIDGE+"PhotomancyRespawnBridge", BRIDGE+"PhotomancyRespawnBridge$Build", "dev/sablelife/mixin/RespawnBlueprintNbtMixin");
+            BRIDGE+"SpawnTemplateBridge", BRIDGE+"PhotomancyRespawnBridge", BRIDGE+"PhotomancyRespawnBridge$Build", "dev/sablelife/mixin/RespawnBlueprintNbtMixin");
     public record Result(boolean compatible, String reason) {}
     private record Member(String owner, String name, String descriptor, boolean field, boolean isStatic, Boolean interfaceOwner) {}
 

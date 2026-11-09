@@ -28,23 +28,32 @@ public final class ArenaRespawns extends SavedData {
  private static final class Entry {
   UUID id,creature,module,templateModule,display;
   ResourceLocation dimension;Vec3 center;CompoundTag template,progress=new CompoundTag();
-  int delay,remaining;String phase="ready";Set<UUID> oldBodies=new HashSet<>(),newBodies=new HashSet<>();
+  int delay,remaining;String phase="ready",name="";Set<UUID> oldBodies=new HashSet<>(),newBodies=new HashSet<>();
   transient Build build;transient int shown=-1;
  }
  public static boolean available(){return dev.sablelife.compat.photomancy.PhotomancyCompatibility.available();}
  public static ArenaRespawns get(MinecraftServer server){return server.overworld().getDataStorage().computeIfAbsent(new Factory<>(ArenaRespawns::new,ArenaRespawns::load),"sablelife_arena_respawns");}
+ public static void reconcile(HeartBlockEntity heart){
+  if(!(heart.getLevel() instanceof ServerLevel level))return;var data=get(level.getServer());
+  for(var e:List.copyOf(data.entries.values()))if(e.creature.equals(heart.creatureId())&&e.phase.equals("ready")){
+   var module=heart.modules().find(e.module);
+   if(module==null||!module.type().equals("arena"))data.remove(level.getServer(),e);
+  }
+ }
+ static boolean referencesDeath(MinecraftServer server,UUID owner){return get(server).entries.values().stream().anyMatch(e->e.creature.equals(owner)&&!e.phase.equals("ready"));}
+ static void retireIdleOwner(MinecraftServer server,UUID owner){var data=get(server);for(var e:List.copyOf(data.entries.values()))if(e.creature.equals(owner)&&e.phase.equals("ready"))data.remove(server,e);}
  private Entry find(HeartBlockEntity heart,UUID module){return entries.values().stream().filter(e->e.creature.equals(heart.creatureId())&&e.module.equals(module)).findFirst().orElse(null);}
  public int count(){return entries.size();}
  public static boolean record(ServerPlayer player,HeartBlockEntity heart,VirtualModule module){
   if(!dev.sablelife.module.ModuleAvailability.enabled(false,"arena")||!available()||!player.isCreative()||!player.canUseGameMasterBlocks()||!heart.canAccessEditor(player)||heart.isControlCore()||module==null||!module.type().equals("arena")||module.arenaCenter()==null||!module.arenaDimension().equals(player.level().dimension().location().toString())||heart.health().state()==HeartState.DYING||heart.health().state()==HeartState.DEAD)return false;
-  var data=get(player.server);var existing=data.find(heart,module.id());
+  reconcile(heart);var data=get(player.server);var existing=data.find(heart,module.id());
   if(existing==null&&(data.entries.size()>=LIMIT||data.entries.values().stream().anyMatch(e->e.creature.equals(heart.creatureId()))))return false;
   try{
    var template=PhotomancyRespawnBridge.capture(heart,module.arenaCenter());
    long total=template.sizeInBytes();for(var old:data.entries.values())if(old!=existing)total+=old.template.sizeInBytes();
    ArenaRespawnLimits.check("world_templates",total,dev.sablelife.SableLifeServerConfig.arenaWorldTemplateBytes());
    var e=new Entry();e.id=existing==null?UUID.randomUUID():existing.id;e.creature=heart.creatureId();e.module=module.id();e.templateModule=module.id();e.dimension=player.level().dimension().location();e.center=module.arenaCenter();e.template=template;e.delay=Math.clamp((int)module.value("arenaRespawnDelay"),100,72000);
-   data.entries.put(e.id,e);data.setDirty();heart.modules().changed();heart.setChanged();return true;
+   e.name=heart.creatureName();data.entries.put(e.id,e);data.setDirty();heart.modules().changed();heart.setChanged();return true;
   }catch(ArenaRespawnLimits.Exceeded failure){player.displayClientMessage(Component.translatable("arena_respawn.sablelife.record_limit",Component.translatable("arena_respawn.sablelife.limit_"+failure.kind),failure.actual,failure.maximum),false);com.mojang.logging.LogUtils.getLogger().warn("Arena capture {} rejected: {} {} > {}",heart.creatureId(),failure.kind,failure.actual,failure.maximum);return false;
   }catch(IllegalArgumentException failure){player.displayClientMessage(Component.translatable("arena_respawn.sablelife.record_failed",Component.translatable("arena_respawn.sablelife.error_"+failure.getMessage())),false);return false;}
  }
@@ -62,12 +71,20 @@ public final class ArenaRespawns extends SavedData {
   for(var e:data.entries.values())if(e.creature.equals(heart.creatureId())&&e.phase.equals("ready")){
    var module=heart.modules().find(e.module);
    if(module==null||!dev.sablelife.module.ModuleAvailability.enabled(heart,module)||!module.enabled()||module.value("arenaRespawnEnabled")!=1||module.arenaCenter()==null||!module.arenaDimension().equals(e.dimension.toString()))continue;
-   e.center=module.arenaCenter();e.delay=Math.clamp((int)module.value("arenaRespawnDelay"),100,72000);e.remaining=e.delay;e.phase="countdown";
+   e.center=module.arenaCenter();e.name=heart.creatureName();e.delay=Math.clamp((int)module.value("arenaRespawnDelay"),100,72000);e.remaining=e.delay;e.phase="countdown";
    var root=dev.ryanhcode.sable.Sable.HELPER.getContaining(level,heart.getBlockPos());
    e.oldBodies.addAll(BodyOwnership.get(level).bodyIds(level,heart.creatureId()));
    if(root!=null)for(var body:dev.ryanhcode.sable.api.SubLevelHelper.getConnectedChain(root))e.oldBodies.add(body.getUniqueId());
    data.setDirty();
   }
+ }
+ /** Keep recorded authoring data, cancel the previous life's detached job. */
+ public static void resetForRelease(HeartBlockEntity heart,UUID nextCreature){
+  if(!(heart.getLevel() instanceof ServerLevel level))return;var data=get(level.getServer());
+  for(var e:List.copyOf(data.entries.values()))if(e.creature.equals(heart.creatureId())){
+   data.remove(level.getServer(),e);var module=heart.modules().find(e.module);if(module==null||!module.type().equals("arena"))continue;
+   e.creature=nextCreature;e.phase="ready";e.remaining=0;e.build=null;e.progress=new CompoundTag();e.oldBodies.clear();e.newBodies.clear();e.display=null;e.shown=-1;data.entries.put(e.id,e);
+  }data.setDirty();
  }
  public static void release(HeartBlockEntity heart){if(!(heart.getLevel() instanceof ServerLevel level))return;var data=get(level.getServer());for(var e:List.copyOf(data.entries.values()))if(e.creature.equals(heart.creatureId()))data.remove(level.getServer(),e);}
  private static boolean loaded(ServerLevel level,AABB bounds){
@@ -123,7 +140,10 @@ public final class ArenaRespawns extends SavedData {
   Display.TextDisplay text=e.display==null?null:level.getEntity(e.display) instanceof Display.TextDisplay t?t:null;
   if(text==null){text=EntityType.TEXT_DISPLAY.create(level);if(text==null)return;if(e.display!=null)text.setUUID(e.display);text.setPos(displayPoint);text.setNoGravity(true);text.addTag("sablelife_arena_respawn");text.getPersistentData().putUUID("SableLifeArenaRecord",e.id);if(!level.addFreshEntity(text))return;e.display=text.getUUID();setDirty();}
   if(!text.position().equals(displayPoint))text.setPos(displayPoint);
-  var label=Component.translatable("arena_respawn.sablelife."+phase,seconds).append("\n").append(Component.literal("■".repeat(filled)+"□".repeat(20-filled)).withStyle(net.minecraft.ChatFormatting.YELLOW));
+  var label=Component.translatable("arena_respawn.sablelife."+phase,seconds).append("\n").append(Component.literal("â– ".repeat(filled)+"â–¡".repeat(20-filled)).withStyle(net.minecraft.ChatFormatting.YELLOW));
+  // Keep a translatable arena root so the existing shader label path recognizes it.
+  var name=CreatureNames.formatted(e.name);if(name.getString().isBlank())name=Component.translatable("entity.sablelife.creature");
+  label=Component.translatable("arena_respawn.sablelife.named",name,label);
   var access=(dev.sablelife.mixin.RespawnTextDisplayAccess)(Object)text;access.sablelife$text(label);access.sablelife$background(0xAA101018);access.sablelife$flags((byte)3);access.sablelife$lineWidth(256);((dev.sablelife.mixin.RespawnDisplayAccess)(Object)text).sablelife$billboard(Display.BillboardConstraints.CENTER);e.shown=key;
  }
  private void remove(MinecraftServer server,Entry e){
@@ -146,7 +166,7 @@ public final class ArenaRespawns extends SavedData {
  }
  public static void commands(RegisterCommandsEvent event){event.getDispatcher().register(net.minecraft.commands.Commands.literal("sablelife_respawn").requires(s->s.hasPermission(2)).then(net.minecraft.commands.Commands.literal("cancel").executes(ctx->{var source=ctx.getSource();var data=get(source.getServer());var e=data.entries.values().stream().filter(v->v.dimension.equals(source.getLevel().dimension().location())&&cancelDistance(source.getLevel(),v,source.getPosition())<64*64).min(Comparator.comparingDouble(v->cancelDistance(source.getLevel(),v,source.getPosition()))).orElse(null);if(e==null){if(!data.cancelOrphan(source.getLevel(),source.getPosition()))return 0;}else data.remove(source.getServer(),e);source.sendSuccess(()->Component.translatable("arena_respawn.sablelife.cancelled"),false);return 1;})));}
  @Override public CompoundTag save(CompoundTag tag,HolderLookup.Provider lookup){var list=new ListTag();for(var e:entries.values()){
-  var t=new CompoundTag();t.putUUID("Id",e.id);t.putUUID("Creature",e.creature);t.putUUID("Module",e.module);t.putUUID("TemplateModule",e.templateModule);t.putString("Dimension",e.dimension.toString());t.putDouble("X",e.center.x);t.putDouble("Y",e.center.y);t.putDouble("Z",e.center.z);t.put("Template",e.template);t.put("Progress",e.progress);t.putInt("Delay",e.delay);t.putInt("Remaining",e.remaining);t.putString("Phase",e.phase);if(e.display!=null)t.putUUID("Display",e.display);var bodies=new ListTag();for(var id:e.oldBodies){var body=new CompoundTag();body.putUUID("Id",id);bodies.add(body);}t.put("OldBodies",bodies);var created=new ListTag();for(var id:e.newBodies){var body=new CompoundTag();body.putUUID("Id",id);created.add(body);}t.put("NewBodies",created);list.add(t);
+  var t=new CompoundTag();t.putUUID("Id",e.id);t.putUUID("Creature",e.creature);t.putUUID("Module",e.module);t.putUUID("TemplateModule",e.templateModule);t.putString("CreatureName",e.name);t.putString("Dimension",e.dimension.toString());t.putDouble("X",e.center.x);t.putDouble("Y",e.center.y);t.putDouble("Z",e.center.z);t.put("Template",e.template);t.put("Progress",e.progress);t.putInt("Delay",e.delay);t.putInt("Remaining",e.remaining);t.putString("Phase",e.phase);if(e.display!=null)t.putUUID("Display",e.display);var bodies=new ListTag();for(var id:e.oldBodies){var body=new CompoundTag();body.putUUID("Id",id);bodies.add(body);}t.put("OldBodies",bodies);var created=new ListTag();for(var id:e.newBodies){var body=new CompoundTag();body.putUUID("Id",id);created.add(body);}t.put("NewBodies",created);list.add(t);
  }tag.put("Entries",list);return tag;}
  public static ArenaRespawns load(CompoundTag tag,HolderLookup.Provider lookup){var data=new ArenaRespawns();long totalTemplateBytes=0;for(var item:tag.getList("Entries",10)){
   if(data.entries.size()>=LIMIT)break;var t=(CompoundTag)item;if(!t.hasUUID("Id")||!t.hasUUID("Creature")||!t.hasUUID("Module")||!t.hasUUID("TemplateModule"))continue;
@@ -154,6 +174,6 @@ public final class ArenaRespawns extends SavedData {
   if(dim==null||!Double.isFinite(center.lengthSqr())||Math.abs(center.x)>30000000||Math.abs(center.z)>30000000||template.isEmpty()||template.sizeInBytes()>dev.sablelife.SableLifeServerConfig.arenaTemplateBytes())continue;
   if(totalTemplateBytes+template.sizeInBytes()>dev.sablelife.SableLifeServerConfig.arenaWorldTemplateBytes()||data.entries.containsKey(t.getUUID("Id")))continue;
   totalTemplateBytes+=template.sizeInBytes();
-  var e=new Entry();e.id=t.getUUID("Id");e.creature=t.getUUID("Creature");e.module=t.getUUID("Module");e.templateModule=t.getUUID("TemplateModule");e.dimension=dim;e.center=center;e.template=template;e.progress=t.getCompound("Progress");e.delay=Math.clamp(t.getInt("Delay"),100,72000);e.remaining=Math.clamp(t.getInt("Remaining"),0,e.delay);e.phase=Set.of("ready","countdown","building","failed").contains(t.getString("Phase"))?t.getString("Phase"):"failed";if(t.hasUUID("Display"))e.display=t.getUUID("Display");for(var b:t.getList("OldBodies",10)){if(e.oldBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.oldBodies.add(v.getUUID("Id"));}for(var b:t.getList("NewBodies",10)){if(e.newBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.newBodies.add(v.getUUID("Id"));}data.entries.put(e.id,e);
- }return data;}
+  var e=new Entry();e.name=t.getString("CreatureName");if(e.name.codePointCount(0,e.name.length())>64||e.name.codePoints().anyMatch(Character::isISOControl))e.name="";e.id=t.getUUID("Id");e.creature=t.getUUID("Creature");e.module=t.getUUID("Module");e.templateModule=t.getUUID("TemplateModule");e.dimension=dim;e.center=center;e.template=template;e.progress=t.getCompound("Progress");e.delay=Math.clamp(t.getInt("Delay"),100,72000);e.remaining=Math.clamp(t.getInt("Remaining"),0,e.delay);e.phase=Set.of("ready","countdown","building","failed").contains(t.getString("Phase"))?t.getString("Phase"):"failed";if(t.hasUUID("Display"))e.display=t.getUUID("Display");for(var b:t.getList("OldBodies",10)){if(e.oldBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.oldBodies.add(v.getUUID("Id"));}for(var b:t.getList("NewBodies",10)){if(e.newBodies.size()>=ArenaRespawnLimits.PARTS)break;var v=(CompoundTag)b;if(v.hasUUID("Id"))e.newBodies.add(v.getUUID("Id"));}data.entries.put(e.id,e);
+  }return data;}
 }

@@ -226,8 +226,8 @@ public final class ModuleEvents {
     }
     private boolean detect(ServerLevel level, HeartBlockEntity heart, VirtualModule module) {
         var center = module.anchors().getFirst().world(heart, false);
-        for (var target : ModuleTargets.query(level, heart.creatureId(), new AABB(center, center).inflate(module.value("radius") + 2),
-                e -> e.isAlive() && !e.isSpectator() && !(e instanceof Player p && p.isCreative()))) {
+        for (var target : ModuleTargets.queryForModule(level, heart, module, new AABB(center, center).inflate(module.value("radius") + 2),
+                e -> e.isAlive() && !e.isSpectator() && !(e instanceof Player p && p.isCreative()&&module.value("target")!=4))) {
             if (!ModuleTargets.matches(target,module)) continue;
             var point = SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter()); var delta = point.subtract(center);
             if (!withinShape(heart, module, delta)) continue;

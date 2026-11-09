@@ -63,6 +63,27 @@ public final class CreativeReleaseToolItem extends Item {
         return InteractionResult.CONSUME;
     }
 
+    /** Invisible receivers must never trap an author outside the core's block interaction. */
+    public static InteractionResult releaseReceiver(net.minecraft.world.entity.player.Player player,dev.sablelife.combat.EntityHitbox receiver,net.minecraft.world.InteractionHand hand){
+        boolean survival=player.getItemInHand(hand).getItem() instanceof SurvivalReleaseToolItem;
+        if(!survival&&!(player.getItemInHand(hand).getItem() instanceof CreativeReleaseToolItem))return InteractionResult.PASS;
+        if(!survival&&!player.isCreative()){
+            if(!player.level().isClientSide)player.displayClientMessage(Component.translatable("message.sablelife.release_creative_only"),true);
+            return InteractionResult.FAIL;
+        }
+        if(receiver.isRemoved()||player.level()!=receiver.level())return InteractionResult.FAIL;
+        var eye=player.getEyePosition();var b=receiver.getBoundingBox();
+        var nearest=new Vec3(net.minecraft.util.Mth.clamp(eye.x,b.minX,b.maxX),net.minecraft.util.Mth.clamp(eye.y,b.minY,b.maxY),net.minecraft.util.Mth.clamp(eye.z,b.minZ,b.maxZ));
+        double range=player.entityInteractionRange()+1;
+        if(eye.distanceToSqr(nearest)>range*range)return InteractionResult.FAIL;
+        if(player.level().isClientSide)return InteractionResult.SUCCESS;
+        var core=receiver.core();
+        if(core==null||core.modules().damageBoxes.active(core,receiver.moduleId())==null)return InteractionResult.FAIL;
+        boolean released=survival?dev.sablelife.heart.CoreRelease.releaseSurvival(core,player)
+                :dev.sablelife.heart.CoreRelease.release(core,player);
+        return released?InteractionResult.CONSUME:InteractionResult.FAIL;
+    }
+
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         tooltip.add(Component.translatable("tooltip.sablelife.release_creative_only").withStyle(ChatFormatting.GOLD));

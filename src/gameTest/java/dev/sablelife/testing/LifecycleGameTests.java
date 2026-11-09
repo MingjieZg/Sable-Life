@@ -117,6 +117,94 @@ public final class LifecycleGameTests {
         });
     }
 
+    @GameTest(template = "combat", batch="lifecycle_mining_drops")
+    public static void MiningDropsRequireOptInAndPlayerBreak(GameTestHelper helper) {
+        var heart = fixture(helper, true);
+        var level = helper.getLevel();
+        var author = TestActors.creative(level);
+        author.setPos(dev.sablelife.module.ModuleArena.corePosition(heart));
+        var miner = FakePlayerFactory.get(level, new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "BodyMiner"));
+        miner.setGameMode(GameType.SURVIVAL);
+        miner.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(Items.IRON_PICKAXE));
+        var pos = helper.absolutePos(new BlockPos(3, 7, 3));
+        miner.setPos(pos.getCenter());
+        var area = new net.minecraft.world.phys.AABB(pos).inflate(2);
+        Runnable place = () -> {
+            level.setBlockAndUpdate(pos, Blocks.IRON_BLOCK.defaultBlockState());
+            BodyOwnership.get(level).bind(pos, heart.creatureId());
+        };
+        place.run();
+        helper.assertTrue(miner.gameMode.destroyBlock(pos) && level.getEntitiesOfClass(ItemEntity.class, area).isEmpty(), "Owned block dropped by default");
+        helper.assertTrue(heart.editCore(author, "miningDrops", 1, ""), "Mining drops could not be enabled");
+        place.run();
+        helper.assertTrue(level.destroyBlock(pos, true) && level.getEntitiesOfClass(ItemEntity.class, area).isEmpty(), "Non-player destruction used mining permission");
+        place.run();
+        helper.assertTrue(level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_DOBLOCKDROPS), "Test world has block drops disabled");
+        helper.assertTrue(!miner.isCreative() && level.getBlockState(pos).canHarvestBlock(level, pos, miner), "Test player cannot harvest iron");
+        helper.assertTrue(LifeLifecycle.get(level.getServer()).miningDrops(heart.creatureId()), "Active owner missing mining permission, state=" + heart.health().state());
+        helper.assertTrue(miner.gameMode.destroyBlock(pos), "Survival player could not mine owned block");
+        helper.assertTrue(level.getBlockState(pos).isAir(), "Player break did not remove the test block");
+        helper.assertTrue(level.getEntitiesOfClass(ItemEntity.class, area).stream().anyMatch(item -> item.getItem().is(Items.IRON_BLOCK)), "Opted-in mining did not drop the block");
+        var saved = LifeLifecycle.get(level.getServer()).save(new CompoundTag(), level.registryAccess());
+        helper.assertTrue(LifeLifecycle.load(saved, level.registryAccess()).miningDrops(heart.creatureId()), "Mining permission was lost on save");
+        helper.succeed();
+    }
+
+    @GameTest(template = "combat", batch="ordinary_limb_cleanup", timeoutTicks=110)
+    public static void DetachedLimbCleansWithoutDropsAfterDelay(GameTestHelper helper) {
+        var heart = fixture(helper, true);
+        var level = helper.getLevel();
+        var author = TestActors.creative(level);
+        helper.assertTrue(!heart.limbCleanup().enabled() && heart.limbCleanup().delay() == 3, "Unexpected defaults");
+        helper.assertTrue(heart.editCore(author, "limbCleanup", 1, ""), "Could not enable limb cleanup");
+        var limb = detach(helper, heart);
+        heart.wireless().master(false);
+        helper.runAfterDelay(35, () -> {
+            helper.assertTrue(!limb.isRemoved(), "Limb was removed before the configured delay");
+            helper.assertTrue(heart.limbCleanup().save().getList("Pending", 10).size() == 1, "Pending cleanup was not saved");
+            helper.assertTrue(heart.copyConfiguration().getCompound("DetachedLimbCleanup").getList("Pending", 10).isEmpty(), "Copied config included runtime cleanup");
+        });
+        helper.runAfterDelay(85, () -> {
+            helper.assertTrue(limb.isRemoved() && !heart.isRemoved(), "Cleanup missed the detached limb or removed the core");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "combat", batch="ordinary_limb_release", timeoutTicks=110)
+    public static void ReleasingLifeCancelsDetachedLimbCleanup(GameTestHelper helper) {
+        var heart = fixture(helper, true);
+        var author = TestActors.creative(helper.getLevel());
+        helper.assertTrue(heart.editCore(author, "limbCleanup", 1, ""), "Could not enable limb cleanup");
+        var limb = detach(helper, heart);
+        helper.runAfterDelay(25, () -> {
+            helper.assertTrue(heart.limbCleanup().save().getList("Pending", 10).size() == 1, "Limb cleanup did not start");
+            helper.assertTrue(heart.resetForCreative(author), "Release was rejected");
+        });
+        helper.runAfterDelay(85, () -> {
+            helper.assertTrue(!limb.isRemoved() && heart.limbCleanup().save().getList("Pending", 10).isEmpty(), "Release left a destructive timer");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "combat", batch="ordinary_limb_loot_priority", timeoutTicks=70)
+    public static void LootClaimTakesPriorityOverOrdinaryLimbCleanup(GameTestHelper helper) {
+        var heart = fixture(helper, true);
+        var level = helper.getLevel();
+        var author = TestActors.creative(level);
+        helper.assertTrue(heart.editCore(author, "limbCleanupDelay", 1, "") && heart.editCore(author, "limbCleanup", 1, ""), "Could not configure cleanup");
+        var limb = detach(helper, heart);
+        helper.assertTrue(BodyOwnership.get(level).claimPart(level, limb.getPlot().getCenterBlock(), heart.creatureId(), java.util.UUID.randomUUID()), "Could not claim loot limb");
+        helper.runAfterDelay(45, () -> {
+            helper.assertTrue(!limb.isRemoved() && heart.limbCleanup().save().getList("Pending", 10).isEmpty(), "Ordinary cleanup queued a claimed loot limb");
+            helper.succeed();
+        });
+    }
+
+    private static dev.ryanhcode.sable.sublevel.ServerSubLevel detach(GameTestHelper helper, HeartBlockEntity heart) {
+        var pos = heart.getBlockPos().east();
+        return SubLevelAssemblyHelper.assembleBlocks(helper.getLevel(), pos, List.of(pos), bounds(pos, pos));
+    }
+
     private static HeartBlockEntity fixture(GameTestHelper helper, boolean breaking) {
         var level = helper.getLevel();
         var origin = helper.absolutePos(new BlockPos(5, 7, 5));

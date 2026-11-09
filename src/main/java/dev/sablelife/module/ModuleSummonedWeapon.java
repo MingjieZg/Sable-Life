@@ -25,7 +25,7 @@ public final class ModuleSummonedWeapon {
         final VirtualModule lifecycle;final Vec3 fixedPoint,fixedDirection,localOffset;final ModuleCombat combat=new ModuleCombat();final ModuleLaser laser=new ModuleLaser();final ModuleSlash slash=new ModuleSlash();final ModuleGroundStrike strike=new ModuleGroundStrike();final ModuleQuake quake=new ModuleQuake();final ModulePull pull=new ModulePull();final ModuleFreeze freeze=new ModuleFreeze();final ModuleGrab grab=new ModuleGrab();
         UUID target;long targetRevision=Long.MIN_VALUE;Vec3 direction;Frame frame;Visual display;boolean started,finished;
         State(VirtualModule source,VirtualModule summon,Vec3 point,Vec3 forward,Vec3 localOffset,long spawnAt,UUID audioId){
-            attack=VirtualModule.load(source.save());attack.edit("enabled",1,"");attack.edit("trigger",0,"");attack.edit("shotAim",0,"");attack.edit("laserAim",0,"");attack.edit("sweepAngle",0,"");attack.edit("target",summon.value("target"),"");attack.edit("releasePosition",0,"");attack.edit("quakeOrigin",0,"");lifecycle=VirtualModule.load(summon.save());
+            attack=VirtualModule.load(source.save());attack.edit("enabled",1,"");attack.edit("trigger",0,"");attack.edit("shotAim",0,"");attack.edit("laserAim",0,"");attack.edit("sweepAngle",0,"");attack.edit("verticalSweepAngle",0,"");attack.edit("target",summon.value("target"),"");attack.edit("releasePosition",0,"");attack.edit("quakeOrigin",0,"");lifecycle=VirtualModule.load(summon.save());
             fixedPoint=point;fixedDirection=forward;direction=forward;this.localOffset=localOffset;this.spawnAt=spawnAt;end=spawnAt+(long)summon.value("summonDuration");attackAt=spawnAt+(long)summon.value("summonWindup");this.audioId=audioId;
         }
     }
@@ -80,7 +80,7 @@ public final class ModuleSummonedWeapon {
             var source=heart.modules().find(m.summonAttackId());if(source==null||!ModuleAvailability.enabled(heart,source)||!ATTACKS.contains(source.type())||m.projectileItem(level.registryAccess()).isEmpty())continue;
             // Bound concurrent independent attacks, including pending staggered members.
             long live=states.values().stream().flatMap(List::stream).flatMap(g->g.members.stream()).filter(x->!x.finished).count();
-            if(live+(int)m.value("summonCount")>256)continue;
+            if(live+(int)m.value("summonCount")>256||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,1))continue;
             var groups=states.computeIfAbsent(m.id(),id->new ArrayList<>());groups.removeIf(g->g.members.stream().allMatch(x->x.finished));groups.add(new Group(heart,source,m,now,token));
         }
         held.keySet().retainAll(powered);
@@ -135,7 +135,7 @@ public final class ModuleSummonedWeapon {
         var dust=new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.25F,1,.5F),1);var aimDust=new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.3F,.65F,1),1);var previews=new net.minecraft.nbt.ListTag();double half=m.value("displaySize")/2;int detail=points.size()>8?2:8,rays=points.size()>8?4:12;
         for(var point:points){var aim=direction;var target=m.value("summonAim")==1?targets.point(targets.select(null,point,m.value("targetRange"),true)):null;if(target!=null&&target.distanceToSqr(point)>1e-9)aim=turn(direction,target.subtract(point),m.value("summonTurnSpeed"));var frame=frame(m,point,aim);
             var row=new CompoundTag();row.put("Item",m.projectileItem(player.registryAccess()).save(player.registryAccess()));row.putDouble("X",point.x);row.putDouble("Y",point.y);row.putDouble("Z",point.z);row.putFloat("Size",(float)m.value("displaySize"));row.putDouble("QX",frame.visual.x);row.putDouble("QY",frame.visual.y);row.putDouble("QZ",frame.visual.z);row.putDouble("QW",frame.visual.w);previews.add(row);
-            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,new ModuleNetworking.ParticleVisual("sablelife:energy_mote",frame.muzzle,1,Vec3.ZERO,0,60,.35F,0xFFAA33));
+            row.putDouble("MuzzleX",frame.muzzle.x);row.putDouble("MuzzleY",frame.muzzle.y);row.putDouble("MuzzleZ",frame.muzzle.z);
             for(int axis=0;axis<3;axis++)for(int i=0;i<=detail;i++){var v=new org.joml.Vector3d();v.setComponent(axis,-half+2*half*i/detail);frame.visual.transform(v);var p=point.add(v.x,v.y,v.z);((ServerLevel)player.level()).sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);}
             for(int i=0;i<=rays;i++){var p=frame.muzzle.add(frame.direction.scale(3.*i/rays));((ServerLevel)player.level()).sendParticles(player,aimDust,true,p.x,p.y,p.z,1,0,0,0,0);}
         }

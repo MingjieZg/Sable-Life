@@ -55,4 +55,12 @@ public final class IronSpellsGameTests {
  @GameTest(template="combat",batch="iron_ice_burst") public static void IceBlockGroundImpactKeepsCubicFalloff(GameTestHelper h){IronSpellsTestScenarios.remaining(h,4);}
  @GameTest(template="combat",batch="iron_fang_cast") public static void NativeFangCastUsesWorldGroundAndPhysicalBodyContact(GameTestHelper h){IronSpellsTestScenarios.fangCast(h);}
  @GameTest(template="combat",batch="iron_ice_cast") public static void IceBlockNativeFallbackDoesNotRequireBodyEntityLockOn(GameTestHelper h){IronSpellsTestScenarios.iceCast(h);}
+ @GameTest(template="combat",batch="iron_hybrid_missile") public static void HybridMissileUsesOneHealthPool(GameTestHelper h){IronSpellsTestScenarios.hybridProjectile(h,0);}
+ @GameTest(template="combat",batch="iron_hybrid_fire_arrow") public static void HybridFireArrowRetainsDirectDamageWithoutVisualExplosionDuplication(GameTestHelper h){IronSpellsTestScenarios.hybridProjectile(h,1);}
+ @GameTest(template="combat",batch="iron_hybrid_fireball") public static void HybridFireballDoesNotAddTerrainExplosion(GameTestHelper h){IronSpellsTestScenarios.hybridProjectile(h,2);}
+ @GameTest(template="combat",batch="iron_hybrid_blood") public static void HybridBloodSlashLifestealUsesActualLoss(GameTestHelper h){IronSpellsTestScenarios.hybridProjectile(h,3);}
+
+ @GameTest(template="combat",batch="iron_hybrid_cancel") public static void HybridFireArrowHonorsNativeReceiverCancellation(GameTestHelper h){IronSpellsTestScenarios.hybridProjectile(h,4);}
+ @GameTest(template="combat",batch="iron_hybrid_immune_blood") public static void HybridImmuneBloodSlashDoesNotGrantLifesteal(GameTestHelper h){IronSpellsTestScenarios.hybridProjectile(h,5);}
+
 }

@@ -26,7 +26,7 @@ public final class HeartHealth {
         Objects.requireNonNull(state);
         if (!Float.isFinite(current) || current < 0 || current > maximum) throw new IllegalArgumentException("Invalid health");
         if (remaining < 0 || remaining > deathDelay) throw new IllegalArgumentException("Invalid death countdown");
-        if ((state == HeartState.ALIVE || state == HeartState.DORMANT) && current <= 0) {
+        if (state == HeartState.ALIVE && current <= 0) {
             throw new IllegalArgumentException("Living core must have positive health");
         }
         if ((state == HeartState.DEAD || state == HeartState.DYING) && current != 0) {
@@ -39,7 +39,7 @@ public final class HeartHealth {
     }
 
     public boolean activate() {
-        if (state != HeartState.DORMANT) return false;
+        if (state != HeartState.DORMANT || current <= 0) return false;
         state = HeartState.ALIVE;
         return true;
     }

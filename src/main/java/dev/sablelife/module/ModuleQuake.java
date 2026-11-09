@@ -60,7 +60,7 @@ public final class ModuleQuake {
         double radius = m.value("quakeDetectRange");
         return ModuleTargets.query(level, heart.creatureId(), new AABB(origin, origin).inflate(radius), e -> eligible(e, m))
                 .stream().filter(e -> e.position().distanceToSqr(origin) <= radius * radius)
-                .sorted(Comparator.comparingDouble(e -> e.position().distanceToSqr(origin))).toList();
+                .sorted(ModuleTargets.comparator(heart,e -> e.position().distanceToSqr(origin))).toList();
     }
     private static boolean path(VirtualModule m, Vec3 d, Vec3 delta, double previous, double current) {
         if (m.value("quakeMode") == 2) return Math.hypot(delta.x, delta.z) <= m.value("quakeRange");
@@ -105,6 +105,7 @@ public final class ModuleQuake {
                     .distinct().limit(module.value("targetMultiple") == 1 ? 64 : 1).toList();
             if (centers.isEmpty()) return false;
         }
+        if(!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,centers.size()))return false;
         origin = centers.getFirst();
         s.cast = EmitterRuntime.copy(module); s.origin = origin; s.direction = direction(heart, module);
         s.start = now + (long) module.value("warningTime");
@@ -146,7 +147,7 @@ public final class ModuleQuake {
     }
     private void waveAt(HeartBlockEntity heart, State s, int wave, double previous, double current) {
         var m = s.cast; var hits = s.hit.computeIfAbsent(wave, ignored -> new HashSet<>());
-        for (var victim : targets(level, heart, m, s.origin)) {
+        for (var victim : ModuleTargets.damageQuery(level,heart.creatureId(),new AABB(s.origin,s.origin).inflate(m.value("quakeRange"),64,m.value("quakeRange")),e->eligible(e,m))) {
             if (hits.contains(victim.getUUID())) continue;
             var delta = victim.position().subtract(s.origin);
             if (!path(m, s.direction, delta, previous, current)) continue;

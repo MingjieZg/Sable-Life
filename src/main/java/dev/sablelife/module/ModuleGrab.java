@@ -19,6 +19,7 @@ public final class ModuleGrab {
     }
     public static net.minecraft.world.phys.Vec3 followPoint(HeartBlockEntity heart,VirtualModule snapshot,net.minecraft.world.entity.LivingEntity target){
         if(snapshot.emitter()!=null){var point=holdPoint(heart,snapshot);return point==null?null:point.subtract(0,target.getBbHeight()/2,0);}
+        if(!dev.sablelife.heart.CoreRelations.targetAllowed((ServerLevel)heart.getLevel(),heart.creatureId(),target))return null;
         var current=heart.modules().find(snapshot.id());if(current==null||!HeartModules.triggered(current,heart))return null;
         var center=holdPoint(heart,snapshot);return center==null?null:center.subtract(0,target.getBbHeight()/2,0);
     }
@@ -31,7 +32,7 @@ public final class ModuleGrab {
         var point=holdPoint(heart,m);if(point==null)return 0;double radius=m.value("grabRadius");
         var candidates=new ArrayList<net.minecraft.world.entity.LivingEntity>();candidates.addAll(level.players());
         if(m.value("grabTarget")!=0)candidates.addAll(level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class,new net.minecraft.world.phys.AABB(point,point).inflate(radius),MobGrab::eligible));
-        var sorted=candidates.stream().filter(p->matches(p,m)&&p.getBoundingBox().getCenter().distanceToSqr(point)<=radius*radius).sorted(Comparator.comparingDouble(p->p.getBoundingBox().getCenter().distanceToSqr(point))).toList();
+        var sorted=candidates.stream().filter(p->dev.sablelife.heart.CoreRelations.targetAllowed(level,heart.creatureId(),p)&&matches(p,m)&&p.getBoundingBox().getCenter().distanceToSqr(point)<=radius*radius).sorted(ModuleTargets.comparator(heart,p->p.getBoundingBox().getCenter().distanceToSqr(point))).toList();
         var source=new PlayerFreeze.Source(heart.creatureId(),m.audioId());
         for(var target:sorted){boolean caught=target instanceof ServerPlayer player?PlayerFreeze.grab(player,source,(int)m.value("grabDuration"),follow(heart,m)):MobGrab.grab((net.minecraft.world.entity.Mob)target,source,(int)m.value("grabDuration"),mob->followPoint(heart,m,mob));if(caught)return 1;}
         return 0;
@@ -53,7 +54,7 @@ public final class ModuleGrab {
         if(!(heart.getLevel() instanceof ServerLevel server))return;level=server;owner=heart.creatureId();long now=level.getGameTime();var keep=new HashSet<UUID>();
         for(var m:modules){
             if(!m.type().equals("grab")||!EmitterRuntime.active(m,heart))continue;keep.add(m.id());var s=states.computeIfAbsent(m.id(),id->new State());s.audio=m.audioId();
-            if(s.cast==null){if(now<s.next||!EmitterRuntime.start(m,heart))continue;s.cast=EmitterRuntime.copy(m);s.fire=now+(long)m.value("grabWarning");s.next=s.fire+(long)m.value("grabDuration")+(long)m.value("interval");var point=holdPoint(heart,m);if(point!=null)ModuleAudio.play(level,s.cast,"warningSound",point);}
+            if(s.cast==null){if(now<s.next||heart.isSurvivalCore()&&holdPoint(heart,m)==null||!EmitterRuntime.start(m,heart)||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,1))continue;s.cast=EmitterRuntime.copy(m);s.fire=now+(long)m.value("grabWarning");s.next=s.fire+(long)m.value("grabDuration")+(long)m.value("interval");var point=holdPoint(heart,m);if(point!=null)ModuleAudio.play(level,s.cast,"warningSound",point);}
             var point=holdPoint(heart,m.emitter()!=null?m:s.cast);if(point==null){release(level,new PlayerFreeze.Source(owner,m.audioId()));s.cast=null;continue;}
             if(now<s.fire){if(now%4==0)draw(level,null,s.cast,point);continue;}
             capture(level,heart,m.emitter()!=null?m:s.cast);ModuleAudio.stop(level,m.audioId());ModuleAudio.play(level,s.cast,"grabSound",point);EmitterRuntime.completed(m,heart);s.cast=null;

@@ -21,6 +21,36 @@ public final class GyroscopeGameTests {
  private static VirtualModule gyro(HeartBlockEntity c){var m=c.modules().add("gyroscope");m.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.NORTH)));return m;}
  private static CompoundTag state(HeartBlockEntity c,VirtualModule m){return c.modules().snapshot(c,true).getList("Modules",10).getCompound(c.modules().all().indexOf(m));}
  private static void orient(HeartBlockEntity c,Quaterniond rotation){var body=(dev.ryanhcode.sable.sublevel.ServerSubLevel)c.modules().all().getFirst().anchors().getFirst().body(c);var system=dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem.get(c.getLevel());system.getPipeline().resetVelocity(body);system.getPipeline().teleport(body,new Vector3d(body.logicalPose().position()),rotation);}
+ @GameTest(template="combat",batch="gyro_solid_preview")
+ public static void SolidPreviewKeepsWorldAndCalibratedAxesWithoutParticles(GameTestHelper h)throws Exception{
+  var c=fixture(h,false);var m=gyro(c);m.gyroDown(new Vec3(.5,-Math.sqrt(.75),0));
+  var player=TestActors.creative(h.getLevel());var outlines=new EnumMap<MarkOutline.Kind,MarkOutline>(MarkOutline.Kind.class);int[] particles={0};
+  player.connection=new net.minecraft.server.network.ServerGamePacketListenerImpl(h.getLevel().getServer(),new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND),player,net.minecraft.server.network.CommonListenerCookie.createInitial(player.getGameProfile(),false)){
+   @Override public void send(net.minecraft.network.protocol.Packet<?> packet){
+    if(packet instanceof net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket p&&p.payload() instanceof MarkOutline outline)outlines.put(outline.kind(),outline);
+    if(packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket)particles[0]++;
+   }
+  };
+  var draw=MarkingSessions.class.getDeclaredMethod("previewModule",net.minecraft.server.level.ServerPlayer.class,HeartBlockEntity.class,VirtualModule.class);draw.setAccessible(true);draw.invoke(null,player,c,m);
+  var center=m.anchors().getFirst().world(c,false);var world=outlines.get(MarkOutline.Kind.ALIGN_DOWN);var body=outlines.get(MarkOutline.Kind.DETAIL);var cone=outlines.get(MarkOutline.Kind.VOLUME);
+  h.assertTrue(particles[0]==0&&outlines.size()==4,"Gyroscope preview still emitted particles or missed its marked block");
+  h.assertTrue(world.color()==0x33CCFF&&body.color()==0xFF9933&&cone.color()==0x33FF66,"Preview colors changed");
+  h.assertTrue(world.endpoints().size()==10&&world.endpoints().get(1).distanceTo(center.add(0,-2.6,0))<1E-7,"World-down arrow did not stay vertical");
+  h.assertTrue(body.endpoints().size()==10&&body.endpoints().get(1).distanceTo(center.add(ModuleGyroscope.down(c,m).scale(2.2)))<1E-7,"Calibrated arrow lost direction");
+  h.assertTrue(cone.endpoints().size()==104,"Tilt boundary is not a connected ring with guides");
+  for(int i=0;i<96;i++){
+   var offset=cone.endpoints().get(i).subtract(center);
+   h.assertTrue(Math.abs(offset.length()-2)<1E-6&&Math.abs(ModuleGyroscope.tilt(offset)-m.value("gyroTilt"))<1E-6,"Tilt boundary changed meaning");
+  }
+  m.edit("enabled",0,"");outlines.clear();draw.invoke(null,player,c,m);h.assertTrue(outlines.size()==4,"Disabled module lost its preview");
+  for(double angle:new double[]{0,90,180}){
+   m.edit("gyroTilt",angle,"");outlines.clear();draw.invoke(null,player,c,m);
+   h.assertTrue(!outlines.get(MarkOutline.Kind.VOLUME).endpoints().isEmpty()&&outlines.values().stream().flatMap(p->p.endpoints().stream()).allMatch(p->Double.isFinite(p.lengthSqr())),"Extreme tilt produced invalid or invisible geometry");
+  }
+  m.gyroDown(null);outlines.clear();draw.invoke(null,player,c,m);
+  h.assertTrue(outlines.get(MarkOutline.Kind.DETAIL).endpoints().isEmpty(),"Uncalibrated preview retained an old axis");
+  m.clearMarks();outlines.clear();draw.invoke(null,player,c,m);h.assertTrue(outlines.isEmpty()&&particles[0]==0,"Missing mark still drew a preview");h.succeed();
+ }
  @GameTest(template="combat",batch="gyro_calibration",timeoutTicks=35)
  public static void SlopedPostureCalibrationPersistsThroughReleaseReloadAndNeedsNoDownFacingMark(GameTestHelper h){var c=fixture(h,false);var m=gyro(c);orient(c,new Quaterniond().rotateZ(Math.toRadians(30)));
   h.runAfterDelay(3,()->{var author=TestActors.creative(h.getLevel());author.setPos(SableBodyProbe.toWorld(h.getLevel(),c.getBlockPos().getCenter()));var menu=new HeartDashboardMenu(2,author.getInventory(),c);author.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);h.assertTrue(!menu.action(author,c.modules().revision(),m.id(),"gyro_calibrate","",0,""),"Survival calibrated life core");author.setGameMode(net.minecraft.world.level.GameType.CREATIVE);h.assertTrue(!menu.action(author,c.modules().revision()-1,m.id(),"gyro_calibrate","",0,""),"Stale calibration edit accepted");h.assertTrue(menu.action(author,c.modules().revision(),m.id(),"gyro_calibrate","",0,""),"Server calibration rejected reference part");var down=m.gyroDown();h.assertTrue(Math.abs(down.x)>.1&&ModuleGyroscope.tilt(ModuleGyroscope.down(c,m))<.01,"Sloped posture was forced to its marked face");c.tryActivate(author);h.assertTrue(c.health().state()==HeartState.ALIVE&&c.resetForCreative(author)&&m.gyroDown().distanceTo(down)<1e-8,"Release erased calibration");var saved=c.modules().save();c.modules().load(saved);var loaded=c.modules().find(m.id());h.assertTrue(loaded.gyroDown().distanceTo(down)<1e-8&&ModuleGyroscope.tilt(ModuleGyroscope.down(c,loaded))<.01,"Reload erased local gravity direction");h.assertTrue(ModulePreset.create(loaded.save()).gyroDown()==null&&!c.copyConfiguration().getList("Modules",10).getCompound(0).contains("GyroDown"),"Portable configuration retained another structure calibration");var old=loaded.save();old.getCompound("GyroDown").putDouble("X",Double.NaN);h.assertTrue(VirtualModule.load(old).gyroDown()==null,"Nonfinite calibration loaded");c.tryActivate(author);h.assertTrue(c.health().state()==HeartState.ALIVE,"Reactivation failed");c.resetForCreative(author);author.closeContainer();h.succeed();});

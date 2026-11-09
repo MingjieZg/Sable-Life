@@ -21,6 +21,9 @@ public final class ModuleArrow extends Arrow {
     private static final EntityDataAccessor<Float> HITBOX = SynchedEntityData.defineId(ModuleArrow.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> SIZE = SynchedEntityData.defineId(ModuleArrow.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Boolean> EDGE_STUCK = SynchedEntityData.defineId(ModuleArrow.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> FACE_CAMERA = SynchedEntityData.defineId(ModuleArrow.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<org.joml.Vector3f> ITEM_ROTATION = SynchedEntityData.defineId(ModuleArrow.class, EntityDataSerializers.VECTOR3);
+    public org.joml.Vector3f itemRotation(){return new org.joml.Vector3f(entityData.get(ITEM_ROTATION));}
     private java.util.List<dev.sablelife.module.ModuleParticles.Entry> trail = java.util.List.of();
     private int residueTicks = 200, residueAge;
     private VirtualModule impactConfig;
@@ -36,6 +39,8 @@ public final class ModuleArrow extends Arrow {
     public void configure(VirtualModule module) {
         impactConfig=module.impactFieldId()==null?null:VirtualModule.load(module.save());fieldBlockSpent=false;fieldVictims.clear();
         entityData.set(APPEARANCE, module.projectileItem(level().registryAccess()));
+        entityData.set(FACE_CAMERA,module.value("arrowFaceCamera")==1);
+        entityData.set(ITEM_ROTATION,ProjectileItemPose.from(module));
         entityData.set(HITBOX, (float) module.value("arrowHitbox"));
         entityData.set(SIZE, (float) module.value("projectileSize")); refreshDimensions();
         residueTicks = (int) module.value("arrowResidue"); trail = module.particleEntries();
@@ -45,14 +50,16 @@ public final class ModuleArrow extends Arrow {
     }
     public ItemStack appearance() { return entityData.get(APPEARANCE).copy(); }
     public float visualSize() { return entityData.get(SIZE); }
+    public boolean facesCamera(){return entityData.get(FACE_CAMERA);}
     public float hitbox() { return entityData == null ? .25F : entityData.get(HITBOX); }
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) {
-        super.defineSynchedData(builder); builder.define(APPEARANCE, ItemStack.EMPTY); builder.define(HITBOX, .25F); builder.define(SIZE, 1F); builder.define(EDGE_STUCK, false);
+        super.defineSynchedData(builder); builder.define(APPEARANCE, ItemStack.EMPTY); builder.define(HITBOX, .25F); builder.define(SIZE, 1F); builder.define(EDGE_STUCK, false); builder.define(FACE_CAMERA,false); builder.define(ITEM_ROTATION,new org.joml.Vector3f());
     }
     @Override public EntityDimensions getDimensions(Pose pose) { float size = hitbox(); return EntityDimensions.fixed(size, size); }
     @Override protected AABB makeBoundingBox() { return new AABB(position(), position()).inflate(hitbox() / 2.); }
     @Override public void refreshDimensions() { super.refreshDimensions(); setBoundingBox(makeBoundingBox()); }
     @Override public void onSyncedDataUpdated(EntityDataAccessor<?> key) { super.onSyncedDataUpdated(key); if (key.equals(HITBOX)) refreshDimensions(); }
+    @Override protected boolean canHitEntity(Entity target){return !dev.sablelife.combat.OwnerPlayers.protectedFromProjectile(target,this)&&super.canHitEntity(target);}
     @Override protected EntityHitResult findHitEntity(Vec3 start, Vec3 end) {
         return ProjectileUtil.getEntityHitResult(level(), this, start, end, new AABB(start, end).inflate(hitbox() / 2. + .3), this::canHitEntity, hitbox() / 2F);
     }
@@ -103,6 +110,8 @@ public final class ModuleArrow extends Arrow {
         tag.putBoolean("FieldBlockSpent",fieldBlockSpent);var victims=new net.minecraft.nbt.ListTag();fieldVictims.stream().limit(64).forEach(id->victims.add(net.minecraft.nbt.NbtUtils.createUUID(id)));tag.put("FieldVictims",victims);
         if (!appearance().isEmpty()) tag.put("ModuleAppearance", appearance().save(level().registryAccess()));
         tag.putFloat("ModuleHitbox", hitbox()); tag.putFloat("ModuleSize", visualSize());
+        tag.putBoolean("ModuleFaceCamera",facesCamera());
+        tag.put("ProjectileItemRotation",ProjectileItemPose.save(itemRotation()));
         tag.put("ModuleTrail", dev.sablelife.module.ModuleParticles.save(trail.stream().map(dev.sablelife.module.ModuleParticles.Entry::id).toList())); tag.put("ModuleTrailProperties", dev.sablelife.module.ModuleParticles.saveEntries(trail)); tag.putInt("ModuleResidueTicks", residueTicks); tag.putInt("ModuleResidueAge", residueAge);
         if (edgeBlock != null) tag.putLong("ModuleEdgeBlock", edgeBlock.asLong());
         if (customLandingSound) tag.put("ModuleLandingSound", landingSound.save());
@@ -112,6 +121,8 @@ public final class ModuleArrow extends Arrow {
         impactConfig=tag.contains("ImpactConfig")?VirtualModule.load(tag.getCompound("ImpactConfig")):null;fieldBlockSpent=tag.getBoolean("FieldBlockSpent");fieldVictims.clear();
         var victims=tag.getList("FieldVictims",11);for(int i=0;i<Math.min(64,victims.size());i++)try{fieldVictims.add(net.minecraft.nbt.NbtUtils.loadUUID(victims.get(i)));}catch(IllegalArgumentException ignored){}
         entityData.set(APPEARANCE, ItemStack.parseOptional(level().registryAccess(), tag.getCompound("ModuleAppearance")));
+        entityData.set(FACE_CAMERA,tag.getBoolean("ModuleFaceCamera"));
+        entityData.set(ITEM_ROTATION,ProjectileItemPose.read(tag.getCompound("ProjectileItemRotation")));
         entityData.set(HITBOX, tag.contains("ModuleHitbox") ? Math.clamp(tag.getFloat("ModuleHitbox"), .05F, 2F) : .25F);
         entityData.set(SIZE, tag.contains("ModuleSize") ? Math.clamp(tag.getFloat("ModuleSize"), .1F, 8F) : 1F); refreshDimensions();
         residueTicks = tag.contains("ModuleResidueTicks") ? Math.clamp(tag.getInt("ModuleResidueTicks"), 0, 12000) : 200;

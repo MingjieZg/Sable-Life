@@ -31,8 +31,8 @@ public final class ModulePickerScreen extends Screen {
         int searchWidth=Math.min(170,Math.max(95,(w-16)/3));
         search=addRenderableWidget(new EditBox(font,x+8,y+34,searchWidth,18,tr("search")));search.setMaxLength(80);search.setHint(tr("search"));search.setValue(query);
         search.setResponder(value->{query=value;page=0;selected=null;deleteUntil=0;lastClick=0;rebuildWidgets();setFocused(search);search.setFocused(true);});
-        String[] categories={"all","signal","weapon","function","preset"};int cw=(w-24-searchWidth)/5;
-        for(int i=0;i<categories.length;i++){var key=categories[i];var b=addRenderableWidget(LifeUiStyle.button(tr(key),x+16+searchWidth+i*cw,y+34,cw-3,18,()->{category=key;page=0;selected=null;deleteUntil=0;rebuildWidgets();}));b.active=!category.equals(key);if(List.of("signal","weapon","function").contains(key))LifeUiStyle.bookmark(b,ModuleCategory.valueOf(key.toUpperCase(Locale.ROOT)).color);}
+        String[] categories={"all","signal","weapon","function","preset"};int categoryWidth=w-24-searchWidth;
+        for(int i=0;i<categories.length;i++){var key=categories[i];int start=categoryWidth*i/categories.length,end=categoryWidth*(i+1)/categories.length;var b=addRenderableWidget(LifeUiStyle.button(tr(key),x+16+searchWidth+start,y+34,end-start-(i+1<categories.length?3:0),18,()->{category=key;page=0;selected=null;deleteUntil=0;rebuildWidgets();}));b.active=!category.equals(key);if(List.of("signal","weapon","function").contains(key))LifeUiStyle.bookmark(b,ModuleCategory.valueOf(key.toUpperCase(Locale.ROOT)).color);}
         var choices=new ArrayList<Choice>();
         if(category.equals("preset")){for(var preset:ModulePresetLibrary.load())if(types.contains(preset.module().getString("Type")))choices.add(new Choice(preset.module().getString("Type"),preset.name(),preset));}
         else for(String type:types)if(category.equals("all")||ModuleCategory.of(type).key.equals(category))choices.add(new Choice(type,"",null));
@@ -41,10 +41,10 @@ public final class ModulePickerScreen extends Screen {
         int columns=Math.max(3,(w-16)/125),rows=category.equals("preset")?Math.max(1,(h-102)/24):Math.max(1,Math.min((h-102)/13,(choices.size()+columns-1)/columns)),capacity=columns*rows;
         int pitch=Math.min(24,Math.max(10,(h-102)/rows));
         if(followSorted&&selected!=null){for(int i=0;i<choices.size();i++)if(choices.get(i).name.equals(selected.name)){page=i/capacity;break;}followSorted=false;}
-        page=Math.clamp(page,0,Math.max(0,(choices.size()-1)/capacity));int cell=(w-16)/columns;
+        page=Math.clamp(page,0,Math.max(0,(choices.size()-1)/capacity));int gridWidth=w-16;
         for(int i=0;i<capacity&&page*capacity+i<choices.size();i++){
-            var choice=choices.get(page*capacity+i);var label=choice.preset==null?Component.translatable("dashboard.sablelife.type_"+choice.type):Component.literal(choice.name);
-            var b=addRenderableWidget(LifeUiStyle.button(Component.literal(selected!=null&&selected.type.equals(choice.type)&&selected.name.equals(choice.name)?"▶ ":"").append(label),x+8+(i/rows)*cell,y+62+(i%rows)*pitch,cell-5,pitch-3,()->{long now=net.minecraft.Util.getMillis();boolean twice=selected!=null&&selected.type.equals(choice.type)&&selected.name.equals(choice.name)&&now-lastClick<300;selected=choice;lastClick=now;deleteUntil=0;error=Component.empty();if(twice)loadSelected();else rebuildWidgets();}));
+            int col=i/rows,start=gridWidth*col/columns,end=gridWidth*(col+1)/columns;var choice=choices.get(page*capacity+i);var label=choice.preset==null?Component.translatable("dashboard.sablelife.type_"+choice.type):Component.literal(choice.name);
+            var b=addRenderableWidget(LifeUiStyle.button(Component.literal(selected!=null&&selected.type.equals(choice.type)&&selected.name.equals(choice.name)?"▶ ":"").append(label),x+8+start,y+62+(i%rows)*pitch,end-start-(col+1<columns?5:0),pitch-3,()->{long now=net.minecraft.Util.getMillis();boolean twice=selected!=null&&selected.type.equals(choice.type)&&selected.name.equals(choice.name)&&now-lastClick<300;selected=choice;lastClick=now;deleteUntil=0;error=Component.empty();if(twice)loadSelected();else rebuildWidgets();}));
             LifeUiStyle.bookmark(b,ModuleCategory.of(choice.type).color);b.setTooltip(Tooltip.create(label.copy().append("\n").append(Component.translatable("dashboard.sablelife.description_"+choice.type))));
         }
         if(choices.isEmpty())addRenderableWidget(LifeUiStyle.button(tr(query.isBlank()?"empty":"no_matches"),x+8,y+62,w-16,21,()->{})).active=false;

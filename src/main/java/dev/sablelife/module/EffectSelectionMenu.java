@@ -63,6 +63,7 @@ public final class EffectSelectionMenu extends AbstractContainerMenu {
     }
     public boolean action(Player player, java.util.UUID id, String operation, double value, String effect) {
         if (heart == null || !stillValid(player) || !module.id().equals(id) || !(coreDeath ? heart.canToggleBreaking(player) : (heart.canEdit(player)&&ModuleAvailability.enabled(heart,arenaParent!=null?arenaParent:movementParent!=null?movementParent:module)))) return false;
+        if(heart.isSurvivalCore()&&!particleMode)return false;
         if (!(particleMode ? module.editParticle(operation, effect, value) : arenaGroup!=null?arenaGroup.effect(operation,effect,value):module.editEffect(operation, effect, value))) return false;
         if(!coreDeath) heart.modules().changed(); heart.setChanged(); refresh(); sendAllDataToRemote(); return true;
     }

@@ -26,7 +26,21 @@ public final class BodyInteraction {
  }
  public static void tick(net.neoforged.neoforge.event.tick.PlayerTickEvent.Post event){var player=event.getEntity();if(player instanceof net.minecraft.server.level.ServerPlayer&&!openMenuAllowed(player))player.closeContainer();}
 
+ private record ModuleClick(Player actor,BlockPos pos){}
+ private static final ThreadLocal<ModuleClick> moduleClick=new ThreadLocal<>();
+ public static void useOwnModule(HeartBlockEntity core,Player actor,BlockPos pos,Runnable action){
+  var body=dev.ryanhcode.sable.Sable.HELPER.getContaining(core.getLevel(),pos);
+  if(!(actor instanceof net.neoforged.neoforge.common.util.FakePlayer)||actor.level()!=core.getLevel()
+      ||!core.operational()||body==null
+      ||!SableBodyProbe.connected(core.getLevel(),core.getBlockPos(),body.getUniqueId()))return;
+  var previous=moduleClick.get();
+  moduleClick.set(new ModuleClick(actor,pos.immutable()));
+  try{action.run();}finally{if(previous==null)moduleClick.remove();else moduleClick.set(previous);}
+ }
+
  public static boolean allowed(Player player,BlockPos pos){
+  var use=moduleClick.get();
+  if(use!=null&&use.actor()==player&&use.pos().equals(pos))return true;
   if(player.isCreative())return true;
   if(player.isSpectator())return false;
   var level=player.level();
@@ -59,7 +73,9 @@ public final class BodyInteraction {
   event.setUseBlock(TriState.FALSE);event.setUseItem(TriState.FALSE);event.setCancellationResult(net.minecraft.world.InteractionResult.PASS);event.setCanceled(true);
   // Retain inspection of the Life Core itself without executing its interactive block callbacks.
   if(!event.getLevel().isClientSide&&!event.getEntity().isShiftKeyDown()&&event.getLevel().getBlockEntity(event.getPos()) instanceof HeartBlockEntity core&&!core.isControlCore()){
-   event.getEntity().displayClientMessage(core.status(),false);event.getEntity().displayClientMessage(core.interactionHint(),true);
+   var player = event.getEntity();
+   player.displayClientMessage(core.status(),false);player.displayClientMessage(core.interactionHint(),true);
+   if (event.getItemStack().isEmpty() && core.canAccessEditor(player)) core.openLastEditor(player);
   }
  }
  private BodyInteraction(){}

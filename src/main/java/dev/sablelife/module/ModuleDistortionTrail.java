@@ -22,11 +22,8 @@ public final class ModuleDistortionTrail {
  private static void send(ServerPlayer player,DistortionTrailPacket p){if(p.valid()&&VisualBudget.allow(player,p.samples().size()*4))net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,p);}
  public static void preview(ServerPlayer player,HeartBlockEntity heart,VirtualModule m){
   if(!List.of("valid","disabled").contains(HeartModules.status(m,heart)))return;var pose=pose(heart,m);var half=half(m);
-  var dust=new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(.3f,.9f,1),1);
-  for(int axis=0;axis<3;axis++)for(int a:new int[]{-1,1})for(int b:new int[]{-1,1})for(int i=0;i<=12;i++){
-   double[] v={half.x*a,half.y*b,half.z*b};int j=(axis+1)%3,k=(axis+2)%3;v[j]=(j==0?half.x:j==1?half.y:half.z)*a;v[k]=(k==0?half.x:k==1?half.y:half.z)*b;v[axis]=(axis==0?half.x:axis==1?half.y:half.z)*(i/6.-1);
-   var p=pose.center().add(ContactBox.rotate(pose.rotation(),new Vec3(v[0],v[1],v[2])));player.serverLevel().sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);
-  }
+  MarkOutline.send(player,MarkOutline.Kind.DETAIL,0x4DE6FF,MarkOutline.box(half.scale(-1),half,
+    point->pose.center().add(ContactBox.rotate(pose.rotation(),point))));
  }
  public void tick(HeartBlockEntity heart){
   if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()){clear();return;}

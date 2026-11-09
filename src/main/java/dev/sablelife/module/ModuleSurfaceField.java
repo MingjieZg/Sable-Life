@@ -35,16 +35,25 @@ public final class ModuleSurfaceField {
         if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()||!impactAttack(attack)||!attack.enabled()||!ModuleAvailability.enabled(heart,attack))return;
         var source=heart.modules().find(attack.id());if(!sourceEnabled(heart,source))return;
         var config=heart.modules().find(attack.impactFieldId());
-        if(config!=null&&ModuleAvailability.enabled(heart,config)&&config.enabled()&&config.type().equals("surface_field"))spawn(level,attack.id(),config.id(),config,point,normal,incoming);
+        if(config!=null&&ModuleAvailability.enabled(heart,config)&&config.enabled()&&config.type().equals("surface_field"))spawn(level,attack.id(),config.id(),config,point,normal,incoming,heart);
     }
     public void spawn(ServerLevel level,UUID source,UUID template,VirtualModule config,Vec3 point,Vec3 normal,Vec3 incoming){
+        spawn(level,source,template,config,point,normal,incoming,null);
+    }
+    private void spawn(ServerLevel level,UUID source,UUID template,VirtualModule config,Vec3 point,Vec3 normal,Vec3 incoming,HeartBlockEntity heart){
         if(!Double.isFinite(point.lengthSqr()+normal.lengthSqr()+incoming.lengthSqr())||!level.hasChunkAt(BlockPos.containing(point)))return;
         normal=normal.lengthSqr()<.5?new Vec3(0,1,0):normal.normalize();
         var surface=SurfaceFieldGeometry.surface(level,point,normal);if(surface==null)return;
         var frame=SurfaceFieldGeometry.frame(config,surface,normal,incoming);long expires=level.getGameTime()+(long)config.value("fieldDuration");
         // Refresh a local patch, never enlarge it or add a second damage clock.
-        for(var old:fields)if(old.source.equals(source)&&old.template.equals(template)&&old.frame.normal().dot(frame.normal())>.99&&old.frame.center().distanceToSqr(surface)<1){old.expires=expires;return;}
+        for(var old:fields)if(old.source.equals(source)&&old.template.equals(template)&&old.frame.normal().dot(frame.normal())>.99&&old.frame.center().distanceToSqr(surface)<1){
+            if(heart==null)old.expires=expires;
+            else if(expires>old.expires&&dev.sablelife.heart.SurvivalTokens.chargeFieldExtension(heart,old.config,expires-Math.max(level.getGameTime(),old.expires)))
+                old.expires=expires;
+            return;
+        }
         if(fields.size()>=LIMIT)return;var samples=SurfaceFieldGeometry.samples(level,frame);if(samples.isEmpty())return;
+        if(heart!=null&&!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,config,1))return;
         fields.add(new Field(source,template,VirtualModule.load(config.save()),frame,samples,expires));
     }
     public void tick(HeartBlockEntity heart){
@@ -65,7 +74,7 @@ public final class ModuleSurfaceField {
             if(now<f.nextScan)continue;f.nextScan=now+(f.config.value("fieldBurn")==1?1:Math.min(5,(long)f.config.value("hitInterval")));
             var frame=f.frame;double radius=frame.circle()?frame.length():Math.hypot(frame.length(),frame.width());
             var center=frame.ahead()&&!frame.circle()?frame.center().add(frame.forward().scale(frame.length()/2)):frame.center();
-            for(var victim:ModuleTargets.query(level,heart.creatureId(),new AABB(center,center).inflate(radius+3),e->!(e instanceof ModuleTargets.LifeTarget)&&ModuleTargets.matches(e,f.config))) {
+            for(var victim:ModuleTargets.damageQuery(level,heart.creatureId(),new AABB(center,center).inflate(radius+3),e->!(e instanceof ModuleTargets.LifeTarget)&&ModuleTargets.matches(e,f.config))) {
                 var box=victim.getBoundingBox();var p=new Vec3(Math.clamp(center.x,box.minX,box.maxX),Math.clamp(center.y,box.minY,box.maxY),Math.clamp(center.z,box.minZ,box.maxZ));
                 if(contact(level,f,p,box))apply(heart,level,f,victim,now);
             }
@@ -88,6 +97,6 @@ public final class ModuleSurfaceField {
         var key=new HitKey(f.source,f.template,victim.getUUID());if(hits.containsKey(key))return;
         hits.put(key,now+(long)f.config.value("hitInterval"));var attack=heart.modules().find(f.source);
         if(f.config.value("damage")>0)ModuleDamage.hurt(victim,ModuleDamage.physical(level),(float)f.config.value("damage"),heart,attack);
-        ModuleEffects.apply(victim,f.config.effects(),null);
+        ModuleEffects.apply(victim,ModuleEffects.forCore(heart,f.config),null);
     }
 }

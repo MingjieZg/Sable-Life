@@ -3,6 +3,8 @@ package dev.sablelife.module;
 import dev.sablelife.attack.*;
 import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.heart.SurvivalTokens;
+import dev.sablelife.SableLifeServerConfig;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -62,9 +64,9 @@ public final class ModuleCombat {
                 case "gun", "arrow" -> { if(world.getGameTime()>=state.due){var directions=ProjectileAim.directions(heart,module,nozzle(heart,module));if(!directions.isEmpty()&&ready(world,heart,module,state)){if(module.type().equals("gun"))shots(world,heart,module,directions);else arrows(world,heart,module,directions);}} }
                 case "pulse" -> {
                     var centers=TargetCastOrigin.targeted(module)?TargetCastOrigin.points(heart,module):List.of(origin(heart,module,false));
-                    var groups=centers.stream().map(center->pulseTargets(world,heart,module,center)).toList();state.pulseTarget=groups.stream().anyMatch(group->!group.isEmpty());
+                    var groups=centers.stream().map(center->pulseTargets(world,heart,module,center)).toList();state.pulseTarget=groups.stream().anyMatch(group->group.stream().anyMatch(e->dev.sablelife.heart.CoreRelations.targetAllowed(world,heart.creatureId(),e)));
                     // A whole batch shares one cooldown; no target means no target-position cast.
-                    if(!centers.isEmpty()&&(module.value("pulseStart")==0||state.pulseTarget)&&ready(world,heart,module,state))
+                    if(!centers.isEmpty()&&(module.value("pulseStart")==0||state.pulseTarget)&&ready(world,heart,module,state)&&dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,centers.size()))
                         for(int i=0;i<centers.size();i++)pulse(world,heart,module,centers.get(i),groups.get(i));
                 }
             }
@@ -75,7 +77,7 @@ public final class ModuleCombat {
     public void tickEmitter(HeartBlockEntity heart,VirtualModule module){
         if(!(heart.getLevel() instanceof ServerLevel world)||module.emitter()==null)return;
         var state=states.computeIfAbsent(module.id(),ignored->new State());
-        if(module.type().equals("pulse")){var center=module.emitter().position();var targets=pulseTargets(world,heart,module,center);state.pulseTarget=!targets.isEmpty();if((module.value("pulseStart")==0||state.pulseTarget)&&ready(world,heart,module,state))pulse(world,heart,module,center,targets);}
+        if(module.type().equals("pulse")){var center=module.emitter().position();var targets=pulseTargets(world,heart,module,center);state.pulseTarget=targets.stream().anyMatch(e->dev.sablelife.heart.CoreRelations.targetAllowed(world,heart.creatureId(),e));if((module.value("pulseStart")==0||state.pulseTarget)&&ready(world,heart,module,state)&&dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,1))pulse(world,heart,module,center,targets);}
         else if(module.type().equals("flame"))flame(world,heart,module,state);
         else if(ready(world,heart,module,state)){var directions=List.of(module.emitter().direction());if(module.type().equals("arrow"))arrows(world,heart,module,directions);else if(module.type().equals("gun"))shots(world,heart,module,directions);}
     }
@@ -141,22 +143,29 @@ public final class ModuleCombat {
         var previous=state.meleeFrame;
         // A far limb tip can move >8 blocks during an ordinary rotation. Check the body origin instead.
         if(previous==null||now!=state.tick+1||!previous.signature().equals(frame.signature())||previous.position().distanceToSqr(frame.position())>64)previous=frame;
+        long cost=heart.isSurvivalCore()?SurvivalTokens.meleeCost(module,SableLifeServerConfig.meleeTokenRate()):0;
         int steps=MeleeGeometry.samples(previous,frame),limit=(int)module.value("meleeHitLimit");
         double sag=MeleeGeometry.arcRadius(previous,frame)*(1-Math.cos(MeleeGeometry.angular(previous,frame)/2));
         var candidates=new AABB(previous.center(),frame.center()).inflate(frame.half().length()+sag+1);
         state.hits.entrySet().removeIf(e->e.getValue()<=now);
-        for(var victim:ModuleTargets.query(world,heart.creatureId(),candidates,this::target)){
+        for(var victim:ModuleTargets.damageQuery(world,heart.creatureId(),candidates,this::target)){
             UUID id=victim.getUUID();
             if(state.hits.containsKey(id)||limit>0&&state.meleeHitCounts.getOrDefault(id,0)>=limit)continue;
             for(int i=0;i<=steps;i++){
                 var sample=MeleeGeometry.sample(previous,frame,i/(double)steps);
                 if(!ContactBox.intersects(sample.center(),frame.half(),sample.rotation(),victim.getBoundingBox()))continue;
                 var source=new dev.sablelife.attack.BodyMeleeSource(world,previous.position().lerp(frame.position(),i/(double)steps),heart.creatureName());
-                boolean hit=ModuleDamage.hurt(victim,source,(float)module.value("damage"),heart,module);
+                if(!heart.spendAttackTokens(cost))break;
+                boolean hit=false;
+                try{
+                    hit=ModuleDamage.hurt(victim,source,(float)module.value("damage"),heart,module);
+                }finally{
+                    if(!hit)heart.refundAttackTokens(cost);
+                }
                 if(hit||source.wasBlocked())state.hits.put(id,now+Math.max(1,(int)module.value("interval")));
                 if(hit){
                     if(limit>0)state.meleeHitCounts.merge(id,1,Integer::sum);
-                    push(victim,sample.center(),module.value("knockback"));effect(victim,module);
+                    push(victim,sample.center(),module.value("knockback"));effect(victim,module,heart);
                     if (module.value("burn") > 0) victim.igniteForSeconds((int) module.value("burn"));
                     ModuleParticles.send(world,ParticleTypes.CRIT,victim.getX(),victim.getY()+victim.getBbHeight()/2,victim.getZ(),5,.15,.15,.15,.1);
                 }
@@ -168,7 +177,7 @@ public final class ModuleCombat {
     private void push(LivingEntity victim, Vec3 origin, double strength) {
         if (strength > 0) { var delta = victim.position().subtract(origin); victim.knockback(strength, -delta.x, -delta.z); }
     }
-    private void effect(LivingEntity victim, VirtualModule module) { ModuleEffects.apply(victim, module.effects(), null); }
+    private void effect(LivingEntity victim,VirtualModule module,HeartBlockEntity heart){ModuleEffects.apply(victim,ModuleEffects.forCore(heart,module),null);}
     /** Selected face before firing-angle adjustments; used only to position the muzzle. */
     public static Vec3 baseDirection(HeartBlockEntity heart, VirtualModule module) {
         if(module.emitter()!=null)return module.emitter().direction();
@@ -183,7 +192,7 @@ public final class ModuleCombat {
     public static Vec3 direction(HeartBlockEntity heart, VirtualModule module) {
         if(module.emitter()!=null)return module.emitter().direction();
         var local=localDirection(module);
-        if(module.type().equals("flame") || List.of("arrow","gun").contains(module.type())&&module.value("shotAim")==0
+        if(module.type().equals("flame") || module.type().equals("pull") || List.of("arrow","gun").contains(module.type())&&module.value("shotAim")==0
                 || module.type().equals("laser")&&module.value("laserAim")==0)
             local=ContactBox.rotate(MeleeGeometry.angles(local,module.value("shotHorizontal"),module.value("shotVertical")),local);
         return ContactBox.rotate(new Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation()),local).normalize();
@@ -206,26 +215,40 @@ public final class ModuleCombat {
     private static final class FlameFront {
         Vec3 point;
         final Vec3 direction;
+        final FlameFanGeometry fan;
+        boolean terrainImpact;
         double distance;
-        FlameFront(Vec3 point, Vec3 direction) { this.point = point; this.direction = direction; }
+        FlameFront(Vec3 point, Vec3 direction, FlameFanGeometry fan) {
+            this.point = point;
+            this.direction = direction;
+            this.fan = fan;
+        }
     }
     private void flame(ServerLevel world, HeartBlockEntity heart, VirtualModule module, State state) {
         var start = nozzle(heart, module); var direction = direction(heart, module);
         double range = module.value("range"), width = module.value("width"), speed = module.value("flameSpeed");
         int emissionPeriod = Math.max(2, (int) Math.ceil(.4 / speed));
         boolean emitted=(ModuleHurt.once(module) || world.getGameTime() % emissionPeriod == 0) && (module.emitter()!=null||heart.modules().hurtTriggers.start(module));
-        if(emitted)state.flames.add(new FlameFront(start,direction));
-        if (ready(world, heart, module, state)) fireSound(world, module, start);
+        double fanAngle = FlameFanGeometry.angle(module);
+        boolean funded=emitted&&dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,1);
+        if (funded) state.flames.add(new FlameFront(start, direction,
+                fanAngle > 0 ? FlameFanGeometry.create(start, direction, range, width, fanAngle) : null));
+        if ((!heart.isSurvivalCore()||funded)&&ready(world, heart, module, state)) fireSound(world, module, start);
         state.hits.entrySet().removeIf(e -> e.getValue() <= world.getGameTime());
         var iterator = state.flames.iterator();
         while (iterator.hasNext()) {
-            var flame = iterator.next(); var previous = flame.point;
+            var flame = iterator.next();
+            if (flame.fan != null) {
+                if (fanStep(world, heart, module, state, flame, speed)) iterator.remove();
+                continue;
+            }
+            var previous = flame.point;
             var intended = previous.add(flame.direction.scale(Math.min(speed, range - flame.distance)));
             var terrainHit=world.clip(new ClipContext(previous,intended,ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,(net.minecraft.world.entity.Entity)null));
             var end=terrainHit.getType()==HitResult.Type.MISS?intended:SableBodyProbe.toWorld(world,terrainHit.getLocation());
             if(terrainHit.getType()==HitResult.Type.BLOCK)heart.modules().surfaceFields.impact(heart,module,end,Vec3.atLowerCornerOf(terrainHit.getDirection().getNormal()),flame.direction);
             double radius = .25 + (width - .25) * Math.min(1, (flame.distance + speed) / range);
-            for (var victim : ModuleTargets.query(world, heart.creatureId(), new AABB(previous, end).inflate(radius + 1), this::target)) {
+            for (var victim : ModuleTargets.damageQuery(world, heart.creatureId(), new AABB(previous, end).inflate(radius + 1), this::target)) {
                 if (victim instanceof ModuleTargets.LifeTarget || victim.fireImmune() || state.hits.containsKey(victim.getUUID())) continue;
                 var point = SableBodyProbe.toWorld(world, victim.getBoundingBox().getCenter());
                 var delta = point.subtract(previous); double along = delta.dot(flame.direction);
@@ -233,50 +256,105 @@ public final class ModuleCombat {
                 if (along < -half || along > previous.distanceTo(end) + half
                         || delta.subtract(flame.direction.scale(Math.clamp(along, 0, previous.distanceTo(end)))).lengthSqr() > Math.pow(radius + half, 2)
                         || clip(world, previous, point).distanceToSqr(point) > .0001) continue;
-                // Direct impact can hurt fire-resistant targets; subsequent burning stays vanilla fire damage.
-                var source = module.value("flameDirectHit") == 1 ? ModuleDamage.named(ModuleDamage.physical(world),heart) : ModuleDamage.named(world.damageSources().inFire(),heart);
-                if (ModuleDamage.hurt(victim, source, (float) module.value("damage"),heart,module)) {
-                    state.hits.put(victim.getUUID(), world.getGameTime() + Math.max(1, (int) module.value("interval")));
-                    if (module.value("burn") > 0) victim.igniteForSeconds((int) module.value("burn"));
-                    effect(victim,module);
-                }
+                hurtFlameTarget(world, heart, module, state, victim);
             }
-            for(var hit:dev.sablelife.combat.BodySphereQuery.querySweep(world,heart.creatureId(),previous,end,radius)){
-                var id=hit.core().creatureId();if(state.hits.containsKey(id))continue;
-                float before=hit.core().health().current();
-                if(hit.core().damageAt(hit.block(),(float)module.value("damage"))){
-                    dev.sablelife.attack.CombatEventHooks.killed(heart,module.id(),hit.core());
-                    heart.modules().hitCounter.record(heart,module.id(),Math.max(0,before-hit.core().health().current()));
-                    state.hits.put(id,world.getGameTime()+Math.max(1,(int)module.value("interval")));}
-            }
+            for (var hit : dev.sablelife.combat.BodySphereQuery.querySweep(world, heart.creatureId(), previous, end, radius))
+                hurtFlameBody(world, heart, module, state, hit);
             flame.distance += previous.distanceTo(end); flame.point = end;
             if (end.distanceToSqr(intended) > .0001 || flame.distance >= range - .001) iterator.remove();
         }
         if(!ModuleHurt.once(module)||emitted){
-            var packet=new ModuleNetworking.FlameJet(start,direction,speed,range,width,0,1F,module.id().getLeastSignificantBits()^world.getGameTime()*0x9E3779B97F4A7C15L,module.particleEntries());
+            var packet=new ModuleNetworking.FlameJet(start,direction,speed,range,width,0,1F,module.id().getLeastSignificantBits()^world.getGameTime()*0x9E3779B97F4A7C15L,module.particleEntries(),fanAngle);
             for(var player:world.players())if(player.position().distanceToSqr(start)<=128*128&&VisualBudget.allow(player,1))
                 net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet);
         }
         if(state.flames.isEmpty()&&module.emitter()==null) heart.modules().hurtTriggers.completed(module);
     }
+    private boolean fanStep(ServerLevel world, HeartBlockEntity heart, VirtualModule module, State state,
+                            FlameFront front, double speed) {
+        var fan = front.fan;
+        double end = Math.min(fan.range(), front.distance + speed);
+        var volumes = fan.sweep(front.distance, end);
+        AABB bounds = volumes.getFirst().bounds();
+        for (var volume : volumes) bounds = bounds.minmax(volume.bounds());
+        for (var victim : ModuleTargets.damageQuery(world, heart.creatureId(), bounds.inflate(1), this::target)) {
+            if (victim instanceof ModuleTargets.LifeTarget || victim.fireImmune() || state.hits.containsKey(victim.getUUID())) continue;
+            var box = victim.getBoundingBox();
+            var point = SableBodyProbe.toWorld(world, box.getCenter());
+            var hitbox = new AttackVolume(point, new Vec3(box.getXsize() / 2, 0, 0),
+                    new Vec3(0, box.getYsize() / 2, 0), new Vec3(0, 0, box.getZsize() / 2));
+            if (volumes.stream().noneMatch(volume -> volume.intersects(hitbox)) || clip(world, fan.origin(), point).distanceToSqr(point) > .0001) continue;
+            hurtFlameTarget(world, heart, module, state, victim);
+        }
+        for (var hit : dev.sablelife.combat.BodySphereQuery.queryVolumes(world, heart.creatureId(), fan.origin(), volumes))
+            hurtFlameBody(world, heart, module, state, hit);
+        if (!front.terrainImpact) {
+            var terrain = world.clip(new ClipContext(fan.point(front.distance, 0, 0), fan.point(end, 0, 0),
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, (net.minecraft.world.entity.Entity) null));
+            if (terrain.getType() == HitResult.Type.BLOCK) {
+                front.terrainImpact = true;
+                heart.modules().surfaceFields.impact(heart, module, SableBodyProbe.toWorld(world, terrain.getLocation()),
+                        Vec3.atLowerCornerOf(terrain.getDirection().getNormal()), fan.forward());
+            }
+        }
+        front.distance = end;
+        return end >= fan.range() - .001;
+    }
+
+    private void hurtFlameTarget(ServerLevel world, HeartBlockEntity heart, VirtualModule module, State state, LivingEntity victim) {
+        var damage = module.value("flameDirectHit") == 1 ? ModuleDamage.physical(world) : world.damageSources().inFire();
+        if (ModuleDamage.hurt(victim, ModuleDamage.named(damage, heart), (float) module.value("damage"), heart, module)) {
+            state.hits.put(victim.getUUID(), world.getGameTime() + Math.max(1, (int) module.value("interval")));
+            if (module.value("burn") > 0) victim.igniteForSeconds((int) module.value("burn"));
+            effect(victim,module,heart);
+        }
+    }
+
+    private void hurtFlameBody(ServerLevel world, HeartBlockEntity heart, VirtualModule module, State state,
+                               dev.sablelife.combat.BodySphereQuery.Hit hit) {
+        var id = hit.core().creatureId();
+        if (state.hits.containsKey(id)) return;
+        float before = hit.core().health().current();
+        if (hit.core().damageAt(hit.block(), (float) module.value("damage"))) {
+            CombatEventHooks.killed(heart, module.id(), hit.core());
+            heart.modules().hitCounter.record(heart, module.id(), Math.max(0, before - hit.core().health().current()));
+            state.hits.put(id, world.getGameTime() + Math.max(1, (int) module.value("interval")));
+        }
+    }
+
     private void arrows(ServerLevel world, HeartBlockEntity heart, VirtualModule module, List<Vec3> directions) {
         var origin = nozzle(heart, module);
-        fireSound(world, module, origin);
-        for(var direction:directions) {
-        var side = direction.cross(Math.abs(direction.y) > .9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize(); var up = side.cross(direction).normalize();
-        int count = (int) module.value("arrows"); double phase = world.random.nextDouble() * Math.PI * 2;
-        for (int i = 0; i < count; i++) {
-            double distance = i == 0 ? 0 : Math.sqrt((double) i / (count - 1)) * module.value("endRadius"); double angle = phase + 2 * Math.PI * i / Math.max(1, count - 1);
-            var shot = direction.scale(8).add(side.scale(distance * Math.cos(angle))).add(up.scale(distance * Math.sin(angle))).normalize();
-            var arrow = new ModuleArrow(world, origin.x, origin.y, origin.z, new ItemStack(Items.ARROW), new ItemStack(Items.BOW));
-            arrow.configure(module);
-            arrow.getPersistentData().putUUID("SableLifeAttackOwner", heart.creatureId());
-            ModuleDamage.nameProjectile(arrow,heart);dev.sablelife.attack.AttackHitCredit.attach(arrow,heart,module);
-            ModuleBlast.configure(arrow, module);
-            for (var entry : module.effects()) { var instance = entry.instance(); if (instance != null) arrow.addEffect(instance); }
-            arrow.setBaseDamage(module.value("damage")); arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
-            arrow.shoot(shot.x, shot.y, shot.z, (float) module.value("speed"), 0); world.addFreshEntity(arrow);
-        }
+        int count=(int)module.value("arrows");
+        int rate=heart.isSurvivalCore()?SableLifeServerConfig.arrowTokenRate():0;
+        long cost=SurvivalTokens.arrowCost(module,count,rate);
+        boolean sounded=false;
+        for(var direction:directions){
+            if(!heart.spendAttackTokens(cost))break;
+            int spawned=0;
+            try{
+                if(!sounded){
+                    fireSound(world,module,origin);
+                    sounded=true;
+                }
+                var side = direction.cross(Math.abs(direction.y) > .9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize(); var up = side.cross(direction).normalize();
+                double phase = world.random.nextDouble() * Math.PI * 2;
+                for (int i = 0; i < count; i++) {
+                    double distance = i == 0 ? 0 : Math.sqrt((double) i / (count - 1)) * module.value("endRadius"); double angle = phase + 2 * Math.PI * i / Math.max(1, count - 1);
+                    var shot = direction.scale(8).add(side.scale(distance * Math.cos(angle))).add(up.scale(distance * Math.sin(angle))).normalize();
+                    var arrow = new ModuleArrow(world, origin.x, origin.y, origin.z, new ItemStack(Items.ARROW), new ItemStack(Items.BOW));
+                    arrow.configure(module);
+                    arrow.getPersistentData().putUUID("SableLifeAttackOwner", heart.creatureId());
+                    ModuleDamage.nameProjectile(arrow,heart);dev.sablelife.attack.AttackHitCredit.attach(arrow,heart,module);
+                    var effects=ModuleEffects.forCore(heart,module);
+                    ModuleBlast.configure(arrow,module,effects);
+                    for (var entry : effects) { var instance = entry.instance(); if (instance != null) arrow.addEffect(instance); }
+                    arrow.setBaseDamage(module.value("damage")); arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
+                    arrow.shoot(shot.x, shot.y, shot.z, (float) module.value("speed"), 0);
+                    if(world.addFreshEntity(arrow))spawned++;
+                }
+            }finally{
+                heart.refundAttackTokens(cost-SurvivalTokens.arrowCost(module,spawned,rate));
+            }
         }
     }
     private void fireSound(ServerLevel world, VirtualModule module, Vec3 origin) {
@@ -286,7 +364,7 @@ public final class ModuleCombat {
         var origin = nozzle(heart, module);
         if (module.type().equals("mortar")) {
             var velocities = ShotTrajectory.firingVelocities(world, heart, module);
-            if (velocities.isEmpty()) return;
+            if (velocities.isEmpty()||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,velocities.size())) return;
             fireSound(world, module, origin);
             for (var velocity : velocities) {
                 world.addFreshEntity(new ModuleShot(world, origin, velocity, module, heart));
@@ -294,6 +372,7 @@ public final class ModuleCombat {
             }
             return;
         }
+        if(directions.isEmpty()||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,directions.size()))return;
         fireSound(world, module, origin);
         for(var direction:directions) {
         var side = direction.cross(Math.abs(direction.y) > .9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize();
@@ -308,7 +387,7 @@ public final class ModuleCombat {
     }
     private List<LivingEntity> pulseTargets(ServerLevel world, HeartBlockEntity heart, VirtualModule module,Vec3 center) {
         double radius = module.value("radius");
-        return ModuleTargets.query(world, heart.creatureId(), new AABB(center, center).inflate(radius + 2), entity -> {
+        return ModuleTargets.damageQuery(world, heart.creatureId(), new AABB(center, center).inflate(radius + 2), entity -> {
             if (!target(entity)) return false;
             if (!ModuleTargets.matches(entity,module)) return false;
             var point = SableBodyProbe.toWorld(world, entity.getBoundingBox().getCenter()); var delta = point.subtract(center);
@@ -321,7 +400,7 @@ public final class ModuleCombat {
         ModuleAudio.play(world,module,"sound",center);
         PulseVisual.send(world,module,center);
         for (var victim : targets) {
-            if (ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(world),heart), (float) module.value("damage"),heart,module)) { push(victim, center, module.value("knockback")); effect(victim, module); }
+            if (ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(world),heart), (float) module.value("damage"),heart,module)) { push(victim, center, module.value("knockback")); effect(victim,module,heart); }
         }
     }
 }

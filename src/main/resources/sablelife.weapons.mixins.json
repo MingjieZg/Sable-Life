@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "dev.sablelife.mixin",
+  "plugin": "dev.sablelife.compat.weapons.WeaponMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CannonMountCleanupMixin",
+    "TaczBodyDamageMixin",
+    "TaczBlockRayTraceMixin",
+    "CannonBodyDamageMixin",
+    "TaczBlastProfileMixin"
+  ],
+  "injectors": {"defaultRequire": 1}
+}

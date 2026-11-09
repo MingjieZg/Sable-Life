@@ -1,6 +1,6 @@
 package dev.sablelife.mixin;
 
-import dev.sablelife.ownership.BodyOwnership;
+import dev.sablelife.ownership.BodyProtection;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemStack;
@@ -16,10 +16,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class BodyMaterialDropMixin {
     @Inject(method="popResource(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/item/ItemStack;)V",at=@At("HEAD"),cancellable=true)
     private static void sablelife$material(Level level, BlockPos pos, ItemStack stack, CallbackInfo ci) {
-        if (BodyOwnership.protects(level,pos)) ci.cancel();
+        if (BodyProtection.suppressDrops(level,pos)) ci.cancel();
     }
     @Inject(method="popResourceFromFace",at=@At("HEAD"),cancellable=true)
     private static void sablelife$faceMaterial(Level level, BlockPos pos, Direction face, ItemStack stack, CallbackInfo ci) {
-        if (BodyOwnership.protects(level,pos)) ci.cancel();
+        if (BodyProtection.suppressDrops(level,pos)) ci.cancel();
     }
 }

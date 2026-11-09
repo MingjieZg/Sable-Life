@@ -26,6 +26,19 @@ public final class ArrowLandingSoundGameTests {
  @SubscribeEvent public static void sound(PlayLevelSoundEvent event){var count=nativeHits.get();if(count!=null&&event.getSound()!=null&&event.getSound().value()==SoundEvents.ARROW_HIT)count[0]++;}
  private static ModuleArrow arrow(GameTestHelper h,VirtualModule module,Vec3 start){var a=new ModuleArrow(SableLife.MODULE_ARROW.get(),h.getLevel());a.setPos(start);a.configure(module);a.setDeltaMovement(1,0,0);a.setBaseDamage(3);return a;}
  private static void block(ModuleArrow a,BlockHitResult hit)throws Exception{var m=ModuleArrow.class.getDeclaredMethod("onHitBlock",BlockHitResult.class);m.setAccessible(true);m.invoke(a,hit);}
+ @GameTest(template="combat",batch="arrow_camera_facing")
+ public static void CameraFacingAppearanceIsOptInAndSurvivesReload(GameTestHelper h){
+  var module=new VirtualModule("arrow");
+  h.assertTrue(!arrow(h,module,Vec3.ZERO).facesCamera(),"Old arrow settings unexpectedly face the camera");
+  module.edit("arrowFaceCamera",1,"");
+  var arrow=arrow(h,module,Vec3.ZERO);
+  var saved=new net.minecraft.nbt.CompoundTag();
+  arrow.addAdditionalSaveData(saved);
+  var restored=new ModuleArrow(SableLife.MODULE_ARROW.get(),h.getLevel());
+  restored.readAdditionalSaveData(saved);
+  h.assertTrue(arrow.facesCamera()&&restored.facesCamera(),"Camera-facing setting was lost at launch or reload");
+  h.succeed();
+ }
  @GameTest(template="combat",batch="arrow_landing_mix")
  public static void LandingMixReplacesNativeSoundAndFreezesOnLaunchAndReload(GameTestHelper h)throws Exception{
   var l=h.getLevel();var pos=h.absolutePos(new BlockPos(4,6,4));l.setBlockAndUpdate(pos,Blocks.STONE.defaultBlockState());var point=pos.getCenter();var hit=new BlockHitResult(point,Direction.WEST,pos,false);int[] count={0};nativeHits.set(count);
