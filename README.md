@@ -1,13 +1,8 @@
 # Sable Life
 
-<p align="center">
-  <img src="assets/branding/sablelife-logo.png" alt="Sable Life logo" width="420">
-</p>
-
-
 Sable Life is a Minecraft 1.21.1 NeoForge mod built on top of **Create** and **Sable**, designed to work with **Create: Aeronautics** and turn physical structures into configurable living constructs.
 
-Instead of spawning a traditional Minecraft entity, Sable Life gives life directly to the physical structure you build. The blocks themselves form the body and receive damage, while you decide how the construct moves, reacts, attacks, and behaves.
+Downloads, screenshots and the full gameplay description are available on [CurseForge](https://www.curseforge.com/minecraft/mc-mods/sable-life). This repository focuses on source code, dependencies, compatibility and development.
 
 ## Current Version
 
@@ -39,34 +34,6 @@ Create: Aeronautics is part of the primary intended gameplay environment, but is
 - **Sable Photomancy**, version **1.0.1 or newer**, with a compatible blueprint API. Version 1.0.1 is the compiled and tested baseline; newer versions are checked by required interfaces rather than an exact version match.
 
 Blueprint placement, Arena automatic respawn and natural blueprint spawning require compatible Photomancy interfaces. Other modules remain available without these features. The server log identifies an incompatible API. See [Photomancy compatibility](docs/PHOTOMANCY_COMPATIBILITY.md) for the contract and limits.
-
-## What Sable Life Can Do
-
-A Life can be configured to:
-
-- Track and face targets
-- Move, turn, hover, and navigate using configurable behavior
-- Perform custom Move Sets and attack sequences
-- Use melee attacks, projectiles, lasers, flames, ground strikes, shockwaves, area damage, and more
-- React to health phases and combat events
-- Use armor, adaptive defense, hit counters, and health adjustment rules
-- Communicate through internal channels and Create wireless redstone
-- Trigger custom sounds, particles, visual effects, and combat feedback
-- Protect its physical body from normal block breaking
-- Drop configurable whole-body or limb loot
-- Respawn through Arena systems using **Sable Photomancy**
-- Spawn blueprints through modules or configurable natural-spawn rules
-- Use factions, invitations, alliances and player targeting exclusions
-- Add configurable entity hitboxes and world-space health bars with creature names
-- Combine multiple modules into custom boss mechanics
-
-## Three cores
-
-- **Heart Core:** author creatures with health, combat, loot and boss mechanics. Survival editing is disabled by default and can be enabled by administrators.
-- **Survival Heart Core:** editable in Survival, with material-based Energy for health and paid abilities. Servers control fuel values, module availability and pricing.
-- **Redstone Core:** automate assembled structures through supported control and presentation modules, without creature health or life activation.
-
-The in-game manual covers setup and examples. Move Set, Wireless Channel and Wireless Redstone are the main controls for automation.
 
 ## The Structure Is the Body
 
@@ -158,3 +125,4 @@ The NeoForge MDK template material retains its original license in [TEMPLATE_LIC
 
 Sable Life is an independent mod and is not affiliated with Mojang, Microsoft, Create, Sable, or the authors of compatible third-party mods.
 
+**Development note:** Sable Life’s original code is entirely AI-written and open source. You’re welcome to review it, use it, or modify it to suit your needs.
