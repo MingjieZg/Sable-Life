@@ -236,7 +236,7 @@
   "move_set.troubleshooting": {
     "en_us": [
       "Wireless redstone and Command can be valid without a mark when using their supported unmarked behavior.",
-      "Shared modules and channels are not reserved for one controller. For example, action windows of 0â€“3 seconds and 2â€“5 seconds keep a shared module triggered continuously from 0â€“5 seconds. Use separate module instances and channels for independent behavior. Overlapping sequence outputs on one channel use the highest strength.",
+      "Shared modules and channels are not reserved for one controller. For example, action windows of 0–3 seconds and 2–5 seconds keep a shared module triggered continuously from 0–5 seconds. Use separate module instances and channels for independent behavior. Overlapping sequence outputs on one channel use the highest strength.",
       "Hover over the small ? beside the move status to see broken references, including the module name, number, first affected action and reason. Repeated references to the same module appear once. The list updates after you repair them."
     ],
     "zh_cn": [

@@ -6,9 +6,9 @@ Downloads, screenshots and the full gameplay description are available on [Curse
 
 ## Current Version
 
-**0.1.403**
+**0.1.404** · GitHub test release
 
-[中文更新清单](docs/releases/0.1.403.md) · [English changelog](docs/releases/0.1.403_EN.md) · [Stress-test results](docs/performance/STRESS_TESTS_EN.md)
+[中文更新清单](docs/releases/0.1.404.md) · [English changelog](docs/releases/0.1.404_EN.md) · [Stress-test results](docs/performance/STRESS_TESTS_EN.md)
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
@@ -77,6 +77,12 @@ Coverage is limited to the named behavior and inspected addon versions. An ammun
 Other mods using standard Minecraft damage or block interaction mechanics may work without additional integration, but compatibility is not guaranteed. Even supported integrations may not cover every weapon, spell, addon, or special damage mechanic.
 
 For addon authors, see the [public body combat API guide](docs/COMBAT_API.md) for server-side damage entry points, coordinate conventions and attack cadence.
+
+## Custom Modules
+
+- **Java addons** can register custom modules with the public module API. See the [API guide](docs/MODULE_ADDON_API.md) and the [Marker Chime example](examples/module-addon/).
+- **Datapacks** can define modules in JSON using supported actions. The initial format supports a sound action when the module starts. See the [datapack guide](docs/DATAPACK_MODULES.md) and the [Alarm example](examples/datapack-alarm/).
+- Get the main mod and both example downloads from the [0.1.404 GitHub release](https://github.com/MingjieZg/Sable-Life/releases/tag/v0.1.404).
 
 ## Server Module Configuration
 

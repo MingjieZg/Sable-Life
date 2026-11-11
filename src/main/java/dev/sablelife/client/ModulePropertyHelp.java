@@ -9,7 +9,21 @@ import java.util.List;
 
 /** A field's hover describes that field; full module mechanics remain in the manual. */
 final class ModulePropertyHelp {
-    static Component label(VirtualModule m,String key){return Component.translatable("dashboard.sablelife."+(m.type().equals("surface_field")&&key.equals("density")?"fieldParticleDensity":m.type().equals("summoned_weapon")&&key.equals("projectile")?"summonItem":m.type().equals("summoned_weapon")&&key.equals("displaySize")?"summonScale":m.type().equals("freeze")&&key.equals("fieldAngle")?"freezeAngle":m.type().equals("grab")&&key.equals("particles")?"grabParticles":m.type().equals("freeze")&&key.equals("particles")?"freezeParticles":m.type().equals("surface_field")&&key.equals("target")?"fieldTarget":m.type().equals("surface_field")&&key.equals("burn")?"fieldBurnDuration":m.type().equals("slash")&&key.equals("burn")?"slashBurnDuration":m.type().equals("slash")&&key.equals("flightSound")?"slashReleaseSound":m.type().equals("slash")&&key.equals("range")?"slash_range":m.type().equals("quake") && key.equals("quakeRange") ? m.value("quakeMode") == 0 ? "quake_length" : "quake_radius" : m.type().equals("ground_strike") && m.value("strikeMode") == 3 && List.of("strikeRange", "waveDelay").contains(key) ? "random_" + key : key.equals("speed") && (m.type().equals("gun") || m.type().equals("mortar")) ? m.type() + "_speed"
+    static Component label(VirtualModule m,String key){
+        var datapack = dev.sablelife.module.DatapackModules.clientPresentation(m.type());
+        if (datapack != null && key.startsWith("addon_")) {
+            var label = datapack.optionLabel(key.substring(6));
+            if (label != null) return ModuleText.literal(label);
+        }
+        var addon = dev.sablelife.api.module.ModuleRegistry.find(m.type());
+        if (addon != null && key.startsWith("addon_")) {
+            for (var option : addon.options()) {
+                if (key.substring(6).equals(option.key())) {
+                    return Component.translatableWithFallback(option.nameKey(), option.key());
+                }
+            }
+        }
+        return Component.translatable("dashboard.sablelife."+(m.type().equals("surface_field")&&key.equals("density")?"fieldParticleDensity":m.type().equals("summoned_weapon")&&key.equals("projectile")?"summonItem":m.type().equals("summoned_weapon")&&key.equals("displaySize")?"summonScale":m.type().equals("freeze")&&key.equals("fieldAngle")?"freezeAngle":m.type().equals("grab")&&key.equals("particles")?"grabParticles":m.type().equals("freeze")&&key.equals("particles")?"freezeParticles":m.type().equals("surface_field")&&key.equals("target")?"fieldTarget":m.type().equals("surface_field")&&key.equals("burn")?"fieldBurnDuration":m.type().equals("slash")&&key.equals("burn")?"slashBurnDuration":m.type().equals("slash")&&key.equals("flightSound")?"slashReleaseSound":m.type().equals("slash")&&key.equals("range")?"slash_range":m.type().equals("quake") && key.equals("quakeRange") ? m.value("quakeMode") == 0 ? "quake_length" : "quake_radius" : m.type().equals("ground_strike") && m.value("strikeMode") == 3 && List.of("strikeRange", "waveDelay").contains(key) ? "random_" + key : key.equals("speed") && (m.type().equals("gun") || m.type().equals("mortar")) ? m.type() + "_speed"
                     : key.equals("speed") && m.type().equals("homing") ? "homing_speed" : key.equals("particles") && List.of("arrow", "gun", "mortar", "homing").contains(m.type()) ? "flight_particles"
                     : key.equals("arrows") && m.type().equals("gun") ? "bullets" : key.equals("interval") && m.type().equals("laser") ? "burstInterval" : key));}
     static Component text(VirtualModule module,ModuleFields.Field field){

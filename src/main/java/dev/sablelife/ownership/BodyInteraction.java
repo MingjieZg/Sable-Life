@@ -42,13 +42,16 @@ public final class BodyInteraction {
   var use=moduleClick.get();
   if(use!=null&&use.actor()==player&&use.pos().equals(pos))return true;
   if(player.isCreative())return true;
-  if(player.isSpectator())return false;
   var level=player.level();
   if(level instanceof ServerLevel server){
    var owner=BodyOwnership.get(server).owner(pos);
-   if(owner!=null){var core=BodyOwnership.get(server).loadedHeart(server,owner);return core!=null?core.allowSurvivalInteraction():LifeLifecycle.get(server.getServer()).interactionAllowed(owner);}
+   if(owner!=null){
+    if(player.isSpectator())return false;
+    var core=BodyOwnership.get(server).loadedHeart(server,owner);return core!=null?core.allowSurvivalInteraction():LifeLifecycle.get(server.getServer()).interactionAllowed(owner);
+   }
   }
-  return SableBodyProbe.findConnectedHearts(level,pos).stream().noneMatch(core->!core.isControlCore()&&core.health().state()!=HeartState.DORMANT&&!core.allowSurvivalInteraction());
+  // Only protect managed living bodies. Other editors may temporarily use spectator mode.
+  return SableBodyProbe.findConnectedHearts(level,pos).stream().noneMatch(core->!core.isControlCore()&&core.health().state()!=HeartState.DORMANT&&(player.isSpectator()||!core.allowSurvivalInteraction()));
  }
  public static boolean entityAllowed(Player player,net.minecraft.world.entity.Entity target){
   if(target instanceof com.simibubi.create.content.contraptions.AbstractContraptionEntity contraption){

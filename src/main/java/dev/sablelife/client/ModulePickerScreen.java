@@ -12,6 +12,7 @@ import java.util.*;
 public final class ModulePickerScreen extends Screen {
     private final HeartDashboardScreen parent;
     private List<String> types;
+    private int datapackRevision;
     private String category="all",query="";
     private EditBox search;
     private final Map<String,String> english=new HashMap<>();
@@ -25,6 +26,7 @@ public final class ModulePickerScreen extends Screen {
     public ModulePickerScreen(HeartDashboardScreen parent,List<String> types){super(Component.translatable("dashboard.sablelife.choose_type"));this.parent=parent;this.types=List.copyOf(types);}
     private Component tr(String key){return Component.translatable("module_picker.sablelife."+key);}
     @Override protected void init(){
+        datapackRevision = DatapackModules.clientRevision();
         w=Math.min(620,width-12);h=Math.min(370,height-12);x=(width-w)/2;y=(height-h)/2;
         addRenderableWidget(LifeUiStyle.button(tr("back"),x+w-66,y+8,58,18,this::onClose));
         if(english.isEmpty())try(var reader=minecraft.getResourceManager().openAsReader(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("sablelife","lang/en_us.json"))){com.google.gson.JsonParser.parseReader(reader).getAsJsonObject().entrySet().forEach(e->english.put(e.getKey(),e.getValue().getAsString()));}catch(java.io.IOException ignored){}
@@ -37,15 +39,19 @@ public final class ModulePickerScreen extends Screen {
         if(category.equals("preset")){for(var preset:ModulePresetLibrary.load())if(types.contains(preset.module().getString("Type")))choices.add(new Choice(preset.module().getString("Type"),preset.name(),preset));}
         else for(String type:types)if(category.equals("all")||ModuleCategory.of(type).key.equals(category))choices.add(new Choice(type,"",null));
         String needle=query.strip().toLowerCase(Locale.ROOT);
-        choices.removeIf(c->!(c.name+" "+c.type+" "+Component.translatable("dashboard.sablelife.type_"+c.type).getString()+" "+english.getOrDefault("dashboard.sablelife.type_"+c.type,"")).toLowerCase(Locale.ROOT).contains(needle));
+        choices.removeIf(c->{
+            var datapack = DatapackModules.clientPresentation(c.type);
+            String englishName = datapack == null ? english.getOrDefault(ModuleText.nameKey(c.type), "") : datapack.name().english();
+            return !(c.name+" "+c.type+" "+ModuleText.name(c.type).getString()+" "+englishName).toLowerCase(Locale.ROOT).contains(needle);
+        });
         int columns=Math.max(3,(w-16)/125),rows=category.equals("preset")?Math.max(1,(h-102)/24):Math.max(1,Math.min((h-102)/13,(choices.size()+columns-1)/columns)),capacity=columns*rows;
         int pitch=Math.min(24,Math.max(10,(h-102)/rows));
         if(followSorted&&selected!=null){for(int i=0;i<choices.size();i++)if(choices.get(i).name.equals(selected.name)){page=i/capacity;break;}followSorted=false;}
         page=Math.clamp(page,0,Math.max(0,(choices.size()-1)/capacity));int gridWidth=w-16;
         for(int i=0;i<capacity&&page*capacity+i<choices.size();i++){
-            int col=i/rows,start=gridWidth*col/columns,end=gridWidth*(col+1)/columns;var choice=choices.get(page*capacity+i);var label=choice.preset==null?Component.translatable("dashboard.sablelife.type_"+choice.type):Component.literal(choice.name);
+            int col=i/rows,start=gridWidth*col/columns,end=gridWidth*(col+1)/columns;var choice=choices.get(page*capacity+i);var label=choice.preset==null?ModuleText.name(choice.type):Component.literal(choice.name);
             var b=addRenderableWidget(LifeUiStyle.button(Component.literal(selected!=null&&selected.type.equals(choice.type)&&selected.name.equals(choice.name)?"▶ ":"").append(label),x+8+start,y+62+(i%rows)*pitch,end-start-(col+1<columns?5:0),pitch-3,()->{long now=net.minecraft.Util.getMillis();boolean twice=selected!=null&&selected.type.equals(choice.type)&&selected.name.equals(choice.name)&&now-lastClick<300;selected=choice;lastClick=now;deleteUntil=0;error=Component.empty();if(twice)loadSelected();else rebuildWidgets();}));
-            LifeUiStyle.bookmark(b,ModuleCategory.of(choice.type).color);b.setTooltip(Tooltip.create(label.copy().append("\n").append(Component.translatable("dashboard.sablelife.description_"+choice.type))));
+            LifeUiStyle.bookmark(b,ModuleCategory.of(choice.type).color);b.setTooltip(Tooltip.create(label.copy().append("\n").append(ModuleText.description(choice.type))));
         }
         if(choices.isEmpty())addRenderableWidget(LifeUiStyle.button(tr(query.isBlank()?"empty":"no_matches"),x+8,y+62,w-16,21,()->{})).active=false;
         addRenderableWidget(LifeUiStyle.button(Component.literal("‹"),x+8,y+h-25,28,18,()->{page--;selected=null;rebuildWidgets();})).active=page>0;
@@ -67,7 +73,7 @@ public final class ModulePickerScreen extends Screen {
     }
     private void sortPreset(String neighbor){if(selected==null||selected.preset==null)return;try{ModulePresetLibrary.moveRelative(selected.name,neighbor);deleteUntil=0;lastClick=0;followSorted=true;rebuildWidgets();}catch(java.io.IOException e){error=tr("failed");}}
     private void loadSelected(){if(selected==null||!parent.canAddModule())return;if(selected.preset==null)parent.addType(selected.type);else parent.addPreset(selected.preset.module());onClose();}
-    @Override public void tick(){if(!types.equals(parent.availableTypes())){types=List.copyOf(parent.availableTypes());selected=null;rebuildWidgets();}ticks++;if(deleteUntil!=0&&deleteUntil<=ticks){deleteUntil=0;delete.setMessage(tr("delete"));}if(minecraft.player==null||minecraft.player.containerMenu!=parent.getMenu())minecraft.setScreen(null);}
+    @Override public void tick(){if(!types.equals(parent.availableTypes())||datapackRevision!=DatapackModules.clientRevision()){types=List.copyOf(parent.availableTypes());selected=null;rebuildWidgets();}ticks++;if(deleteUntil!=0&&deleteUntil<=ticks){deleteUntil=0;delete.setMessage(tr("delete"));}if(minecraft.player==null||minecraft.player.containerMenu!=parent.getMenu())minecraft.setScreen(null);}
     @Override public boolean isPauseScreen(){return false;}
     @Override public void onClose(){minecraft.setScreen(parent);}
     @Override public void renderBackground(GuiGraphics g,int mx,int my,float partial){super.renderBackground(g,mx,my,partial);g.fill(x-2,y-2,x+w+2,y+h+2,0xFF9B614E);g.fill(x,y,x+w,y+h,0xFF242632);g.drawString(font,title,x+8,y+12,0xFFE6D8EA,false);if(!error.getString().isEmpty())g.drawString(font,error,x+8,y+h-39,0xFFFF7777,false);}

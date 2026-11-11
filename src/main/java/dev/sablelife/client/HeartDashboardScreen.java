@@ -18,6 +18,8 @@ import java.util.*;
 
 @EventBusSubscriber(modid = SableLife.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDashboardMenu> {
+    private static final java.util.regex.Pattern BUILTIN_NUMBER = java.util.regex.Pattern.compile("-?[0-9]{0,5}(\\.[0-9]{0,2})?");
+    private static final java.util.regex.Pattern ADDON_NUMBER = java.util.regex.Pattern.compile("[-+]?[0-9]*(\\.[0-9]*)?([eE][-+]?[0-9]*)?");
     public static boolean marking;
     private static final UUID NONE = new UUID(0, 0);
     private UUID selected = NONE, last = NONE;
@@ -94,7 +96,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     boolean savePreset(String name){sync();var module=selected();if(module==null)return false;try{ModulePresetLibrary.save(name,module.save());return true;}catch(java.io.IOException e){return false;}}
     public List<String> availableTypes(){var result=new java.util.ArrayList<String>();for(var value:menu.snapshot().getList("AvailableTypes",8))result.add(value.getAsString());return result;}
     private List<VirtualModule> sidebarModules() { return filteredModules; }
-    private void refreshSidebar(){var result=new ArrayList<VirtualModule>();for(int i=0;i<modules.size();i++){var m=modules.get(i);if(ModuleSearch.matches(m,tr("type_"+m.type()).getString(),i+1,moduleQuery)||!moduleQuery.isBlank()&&m.group().toLowerCase(Locale.ROOT).contains(moduleQuery.toLowerCase(Locale.ROOT)))result.add(m);}filteredModules=List.copyOf(result);folderRows=ModuleFolders.rows(filteredModules,collapsedGroups,!moduleQuery.isBlank());}
+    private void refreshSidebar(){var result=new ArrayList<VirtualModule>();for(int i=0;i<modules.size();i++){var m=modules.get(i);if(ModuleSearch.matches(m,ModuleText.name(m.type()).getString(),i+1,moduleQuery)||!moduleQuery.isBlank()&&m.group().toLowerCase(Locale.ROOT).contains(moduleQuery.toLowerCase(Locale.ROOT)))result.add(m);}filteredModules=List.copyOf(result);folderRows=ModuleFolders.rows(filteredModules,collapsedGroups,!moduleQuery.isBlank());}
 
 
     private VirtualModule selected() { return modules.stream().filter(m -> m.id().equals(selected)).findFirst().orElse(null); }
@@ -160,13 +162,13 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         name = new EditBox(font, leftPos + detailX, topPos + 34, detailWidth - 65, 16, tr("name")); name.setMaxLength(40); addRenderableWidget(name);
         button(Component.literal("?"), applyX - 22, 33, 19, () -> {
             var module = selected();
-            minecraft.setScreen(new ManualScreen(this, module == null ? "getting_started" : module.type()));
+            minecraft.setScreen(new ManualScreen(this, module == null || module.type().indexOf(':') >= 0 ? "getting_started" : module.type()));
         }).setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("manual.sablelife.help")));
         edits.add(button(Component.literal("✓"), applyX, 33, 38, () -> { action("edit", "name", 0, name.getValue()); name.setFocused(false); }));
         for (int i = 0; i < parameterSlots; i++) {
             int index = i, y = 63 + i * rowPitch;
             var box = new EditBox(font, leftPos + inputX, topPos + y, applyX - inputX - 32, rowPitch - 2, Component.empty());
-            box.setMaxLength(8); box.setFilter(s -> s.matches("-?[0-9]{0,5}(\\.[0-9]{0,2})?")); fields.add(box); addRenderableWidget(box);
+            box.setMaxLength(8); box.setFilter(s -> BUILTIN_NUMBER.matcher(s).matches()); fields.add(box); addRenderableWidget(box);
             var apply = button(Component.literal("✓"), applyX, y - 1, 38, () -> apply(index)); apply.setHeight(rowPitch - 1); applyButtons.add(apply); edits.add(apply);
             var choice = button(Component.empty(), inputX, y - 1, imageWidth - inputX - 11, () -> cycle(index, 1)); choice.setHeight(rowPitch - 1); choices.add(choice); edits.add(choice);
             LifeUiStyle.reverse(choice, () -> cycle(index, -1));
@@ -233,7 +235,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         parameterPage = Math.clamp(parameterPage + delta, 0, Math.max(0, (parameters.size() - 1) / parameterSlots));
     }
     private static int nextControlTrigger(VirtualModule m,int direction){return Math.floorMod((int)m.value("trigger")+direction,dev.sablelife.heart.RedstoneCorePolicy.maxTrigger(m.type())+1);}
-    private static int nextTrigger(VirtualModule m,int direction) { int next=Math.floorMod((int)m.value("trigger")+direction,6); return next==4&&!MoveSet.TARGETS.contains(m.type()) ? Math.floorMod(next+direction,6) : next; }
+    private static int nextTrigger(VirtualModule m,int direction) { int next=Math.floorMod((int)m.value("trigger")+direction,6); return next==4&&!MoveSet.supportsModule(m.type()) ? Math.floorMod(next+direction,6) : next; }
     private void applyChannel() {
         if (!channel.active) return;
         try { int n = Integer.parseInt(channel.getValue()); if (n >= 1 && n <= dev.sablelife.heart.HeartWireless.CHANNELS) { action("edit", "channel", n, ""); channel.setFocused(false); } } catch (NumberFormatException ignored) {}
@@ -315,10 +317,13 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         return super.mouseClicked(mouseX, mouseY, button);
     }
     private int tickCount;
+    private int datapackRevision = -1;
     @Override protected void containerTick() { super.containerTick(); tickCount++; sync();if(pendingJump!=null&&snapshot.hasUUID("Selected")&&snapshot.getUUID("Selected").equals(pendingJump)){var target=selected();if(pendingMove>=0&&target!=null&&target.type().equals("move_set")&&!target.moveSet().moves().isEmpty()){int move=pendingMove;pendingJump=null;pendingMove=-1;minecraft.setScreen(new MoveSetScreen(menu,minecraft.player.getInventory(),title,target.id(),move));}else{pendingJump=null;pendingMove=-1;}} }
     private void sync() {
         var data = menu.getSlot(0).getItem().getOrDefault(net.minecraft.core.component.DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.EMPTY);
-        if (data != decodedData) {
+        int currentDatapackRevision = dev.sablelife.module.DatapackModules.clientRevision();
+        if (data != decodedData || datapackRevision != currentDatapackRevision) {
+            datapackRevision = currentDatapackRevision;
             decodedData = data; snapshot = data.copyTag(); modules.clear(); statuses.clear(); var list = snapshot.getList("Modules", 10);
             for (int i = 0; i < list.size(); i++) { modules.add(VirtualModule.load(list.getCompound(i))); statuses.add(list.getCompound(i).getString("Status")); }refreshSidebar();
         }
@@ -332,7 +337,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             selected = sidebarModules().isEmpty() ? NONE : sidebarModules().getFirst().id();
         page = Math.min(page, Math.max(0, (folderRows.size() - 1) / sidebarSlots));
         if(beforeAdd!=null){var added=modules.stream().filter(m->m.type().equals(addingType)&&!beforeAdd.contains(m.id())&&snapshot.hasUUID("Selected")&&m.id().equals(snapshot.getUUID("Selected"))).findFirst();if(added.isPresent()){selected=added.get().id();if(!sidebarModules().contains(added.get())){moduleQuery="";moduleSearch.setValue("");}collapsedGroups.remove(added.get().group());refreshSidebar();page=Math.max(0,sidebarIndex(selected))/sidebarSlots;beforeAdd=null;}else if(tickCount>addExpires)beforeAdd=null;}
-        var m=selected();boolean editable=snapshot.getBoolean("Editable")&&!(m!=null&&m.type().equals("command")&&!snapshot.getBoolean("CommandEditable"));boolean usable=m!=null&&m.known()&&!statuses.get(modules.indexOf(m)).equals("server_disabled");
+        var m=selected();boolean editable=snapshot.getBoolean("Editable")&&!(m!=null&&m.type().equals("command")&&!snapshot.getBoolean("CommandEditable"));boolean usable=m!=null&&m.known()&&!List.of("server_disabled","unknown").contains(statuses.get(modules.indexOf(m)));
         releaseLife.visible=!snapshot.getBoolean("ControlCore");releaseLife.active = snapshot.getBoolean("Ready");
         lootNav.visible=!snapshot.getBoolean("ControlCore");if(snapshot.getBoolean("ControlCore"))settingsNav.setMessage(Component.translatable("manual.sablelife.open"));
         if(snapshot.getBoolean("SurvivalCore"))
@@ -385,10 +390,10 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 var folder=folderRows.get(row);if(folder.header()){
                     button.setMessage(Component.literal((collapsedGroups.contains(folder.group())&&moduleQuery.isBlank()?"+ ":"- ")+folder.group()+" ("+folder.count()+")"));LifeUiStyle.bookmark(button,0);button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(folder.group())));continue;
                 }
-                var entry=folder.module();Component label=entry.name().isEmpty()?tr("type_"+entry.type()):Component.literal(entry.name());
+                var entry=folder.module();Component label=entry.name().isEmpty()?ModuleText.name(entry.type()):Component.literal(entry.name());
                 button.setMessage(Component.literal(entry.id().equals(selected)?"▶ ":"").append(label).append(" #"+(modules.indexOf(entry)+1)));
                 LifeUiStyle.bookmark(button,ModuleCategory.of(entry.type()).color);
-                button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.empty().append(tr("type_"+entry.type())).append("\n").append(tr("description_"+entry.type()))));
+                button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(ModuleText.name(entry.type()).copy().append("\n").append(ModuleText.description(entry.type()))));
             }
         }
         add.active=editable&&modules.size()<(menu.snapshot().contains("ModuleLimit")?menu.snapshot().getInt("ModuleLimit"):128);add.setMessage(tr("add_short"));copyModule.active=add.active&&usable&&m!=null&&sidebarModules().contains(m);
@@ -462,7 +467,13 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                     box.setTextColor(automaticAim ? 0x777777 : 0xE0E0E0);
                     box.setTooltip(ModulePropertyHelp.tooltip(m,field));
                     applyButtons.get(i).setTooltip(ModulePropertyHelp.tooltip(m,field));
-                    if ((!box.isFocused() && !(field.key().equals("redstoneRampStart")&&rampEnd.isFocused())) || !last.equals(selected)) box.setValue(String.format(Locale.ROOT, "%.2f", m.value(field.key()) / field.scale()));
+                    boolean addonOption = field.key().startsWith("addon_");
+                    box.setMaxLength(addonOption ? 32 : 8);
+                    box.setFilter(value -> (addonOption ? ADDON_NUMBER : BUILTIN_NUMBER).matcher(value).matches());
+                    if ((!box.isFocused() && !(field.key().equals("redstoneRampStart")&&rampEnd.isFocused())) || !last.equals(selected)) {
+                        double value = m.value(field.key()) / field.scale();
+                        box.setValue(addonOption ? Double.toString(value) : String.format(Locale.ROOT, "%.2f", value));
+                    }
                     if (m.type().equals("health_phase") && field.key().equals("phaseChannel")) {
                         String state = snapshot.getList("Modules", 10).getCompound(modules.indexOf(m)).getString("PhaseChannelStatus");
                         box.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.empty().append(tr("phase_channel_" + state)).append("\n").append(tr("phase_channel_note"))));

@@ -23,6 +23,7 @@ public final class SableLifeServerConfig {
     private static final java.util.Map<String,ModConfigSpec.BooleanValue> LIFE_MODULES=new java.util.LinkedHashMap<>();
     private static final java.util.Map<String,ModConfigSpec.BooleanValue> REDSTONE_MODULES=new java.util.LinkedHashMap<>();
     private static final java.util.Map<String,ModConfigSpec.BooleanValue> SURVIVAL_MODULES=new java.util.LinkedHashMap<>();
+    private static final ModConfigSpec.ConfigValue<java.util.List<String>> DISABLED_ADDON_MODULES;
     private static final ModConfigSpec.BooleanValue SURVIVAL_LIFE_CORE_EDITING, WILD_ENCOUNTERS;
     private static final ModConfigSpec.IntValue CHANNELS, PARTICLES, CLEANUP, MODULES;
     private static final ModConfigSpec.IntValue FACTIONS_PER_PLAYER;
@@ -97,7 +98,12 @@ public final class SableLifeServerConfig {
         builder.pop();
         builder.comment("Skill switches for the Survival Heart Core. Unsupported skills stay unavailable.").push("survivalHeartCore");
         for(String type:dev.sablelife.heart.SurvivalLifeCorePolicy.TYPES)SURVIVAL_MODULES.put(type,builder.define(type,true));
-        builder.pop(2);
+        builder.pop();
+        DISABLED_ADDON_MODULES = builder.comment("Addon module IDs disabled on all cores, as namespace:path. Saved module settings are retained.")
+                .define("disabledAddonModules", java.util.List.of(), value -> value instanceof java.util.List<?> entries
+                        && entries.stream().allMatch(entry -> entry instanceof String id && id.length() <= 64
+                        && id.indexOf(':') > 0 && net.minecraft.resources.ResourceLocation.tryParse(id) != null));
+        builder.pop();
         builder.push("survivalTokens");
         TOKEN_VALUES=builder.comment("All refueling materials as item_id=energy_value, including copper. Later duplicate entries override earlier ones. An empty list disables refueling.")
                 .define("depositValues",DEFAULT_TOKEN_VALUES,value->value instanceof java.util.List<?> entries&&entries.size()<=257
@@ -143,6 +149,9 @@ public final class SableLifeServerConfig {
     public static boolean survivalModuleEnabled(String type){
         var setting=SURVIVAL_MODULES.get(type);
         return setting!=null&&(!SPEC.isLoaded()||setting.get());
+    }
+    public static boolean addonModuleEnabled(String type) {
+        return !SPEC.isLoaded() || !DISABLED_ADDON_MODULES.get().contains(type);
     }
     public static java.util.List<String> tokenValues(){return SPEC.isLoaded()?TOKEN_VALUES.get():DEFAULT_TOKEN_VALUES;}
     public static int activationTokenRate(){return SPEC.isLoaded()?ACTIVATION_RATE.get():1;}

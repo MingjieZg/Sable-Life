@@ -140,7 +140,7 @@ public final class ArenaRespawns extends SavedData {
   Display.TextDisplay text=e.display==null?null:level.getEntity(e.display) instanceof Display.TextDisplay t?t:null;
   if(text==null){text=EntityType.TEXT_DISPLAY.create(level);if(text==null)return;if(e.display!=null)text.setUUID(e.display);text.setPos(displayPoint);text.setNoGravity(true);text.addTag("sablelife_arena_respawn");text.getPersistentData().putUUID("SableLifeArenaRecord",e.id);if(!level.addFreshEntity(text))return;e.display=text.getUUID();setDirty();}
   if(!text.position().equals(displayPoint))text.setPos(displayPoint);
-  var label=Component.translatable("arena_respawn.sablelife."+phase,seconds).append("\n").append(Component.literal("â– ".repeat(filled)+"â–¡".repeat(20-filled)).withStyle(net.minecraft.ChatFormatting.YELLOW));
+  var label=Component.translatable("arena_respawn.sablelife."+phase,seconds).append("\n").append(Component.literal("\u25A0".repeat(filled)+"\u25A1".repeat(20-filled)).withStyle(net.minecraft.ChatFormatting.YELLOW));
   // Keep a translatable arena root so the existing shader label path recognizes it.
   var name=CreatureNames.formatted(e.name);if(name.getString().isBlank())name=Component.translatable("entity.sablelife.creature");
   label=Component.translatable("arena_respawn.sablelife.named",name,label);

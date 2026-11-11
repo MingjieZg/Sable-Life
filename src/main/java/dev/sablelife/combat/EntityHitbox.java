@@ -4,6 +4,7 @@ import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.module.VirtualModule;
 import net.minecraft.network.syncher.*;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.*;
 import net.minecraft.world.level.Level;
@@ -25,6 +26,11 @@ public final class EntityHitbox extends Mob {
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder){super.defineSynchedData(builder);builder.define(WIDTH,1F);builder.define(HEIGHT,1F);builder.define(DEPTH,1F);}
     public HeartBlockEntity core(){return core;}
     public UUID moduleId(){return module;}
+    // Receivers expose damage entry points, not independent potion/status-bearing bodies.
+    @Override public boolean isAffectedByPotions(){return false;}
+    @Override public boolean canBeAffected(MobEffectInstance effect){return false;}
+    @Override public boolean addEffect(MobEffectInstance effect,Entity source){return false;}
+    @Override public void forceAddEffect(MobEffectInstance effect,Entity source){}
     public void queryBounds(HitboxQueryBounds bounds){
         if(queryBounds!=bounds){
             if(largeQueryBounds)queryBounds.removedLargeReceiver();

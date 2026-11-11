@@ -1,0 +1,5 @@
+{
+  "module.sablelife_example_addon.marker_chime": "Marker Chime",
+  "module.sablelife_example_addon.marker_chime.help": "Plays a chime at the marked point when the trigger starts.",
+  "module.sablelife_example_addon.marker_chime.volume": "Chime volume"
+}

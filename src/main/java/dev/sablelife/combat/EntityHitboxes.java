@@ -17,9 +17,12 @@ public final class EntityHitboxes {
     private final Map<Object,Hit> pending=new LinkedHashMap<>();
     private final Map<UUID,Boolean> bodyClaims=new HashMap<>();
     private final Set<Object> settled=new HashSet<>();
+    private final Map<Resistance,Window> hurtWindows=new LinkedHashMap<>();
     private long claimTick=Long.MIN_VALUE;
-    private record Hit(DamageSource source,float damage,EntityHitbox receiver,net.neoforged.neoforge.common.damagesource.DamageContainer event){}
+    private record Hit(DamageSource source,float damage,float raw,EntityHitbox receiver,net.neoforged.neoforge.common.damagesource.DamageContainer event){}
     private record Attack(UUID direct,UUID attacker,Object type,long tick){}
+    private record Resistance(UUID attacker,Object type){}
+    private record Window(long until,float raw){}
     public List<EntityHitbox> entities(){return boxes.values().stream().filter(e->!e.isRemoved()&&e.isAlive()).toList();}
     public static List<VirtualModule> selected(HeartBlockEntity core){
         if(core==null||core.isRemoved()||core.isControlCore()||core.health().state()!=HeartState.ALIVE||!core.operational())return List.of();
@@ -34,7 +37,7 @@ public final class EntityHitboxes {
         return core.modules().damageBoxes.entities().stream().anyMatch(e->active.stream().anyMatch(m->m.id().equals(e.moduleId())&&m.value("hitboxDamageMode")==1));
     }
     public static boolean blocksStructure(HeartBlockEntity core){return mode(core)&&!hybrid(core);}
-    private void currentTick(HeartBlockEntity core){long now=core.getLevel().getGameTime();if(claimTick!=now){bodyClaims.clear();settled.clear();claimTick=now;}}
+    private void currentTick(HeartBlockEntity core){long now=core.getLevel().getGameTime();if(claimTick!=now){bodyClaims.clear();settled.clear();hurtWindows.values().removeIf(w->w.until<=now);claimTick=now;}}
     private static UUID identity(DamageSource source){var entity=source.getDirectEntity()!=null?source.getDirectEntity():source.getEntity();return entity==null?null:entity.getUUID();}
     private boolean explosion(DamageSource source){return source.is(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION)||BodyExplosionDamage.nativeExplosionSource(source,claimTick);}
     /**
@@ -58,7 +61,7 @@ public final class EntityHitboxes {
         if(!hybrid(core)||!allowed(core,source)||!Float.isFinite(raw)||raw<=0)return;
         currentTick(core);if(settled.contains(source))return;
         float damage=ModuleArmor.damage(core,block,raw);if(!Float.isFinite(damage)||damage<0)return;
-        var previous=pending.get(source);if(previous==null||damage>previous.damage)pending.put(source,new Hit(source,damage,previous==null?null:previous.receiver,previous==null?null:previous.event));
+        var previous=pending.get(source);if(previous==null||damage>previous.damage)pending.put(source,new Hit(source,damage,raw,previous==null?null:previous.receiver,previous==null?null:previous.event));
     }
     public static Vec3 center(HeartBlockEntity core,VirtualModule m){
         if(m.anchors().size()!=1)return null;var a=m.anchors().getFirst();var body=a.body(core);if(body==null||body.isRemoved())return null;
@@ -75,7 +78,7 @@ public final class EntityHitboxes {
         if(Math.floorMod(core.getLevel().getGameTime(),10)==Math.floorMod(core.creatureId().hashCode(),10))
             for(var box:boxes.values())HitboxAggro.offer(box);
     }
-    public void clear(){for(var e:boxes.values())e.discard();boxes.clear();pending.clear();bodyClaims.clear();settled.clear();claimTick=Long.MIN_VALUE;}
+    public void clear(){for(var e:boxes.values())e.discard();boxes.clear();pending.clear();bodyClaims.clear();settled.clear();hurtWindows.clear();claimTick=Long.MIN_VALUE;}
     public static boolean allowed(HeartBlockEntity core,DamageSource source){
         UUID owner=source instanceof CreatureAttackSource attack?attack.creatureOwner():null;
         var direct=source.getDirectEntity();if(owner==null&&direct!=null&&direct.getPersistentData().hasUUID("SableLifeAttackOwner"))owner=direct.getPersistentData().getUUID("SableLifeAttackOwner");
@@ -100,8 +103,28 @@ public final class EntityHitboxes {
         }
         var a=m.anchors().getFirst();float damage=ModuleArmor.damage(core,a.position(a.body(core)),raw);if(!Float.isFinite(damage)||damage<0)return;
         var previous=pending.get(key);boolean melee=source.is(net.minecraft.world.damagesource.DamageTypes.PLAYER_ATTACK)||source.is(net.minecraft.world.damagesource.DamageTypes.MOB_ATTACK)||source.is(net.minecraft.world.damagesource.DamageTypes.MOB_ATTACK_NO_AGGRO);
-        if(previous==null||!melee&&damage>previous.damage)pending.put(key,new Hit(source,damage,box,event));
-        else if(previous.receiver==null)pending.put(key,new Hit(source,previous.damage,box,event));
+        if(previous==null||!melee&&damage>previous.damage)pending.put(key,new Hit(source,damage,raw,box,event));
+        else if(previous.receiver==null)pending.put(key,new Hit(source,previous.damage,previous.raw,box,event));
+    }
+    /** Native non-projectile contact attacks share the victim's hurt window across all parts.
+     * Separate attackers/types remain independent; real projectiles and blasts retain their existing identities.
+     * Vanilla accepts only the raw increase during a window, before applying the selected part's armor.
+     */
+    private float acceptedFraction(Hit hit){
+        var source=hit.source;if(source.getDirectEntity() instanceof Projectile||explosion(source)||source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_COOLDOWN))return 1;
+        var attacker=source.getEntity();var key=new Resistance(attacker==null?identity(source):attacker.getUUID(),source.typeHolder());
+        var previous=hurtWindows.get(key);
+        if(previous!=null){
+            if(hit.raw<=previous.raw)return 0;
+            hurtWindows.put(key,new Window(previous.until,hit.raw));return (hit.raw-previous.raw)/hit.raw;
+        }
+        int ticks=hit.event==null?20:hit.event.getPostAttackInvulnerabilityTicks();
+        if(ticks>10){
+            // Bound adversarial unique-source traffic without retaining Entity references or saved state.
+            if(hurtWindows.size()>=256)hurtWindows.remove(hurtWindows.keySet().iterator().next());
+            hurtWindows.put(key,new Window(claimTick+(long)ticks-10,hit.raw));
+        }
+        return 1;
     }
     public void flush(HeartBlockEntity core){
         currentTick(core);if(pending.isEmpty())return;
@@ -109,7 +132,8 @@ public final class EntityHitboxes {
         for(var entry:hits){if(core.health().state()!=HeartState.ALIVE)break;var hit=entry.getValue();if(!settled.add(entry.getKey()))continue;var direct=hit.source.getDirectEntity();boolean blast=entry.getKey() instanceof DamageSource;
             if(!blast){UUID identity=identity(hit.source);if(Boolean.TRUE.equals(bodyClaims.get(identity)))continue;if(identity!=null)bodyClaims.put(identity,false);}
             if(direct instanceof Projectile&&!blast){var data=direct.getPersistentData();var seen=data.getCompound("SableLifeHitCreatures");var id=core.creatureId().toString();if(seen.getBoolean(id))continue;if(seen.getAllKeys().size()>=64)continue;seen.putBoolean(id,true);data.put("SableLifeHitCreatures",seen);}
-            float before=core.health().current();boolean applied=core.damage(hit.damage);float actual=Math.max(0,before-core.health().current());
+            float fraction=acceptedFraction(hit);if(fraction<=0)continue;
+            float before=core.health().current();boolean applied=core.damage(hit.damage*fraction);float actual=Math.max(0,before-core.health().current());
             if(applied){
                 if(hit.receiver!=null&&actual>0){var attacker=hit.source.getEntity() instanceof net.minecraft.world.entity.player.Player p?p:direct instanceof Projectile projectile&&projectile.getOwner() instanceof net.minecraft.world.entity.player.Player p?p:null;BodyCombat.damageMessage(core,actual,attacker);}
                 AttackHitCredit.record(direct,actual);if(core.health().state()!=HeartState.ALIVE)CombatEventHooks.emit((ServerLevel)core.getLevel(),hit.source,0,2,core.creatureId());}

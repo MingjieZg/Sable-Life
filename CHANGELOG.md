@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.404
+
+- Added the Java module API and JSON datapack modules, with Marker Chime and Alarm examples.
+- Added a searchable mob type whitelist for automatic targeting.
+- Entity Hitbox receivers ignore potion effects and share a hurt window for repeated contact hits.
+
+Full release notes: [English](docs/releases/0.1.404_EN.md) / [中文](docs/releases/0.1.404.md).
+
 ## 0.1.403
 
 - Survival Heart Core with configurable Energy costs, refueling and a Survival Release Tool.

@@ -80,8 +80,8 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         }
         if(heart.isControlCore()){
             if(!java.util.Set.of("add","add_preset","select","wireless","sequence","frequency","preview","mark","edit","remove","reorder","copy","signal_rules","move_set","effects","projectile","sound_editor").contains(operation))return false;
-            if((operation.equals("add")||operation.equals("add_preset"))&&!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(key))return false;
-            var existing=heart.modules().find(id);if(!java.util.Set.of("add","add_preset","wireless","select","remove","reorder").contains(operation)&&(existing==null||!dev.sablelife.heart.RedstoneCorePolicy.TYPES.contains(existing.type())))return false;
+            if((operation.equals("add")||operation.equals("add_preset"))&&!dev.sablelife.heart.RedstoneCorePolicy.supports(key))return false;
+            var existing=heart.modules().find(id);if(!java.util.Set.of("add","add_preset","wireless","select","remove","reorder").contains(operation)&&(existing==null||!dev.sablelife.heart.RedstoneCorePolicy.supports(existing.type())))return false;
             if(operation.equals("edit")&&(key.startsWith("hurt")||existing!=null&&dev.sablelife.heart.RedstoneCorePolicy.disabledField(existing,key)||key.equals("trigger")&&(value<0||value>dev.sablelife.heart.RedstoneCorePolicy.maxTrigger(existing.type()))))return false;
         }
         if(heart.isControlCore()&&operation.equals("sound_editor")&&!dev.sablelife.heart.RedstoneCorePolicy.audioKeyAllowed(heart.modules().find(id),key))return false;
@@ -151,7 +151,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         var module = heart.modules().find(id); boolean result;
         switch (operation) {
             case "add_preset" -> {
-                if(!AuthoringLimits.presetText(text)||!VirtualModule.AVAILABLE_TYPES.contains(key)||key.equals("command")&&!player.canUseGameMasterBlocks())return false;
+                if(!AuthoringLimits.presetText(text)||!ModuleAvailability.authorable(key)||key.equals("command")&&!player.canUseGameMasterBlocks())return false;
                 try {
                     var tag=net.minecraft.nbt.TagParser.parseTag(text);if(!AuthoringLimits.compound(tag,AuthoringLimits.MAX_PRESET_BYTES)||!tag.getString("Type").equals(key)||tag.getInt("Version")>1)return false;
                     if(heart.isControlCore()&&tag.getInt("Trigger")>dev.sablelife.heart.RedstoneCorePolicy.maxTrigger(key))tag.putInt("Trigger",0);
@@ -160,7 +160,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
                 }catch(com.mojang.brigadier.exceptions.CommandSyntaxException|IllegalArgumentException e){return false;}
             }
             case "add" -> {
-                if(key.equals("command")&&!player.canUseGameMasterBlocks()||!VirtualModule.AVAILABLE_TYPES.contains(key))return false;
+                if(key.equals("command")&&!player.canUseGameMasterBlocks()||!ModuleAvailability.authorable(key))return false;
                 var added=heart.modules().add(key);result=added!=null;if(added!=null){if(heart.isControlCore())dev.sablelife.heart.RedstoneCorePolicy.constrainMovement(added);DashboardSelection.set(heart,player.getUUID(),added.id());}
             }
             case "copy" -> {

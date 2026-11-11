@@ -103,6 +103,8 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         try{switch(key){
             case "excludeName"->{result=heart.relations().exclude(text);relationStatus=result?"player_added":"invalid_name";}
             case "removeName"->result=heart.relations().remove(text);
+            case "excludeMob"->{result=heart.relations().excludeMob(text);relationStatus=result?"mob_added":"invalid_mob";}
+            case "removeMob"->result=heart.relations().removeMob(text);
             case "create"->{relationStatus=registry.creationError(sp,text);if(relationStatus.isEmpty()){var id=registry.create(sp,text);if(id!=null){heart.relations().faction(id);result=true;}relationStatus=result?"updated":"denied";}}
             case "join"->{var id=java.util.UUID.fromString(text);if(registry.joinPlayer(sp,id)){heart.relations().faction(id);result=true;}}
             case "leave"->{heart.relations().faction(null);result=true;}
@@ -127,7 +129,7 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
                 };
             }
         }}catch(IllegalArgumentException ignored){}
-        if(!key.equals("excludeName")&&!key.equals("removeName")&&!key.equals("create"))relationStatus=result?"updated":"denied";
+        if(!key.equals("excludeName")&&!key.equals("removeName")&&!key.equals("excludeMob")&&!key.equals("create"))relationStatus=result?"updated":"denied";
         if(result)heart.setChanged();return result;
     }
     @Override public boolean clickMenuButton(Player player, int button) {

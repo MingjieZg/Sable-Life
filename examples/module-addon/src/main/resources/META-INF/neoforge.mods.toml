@@ -1,0 +1,16 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="sablelife_example_addon"
+version="1.0.0"
+displayName="Sable Life Example Addon"
+description="Adds a configurable chime at a marked position."
+
+[[dependencies.sablelife_example_addon]]
+modId="sablelife"
+type="required"
+versionRange="[0.1.404]"
+ordering="AFTER"
+side="BOTH"

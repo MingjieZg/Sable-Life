@@ -19,6 +19,10 @@ sourceSets {
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
     }
+    exampleAddon {
+        java.srcDir('examples/module-addon/src/main/java')
+        resources.srcDir('examples/module-addon/src/main/resources')
+    }
 }
 configurations {
     gameTestImplementation.extendsFrom implementation
@@ -29,6 +33,7 @@ configurations {
 neoForge {
     version = project.neo_version
     addModdingDependenciesTo sourceSets.gameTest
+    addModdingDependenciesTo sourceSets.exampleAddon
     mods {
         "${mod_id}" { sourceSet(sourceSets.main) }
         sablelife_tests { sourceSet(sourceSets.gameTest) }
@@ -601,6 +606,7 @@ neoForge {
             loadedMods = [mods.sablelife, mods.sablelife_tests]
             gameDirectory = file(providers.gradleProperty('gameTestDirectory').getOrElse('runs/gametest'))
             systemProperty 'sablelife.localGameTests', 'true'
+            systemProperty 'sablelife.expectExampleAddon', providers.gradleProperty('exampleAddonTests').getOrElse('false')
             if(providers.gradleProperty('dragonReplayTests').getOrElse('false')=='true') systemProperty 'sablelife.dragonReplayTemplate', file('.dev/dragon-template.nbt').absolutePath
             if(providers.gradleProperty('arenaAddonTests').getOrElse('false')=='true') systemProperty 'sablelife.arenaReplayTemplate', file('.dev/arena-replay/template.nbt').absolutePath
             systemProperty 'sablelife.expectCleanupCrash', providers.gradleProperty('expectCleanupCrash').getOrElse('false')
@@ -613,7 +619,17 @@ neoForge {
     }
 }
 
+def exampleAddonJar = tasks.register('exampleAddonJar', Jar) {
+    from sourceSets.exampleAddon.output
+    archiveBaseName = 'sablelife-example-addon'
+    archiveVersion = '1.0.0'
+}
+
 dependencies {
+    exampleAddonCompileOnly files(tasks.named('jar'))
+    if (providers.gradleProperty('exampleAddonTests').getOrElse('false') == 'true') {
+        gameTestRuntimeOnly files(exampleAddonJar)
+    }
     if (providers.gradleProperty('artificeTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/artifice-testmods', include: ['*.jar'])
     if(providers.gradleProperty('shaderParticleTests').getOrElse('false')=='true') {
         gameTestRuntimeOnly fileTree(dir: '.dev/shader-test-mods', include: ['iris*.jar'])

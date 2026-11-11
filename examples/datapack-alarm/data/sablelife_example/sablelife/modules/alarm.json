@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": {
+    "en_us": "Alarm",
+    "zh_cn": "警报器"
+  },
+  "description": {
+    "en_us": "Plays a warning chime at the marked face when triggered.",
+    "zh_cn": "触发时在标记面播放一次警报音。"
+  },
+  "cores": ["heart", "redstone", "survival"],
+  "mark": "point",
+  "options": [
+    {
+      "id": "volume",
+      "label": {
+        "en_us": "Alarm volume",
+        "zh_cn": "警报音量"
+      },
+      "min": 0,
+      "max": 2,
+      "default": 1
+    }
+  ],
+  "on_start": {
+    "type": "play_sound",
+    "sound": "minecraft:block.note_block.chime",
+    "volume": {"option": "volume"},
+    "pitch": 1
+  }
+}

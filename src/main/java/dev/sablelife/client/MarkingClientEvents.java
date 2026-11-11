@@ -24,5 +24,10 @@ public final class MarkingClientEvents {
             HeartDashboardScreen.marking = false;
         }
     }
-    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut event) { HeartDashboardScreen.marking = false; DashboardPageMemory.clear();FlameJetParticle.resetBudget(); }
+    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut event) {
+        HeartDashboardScreen.marking = false;
+        DashboardPageMemory.clear();
+        FlameJetParticle.resetBudget();
+        dev.sablelife.module.DatapackModules.disconnectClient();
+    }
 }

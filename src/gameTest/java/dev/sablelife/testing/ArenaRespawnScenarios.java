@@ -48,6 +48,28 @@ public final class ArenaRespawnScenarios {
    h.runAfterDelay(15,()->{h.assertTrue(LoadedCoreIndex.all(h.getLevel()).stream().filter(v->v.modules().all().stream().anyMatch(m->m.type().equals("melee")&&m.name().equals(s.name))&&v.health().state()==HeartState.ALIVE).count()==1,"Finished job repeated respawn");ArenaRespawns.clear(s.actor,c,c.modules().all().stream().filter(m->m.type().equals("arena")).findFirst().orElseThrow());h.succeed();});
   });
  }}
+ public static void enableAfterRecord(GameTestHelper h){
+  var s=setup(h,false);var original=s.core.creatureId();
+  s.arena.edit("arenaRespawnEnabled",0,"");
+  h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Recording with automatic respawn disabled failed");
+  s.arena.edit("arenaRespawnEnabled",1,"");s.core.tryActivate(s.actor);s.core.forceDeath();
+  var checked=new boolean[]{false};
+  h.onEachTick(()->{
+   if(checked[0])return;
+   var candidates=LoadedCoreIndex.all(h.getLevel()).stream().filter(c->c.health().state()==HeartState.ALIVE&&!c.creatureId().equals(original)&&c.modules().all().stream().anyMatch(m->m.name().equals(s.name))).toList();
+   if(candidates.isEmpty())return;
+   h.assertTrue(candidates.size()==1,"First respawn duplicated the life");
+   var next=candidates.getFirst();var arena=next.modules().all().stream().filter(m->m.type().equals("arena")).findFirst().orElseThrow();
+   h.assertTrue(arena.value("arenaRespawnEnabled")==0,"Recorded disabled setting was unexpectedly replaced");
+   checked[0]=true;next.forceDeath();
+   h.runAfterDelay(5,()->{
+    var records=ArenaRespawns.get(h.getLevel().getServer()).save(new CompoundTag(),h.getLevel().registryAccess()).getList("Entries",10);
+    h.assertTrue(records.stream().map(t->(CompoundTag)t).filter(t->t.getUUID("Creature").equals(next.creatureId())).noneMatch(t->!t.getString("Phase").equals("ready")),"Disabled restored Arena unexpectedly started another countdown");
+    System.out.println("ARENA_RECORD_ORDER_REPRO: recorded OFF, enabled afterward -> first respawn restores OFF -> second death has no countdown");
+    ArenaRespawns.clear(s.actor,next,arena);h.succeed();
+   });
+  });
+ }
  public static void permissions(GameTestHelper h){var s=setup(h,false);var noOp=TestActors.creative(h.getLevel());noOp.setPos(s.actor.position());h.assertTrue(!ArenaRespawns.record(noOp,s.core,s.arena),"Non-operator recorded a full respawn template");s.actor.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);h.assertTrue(!ArenaRespawns.record(s.actor,s.core,s.arena),"Survival operator recorded a template");s.actor.setGameMode(net.minecraft.world.level.GameType.CREATIVE);h.assertTrue(!ArenaRespawns.record(s.actor,s.core,s.core.modules().all().stream().filter(m->m.type().equals("melee")).findFirst().orElseThrow()),"Wrong module type recorded");h.succeed();}
  public static void unloaded(GameTestHelper h){var s=setup(h,false);final UUID original=s.core.creatureId();{h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Capture failed");s.core.tryActivate(s.actor);s.core.forceDeath();var data=ArenaRespawns.get(h.getLevel().getServer());var saved=data.save(new CompoundTag(),h.getLevel().registryAccess());var row=saved.getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(original)).findFirst().orElseThrow();row.putDouble("X",1000000);row.putDouble("Z",1000000);row.putInt("Remaining",100);var restored=ArenaRespawns.load(saved,h.getLevel().registryAccess());h.getLevel().getServer().overworld().getDataStorage().set("sablelife_arena_respawns",restored);
   h.runAfterDelay(30,()->{var current=restored.save(new CompoundTag(),h.getLevel().registryAccess()).getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(original)).findFirst().orElseThrow();h.assertTrue(current.getInt("Remaining")==100&&!h.getLevel().hasChunk(1000000>>4,1000000>>4),"Unloaded countdown advanced or loaded terrain");s.actor.setPos(1000000,40,1000000); // cleanup through common cancellation command

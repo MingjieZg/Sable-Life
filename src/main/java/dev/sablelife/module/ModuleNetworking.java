@@ -81,7 +81,9 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("46");
+        var registrar = event.registrar("48");
+        registrar.playToClient(DatapackModuleCatalog.TYPE, DatapackModuleCatalog.CODEC,
+                (packet, context) -> DatapackModules.receive(packet));
         registrar.playToClient(MovementPreview.TYPE,MovementPreview.CODEC,(packet,ctx)->dev.sablelife.client.MovementPreviewClient.receive(packet));
         registrar.playToClient(LaserVisual.TYPE,LaserVisual.CODEC,(packet,ctx)->dev.sablelife.client.LaserVisualClient.receive(packet));
         registrar.playToClient(BlueprintProjection.TYPE,BlueprintProjection.CODEC,(p,ctx)->dev.sablelife.client.BlueprintPreviewClient.receive(p));

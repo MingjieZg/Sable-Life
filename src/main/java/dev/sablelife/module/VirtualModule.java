@@ -93,8 +93,16 @@ public final class VirtualModule {
     }
     public boolean hasRedBlue() { return !redBlue.isEmpty(); }
     private CompoundTag lootSamples = new CompoundTag();
-    public boolean coreModule() { return SignalRules.supported(type)||type.equals("surface_field")||type.equals("armor")&&value("armorWholeBody")==1||List.of("bgm", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "move_set", "command").contains(type); }
-    public boolean area() { return type.equals("melee") || type.equals("particles") && value("particlePattern") == 0; }
+    public boolean coreModule() {
+        var addon = ModuleTypes.find(type);
+        if (addon != null) return addon.markMode() == dev.sablelife.api.module.ModuleDefinition.MarkMode.NONE;
+        return SignalRules.supported(type)||type.equals("surface_field")||type.equals("armor")&&value("armorWholeBody")==1||List.of("bgm", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "move_set", "command").contains(type);
+    }
+    public boolean area() {
+        var addon = ModuleTypes.find(type);
+        if (addon != null) return addon.markMode() == dev.sablelife.api.module.ModuleDefinition.MarkMode.AREA;
+        return type.equals("melee") || type.equals("particles") && value("particlePattern") == 0;
+    }
     private final List<String> particles = new ArrayList<>();
     public List<String> particles() { return List.copyOf(particles); }
     private final java.util.Map<String, ModuleParticles.Entry> particleProperties = new java.util.HashMap<>();
@@ -161,7 +169,7 @@ public final class VirtualModule {
         this.id = id; this.type = type;
         if(SignalRules.supported(type))signalRules().add();
         for(var f:ModuleFields.HURT_FIELDS) settings.putDouble(f.key(),f.initial());
-        ModuleFields.forType(type).forEach(f -> {
+        if (!DatapackModules.isDatapackType(type)) ModuleFields.forType(type).forEach(f -> {
             if(f.choices().equals(List.of("library")))settings.putString(f.key(), "");
             else settings.putDouble(f.key(), f.initial());
         });
@@ -213,7 +221,10 @@ public final class VirtualModule {
     public boolean detached() { return detached; }
     public void detach() { detached = true; }
     public void invalidate() { invalidated = true; }
-    public boolean known() { return unknown == null && TYPES.contains(type); }
+    public static boolean supportsType(String type) {
+        return TYPES.contains(type) || ModuleTypes.find(type) != null;
+    }
+    public boolean known() { return unknown == null && supportsType(type); }
     private boolean commandApprovalRequired;
     public boolean commandApprovalRequired() { return type.equals("command") && commandApprovalRequired; }
     public void approveCommands() { commandApprovalRequired = false; }
@@ -305,7 +316,15 @@ public final class VirtualModule {
         changed|=arenaBuffs.channelDeleted(index);changed|=armorRules.channelDeleted(index);
         return changed;
     }
-    public double value(String key) { if(type.equals("health_phase")&&HealthPhaseRules.FIELDS.contains(key))return healthPhaseRules.rows().isEmpty()?0:healthPhaseRules.rows().getFirst().value(key);if(type.equals("slash")&&List.of("slashRed","slashGreen","slashBlue").contains(key))key="slashColor"+key.substring(5);return switch (key) {
+    public double value(String key) { if(type.equals("health_phase")&&HealthPhaseRules.FIELDS.contains(key))return healthPhaseRules.rows().isEmpty()?0:healthPhaseRules.rows().getFirst().value(key);if(type.equals("slash")&&List.of("slashRed","slashGreen","slashBlue").contains(key))key="slashColor"+key.substring(5);
+        if (key.startsWith("addon_") && DatapackModules.isDatapackType(type)) {
+            var field = ModuleFields.find(type, key);
+            if (field != null) {
+                double value = settings.contains(key, 99) ? settings.getDouble(key) : field.initial();
+                return Double.isFinite(value) ? Math.clamp(value, field.min(), field.max()) : field.initial();
+            }
+        }
+        return switch (key) {
         case "trigger" -> trigger; case "channel" -> channel;
         case "enabled" -> enabled ? 1 : 0; default -> settings.getDouble(key);
     }; }
@@ -328,7 +347,7 @@ public final class VirtualModule {
                 name = text.trim();
             }
             case "enabled" -> enabled = value != 0;
-            case "trigger" -> { if (type.equals("loot")) return false; trigger = Math.clamp((int) value, 0, 5); if(trigger==4 && !MoveSet.TARGETS.contains(type)) trigger=5; }
+            case "trigger" -> { if (type.equals("loot")) return false; trigger = Math.clamp((int) value, 0, 5); if(trigger==4 && !MoveSet.supportsModule(type)) trigger=5; }
             case "channel" -> { if (type.equals("loot") || trigger < 2) return false; channel = Math.clamp((int) value, 1, dev.sablelife.heart.HeartWireless.CHANNELS) - 1; }
             default -> {
                 var field = ModuleFields.find(type, key); if (field == null) return false;
@@ -394,8 +413,13 @@ public final class VirtualModule {
     }
     public static VirtualModule load(CompoundTag tag) {
         var module = new VirtualModule(tag.hasUUID("Id") ? tag.getUUID("Id") : UUID.randomUUID(), tag.getString("Type"));
-        if (!module.known() || tag.getInt("Version") > 1) { module.unknown = tag.copy(); module.enabled = false; return module; }
+        boolean datapack = DatapackModules.isDatapackType(module.type);
+        if ((!datapack && !module.known()) || tag.getInt("Version") > 1) { module.unknown = tag.copy(); module.enabled = false; return module; }
         module.group(tag.getString("Group"));module.edit("name", 0, tag.getString("Name")); module.enabled = tag.getBoolean("Enabled");
+        if (datapack) {
+            String name = tag.getString("Name");
+            if (name.codePointCount(0, name.length()) <= 40 && name.codePoints().noneMatch(Character::isISOControl)) module.name = name.trim();
+        }
         module.invalidated = tag.getBoolean("Invalidated");
         module.detached = tag.getBoolean("Detached");
         module.commandApprovalRequired = tag.getBoolean("CommandApprovalRequired");
@@ -414,7 +438,14 @@ public final class VirtualModule {
             else for(var key:HealthPhaseRules.FIELDS)if(saved.contains(key))module.edit(key,saved.getDouble(key),"");
         }
         for(var f:ModuleFields.HURT_FIELDS) if(saved.contains(f.key())) module.edit(f.key(),saved.getDouble(f.key()),"");
-        for (var field : ModuleFields.forType(module.type)) if (saved.contains(field.key())) {
+        if (datapack) {
+            for (String key : saved.getAllKeys()) {
+                if (key.startsWith("addon_") && key.length() <= 64 && saved.contains(key, 99) && Double.isFinite(saved.getDouble(key))) {
+                    module.settings.putDouble(key, saved.getDouble(key));
+                }
+            }
+        }
+        if (!datapack) for (var field : ModuleFields.forType(module.type)) if (saved.contains(field.key())) {
             if (field.choices().equals(List.of("library"))) module.settings.putString(field.key(), saved.getString(field.key()));
             else module.edit(field.key(), saved.getDouble(field.key()), "");
         }
@@ -470,7 +501,9 @@ public final class VirtualModule {
                     saved.contains("effectLevel") ? Math.clamp((int) saved.getDouble("effectLevel"), 1, 5) : 1));
         }
         if (tag.contains("ImportSource")) module.source = ModuleAnchor.load(tag.getCompound("ImportSource"));
-        module.edit("trigger", tag.getInt("Trigger"), ""); module.channel = Math.clamp(tag.getInt("Channel"), -1, dev.sablelife.heart.HeartWireless.CHANNELS - 1);
+        if (datapack) module.trigger = Math.clamp(tag.getInt("Trigger"), 0, 5);
+        else module.edit("trigger", tag.getInt("Trigger"), "");
+        module.channel = Math.clamp(tag.getInt("Channel"), -1, dev.sablelife.heart.HeartWireless.CHANNELS - 1);
         var list = tag.getList("Anchors", 10);
         for (int i = 0; i < Math.min(2, list.size()); i++) {
             var anchor = ModuleAnchor.load(list.getCompound(i)); if (anchor != null) module.activeAnchors().add(anchor);

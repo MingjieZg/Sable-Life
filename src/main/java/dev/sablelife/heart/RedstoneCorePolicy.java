@@ -9,8 +9,13 @@ public final class RedstoneCorePolicy {
     public static final java.util.Set<String> OPTIONAL_TYPES=java.util.Set.of("visual_shockwave","distortion_trail","particles","item_display","trigger_sound");
     public static boolean defaultEnabled(String type){return TYPES.contains(type);}
     public static final List<String> TYPES=List.of("move_set","signal_logic","sequence","wireless_redstone","sensor","navigation","auto_facing","signal_turn","gyroscope","hover_anchor","linear_movement","visual_shockwave","distortion_trail","particles","item_display","trigger_sound","block_interaction");
-    public static int maxTrigger(String type){return MoveSet.TARGETS.contains(type)?4:3;}
-    public static boolean allowed(VirtualModule module){return TYPES.contains(module.type())&&module.value("trigger")>=0&&module.value("trigger")<=maxTrigger(module.type());}
+    public static int maxTrigger(String type){return MoveSet.supportsModule(type)?4:3;}
+    public static boolean supports(String type) {
+        if (TYPES.contains(type)) return true;
+        var addon = dev.sablelife.module.ModuleTypes.find(type);
+        return addon != null && addon.cores().contains(dev.sablelife.api.module.ModuleDefinition.Core.REDSTONE);
+    }
+    public static boolean allowed(VirtualModule module){return supports(module.type())&&module.value("trigger")>=0&&module.value("trigger")<=maxTrigger(module.type());}
     public static boolean disabledField(VirtualModule module,String key){
         return module.type().equals("linear_movement")&&List.of("linearMode","moveForce","moveObstruction").contains(key)
                 ||module.type().equals("move_set")&&key.equals("ignoreConditions")||module.type().equals("sound")&&key.equals("hurt")||module.type().equals("bgm")&&key.equals("bgmStart");
@@ -26,7 +31,7 @@ public final class RedstoneCorePolicy {
         // Retain legacy configuration. Capability checks prevent it from running on this core.
         for(var module:core.modules().all()){
             constrainMovement(module);
-            if(!allowed(module))module.edit("enabled",0,"");
+            if(module.type().indexOf(':')<0&&!allowed(module))module.edit("enabled",0,"");
         }
     }
     private RedstoneCorePolicy(){}

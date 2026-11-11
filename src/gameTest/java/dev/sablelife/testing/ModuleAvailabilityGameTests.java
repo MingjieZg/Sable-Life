@@ -222,7 +222,8 @@ public final class ModuleAvailabilityGameTests {
         Runnable restore=()->{lifeSwitch.set(previousLife);controlSwitch.set(previousControl);};
         try{
             lifeSwitch.set(true);controlSwitch.set(true);
-            h.assertTrue(ModuleAvailability.available(false).size()==VirtualModule.AVAILABLE_TYPES.size()&&ModuleAvailability.available(true).size()==RedstoneCorePolicy.TYPES.size(),"Default module tables differ");
+            h.assertTrue(ModuleAvailability.available(false).stream().filter(type -> type.indexOf(':') < 0).toList().equals(VirtualModule.AVAILABLE_TYPES)
+                    && ModuleAvailability.available(true).stream().filter(type -> type.indexOf(':') < 0).toList().equals(RedstoneCorePolicy.TYPES), "Default built-in module tables differ");
             h.assertTrue(!ModuleAvailability.enabled(true,"health_phase")&&setting(true,"health_phase")==null,"Redstone config granted life capability");
             for(var c:List.of(life,control)){
                 author.setPos(SableBodyProbe.toWorld(h.getLevel(),c.getBlockPos().getCenter()));

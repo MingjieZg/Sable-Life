@@ -25,6 +25,15 @@ public final class ModuleFields {
     public static List<Field> moveRules(){return CACHE.computeIfAbsent("move_rules",ignored -> List.of(n("dispatchWeight",1,1000,10),t("dispatchCooldown",0,12000,100),t("dispatchBusy",1,12000,20),t("dispatchRest",1,12000,20),n("phaseUpper",0,100,100),n("phaseLower",0,100,0),target(2),n("dispatchNear",0,128,0),n("dispatchFar",.5,128,32),n("dispatchCone",0,360,360),c("dispatchFront","north","south","west","east"),c("lineOfSight","off","on"),c("dispatchRepeat","avoid_repeat","allow_repeat")));}
     /** Presentation order only: settings remain stored and addressed by their stable keys. */
     public static List<Field> forType(String type) {
+        if (DatapackModules.isDatapackType(type)) {
+            var entry = DatapackModules.entry(type);
+            return entry == null ? List.of() : entry.fields();
+        }
+        var addon = ModuleTypes.find(type);
+        if (addon != null) {
+            return CACHE.computeIfAbsent(type, ignored -> addon.options().stream()
+                    .map(option -> n("addon_" + option.key(), option.minimum(), option.maximum(), option.initial())).toList());
+        }
         return VirtualModule.TYPES.contains(type) ? CACHE.computeIfAbsent(type, ModuleFields::buildForType) : List.of();
     }
     private static final java.util.Map<String,List<Field>> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
@@ -194,7 +203,11 @@ public final class ModuleFields {
     private static final java.util.Map<String,java.util.Map<String,Field>> LOOKUP=new java.util.concurrent.ConcurrentHashMap<>();
     public static Field find(String type,String key){
         if(!type.equals("loot"))for(var f:HURT_FIELDS)if(f.key().equals(key))return f;
-        if(!VirtualModule.TYPES.contains(type))return null;
+        if (DatapackModules.isDatapackType(type)) {
+            for (var field : forType(type)) if (field.key().equals(key)) return field;
+            return null;
+        }
+        if(!VirtualModule.supportsType(type))return null;
         return LOOKUP.computeIfAbsent(type,t->{var fields=new java.util.LinkedHashMap<String,Field>();for(var f:forType(t))fields.putIfAbsent(f.key(),f);return java.util.Map.copyOf(fields);}).get(key);
     }
 }

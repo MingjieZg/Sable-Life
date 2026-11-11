@@ -1,0 +1,5 @@
+{
+  "module.sablelife_example_addon.marker_chime": "标记点钟声",
+  "module.sablelife_example_addon.marker_chime.help": "触发时在标记点播放一声钟响。",
+  "module.sablelife_example_addon.marker_chime.volume": "钟声音量"
+}

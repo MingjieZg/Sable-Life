@@ -23,7 +23,7 @@ public final class ModuleMoveSet {
         if (move.actions().isEmpty()) return "empty";
         for (var a : move.actions()) {
             var target = heart.modules().find(a.module());
-            if (target == null || !MoveSet.TARGETS.contains(target.type())) return "missing";
+            if (target == null || !MoveSet.supportsModule(target.type())) return "missing";
             if (!HeartModules.status(target, heart).equals("valid")) return "unavailable";
             if (target.value("trigger") != 4) return "trigger";
         }
@@ -83,7 +83,7 @@ public final class ModuleMoveSet {
             for (int i=0;i<move.actions().size();i++) {
                 var action=move.actions().get(i); if(!seen.add(action.module()))continue;
                 var target=heart.modules().find(action.module());
-                String reason=target==null?"missing":!MoveSet.TARGETS.contains(target.type())?"unsupported":!target.enabled()?"disabled":HeartModules.status(target,heart);
+                String reason=target==null?"missing":!MoveSet.supportsModule(target.type())?"unsupported":!target.enabled()?"disabled":HeartModules.status(target,heart);
                 if(reason.equals("valid"))reason=target.value("trigger")!=4?"trigger":"";
                 if(!reason.isEmpty()) {var issue=new CompoundTag();issue.putUUID("Module",action.module());issue.putInt("Action",i+1);issue.putString("Reason",reason);problems.add(issue);}
             }

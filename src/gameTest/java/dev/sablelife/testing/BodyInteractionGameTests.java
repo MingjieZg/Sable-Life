@@ -35,6 +35,24 @@ public final class BodyInteractionGameTests {
   };actor.setGameMode(GameType.SURVIVAL);actor.setPos(core.getBlockPos().getCenter());return new Setup(core,core.getBlockPos().east().above(),actor);
  }
  private static PlayerInteractEvent.RightClickBlock click(Setup s,ItemStack item){s.player.setItemInHand(InteractionHand.MAIN_HAND,item);return new PlayerInteractEvent.RightClickBlock(s.player,InteractionHand.MAIN_HAND,s.lever,new BlockHitResult(s.lever.getCenter(),Direction.UP,s.lever,false));}
+ @GameTest(template="combat",batch="body_interaction_editor_mode")
+ public static void TemporarySpectatorEditorsStayOpenOutsideLivingBodies(GameTestHelper h){
+  var s=setup(h);var level=h.getLevel();var chest=h.absolutePos(new BlockPos(12,40,12));
+  level.setBlockAndUpdate(chest,Blocks.CHEST.defaultBlockState());
+  // Model an editor that changes mode between the real block click and opening its menu.
+  for(var mode:List.of(GameType.CREATIVE,GameType.SURVIVAL)){
+   s.player.setGameMode(mode);s.player.setItemInHand(InteractionHand.MAIN_HAND,ItemStack.EMPTY);
+   var event=new PlayerInteractEvent.RightClickBlock(s.player,InteractionHand.MAIN_HAND,chest,new BlockHitResult(chest.getCenter(),Direction.UP,chest,false));
+   BodyInteraction.rightClick(event);h.assertTrue(!event.isCanceled(),"Ordinary-world editor click was blocked");
+   s.player.setGameMode(GameType.SPECTATOR);s.player.openMenu(level.getBlockState(chest).getMenuProvider(level,chest),buffer->{});
+   h.assertTrue(s.player.containerMenu!=s.player.inventoryMenu&&BodyInteraction.openMenuAllowed(s.player),"Temporary spectator editor was closed outside a living body: "+mode);
+   s.player.closeContainer();s.player.setGameMode(mode);
+  }
+  var admin=TestActors.creative(level);h.assertTrue(s.core.editCore(admin,"survivalInteraction",1,""),"Cannot enable body interaction");
+  s.player.setGameMode(GameType.SPECTATOR);h.assertTrue(!BodyInteraction.allowed(s.player,s.lever),"Spectator bypassed active-body protection with interaction enabled");
+  h.assertTrue(s.core.editCore(admin,"survivalInteraction",0,"")&&!BodyInteraction.allowed(s.player,s.lever),"Spectator bypassed closed active body");
+  s.core.resetForCreative(admin);h.assertTrue(BodyInteraction.allowed(s.player,s.lever),"Released body still treated as protected spectator interaction");h.succeed();
+ }
  @GameTest(template="combat",batch="body_interaction_policy")
  public static void ClosedInteractionBlocksHandsToolsAndSamplesButAllowsAuthorsAndToggle(GameTestHelper h){
   var s=setup(h);var level=h.getLevel();h.assertTrue(!s.core.allowSurvivalInteraction(),"Interaction must default closed");
