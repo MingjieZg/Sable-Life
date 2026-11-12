@@ -20,6 +20,139 @@ public final class ModuleManagementGameTests {
   for(int i=0;i<3;i++){int n=c.wireless().add();c.wireless().channel(n).set(0,1);c.wireless().channel(n).set(6,3);}return c;
  }
  private static net.neoforged.neoforge.common.util.FakePlayer player(GameTestHelper h,HeartBlockEntity c){var p=TestActors.creative(h.getLevel());var w=SableBodyProbe.toWorld(h.getLevel(),c.getBlockPos().getCenter());p.setPos(w.x,w.y,w.z);return p;}
+
+ @GameTest(template = "combat", batch = "management_batch_groups")
+ public static void BatchGroupingValidatesWholeSelectionAndPreservesModuleReferences(GameTestHelper h) {
+  var core = core(h, false);
+  var author = player(h, core);
+  var modules = core.modules();
+  var gun = modules.add("gun");
+  var move = modules.add("move_set");
+  var sound = modules.add("sound");
+  gun.group("Old group");
+  move.moveSet().edit("add", 0, "", modules);
+  move.moveSet().edit("action_add", 0, "0|" + gun.id(), modules);
+  var ordered = modules.all().stream().map(VirtualModule::id).toList();
+  var references = ModuleConnections.links(modules.all());
+  var menu = new HeartDashboardMenu(1, author.getInventory(), core);
+  h.assertTrue(menu.snapshot().getBoolean("GroupTools"), "Server did not advertise group tools");
+  int revision = modules.revision();
+  var selected = List.of(gun.id(), sound.id());
+  h.assertTrue(!groupRequest(menu, author, revision, List.of(gun.id(), UUID.randomUUID()), "Invalid"), "Unknown module accepted");
+  h.assertTrue(!groupRequest(menu, author, revision, List.of(gun.id(), gun.id()), "Invalid"), "Duplicate module accepted");
+  h.assertTrue(!groupRequest(menu, author, revision, selected, "x".repeat(33)), "Oversized group accepted");
+  h.assertTrue(gun.group().equals("Old group") && modules.revision() == revision, "Invalid batch applied a partial move");
+  h.assertTrue(groupRequest(menu, author, revision, selected, "左钳"), "Batch move rejected");
+  h.assertTrue(!groupRequest(menu, author, revision, selected, "Stale"), "Stale batch accepted");
+  h.assertTrue(gun.group().equals("左钳") && sound.group().equals("左钳") && move.group().isEmpty(), "Wrong group membership");
+  h.assertTrue(modules.all().stream().map(VirtualModule::id).toList().equals(ordered)
+          && ModuleConnections.links(modules.all()).equals(references), "Batch changed execution order or references");
+  var loaded = new HeartModules();
+  loaded.load(modules.save());
+  h.assertTrue(loaded.find(gun.id()).group().equals("左钳") && loaded.find(sound.id()).group().equals("左钳"), "Batch grouping did not persist");
+  int current = modules.revision();
+  h.assertTrue(groupRequest(menu, author, current, selected, "左钳") && modules.revision() == current, "Repeated request changed revision");
+  h.assertTrue(menu.action(author, current, gun.id(), "add", "particles", 0, "")
+          && modules.all().getLast().group().isEmpty(), "Ordinary Add did not create an ungrouped module");
+  var particles = modules.all().getLast();
+  h.assertTrue(groupRequest(menu, author, modules.revision(), List.of(particles.id()), "左钳")
+          && particles.group().equals("左钳"), "Existing group did not accept a module");
+  h.assertTrue(groupRequest(menu, author, modules.revision(), List.of(particles.id()), "")
+          && particles.group().isEmpty(), "Single module did not leave the group");
+  h.assertTrue(groupRequest(menu, author, modules.revision(), selected, "") && gun.group().isEmpty() && sound.group().isEmpty(), "Batch ungroup failed");
+  author.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+  h.assertTrue(!groupRequest(menu, author, modules.revision(), selected, "Forbidden"), "Spectator grouped modules");
+  h.succeed();
+ }
+
+ private static boolean groupRequest(HeartDashboardMenu menu, net.minecraft.world.entity.player.Player player, int revision,
+                                     List<UUID> ids, String group) {
+  return groupRequest(menu, player, ModuleNetworking.Action.groupBatch(menu.containerId, revision, ids, group));
+ }
+
+ private static boolean groupRequest(HeartDashboardMenu menu, net.minecraft.world.entity.player.Player player,
+                                     ModuleNetworking.Action request) {
+  var decoded = roundTrip(request, player.level().registryAccess());
+  return menu.action(player, decoded.revision(), decoded.module(), decoded.operation(), decoded.key(), decoded.value(), decoded.text());
+ }
+
+ @GameTest(template = "combat", batch = "management_group_members")
+ public static void ConfirmReplacesExistingMembershipAtomically(GameTestHelper h) {
+  var core = core(h, false);
+  var author = player(h, core);
+  var modules = core.modules();
+  var outgoing = modules.add("gun");
+  var retained = modules.add("sound");
+  var incoming = modules.add("particles");
+  var unrelated = modules.add("move_set");
+  outgoing.group("Phase 2");
+  retained.group("Phase 2");
+  incoming.group("Other");
+  unrelated.group("Other");
+  unrelated.moveSet().edit("add", 0, "", modules);
+  unrelated.moveSet().edit("action_add", 0, "0|" + outgoing.id(), modules);
+  var references = ModuleConnections.links(modules.all());
+  var order = modules.all().stream().map(VirtualModule::id).toList();
+  var menu = new HeartDashboardMenu(1, author.getInventory(), core);
+  h.assertTrue(menu.snapshot().getBoolean("GroupMemberEditing"), "Membership editing capability missing");
+  int revision = modules.revision();
+  var invalid = ModuleNetworking.Action.groupMembers(1, revision, List.of(incoming.id(), UUID.randomUUID()), "Phase 2");
+  h.assertTrue(!groupRequest(menu, author, invalid) && outgoing.group().equals("Phase 2") && incoming.group().equals("Other")
+          && modules.revision() == revision, "Invalid replacement partially applied");
+  var valid = ModuleNetworking.Action.groupMembers(1, revision, List.of(retained.id(), incoming.id()), "Phase 2");
+  h.assertTrue(groupRequest(menu, author, valid) && outgoing.group().isEmpty() && retained.group().equals("Phase 2")
+          && incoming.group().equals("Phase 2") && unrelated.group().equals("Other") && modules.revision() == revision + 1,
+          "One confirm did not add and remove exactly the requested members");
+  h.assertTrue(!groupRequest(menu, author, valid), "Stale replacement was accepted");
+  var saved = new HeartModules();
+  saved.load(modules.save());
+  h.assertTrue(saved.find(outgoing.id()).group().isEmpty() && saved.find(incoming.id()).group().equals("Phase 2")
+          && saved.all().stream().map(VirtualModule::id).toList().equals(order)
+          && ModuleConnections.links(saved.all()).equals(references), "Saved membership lost edits, order or references");
+  var clear = ModuleNetworking.Action.groupMembers(1, modules.revision(), List.of(), "Phase 2");
+  author.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+  h.assertTrue(!groupRequest(menu, author, clear) && retained.group().equals("Phase 2"), "Spectator cleared the group");
+  author.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+  h.assertTrue(groupRequest(menu, author, clear) && retained.group().isEmpty() && incoming.group().isEmpty()
+          && unrelated.group().equals("Other"), "Unchecking all members failed");
+  h.succeed();
+ }
+
+ @GameTest(template = "combat", batch = "management_batch_codec")
+ public static void BatchGroupingCodecAcceptsFullCapacity(GameTestHelper h) {
+  var ids = new ArrayList<UUID>();
+  for (int i = 0; i < HeartModules.LIMIT; i++) ids.add(UUID.randomUUID());
+  var request = ModuleNetworking.Action.groupBatch(1, 0, ids, "🦀".repeat(32));
+  h.assertTrue(roundTrip(request, h.getLevel().registryAccess()).equals(request), "Max-size batch did not round trip");
+  var replacement = ModuleNetworking.Action.groupMembers(1, 0, ids, "🦀".repeat(32));
+  h.assertTrue(roundTrip(replacement, h.getLevel().registryAccess()).equals(replacement), "Max-size membership did not round trip");
+  ids.add(UUID.randomUUID());
+  boolean rejected = false;
+  try {
+   roundTrip(ModuleNetworking.Action.groupBatch(1, 0, ids, "Group"), h.getLevel().registryAccess());
+  } catch (io.netty.handler.codec.EncoderException expected) {
+   rejected = true;
+  }
+  h.assertTrue(rejected, "Codec accepted a batch beyond the module limit");
+  rejected = false;
+  try {
+   roundTrip(ModuleNetworking.Action.groupMembers(1, 0, ids, "Group"), h.getLevel().registryAccess());
+  } catch (io.netty.handler.codec.EncoderException expected) {
+   rejected = true;
+  }
+  h.assertTrue(rejected, "Codec accepted membership beyond the module limit");
+  h.succeed();
+ }
+
+ private static ModuleNetworking.Action roundTrip(ModuleNetworking.Action action, RegistryAccess registries) {
+  var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), registries);
+  try {
+   ModuleNetworking.Action.CODEC.encode(buffer, action);
+   return ModuleNetworking.Action.CODEC.decode(buffer);
+  } finally {
+   buffer.release();
+  }
+ }
  @GameTest(template="combat",batch="management_metadata")
  public static void GroupsPersistThroughSaveCopyAndPresetWithoutChangingRuntimeOrder(GameTestHelper h){
   var modules=new HeartModules();var a=modules.add("gun");var b=modules.add("arrow");h.assertTrue(a.group("  Phase 2  ")&&a.group().equals("Phase 2"),"Group trim failed");b.group("Phase 2");

@@ -3,7 +3,9 @@ package dev.sablelife.testing;
 import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.sablelife.SableLife;
+import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.heart.HeartSettingsMenu;
 import dev.sablelife.heart.HeartState;
 import dev.sablelife.ownership.BodyOwnership;
 import dev.sablelife.ownership.LifeLifecycle;
@@ -153,10 +155,10 @@ public final class LifecycleGameTests {
     @GameTest(template = "combat", batch="ordinary_limb_cleanup", timeoutTicks=110)
     public static void DetachedLimbCleansWithoutDropsAfterDelay(GameTestHelper helper) {
         var heart = fixture(helper, true);
-        var level = helper.getLevel();
-        var author = TestActors.creative(level);
-        helper.assertTrue(!heart.limbCleanup().enabled() && heart.limbCleanup().delay() == 3, "Unexpected defaults");
-        helper.assertTrue(heart.editCore(author, "limbCleanup", 1, ""), "Could not enable limb cleanup");
+        var author = TestActors.creative(helper.getLevel());
+        var settings = new HeartSettingsMenu(1, author.getInventory(), heart, 6).snapshot();
+        helper.assertTrue(settings.getBoolean("limbCleanup") && settings.getInt("limbCleanupDelay") == 3,
+                "New ordinary core did not show cleanup enabled with a 3-second delay");
         var limb = detach(helper, heart);
         heart.wireless().master(false);
         helper.runAfterDelay(35, () -> {
@@ -166,6 +168,30 @@ public final class LifecycleGameTests {
         });
         helper.runAfterDelay(85, () -> {
             helper.assertTrue(limb.isRemoved() && !heart.isRemoved(), "Cleanup missed the detached limb or removed the core");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "combat", batch="ordinary_limb_cleanup_saved_off", timeoutTicks=110)
+    public static void SavedDisabledCleanupSurvivesReload(GameTestHelper helper) {
+        var heart = fixture(helper, true);
+        var level = helper.getLevel();
+        var author = TestActors.creative(level);
+        author.setPos(SableBodyProbe.toWorld(level, heart.getBlockPos().getCenter()));
+        var menu = new HeartSettingsMenu(1, author.getInventory(), heart, 6);
+        helper.assertTrue(menu.action(author, "limbCleanup", 0, "") && !menu.snapshot().getBoolean("limbCleanup"),
+                "Settings menu could not disable cleanup");
+        var saved = heart.saveWithoutMetadata(level.registryAccess());
+        var legacy = saved.copy();
+        legacy.remove("DetachedLimbCleanup");
+        heart.loadWithComponents(legacy, level.registryAccess());
+        helper.assertTrue(!heart.limbCleanup().enabled(), "Legacy core inherited the new default");
+        heart.loadWithComponents(saved, level.registryAccess());
+        helper.assertTrue(!heart.limbCleanup().enabled(), "Saved disabled cleanup was enabled on reload");
+        var limb = detach(helper, heart);
+        helper.runAfterDelay(85, () -> {
+            helper.assertTrue(!limb.isRemoved() && heart.limbCleanup().save().getList("Pending", 10).isEmpty(),
+                    "Disabled cleanup scheduled or removed a limb");
             helper.succeed();
         });
     }

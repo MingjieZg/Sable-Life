@@ -1,7 +1,6 @@
 package dev.sablelife.heart;
 
 import dev.sablelife.SableLife;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -125,9 +124,7 @@ public final class HeartWirelessMenu extends AbstractContainerMenu {
     @Override public void broadcastChanges() { refresh(); super.broadcastChanges(); }
     @Override public boolean stillValid(Player player) {
         return heart == null || heart.canAccessEditor(player) && !heart.isRemoved() && player.level() == heart.getLevel()
-                && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart
-                && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(
-                        SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
+                && heart.editorInRange(player, 64);
     }
     @Override public boolean clickMenuButton(Player player, int button) {
         if (heart == null || !stillValid(player) || !heart.canAccessEditor(player)) return false;

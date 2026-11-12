@@ -1,7 +1,6 @@
 package dev.sablelife.heart;
 
 import dev.sablelife.SableLife;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -77,8 +76,7 @@ public final class SurvivalTopUpMenu extends AbstractContainerMenu {
     }
 
     @Override public boolean stillValid(Player player){
-        return heart==null||heart.canToggleBreaking(player)&&SableBodyProbe.toWorld(player.level(),player.getEyePosition()).distanceToSqr(
-                SableBodyProbe.toWorld(player.level(),heart.getBlockPos().getCenter()))<=64;
+        return heart==null||heart.canToggleBreaking(player)&&heart.editorInRange(player, 64);
     }
 
     @Override public boolean clickMenuButton(Player player,int id){

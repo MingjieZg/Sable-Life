@@ -117,6 +117,8 @@ public final class SableLife {
             () -> new CreativeReleaseToolItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
     public static final DeferredItem<dev.sablelife.item.DataCopierItem> DATA_COPIER = ITEMS.register("data_copier",
             () -> new dev.sablelife.item.DataCopierItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE)));
+    public static final DeferredItem<dev.sablelife.item.CoreRemoteItem> CORE_REMOTE = ITEMS.register("core_remote",
+            () -> new dev.sablelife.item.CoreRemoteItem(new Item.Properties().stacksTo(1)));
     public static final DeferredBlock<dev.sablelife.heart.RedstoneCoreBlock> REDSTONE_CORE=BLOCKS.register("redstone_core",()->new dev.sablelife.heart.RedstoneCoreBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_PURPLE).strength(4,6).sound(SoundType.METAL)));
     public static final DeferredItem<BlockItem> REDSTONE_CORE_ITEM=ITEMS.registerSimpleBlockItem(REDSTONE_CORE);
     public static final DeferredBlock<dev.sablelife.heart.SurvivalLifeCoreBlock> SURVIVAL_LIFE_CORE=BLOCKS.register("survival_heart_core",
@@ -134,6 +136,7 @@ public final class SableLife {
                         output.accept(CREATIVE_RELEASE_TOOL.get());
                         output.accept(SURVIVAL_RELEASE_TOOL.get());
                         output.accept(DATA_COPIER.get());
+                        output.accept(CORE_REMOTE.get());
                         output.accept(WILD_ENCOUNTER_TOOL.get());
                     }).build());
 
@@ -159,6 +162,7 @@ public final class SableLife {
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BodyInteraction::opened);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BodyInteraction::closed);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BodyInteraction::tick);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.item.CoreRemoteItem::playerTick);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, dev.sablelife.module.MarkingSessions::click);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST,dev.sablelife.heart.CorePlacementRules::placed);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, dev.sablelife.module.MarkingSessions::attack);

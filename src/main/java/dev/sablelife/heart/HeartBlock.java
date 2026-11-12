@@ -96,6 +96,12 @@ public class HeartBlock extends CopycatBlock {
     }
 
     @Override public BlockEntityType<? extends CopycatBlockEntity> getBlockEntityType() { return SableLife.HEART_ENTITY.get(); }
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state,
+                            net.minecraft.world.entity.LivingEntity placer, net.minecraft.world.item.ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (!level.isClientSide && level.getBlockEntity(pos) instanceof HeartBlockEntity core) core.clearRemoteId();
+    }
     @Override public InteractionResult onSneakWrenched(BlockState state, net.minecraft.world.item.context.UseOnContext context) {
         // Never enter Create's sneak-wrench pickup path, even for a dormant, bare core.
         onWrenched(state, context);

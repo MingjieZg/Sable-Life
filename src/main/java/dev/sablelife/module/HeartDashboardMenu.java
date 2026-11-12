@@ -1,7 +1,6 @@
 package dev.sablelife.module;
 
 import dev.sablelife.SableLife;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.HeartBlockEntity;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -38,6 +37,8 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     private void refresh() {
         if (heart == null) return;
         var tag = heart.modules().snapshot(heart, heart.canEdit(viewer)); tag.putBoolean("Ready", true); tag.putBoolean("CommandEditable", viewer.canUseGameMasterBlocks()); tag.putBoolean("CommandAllowed", heart.getLevel().getServer().isCommandBlockEnabled());tag.putBoolean("RespawnAllowed",viewer.isCreative()&&viewer.canUseGameMasterBlocks());
+        tag.putBoolean("GroupTools", true);
+        tag.putBoolean("GroupMemberEditing", true);
         var selected = DashboardSelection.get(heart, viewer.getUUID());if(selected==null&&!heart.modules().all().isEmpty())selected=heart.modules().all().getFirst().id(); if (selected != null) tag.putUUID("Selected", selected);
         if(connectionsRevision!=heart.modules().revision()){connections=ModuleConnections.links(heart.modules().all());endpoints=ModuleConnections.endpoints(heart.modules().all());connectionsRevision=heart.modules().revision();}
         tag.put("References",ModuleConnections.references(connections,selected));
@@ -59,8 +60,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     @Override public void broadcastChanges() { if (heart != null && heart.getLevel().getGameTime() % 5 == 0) refresh(); super.broadcastChanges(); }
     @Override public boolean stillValid(Player player) {
         return heart == null || heart.canAccessEditor(player) && !heart.isRemoved() && player.level() == heart.getLevel()
-                && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart
-                && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
+                && heart.editorInRange(player, 64);
     }
     public boolean action(Player player, int revision, UUID id, String operation, String key, double value, String text) {
         if (heart == null || !stillValid(player)) return false;
@@ -72,6 +72,14 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         if(operation.equals("group")){
             var target=heart.modules().find(id);if(!heart.canEdit(player)||revision!=heart.modules().revision()||target==null||!target.group(text))return false;
             heart.modules().changed();heart.setChanged();refresh();broadcastChanges();return true;
+        }
+        boolean replaceGroup = operation.equals(ModuleNetworking.Action.GROUP_MEMBERS);
+        if (replaceGroup || operation.equals(ModuleNetworking.Action.GROUP_BATCH)) {
+            if (!heart.canEdit(player) || revision != heart.modules().revision() || !snapshot().getBoolean("Editable")) {
+                refresh(); sendAllDataToRemote(); return false;
+            }
+            if (!heart.modules().assignGroups(key, text, replaceGroup)) return false;
+            heart.setChanged(); refresh(); broadcastChanges(); return true;
         }
         if(operation.equals("add")||operation.equals("add_preset")){
             if(!ModuleAvailability.enabled(heart,key))return false;
@@ -108,7 +116,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         if (operation.equals("effects")) {
             if(heart.isSurvivalCore()&&key.equals("effects"))return false;
             var module = heart.modules().find(id);
-            if(module!=null&&(module.type().equals("summoned_weapon")||module.type().equals("linear_movement")||module.type().equals("sphere_blast")||module.type().equals("pulse")||module.type().equals("mortar")||module.type().equals("ground_strike"))&&VirtualModule.particleStage(key)!=null){
+            if(module!=null&&VirtualModule.particleStage(key)!=null&&ModuleFields.find(module.type(),key)!=null){
                 String stage=VirtualModule.particleStage(key);if(module.movementParticles(stage)==null)return false;
                 player.openMenu(new net.minecraft.world.SimpleMenuProvider((container,inventory,ignored)->EffectSelectionMenu.movement(container,inventory,heart,module,stage),net.minecraft.network.chat.Component.translatable("effects.sablelife.title")));return true;
             }
@@ -192,7 +200,11 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             case "gyro_calibrate" -> { result=ModuleGyroscope.calibrate(heart,module); if(result)heart.modules().changed(); }
             case "reorder" -> result=Double.isFinite(value)&&(value==-1||value==1)&&heart.modules().reorder(id,(int)value);
             case "remove" -> { if(module!=null&&module.type().equals("command")&&!player.canUseGameMasterBlocks())return false;result=heart.modules().remove(id); }
-            case "mark" -> { return module != null && module.known() && MarkingSessions.start(player, heart, module); }
+            case "mark" -> {
+                boolean watchedPart = key.equals(ModuleNetworking.Action.WATCHED_PART);
+                return (key.isEmpty() || watchedPart) && module != null && module.known()
+                        && MarkingSessions.start(player, heart, module, watchedPart);
+            }
             case "edit" -> { if(heart.isSurvivalCore()&&module!=null&&!dev.sablelife.heart.SurvivalLifeCorePolicy.targetModeAllowed(module,key,value))return false; if (module != null && module.type().equals("command") && !player.canUseGameMasterBlocks()) return false; if(module!=null&&ModuleSurfaceField.impactAttack(module)&&key.equals("impactArea")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var config=value==0?null:heart.modules().all().get((int)value-1);if(config!=null&&!config.type().equals("surface_field"))return false;module.impactField(config==null?null:config.id());result=true;}else if(module!=null&&module.type().equals("summoned_weapon")&&key.equals("summonAttack")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleSummonedWeapon.ATTACKS.contains(source.type()))return false;module.summonAttack(source==null?null:source.id());result=true;}else if(module!=null&&module.type().equals("hit_counter")&&key.equals("hitSource")){if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>heart.modules().all().size())return false;var source=value==0?null:heart.modules().all().get((int)value-1);if(source!=null&&!ModuleHitCounter.ATTACKS.contains(source.type()))return false;module.hitSource(source==null?null:source.id(),(int)value);result=true;}else result = module != null && module.edit(key, value, text); if (result) { if (module.type().equals("command")) module.approveCommands(); if(key.equals("trigger") || key.startsWith("hurt") || key.equals("enabled")) heart.modules().hurtTriggers.reset(id); heart.modules().changed(); } }
             default -> { return false; }
         }

@@ -59,4 +59,29 @@ class WeaponMixinContractTest {
         edit(classes,target,node->node.fields.removeIf(f->f.name.equals("running")));
         assertFalse(check("CannonMountCleanupMixin",target,classes).compatible());
     }
+
+    @Test void changedBlazeImpactSkipsOptionalHook() {
+        String target="com/nukateam/cgs/common/faundation/entity/BlazeProjectile";
+        String parent="com/nukateam/ntgl/common/foundation/entity/ProjectileEntity";
+        String entity="net/minecraft/world/entity/Entity";
+        String hook="CgsBlazeProjectileMixin";
+        var node=new ClassNode();
+        node.visit(Opcodes.V21,Opcodes.ACC_PUBLIC,target,null,parent,null);
+        String descriptor="(Lcom/nukateam/ntgl/common/util/util/math/ExtendedEntityRayTraceResult;)V";
+        var hit=node.visitMethod(Opcodes.ACC_PROTECTED,"onHitEntity",descriptor,null,null);
+        hit.visitMethodInsn(Opcodes.INVOKESPECIAL,parent,"onHitEntity",descriptor,false);
+        hit.visitMethodInsn(Opcodes.INVOKEVIRTUAL,entity,"hurt","(Lnet/minecraft/world/damagesource/DamageSource;F)Z",false);
+        hit.visitMethodInsn(Opcodes.INVOKEVIRTUAL,entity,"igniteForSeconds","(F)V",false);
+        hit.visitInsn(Opcodes.RETURN);
+        var output=new ClassWriter(0);node.accept(output);
+        var classes=new HashMap<String,byte[]>();classes.put(target,output.toByteArray());
+        assertTrue(check(hook,target,classes).compatible());
+        edit(classes,target,changed->{
+            var instructions=changed.methods.getFirst().instructions;
+            for(var instruction:instructions.toArray())
+                if(instruction instanceof MethodInsnNode call&&call.name.equals("igniteForSeconds"))instructions.remove(call);
+        });
+        assertFalse(check(hook,target,classes).compatible());
+        assertFalse(check(hook,target,Map.of()).compatible());
+    }
 }

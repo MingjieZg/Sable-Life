@@ -53,7 +53,8 @@ public final class CoreModuleAuditGameTests {
                 }else h.assertTrue(HeartModules.status(module,core).equals("server_disabled"),"Forbidden imported module not gated: "+kind+"/"+type);
             }
             var restored=new HeartModules();restored.load(core.modules().save());
-            h.assertTrue(restored.all().size()==48,"Stored module inventory changed during reload");
+            h.assertTrue(restored.all().stream().map(VirtualModule::type).toList().equals(VirtualModule.AVAILABLE_TYPES),
+                    "Stored module inventory changed during reload");
             System.out.println("CORE_AUDIT catalog core="+kind+" allowed="+allowed.size()+" stored="+restored.all().size());
             h.succeed();
         }finally{before.forEach(ModConfigSpec.BooleanValue::set);}
@@ -138,9 +139,15 @@ public final class CoreModuleAuditGameTests {
         var rate=(ModConfigSpec.IntValue)SableLifeServerConfig.SPEC.getValues().get(List.of("survivalTokens","moduleMultipliers","surface_field"));int previous=rate.get();
         try{
             rate.set(3);var quote=new CompoundTag();SurvivalTokens.writeEstimate(core,field,quote);
+            long withoutBlast=quote.getLong("TokenEstimate");
+            field.edit("fieldBlast",1,"");field.edit("blastDamage",7,"");
+            SurvivalTokens.writeEstimate(core,field,quote);
+            h.assertTrue(quote.getLong("TokenEstimate")==withoutBlast+21,"Blast estimate should add radius times damage once");
             core.depositSurvivalTokens(actor,new ItemStack(Items.NETHERITE_INGOT));long before=core.survivalTokenBalance();
             core.modules().surfaceFields.impact(core,attack,point,up,up.scale(-1));
             h.assertTrue(core.modules().surfaceFields.count()==1&&before-core.survivalTokenBalance()==quote.getLong("TokenEstimate"),"Impact area debit disagrees with configured multiplier");
+            long balance=core.survivalTokenBalance();
+            h.assertTrue(SurvivalTokens.chargeFieldExtension(core,field,20)&&balance-core.survivalTokenBalance()==29,"Area refresh charged again for the blast");
             core.resetForSurvival(actor);h.assertTrue(core.modules().surfaceFields.count()==0,"Release retained impact area");h.succeed();
         }finally{rate.set(previous);}
     }

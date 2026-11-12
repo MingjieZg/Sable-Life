@@ -53,6 +53,91 @@ public final class LifeRetaliationGameTests {
     }
     @GameTest(template="combat",timeoutTicks=100,batch="retaliation_zombie")
     public static void RealZombieAiRetaliatesAndItsAttackDamagesCore(GameTestHelper h){var c=core(h);receiver(c);var box=c.modules().damageBoxes.entities().getFirst();var z=zombie(h,box.getBoundingBox().getCenter().add(1,-.5,0),true);var source=ModuleDamage.named(ModuleDamage.physical(h.getLevel()),c);h.assertTrue(ModuleDamage.hurt(z,source,1),"Initial Life attack failed");h.assertTrue(z.getLastHurtByMob()==box&&z.getTarget()==null,"Bridge did not supply normal memory, or forced a target");h.runAfterDelay(8,()->{h.assertTrue(z.getTarget()==box,"Zombie's own hurt-by AI did not select receiver");h.assertTrue(c.health().current()<1000,"Zombie did not actually hit receiver/core: "+c.health().current());z.discard();h.succeed();});}
+
+    @GameTest(template="combat",timeoutTicks=140,batch="retaliation_whitelist_golem_on")
+    public static void WhitelistedIronGolemBecomesTargetableAfterNativeRetaliation(GameTestHelper h) {
+        whitelistedGolemRetaliation(h, true, dev.sablelife.heart.CoreRelations.MobGroup.NEUTRAL.id().toString());
+    }
+
+    @GameTest(template="combat",timeoutTicks=140,batch="retaliation_whitelist_golem_off")
+    public static void WhitelistedIronGolemCanRetaliateWithTheTargetExceptionOff(GameTestHelper h) {
+        whitelistedGolemRetaliation(h, false, "minecraft:iron_golem");
+    }
+
+    private static void whitelistedGolemRetaliation(GameTestHelper h, boolean allowRetaliation, String whitelistEntry) {
+        var core = core(h);
+        var hitbox = receiver(core);
+        hitbox.edit("hitboxOffsetY", 0, "");
+        hitbox.edit("hitboxOffsetX", 2, "");
+        hitbox.edit("hitboxRetaliateAgainstWhitelisted", allowRetaliation ? 1 : 0, "");
+        core.modules().damageBoxes.tick(core);
+        var box = core.modules().damageBoxes.entities().getFirst();
+        var level = h.getLevel();
+        var hover = core.modules().add("hover_anchor");
+        hover.anchors(List.of(ModuleAnchor.create(core, core.getBlockPos(), Direction.UP)));
+        hover.edit("hoverRotation", 1, "");
+        h.assertTrue(core.relations().excludeMob(whitelistEntry), "Could not whitelist iron golems");
+
+        var blast = core.modules().add("sphere_blast");
+        blast.anchors(List.of(ModuleAnchor.create(core, core.getBlockPos().east(), Direction.EAST)));
+        blast.edit("enabled", 0, "");
+        blast.edit("sphereDistance", 3, "");
+        blast.edit("blastRadius", 2, "");
+        blast.edit("damage", 6, "");
+        blast.edit("chargeTime", 0, "");
+        blast.edit("interval", 1200, "");
+        var aim = new VirtualModule("gun");
+        aim.edit("shotAim", 1, "");
+        aim.edit("target", 2, "");
+        aim.edit("targetRange", 8, "");
+
+        var origin = box.position();
+        var floor = BlockPos.containing(origin).below();
+        for (var pos : BlockPos.betweenClosed(floor.offset(-4, 0, -9), floor.offset(10, 0, 9))) {
+            level.setBlockAndUpdate(pos, Blocks.STONE.defaultBlockState());
+        }
+        var center = ModuleSphereBlast.center(core, blast);
+        var struck = golem(h, new Vec3(center.x, floor.getY() + 1, center.z));
+        var untouched = golem(h, new Vec3(origin.x, floor.getY() + 1, origin.z - 7));
+        var bounds = box.getBoundingBox().inflate(8);
+        h.runAfterDelay(8, () -> {
+            h.assertTrue(struck.getTarget() == null && untouched.getTarget() == null && core.health().current() == 1000,
+                    "An iron golem attacked before any Life damage");
+            h.assertTrue(ModuleTargets.resolve(level, struck.getUUID(), core.creatureId()) == null
+                            && ProjectileAim.directions(core, aim, box.getBoundingBox().getCenter()).isEmpty(),
+                    "An aim module acquired a whitelisted iron golem before retaliation");
+            blast.edit("enabled", 1, "");
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(struck.getHealth() == 94 && struck.getLastHurtByMob() == box,
+                    "Sphere Blast did not damage and anger the whitelisted golem: HP=" + struck.getHealth()
+                            + ", golem=" + struck.position() + ", blast=" + ModuleSphereBlast.center(core, blast)
+                            + ", attacker=" + struck.getLastHurtByMob());
+            h.assertTrue(struck.getTarget() == box && core.health().current() < 1000,
+                    "Iron golem AI did not damage the core: HP=" + core.health().current()
+                            + ", golem=" + struck.position() + ", receiver=" + box.position() + ", target=" + struck.getTarget());
+            var targets = ModuleTargets.query(level, core.creatureId(), bounds, mob -> ModuleTargets.matches(mob, aim));
+            h.assertTrue(targets.contains(struck) == allowRetaliation
+                            && ProjectileAim.directions(core, aim, box.getBoundingBox().getCenter()).size() == (allowRetaliation ? 1 : 0),
+                    "Retaliating golem had the wrong target eligibility");
+            h.assertTrue(untouched.getHealth() == 100 && untouched.getTarget() == null && !targets.contains(untouched),
+                    "Another iron golem was damaged, angered, or made targetable");
+            System.out.println("WHITELIST_GOLEM retaliation=" + allowRetaliation + " golemHp=" + struck.getHealth()
+                    + " coreHp=" + core.health().current() + " eligible=" + targets.contains(struck));
+            struck.discard();
+            untouched.discard();
+        });
+    }
+
+    private static net.minecraft.world.entity.animal.IronGolem golem(GameTestHelper h, Vec3 position) {
+        var golem = EntityType.IRON_GOLEM.create(h.getLevel());
+        golem.setPlayerCreated(true);
+        golem.setPersistenceRequired();
+        golem.setPos(position);
+        h.assertTrue(h.getLevel().addFreshEntity(golem), "Could not spawn the iron golem");
+        return golem;
+    }
+
     @GameTest(template="combat",batch="retaliation_projectile")
     public static void TaggedNativeProjectileUsesCoreReceiverWithoutChangingSource(GameTestHelper h){var c=core(h);receiver(c);var box=c.modules().damageBoxes.entities().getFirst();var z=zombie(h,box.position().add(1,0,0),false);var arrow=new Arrow(EntityType.ARROW,h.getLevel());AttackHitCredit.attach(arrow,c,new VirtualModule("arrow"));ModuleDamage.nameProjectile(arrow,c);var source=h.getLevel().damageSources().arrow(arrow,null);z.hurt(source,1);h.assertTrue(z.getLastHurtByMob()==box&&source.getEntity()==null&&source.getDirectEntity()==arrow,"Native projectile retaliation missing or source changed");z.discard();h.succeed();}
     @GameTest(template="combat",batch="retaliation_gates")

@@ -50,6 +50,158 @@ public final class SurfaceFieldGameTests {
         return center.getBottomCenter().add(0,1,0);
     }
     private static LivingEntity pig(GameTestHelper h,Vec3 p){var e=EntityType.PIG.create(h.getLevel());e.setNoAi(true);e.setNoGravity(true);e.setPos(p);h.getLevel().addFreshEntity(e);return e;}
+    @GameTest(template="combat", batch="surface_blast_refresh", timeoutTicks=35)
+    public static void RepeatedLaserContactKeepsOneBlastAndPeriodicDamage(GameTestHelper h) {
+        var c=core(h);
+        var p=floor(h);
+        var field=c.modules().add("surface_field");
+        field.edit("fieldShape",1,"");
+        field.edit("fieldLength",8,"");
+        field.edit("fieldWidth",8,"");
+        field.edit("damage",1,"");
+        field.edit("hitInterval",5,"");
+        field.edit("fieldDuration",12,"");
+        field.edit("fieldBlast",1,"");
+        field.edit("fieldBlastDelay",4,"");
+        field.edit("blastDamage",3,"");
+        var laser=c.modules().add("laser");
+        laser.impactField(field.id());
+        laser.edit("chargeTime",0,"");
+        laser.edit("beamHits",12,"");
+        laser.edit("hitInterval",1,"");
+        laser.emitter(new VirtualModule.Emitter(p.add(0,2,0),new Vec3(0,-1,0),new org.joml.Quaterniond(),laser.id()));
+        var beam=new ModuleLaser();
+        var corner=pig(h,p.add(3.8,0,3.8));
+        var outside=pig(h,p.add(0,0,5));
+        outside.noPhysics=true;
+        var surface=c.modules().surfaceFields;
+        beam.tickEmitter(c,laser);
+        surface.tick(c);
+        h.assertTrue(corner.getHealth()==9 && surface.count()==1,"First contact did not place one periodic field");
+        for(int tick=1;tick<=10;tick++){
+            int age=tick;
+            h.runAfterDelay(tick,()->{
+                beam.tickEmitter(c,laser);
+                surface.tick(c);
+                h.assertTrue(surface.count()==1,"Laser refresh split one patch into multiple fields");
+                int expected=9-age/5-(age>=4?3:0);
+                h.assertTrue(corner.getHealth()==expected,"Rectangle corner or blast timer wrong at tick "+age+": "+corner.getHealth());
+                h.assertTrue(outside.getHealth()==10,"Outside target took damage at tick "+age+": "+outside.getHealth()+" at offset "+outside.position().subtract(p));
+                h.assertTrue(h.getLevel().getBlockState(BlockPos.containing(p.add(0,-.5,0))).is(Blocks.STONE),"Terrain changed with destruction off");
+                if(age==10)h.succeed();
+            });
+        }
+    }
+
+    @GameTest(template="combat", batch="surface_blast_terrain", timeoutTicks=30)
+    public static void BlastOnFinalTickClearsRectangleIncludingCorners(GameTestHelper h) {
+        var c=core(h);
+        var p=floor(h);
+        var field=c.modules().add("surface_field");
+        field.edit("fieldShape",1,"");
+        field.edit("fieldLength",8,"");
+        field.edit("fieldWidth",8,"");
+        field.edit("fieldDuration",4,"");
+        field.edit("fieldBlastDelay",4,"");
+        field.edit("fieldBlast",1,"");
+        field.edit("blastDamage",0,"");
+        field.edit("blastBlocks",1,"");
+        var laser=c.modules().add("laser");
+        laser.impactField(field.id());
+        var below=BlockPos.containing(p.add(0,-.5,0));
+        var level=h.getLevel();
+        level.setBlockAndUpdate(below.offset(-3,0,3),Blocks.BEDROCK.defaultBlockState());
+        SurfaceFieldImpact.terrainEnd(c,laser,p,new Vec3(0,-1,0));
+        h.runAfterDelay(3,()->{
+            c.modules().surfaceFields.tick(c);
+            h.assertTrue(level.getBlockState(below.offset(3,0,3)).is(Blocks.STONE),"Terrain exploded early");
+        });
+        h.runAfterDelay(4,()->{
+            c.modules().surfaceFields.tick(c);
+            h.assertTrue(c.modules().surfaceFields.count()==0,"End-of-life blast kept the field alive");
+            h.assertTrue(level.getBlockState(below.offset(3,0,3)).isAir(),"Rectangle corner escaped the blast");
+            h.assertTrue(level.getBlockState(below.offset(5,0,3)).is(Blocks.STONE),"Terrain outside the rectangle was destroyed");
+            h.assertTrue(level.getBlockState(below.offset(-3,0,3)).is(Blocks.BEDROCK),"Protected terrain was destroyed");
+            h.succeed();
+        });
+    }
+
+    @GameTest(template="combat", batch="surface_blast_presentation")
+    public static void ImmediateCircleBlastPlaysSelectedParticlesAndSoundOnce(GameTestHelper h) {
+        var c=core(h);
+        var level=h.getLevel();
+        var p=floor(h);
+        var field=c.modules().add("surface_field");
+        field.edit("density",0,"");
+        field.edit("damage",0,"");
+        field.edit("fieldRadius",3,"");
+        field.edit("fieldBlast",1,"");
+        field.edit("fieldBlastDelay",0,"");
+        field.edit("blastDamage",3,"");
+        var particles=field.movementParticles("Blast");
+        particles.editParticle("remove","minecraft:explosion_emitter");
+        particles.editParticle("add","minecraft:flame");
+        var timeline=field.soundTimeline("blastSound");
+        timeline.edit("clear",null,0,"");
+        h.assertTrue(timeline.edit("add",null,0,"minecraft:block.note_block.bell"),"Fixture could not select a vanilla blast sound");
+        field.soundTimeline("blastSound",timeline);
+        var laser=c.modules().add("laser");
+        laser.impactField(field.id());
+        var inside=pig(h,p);
+        var outside=pig(h,p.add(2.8,0,2.8));
+        var viewer=TestActors.creative(level);
+        viewer.setPos(p.add(0,2,0));
+        var visual=new ArrayList<net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket>();
+        var sound=new ArrayList<ModuleNetworking.ModuleSound>();
+        viewer.connection=new net.minecraft.server.network.ServerGamePacketListenerImpl(level.getServer(),new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND),viewer,net.minecraft.server.network.CommonListenerCookie.createInitial(viewer.getGameProfile(),false)){
+            @Override public void send(net.minecraft.network.protocol.Packet<?> packet){
+                if(packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket particle)visual.add(particle);
+                if(packet instanceof net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket payload
+                        &&payload.payload() instanceof ModuleNetworking.ModuleSound cue&&cue.module().equals(field.id())&&!cue.stop())sound.add(cue);
+            }
+        };
+        level.players().add(viewer);
+        try {
+            for(int hit=0;hit<2;hit++){
+                SurfaceFieldImpact.terrainEnd(c,laser,p,new Vec3(0,-1,0));
+                c.modules().surfaceFields.tick(c);
+            }
+            h.assertTrue(inside.getHealth()==7 && outside.getHealth()==10,"Circle blast did not respect its radius");
+            h.assertTrue(visual.size()==1 && visual.getFirst().getParticle().getType()==net.minecraft.core.particles.ParticleTypes.FLAME,"Blast emitted incorrect or repeated particles");
+            h.assertTrue(sound.size()==1 && sound.getFirst().sound().equals("minecraft:block.note_block.bell"),"Blast emitted incorrect or repeated sound: "+sound);
+            h.succeed();
+        }finally{level.players().remove(viewer);}
+    }
+
+    @GameTest(template="combat", batch="surface_blast_compat", timeoutTicks=35)
+    public static void LegacySettingsAndCanceledBlastRemainInert(GameTestHelper h) {
+        var c=core(h);
+        var p=floor(h);
+        var field=c.modules().add("surface_field");
+        var old=field.save();
+        old.remove("MovementParticles");
+        for(var key:List.of("fieldBlast","fieldBlastDelay","blastDamage","blastBlocks","fieldBlastParticles","blastSound"))old.getCompound("Settings").remove(key);
+        var legacy=VirtualModule.load(old);
+        h.assertTrue(legacy.value("fieldBlast")==0 && legacy.value("fieldRadius")==4 && !SurfaceFieldSettings.visible(legacy,"fieldBlastDelay"),"Legacy field no longer defaults to blast off");
+        field.edit("fieldBlast",1,"");
+        field.edit("fieldBlastDelay",4,"");
+        field.edit("damage",0,"");
+        field.movementParticles("Blast").editParticle("add","minecraft:flame");
+        var restored=ModulePreset.create(field.save());
+        h.assertTrue(restored.value("fieldBlastDelay")==4 && restored.movementParticles("Blast").particles().contains("minecraft:flame"),"Blast preset lost settings or particles");
+        var laser=c.modules().add("laser");
+        laser.impactField(field.id());
+        var victim=pig(h,p);
+        SurfaceFieldImpact.terrainEnd(c,laser,p,new Vec3(0,-1,0));
+        c.modules().surfaceFields.tick(c);
+        h.assertTrue(c.modules().surfaceFields.count()==1,"Impact did not place a field");
+        h.runAfterDelay(2,()->field.edit("enabled",0,""));
+        h.runAfterDelay(5,()->{
+            c.modules().surfaceFields.tick(c);
+            h.assertTrue(c.modules().surfaceFields.count()==0 && victim.getHealth()==10,"Disabled field still detonated");
+            h.succeed();
+        });
+    }
     @GameTest(template="combat") public static void rectangleRotatesRelativeToIncomingAndForwardStartsAtImpact(GameTestHelper h){
         var m=new VirtualModule("surface_field");m.edit("fieldShape",1,"");m.edit("fieldLength",8,"");m.edit("fieldWidth",2,"");m.edit("fieldPlacement",1,"");
         var f=SurfaceFieldGeometry.frame(m,Vec3.ZERO,new Vec3(0,1,0),new Vec3(0,0,1));

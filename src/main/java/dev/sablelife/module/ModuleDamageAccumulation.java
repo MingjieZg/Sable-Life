@@ -1,26 +1,30 @@
 package dev.sablelife.module;
 
 import dev.sablelife.heart.*;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import java.util.*;
 
 /** Both modes share attributed actual HP loss and the existing internal/external publication pass. */
 public final class ModuleDamageAccumulation {
     private static final class State {
-        final boolean timed,invert,repeat;final double threshold;final int duration;
+        final boolean timed,invert,repeat,part;final double threshold;final int duration;
+        final ModuleAnchor watched;
         final DamageAccumulator counter=new DamageAccumulator();final TimedDamageWindow window=new TimedDamageWindow();boolean high;
-        State(VirtualModule m){timed=m.value("accumMode")==1;invert=m.value("accumInvert")==1;repeat=m.value("accumRepeat")==1;threshold=m.value(timed?"accumRequired":"accumThreshold");duration=(int)m.value("accumWindow");}
-        boolean matches(VirtualModule m){boolean mode=m.value("accumMode")==1;return timed==mode&&threshold==m.value(mode?"accumRequired":"accumThreshold")&&(!timed||duration==(int)m.value("accumWindow")&&repeat==(m.value("accumRepeat")==1)&&invert==(m.value("accumInvert")==1));}
+        State(VirtualModule m){timed=m.value("accumMode")==1;invert=m.value("accumInvert")==1;repeat=m.value("accumRepeat")==1;threshold=m.value(timed?"accumRequired":"accumThreshold");duration=(int)m.value("accumWindow");part=m.listensToPart();watched=m.watchedPart();}
+        boolean matches(VirtualModule m){boolean mode=m.value("accumMode")==1;return part==m.listensToPart()&&(!part||Objects.equals(watched,m.watchedPart()))&&timed==mode&&threshold==m.value(mode?"accumRequired":"accumThreshold")&&(!timed||duration==(int)m.value("accumWindow")&&repeat==(m.value("accumRepeat")==1)&&invert==(m.value("accumInvert")==1));}
     }
     private final Map<UUID,State> states=new HashMap<>();private HeartBlockEntity owner;
     private State state(VirtualModule m){return states.compute(m.id(),(id,old)->old!=null&&old.matches(m)?old:new State(m));}
     private static boolean active(VirtualModule m,HeartBlockEntity heart){return heart.health().state()==HeartState.ALIVE&&heart.wireless().master()&&HeartModules.triggered(m,heart);}
     private static boolean outputReady(VirtualModule m,HeartBlockEntity heart){return channelStatus(m,heart).equals("ready")||m.hasRedBlue();}
     private static boolean advance(State s,VirtualModule m,HeartBlockEntity heart){return s.window.tick(heart.getLevel().getGameTime(),active(m,heart)&&outputReady(m,heart),s.duration,s.threshold,s.repeat,s.invert,(int)m.value("accumPulse"));}
-    public void record(HeartBlockEntity heart,double actualLoss){
+    public void record(HeartBlockEntity heart,double actualLoss){record(heart,null,actualLoss);}
+    public void record(HeartBlockEntity heart,BlockPos hit,double actualLoss){
         if(!Double.isFinite(actualLoss)||actualLoss<=0||heart.health().state()!=HeartState.ALIVE||!heart.wireless().master())return;
         owner=heart;
         for(var m:heart.modules().all())if(m.type().equals("damage_accumulation")&&HeartModules.triggered(m,heart)){
+            if(m.listensToPart()&&!ModulePartBreak.watches(m,ModulePartBreak.hitBody(heart,hit)))continue;
             var s=state(m);if(s.timed){s.high=advance(s,m,heart);s.window.add(actualLoss);}else s.counter.add(actualLoss,s.threshold);
         }
     }

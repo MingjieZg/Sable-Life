@@ -1,7 +1,6 @@
 package dev.sablelife.heart;
 
 import dev.sablelife.SableLife;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.SimpleContainer;
@@ -13,6 +12,7 @@ import net.minecraft.world.item.component.CustomData;
 
 /** Invisible snapshot slot, with all core mutations validated by the server. */
 public final class HeartSettingsMenu extends AbstractContainerMenu {
+    public static final int HIT_EFFECT_PAGE = 7;
     private final HeartBlockEntity heart;
     private final Player viewer;
     private final int initialPage;
@@ -25,7 +25,7 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
     }
     public HeartSettingsMenu(int id, Inventory inventory, HeartBlockEntity heart, int page) {
         super(SableLife.SETTINGS_MENU.get(), id); this.heart = heart; viewer = inventory.player;
-        initialPage = Math.clamp(page, 0, 6);
+        initialPage = page == HIT_EFFECT_PAGE ? page : Math.clamp(page, 0, heart != null && heart.isSurvivalCore() ? 2 : 6);
         addSlot(new Slot(snapshot, 0, -10000, -10000) {
             @Override public boolean mayPlace(ItemStack stack) { return false; }
             @Override public boolean mayPickup(Player player) { return false; }
@@ -60,6 +60,10 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         var crush=heart.terrainSettings();tag.put("Crush",crush.save());tag.putBoolean("crushEnabled",crush.enabled());tag.putBoolean("crushFloor",crush.floor());tag.putBoolean("crushDebris",crush.debris());tag.putBoolean("crushDrops",crush.drops());tag.putDouble("crushDelay",crush.delay()/20.);
         var defense=heart.adaptiveDefense();tag.putBoolean("defenseEnabled",defense.enabled());tag.putDouble("defenseThreshold",defense.threshold());tag.putDouble("defenseMaximum",defense.maximum());tag.putDouble("defenseWindow",defense.window()/20.);tag.putDouble("DefenseDps",defense.dps());tag.putDouble("DefenseReduction",defense.reduction()*100);
         tag.putString("State", heart.health().state().name());
+        var hit = heart.hitPresentation();
+        tag.putInt("HitParticleTypes", hit.particleSelection().particles().size());
+        tag.putInt("hitParticleCount", hit.count());
+        tag.putDouble("hitParticleSpread", hit.spread());
         for (var key : java.util.List.of("deathParticle", "deathSound", "deathSoundLast")) tag.putString(key, heart.deathPresentation().text(key));
         tag.putInt("DeathParticleCount",heart.deathPresentation().particleSelection().particles().size());
         for (var key : java.util.List.of("deathCount", "deathSpread", "deathDuration", "deathScale", "deathVolume", "deathPitch", "deathRadius", "deathEffectRadius", "deathPattern")) tag.putDouble(key, heart.deathPresentation().value(key));
@@ -74,15 +78,14 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
     @Override public void broadcastChanges() { refresh(); super.broadcastChanges(); }
     @Override public boolean stillValid(Player player) {
         return heart == null || heart.canAccessEditor(player)
-            && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart
-            && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
+            && heart.editorInRange(player, 64);
     }
     public boolean action(Player player, String key, double value, String text) {
         if (heart == null || !stillValid(player)) return false;
         if(key.startsWith("relation:")){boolean result=relations(player,key.substring(9),text);refresh();sendAllDataToRemote();return result;}
         if(key.equals("release"))return CoreRelease.release(heart,player);
         if(key.equals("viewPage")){
-            if(!Double.isFinite(value)||value<0||value>(heart.isSurvivalCore()?2:6)||value!=Math.rint(value))return false;
+            if(value!=HIT_EFFECT_PAGE&&(!Double.isFinite(value)||value<0||value>(heart.isSurvivalCore()?2:6)||value!=Math.rint(value)))return false;
             dev.sablelife.module.CoreEditorPosition.remember(heart,player.getUUID(),dev.sablelife.module.CoreEditorPosition.Section.SETTINGS,(int)value);return true;
         }
         if(key.equals("deathPreview")||key.equals("vanishPreview")){
@@ -139,9 +142,13 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
             case 1 -> heart.openWireless(player);
             case 2 -> heart.openDeathLootMenu(player);
             case 3 -> player.closeContainer();
-            case 4, 5 -> {
+            case 4, 5, 6 -> {
                 if(!heart.canToggleBreaking(player)||button==5&&heart.isSurvivalCore()) return false;
-                player.openMenu(new net.minecraft.world.SimpleMenuProvider((id,inventory,ignored)->button==5?dev.sablelife.module.EffectSelectionMenu.removal(id,inventory,heart):dev.sablelife.module.EffectSelectionMenu.death(id,inventory,heart),net.minecraft.network.chat.Component.translatable("particles.sablelife.title")));
+                player.openMenu(new net.minecraft.world.SimpleMenuProvider((id,inventory,ignored)->switch(button){
+                    case 5 -> dev.sablelife.module.EffectSelectionMenu.removal(id,inventory,heart);
+                    case 6 -> dev.sablelife.module.EffectSelectionMenu.hit(id,inventory,heart);
+                    default -> dev.sablelife.module.EffectSelectionMenu.death(id,inventory,heart);
+                },net.minecraft.network.chat.Component.translatable("particles.sablelife.title")));
             }
             default -> { return false; }
         }

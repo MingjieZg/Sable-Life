@@ -8,8 +8,15 @@ import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import net.minecraft.core.*;
 import net.minecraft.gametest.framework.*;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.*;
 import net.neoforged.neoforge.gametest.*;
@@ -126,6 +133,99 @@ public final class QuakeGameTests {
             h.assertTrue(VirtualModule.load(m.save()).value("laserFollow") == .1, "Firing speed lost after save");
             laser.clear(); h.succeed();
         });
+    }
+    @GameTest(template="combat", batch="laser_target_lost_during_fire", timeoutTicks=30)
+    public static void LaserFinishesBurstInLastDirectionAfterKillingTarget(GameTestHelper h) {
+        var heart = fixture(h);
+        var module = heart.modules().add("laser");
+        module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos(), Direction.NORTH)));
+        module.edit("laserAim", 1, "");
+        module.edit("target", 1, "");
+        module.edit("chargeTime", 0, "");
+        module.edit("beamLength", 8, "");
+        module.edit("beamHits", 3, "");
+        module.edit("hitInterval", 4, "");
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        h.assertTrue(laserFrames(h, heart, module).isEmpty() && laserPhase(heart).equals("waiting"),
+                "Tracking laser fired with no initial target");
+
+        var muzzle = ModuleCombat.nozzle(heart, module);
+        var target = pig(h, muzzle.add(0, -.45, 3), true);
+        target.setHealth(1);
+        var initial = laserFrames(h, heart, module);
+        h.assertTrue(initial.size() == 1 && !target.isAlive(), "Tracking laser did not kill its first target");
+        var heading = initial.getFirst().ends().getFirst().point().subtract(initial.getFirst().start()).normalize();
+        h.assertTrue(heading.z > .9, "First beam did not point at the target");
+        var crossing = pig(h, muzzle.add(heading.scale(5)).add(0, -.45, 0), true);
+        var offAxis = pig(h, muzzle.add(4, -.45, 0), true);
+        h.runAfterDelay(1, () -> {
+            var frames = laserFrames(h, heart, module);
+            h.assertTrue(frames.size() == 1, "Beam disappeared when its first target died");
+            var frame = frames.getFirst();
+            h.assertTrue(frame.ends().getFirst().point().subtract(frame.start()).normalize().distanceTo(heading) < 1e-5,
+                    "Beam snapped away from its final aim direction");
+        });
+        h.runAfterDelay(4, () -> {
+            laserFrames(h, heart, module);
+            h.assertTrue(crossing.getHealth() < 10 && offAxis.getHealth() == 10,
+                    "The held beam lost its damage path or switched to an off-axis target");
+        });
+        h.runAfterDelay(11, () -> h.assertTrue(laserFrames(h, heart, module).size() == 1,
+                "The beam did not reach the final tick of its configured duration"));
+        h.runAfterDelay(12, () -> {
+            h.assertTrue(laserFrames(h, heart, module).isEmpty() && laserPhase(heart).equals("waiting"),
+                    "The beam continued past the configured duration");
+            h.succeed();
+        });
+    }
+
+    @GameTest(template="combat", batch="laser_target_lost_during_charge", timeoutTicks=20)
+    public static void LosingTargetBeforeFirstEmissionDoesNotCreateHeldBeam(GameTestHelper h) {
+        var heart = fixture(h);
+        var module = heart.modules().add("laser");
+        module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos(), Direction.NORTH)));
+        module.edit("laserAim", 1, "");
+        module.edit("target", 1, "");
+        module.edit("beamLength", 8, "");
+        module.edit("chargeTime", 4, "");
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        var muzzle = ModuleCombat.nozzle(heart, module);
+        var target = pig(h, muzzle.add(0, -.45, 3), true);
+        h.assertTrue(laserFrames(h, heart, module).isEmpty() && laserPhase(heart).equals("charging"),
+                "Fixture never charged or emitted a beam while charging");
+        target.discard();
+        var replacement = pig(h, muzzle.add(0, -.45, 5), true);
+        h.runAfterDelay(5, () -> {
+            h.assertTrue(laserFrames(h, heart, module).isEmpty() && replacement.getHealth() == 10,
+                    "A warning direction became a damaging beam without its target");
+            h.succeed();
+        });
+    }
+
+    private static String laserPhase(HeartBlockEntity heart) {
+        return heart.modules().snapshot(heart, false).getList("Modules", 10).getCompound(0).getString("LaserPhase");
+    }
+
+    private static List<LaserVisual> laserFrames(GameTestHelper h, HeartBlockEntity heart, VirtualModule module) {
+        var level = h.getLevel();
+        var observer = TestActors.creative(level);
+        observer.setGameMode(GameType.SPECTATOR);
+        observer.setPos(ModuleCombat.nozzle(heart, module));
+        var frames = new java.util.ArrayList<LaserVisual>();
+        observer.connection = new ServerGamePacketListenerImpl(level.getServer(), new Connection(PacketFlow.SERVERBOUND),
+                observer, CommonListenerCookie.createInitial(observer.getGameProfile(), false)) {
+            @Override public void send(Packet<?> packet) {
+                if (packet instanceof ClientboundCustomPayloadPacket payload && payload.payload() instanceof LaserVisual visual
+                        && visual.id().equals(module.id()) && !visual.ends().isEmpty()) frames.add(visual);
+            }
+        };
+        level.players().add(observer);
+        try {
+            heart.modules().tick(heart);
+        } finally {
+            level.players().remove(observer);
+        }
+        return frames;
     }
     @GameTest(template="combat", batch="quake_area", timeoutTicks=40)
     public static void WholeAreaRisesAtOnceAroundFrozenTargetFeet(GameTestHelper h) {

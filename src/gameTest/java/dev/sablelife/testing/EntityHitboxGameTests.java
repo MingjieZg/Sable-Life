@@ -25,6 +25,64 @@ public final class EntityHitboxGameTests {
     private static VirtualModule module(HeartBlockEntity c){var m=c.modules().add("entity_hitbox");m.edit("hitboxDamageMode",0,"");m.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos().east(),Direction.UP)));return m;}
     private static List<EntityHitbox> boxes(HeartBlockEntity c){c.modules().damageBoxes.tick(c);return c.modules().damageBoxes.entities();}
     private static void hp(GameTestHelper h,HeartBlockEntity c,float expected){h.assertTrue(Math.abs(c.health().current()-expected)<.001,"Expected HP "+expected+", got "+c.health().current());}
+
+    @GameTest(template="combat",batch="hitbox_whitelisted_attacker",timeoutTicks=320)
+    public static void WhitelistedReceiverAttackersBecomeEligibleWithoutChangingTargetPriority(GameTestHelper h) {
+        var core = core(h);
+        var module = module(core);
+        var receiver = boxes(core).getFirst();
+        var world = h.getLevel();
+        var center = receiver.getBoundingBox().getCenter();
+        var first = target(h, EntityType.HUSK, center.add(5, 0, 0));
+        var second = target(h, EntityType.HUSK, center.add(0, 0, 5));
+        var untouched = target(h, EntityType.HUSK, center.add(-5, 0, 0));
+        var nearby = target(h, EntityType.COW, center.add(2, 0, 0));
+        var bounds = receiver.getBoundingBox().inflate(8);
+        var owner = core.creatureId();
+        var field = "hitboxRetaliateAgainstWhitelisted";
+        h.assertTrue(core.relations().excludeMob("minecraft:husk"), "Could not whitelist husks");
+        h.assertTrue(ModuleTargets.query(world, owner, bounds).contains(nearby)
+                && !ModuleTargets.query(world, owner, bounds).contains(first), "Normal whitelist acquisition failed");
+        h.assertTrue(ModuleTargets.damageQuery(world, owner, bounds, e -> e == first).contains(first), "Whitelist became damage immunity");
+        receiver.hurt(world.damageSources().mobAttack(first), 8);
+        core.modules().damageBoxes.flush(core);
+        h.assertTrue(ModuleTargets.resolve(world, first.getUUID(), owner) == null, "Default-off receiver enabled retaliation");
+        h.assertTrue(module.edit(field, 1, "") && VirtualModule.load(module.save()).value(field) == 1, "Receiver toggle did not persist");
+        var old = module.save();
+        old.getCompound("Settings").remove(field);
+        h.assertTrue(VirtualModule.load(old).value(field) == 0, "Old receiver settings changed behavior");
+
+        receiver.hurt(world.damageSources().mobAttack(first), 8);
+        core.modules().damageBoxes.flush(core);
+        h.assertTrue(ModuleTargets.resolve(world, first.getUUID(), owner) == null, "Suppressed hit granted targeting");
+        receiver.hurt(world.damageSources().arrow(arrow(h), first), 10);
+        core.modules().damageBoxes.flush(core);
+        h.assertTrue(ModuleTargets.resolve(world, first.getUUID(), owner) == first, "Arrow's owner was not eligible after damage");
+        h.assertTrue(ModuleTargets.comparator(core, e -> e.distanceToSqr(center)).compare(nearby, first) < 0,
+                "Retaliation changed target priority");
+        receiver.hurt(world.damageSources().mobAttack(second), 10);
+        core.modules().damageBoxes.flush(core);
+        var available = ModuleTargets.query(world, owner, bounds);
+        h.assertTrue(available.contains(first) && available.contains(second) && !available.contains(untouched),
+                "Target exception was not per attacker");
+        h.runAfterDelay(299, () -> h.assertTrue(ModuleTargets.resolve(world, first.getUUID(), owner) == first
+                && ModuleTargets.resolve(world, second.getUUID(), owner) == second, "Target exceptions expired early"));
+        h.runAfterDelay(300, () -> {
+            h.assertTrue(first.isAlive() && second.isAlive()
+                    && ModuleTargets.resolve(world, first.getUUID(), owner) == null
+                    && ModuleTargets.resolve(world, second.getUUID(), owner) == null, "Target exceptions did not expire");
+            h.succeed();
+        });
+    }
+
+    private static <T extends Mob> T target(GameTestHelper h, EntityType<T> type, Vec3 point) {
+        var target = type.create(h.getLevel());
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        target.setPos(point);
+        h.getLevel().addFreshEntity(target);
+        return target;
+    }
     @GameTest(template="combat",batch="hitbox_basic")
     public static void ReceiverSwitchesDamageModeAndCleansOnDisableAndRelease(GameTestHelper h){var c=core(h);var m=module(c);var b=boxes(c).getFirst();h.assertTrue(EntityHitboxes.mode(c),"No entity mode");h.assertTrue(!c.damageAt(c.getBlockPos(),10),"Structure damage duplicated receiver path");b.hurt(h.getLevel().damageSources().generic(),20);hp(h,c,1000);c.modules().damageBoxes.flush(c);hp(h,c,980);m.edit("enabled",0,"");boxes(c);h.assertTrue(b.isRemoved()&&!EntityHitboxes.mode(c),"Disabled receiver retained mode/entity");h.assertTrue(c.damageAt(c.getBlockPos(),10),"Structure mode did not recover");m.edit("enabled",1,"");var next=boxes(c).getFirst();c.resetForCreative(TestActors.creative(h.getLevel()));h.assertTrue(next.isRemoved(),"Release leaked receiver");h.succeed();}
     @GameTest(template="combat",batch="hitbox_transform")

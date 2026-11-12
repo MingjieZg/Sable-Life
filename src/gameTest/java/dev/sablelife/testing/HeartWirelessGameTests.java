@@ -26,6 +26,37 @@ import java.util.List;
 @GameTestHolder("sablelife_control_tests")
 @PrefixGameTestTemplate(false)
 public final class HeartWirelessGameTests {
+    @GameTest(template = "combat", batch = "wireless_add_enabled")
+    public static void addChannelEnablesOnlyNewChannel(GameTestHelper h) {
+        var heart = fixture(h, new BlockPos(3, 6, 3));
+        var level = h.getLevel();
+        var player = TestActors.creative(level);
+        player.setPos(SableBodyProbe.toWorld(level, heart.getBlockPos().getCenter()));
+        var menu = new HeartWirelessMenu(1, player.getInventory(), heart);
+        h.assertTrue(menu.clickMenuButton(player, 0), "Could not disable the existing channel");
+        h.assertTrue(menu.clickMenuButton(player, 7 << 16), "Could not turn off the wireless master");
+
+        int next = menu.count();
+        h.assertTrue(menu.clickMenuButton(player, 10 << 16), "Could not add a channel from the menu");
+        h.assertTrue(menu.count() == next + 1 && menu.selected() == next && menu.setting(next, 0) == 1,
+                "The new channel was not selected and enabled in the menu");
+
+        var registries = level.registryAccess();
+        var settings = heart.wireless().save(registries);
+        heart.wireless().load(settings, registries);
+        h.assertTrue(heart.wireless().channel(0).value(0) == 0 && heart.wireless().channel(next).value(0) == 1,
+                "Saved channel switches did not survive reload");
+        h.assertTrue(menu.value(HeartWirelessMenu.MASTER) == 0, "Adding a channel turned on the wireless master");
+
+        h.assertTrue(menu.clickMenuButton(player, 7 << 16 | 1), "Could not turn on the wireless master");
+        h.assertTrue(heart.wireless().output(next) == 0, "The new channel output power while dormant");
+        heart.tryActivate(player);
+        heart.wireless().tick(level);
+        h.assertTrue(heart.wireless().output(next) == 15 && heart.wireless().output(0) == 0,
+                "The enabled channel did not start its default waveform on activation");
+        h.succeed();
+    }
+
     @GameTest(template = "combat", timeoutTicks = 100, batch="audit_heartwirelessgametests_externalreceivermatchescreatelinkandneverrunsownwaveform")
     public static void externalReceiverMatchesCreateLinkAndNeverRunsOwnWaveform(GameTestHelper h) {
         var heart = fixture(h, new BlockPos(3, 6, 3)); var channel = heart.wireless().channel(15);

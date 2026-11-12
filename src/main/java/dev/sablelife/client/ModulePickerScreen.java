@@ -76,5 +76,5 @@ public final class ModulePickerScreen extends Screen {
     @Override public void tick(){if(!types.equals(parent.availableTypes())||datapackRevision!=DatapackModules.clientRevision()){types=List.copyOf(parent.availableTypes());selected=null;rebuildWidgets();}ticks++;if(deleteUntil!=0&&deleteUntil<=ticks){deleteUntil=0;delete.setMessage(tr("delete"));}if(minecraft.player==null||minecraft.player.containerMenu!=parent.getMenu())minecraft.setScreen(null);}
     @Override public boolean isPauseScreen(){return false;}
     @Override public void onClose(){minecraft.setScreen(parent);}
-    @Override public void renderBackground(GuiGraphics g,int mx,int my,float partial){super.renderBackground(g,mx,my,partial);g.fill(x-2,y-2,x+w+2,y+h+2,0xFF9B614E);g.fill(x,y,x+w,y+h,0xFF242632);g.drawString(font,title,x+8,y+12,0xFFE6D8EA,false);if(!error.getString().isEmpty())g.drawString(font,error,x+8,y+h-39,0xFFFF7777,false);}
+    @Override public void renderBackground(GuiGraphics g,int mx,int my,float partial){super.renderBackground(g,mx,my,partial);g.fill(x-2,y-2,x+w+2,y+h+2,0xFF9B614E);g.fill(x,y,x+w,y+h,0xFF242632);g.drawString(font,font.plainSubstrByWidth(title.getString(),w-80),x+8,y+12,0xFFE6D8EA,false);if(!error.getString().isEmpty())g.drawString(font,error,x+8,y+h-39,0xFFFF7777,false);}
 }

@@ -142,11 +142,139 @@ public final class HeartSettingsGameTests {
         h.assertTrue(legacy.bossBarColor()==net.minecraft.world.BossEvent.BossBarColor.RED,"Missing color did not default red");h.succeed();
     }
     private static HeartBlockEntity fixture(GameTestHelper helper) {
+        return fixture(helper, false);
+    }
+
+    private static HeartBlockEntity fixture(GameTestHelper helper, boolean survival) {
         var level = helper.getLevel(); var origin = helper.absolutePos(new BlockPos(4, 6, 4));
-        level.setBlockAndUpdate(origin, SableLife.HEART.get().defaultBlockState());
+        var block = survival ? SableLife.SURVIVAL_LIFE_CORE.get() : SableLife.HEART.get();
+        level.setBlockAndUpdate(origin, block.defaultBlockState());
         level.setBlockAndUpdate(origin.east(), Blocks.IRON_BLOCK.defaultBlockState());
         var body = SubLevelAssemblyHelper.assembleBlocks(level, origin, List.of(origin, origin.east()),
                 new BoundingBox3i(origin.getX(), origin.getY(), origin.getZ(), origin.getX() + 1, origin.getY(), origin.getZ()));
         return (HeartBlockEntity) level.getBlockEntity(body.getPlot().getCenterBlock());
+    }
+
+    @GameTest(template = "combat", batch = "core_hit_particles")
+    public static void StructureHitsEmitOnlyConfiguredParticles(GameTestHelper h) {
+        var level = h.getLevel();
+        var core = fixture(h);
+        var player = new HitSettingsPlayer(level, GameType.CREATIVE);
+        var hit = core.getBlockPos().east();
+        var point = SableBodyProbe.toWorld(level, hit.getCenter());
+        player.setPos(point);
+        var packets = new java.util.ArrayList<net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket>();
+        player.connection = new net.minecraft.server.network.ServerGamePacketListenerImpl(level.getServer(),
+                new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND), player,
+                net.minecraft.server.network.CommonListenerCookie.createInitial(player.getGameProfile(), false)) {
+            @Override public void send(net.minecraft.network.protocol.Packet<?> packet) {
+                if (packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket particle) packets.add(particle);
+            }
+        };
+        var legacySave = core.saveWithFullMetadata(level.registryAccess());
+        legacySave.remove("HitPresentation");
+        core.loadWithComponents(legacySave, level.registryAccess());
+        core.tryActivate(player);
+        level.players().add(player);
+        try {
+            hitWithArrow(h, hit);
+            h.assertTrue(packets.size() == 1 && packets.getFirst().getCount() == 4
+                    && packets.getFirst().getParticle() == net.minecraft.core.particles.ParticleTypes.DAMAGE_INDICATOR
+                    && packets.getFirst().getXDist() == .15F, "Legacy burst did not preserve the original dark hearts");
+            packets.clear();
+            var settings = new HeartSettingsMenu(1, player.getInventory(), core, HeartSettingsMenu.HIT_EFFECT_PAGE);
+            h.assertTrue(editHitSettings(settings, player, "hitParticleCount", 7)
+                    && editHitSettings(settings, player, "hitParticleSpread", 0.75), "Live hit particle settings were rejected");
+            h.assertTrue(settings.clickMenuButton(player, 6)
+                    && player.containerMenu instanceof dev.sablelife.module.EffectSelectionMenu, "Core did not open the particle picker");
+            var picker = (dev.sablelife.module.EffectSelectionMenu) player.containerMenu;
+            var selection = core.hitPresentation().particleSelection();
+            h.assertTrue(picker.action(player, selection.id(), "remove", 0, "minecraft:damage_indicator")
+                    && picker.action(player, selection.id(), "add", 0, "minecraft:flame")
+                    && picker.action(player, selection.id(), "add", 0, "minecraft:cloud"), "Picker did not apply particle selection");
+            h.assertTrue(picker.clickMenuButton(player, 0) && player.containerMenu instanceof HeartSettingsMenu back
+                    && back.snapshot().getInt("InitialPage") == HeartSettingsMenu.HIT_EFFECT_PAGE, "Picker returned to the wrong page");
+            hitWithArrow(h, hit);
+            h.assertTrue(packets.size() == 2 && packets.stream().mapToInt(p -> p.getCount()).sum() == 7
+                    && packets.stream().allMatch(p -> p.getXDist() == .75F
+                    && new net.minecraft.world.phys.Vec3(p.getX(), p.getY(), p.getZ()).distanceToSqr(point) < 0.000001)
+                    && packets.stream().map(p -> p.getParticle()).collect(java.util.stream.Collectors.toSet()).equals(
+                        java.util.Set.of(net.minecraft.core.particles.ParticleTypes.FLAME, net.minecraft.core.particles.ParticleTypes.CLOUD)),
+                    "Custom burst used the wrong type, total, spread or impact position");
+            packets.clear();
+            h.assertTrue(editHitSettings(settings, player, "hitParticleCount", 0), "Could not disable the burst");
+            float before = core.health().current();
+            hitWithArrow(h, hit);
+            h.assertTrue(packets.isEmpty() && core.health().current() < before, "Disabling the effect changed damage or still sent particles");
+        } finally {
+            level.players().remove(player);
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "combat", batch = "survival_core_hit_particles")
+    public static void SurvivalCoreHitParticlesPersistAndRejectInvalidEdits(GameTestHelper h) {
+        var core = fixture(h, true);
+        var level = h.getLevel();
+        var player = new HitSettingsPlayer(level, GameType.SURVIVAL);
+        player.setPos(SableBodyProbe.toWorld(level, core.getBlockPos().getCenter()));
+        var menu = new HeartSettingsMenu(1, player.getInventory(), core);
+        h.assertTrue(editHitSettings(menu, player, "hitParticleCount", 32)
+                && editHitSettings(menu, player, "hitParticleSpread", 4)
+                && !editHitSettings(menu, player, "hitParticleCount", 33)
+                && !editHitSettings(menu, player, "hitParticleCount", 1.5)
+                && !editHitSettings(menu, player, "hitParticleSpread", 4.01), "Survival menu accepted an invalid setting or rejected a limit");
+        h.assertTrue(menu.clickMenuButton(player, 6)
+                && player.containerMenu instanceof dev.sablelife.module.EffectSelectionMenu, "Survival player could not open the picker");
+        var picker = (dev.sablelife.module.EffectSelectionMenu) player.containerMenu;
+        h.assertTrue(picker.action(player, core.hitPresentation().particleSelection().id(), "remove", 0, "minecraft:damage_indicator"),
+                "Could not clear the particle list");
+        var saved = core.saveWithFullMetadata(level.registryAccess());
+        var restored = (HeartBlockEntity)net.minecraft.world.level.block.entity.BlockEntity.loadStatic(
+                core.getBlockPos(), core.getBlockState(), saved, level.registryAccess());
+        h.assertTrue(restored.hitPresentation().count() == 32 && restored.hitPresentation().spread() == 4
+                && restored.hitPresentation().particleSelection().particles().isEmpty(), "Settings or empty list lost on reload");
+        var copied = core.copyConfiguration();
+        h.assertTrue(editHitSettings(menu, player, "hitParticleCount", 1) && core.pasteConfiguration(player, copied)
+                && core.hitPresentation().count() == 32 && core.hitPresentation().particleSelection().particles().isEmpty(),
+                "Portable configuration lost the hit particle settings");
+        player.setGameMode(GameType.SPECTATOR);
+        h.assertTrue(!editHitSettings(menu, player, "hitParticleCount", 0) && !menu.clickMenuButton(player, 6),
+                "Read-only actor could modify hit particles");
+        h.succeed();
+    }
+
+    private static boolean editHitSettings(HeartSettingsMenu menu, net.minecraft.world.entity.player.Player player, String key, double value) {
+        var request = new dev.sablelife.module.ModuleNetworking.Action(menu.containerId, 0, new java.util.UUID(0, 0), "core", key, value, "");
+        var buf = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), player.level().registryAccess());
+        try {
+            dev.sablelife.module.ModuleNetworking.Action.CODEC.encode(buf, request);
+            var decoded = dev.sablelife.module.ModuleNetworking.Action.CODEC.decode(buf);
+            return menu.action(player, decoded.key(), decoded.value(), decoded.text());
+        } finally {
+            buf.release();
+        }
+    }
+
+    private static void hitWithArrow(GameTestHelper h, BlockPos hit) {
+        var arrow = new net.minecraft.world.entity.projectile.Arrow(h.getLevel(), 0, 0, 0, new ItemStack(Items.ARROW), null);
+        arrow.setDeltaMovement(0, -1, 0);
+        dev.sablelife.combat.BodyCombat.onProjectileImpact(new net.neoforged.neoforge.event.entity.ProjectileImpactEvent(arrow,
+                new net.minecraft.world.phys.BlockHitResult(hit.getCenter(), net.minecraft.core.Direction.UP, hit, false)));
+    }
+
+    private static final class HitSettingsPlayer extends net.neoforged.neoforge.common.util.FakePlayer {
+        private int nextMenu;
+
+        HitSettingsPlayer(net.minecraft.server.level.ServerLevel level, GameType mode) {
+            super(level, new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "HitSettingsTester"));
+            setGameMode(mode);
+        }
+
+        @Override public java.util.OptionalInt openMenu(net.minecraft.world.MenuProvider provider,
+                java.util.function.Consumer<net.minecraft.network.RegistryFriendlyByteBuf> extra) {
+            containerMenu = provider.createMenu(++nextMenu, getInventory(), this);
+            return java.util.OptionalInt.of(nextMenu);
+        }
     }
 }

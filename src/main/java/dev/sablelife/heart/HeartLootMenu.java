@@ -12,7 +12,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.network.chat.Component;
-import dev.sablelife.compat.sable.SableBodyProbe;
 
 /** Uses the vanilla chest screen; server-side slots are configuration samples, never storage. */
 public final class HeartLootMenu extends ChestMenu {
@@ -63,9 +62,7 @@ public final class HeartLootMenu extends ChestMenu {
     }
     @Override public boolean stillValid(Player player) {
         return heart.canAccessEditor(player)
-                && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart
-                && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(
-                        SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
+                && heart.editorInRange(player, 64);
     }
     @Override public void broadcastChanges() { refresh(); super.broadcastChanges(); }
     @Override public void clicked(int slot, int button, ClickType type, Player player) {

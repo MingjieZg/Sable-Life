@@ -48,6 +48,12 @@ public final class MobWhitelistClientPreview {
     @SuppressWarnings("unchecked") private static void check()throws Exception{
         for(var child:panel.children())if(child instanceof AbstractWidget widget&&widget.visible)expect(widget.getX()>=0&&widget.getY()>=0&&widget.getRight()<=panel.width&&widget.getBottom()<=panel.height,"Widget outside viewport: "+widget.getMessage().getString());
         var available=(List<Button>)get("availableButtons");var excluded=(List<Button>)get("excludedButtons");var search=(EditBox)get("mobSearch");
+        var catalog=(List<String>)get("availableMobs");
+        expect(catalog.get(0).equals(CoreRelations.MobGroup.PASSIVE.id().toString())
+                &&catalog.get(1).equals(CoreRelations.MobGroup.NEUTRAL.id().toString()),"Passive and Neutral groups must lead the catalog");
+        var footer=CoreRelationsScreen.class.getDeclaredMethod("footer",String.class);footer.setAccessible(true);
+        var warning=((Component)footer.invoke(panel,"")).getSiblings().getLast();
+        expect(warning.getStyle().isBold()&&warning.getStyle().getColor().getValue()==0xFFAA00,"Damage warning is not highlighted");
         expect((int)get("mobRows")>0&&available.stream().anyMatch(b->b.visible)&&excluded.stream().anyMatch(b->b.visible),"Missing dual-pane rows");
         var add=(Button)get("addMob");var remove=(Button)get("removeMob");expect(available.getFirst().getRight()<add.getX()&&add.getRight()<excluded.getFirst().getX(),"Transfer buttons overlap a pane");
         expect(available.getFirst().getY()>search.getBottom()&&remove.getBottom()<=((Button)get("leftMobPrev")).getY(),"List/header/footer overlap");

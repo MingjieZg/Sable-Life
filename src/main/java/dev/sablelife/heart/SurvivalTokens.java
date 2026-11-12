@@ -46,9 +46,10 @@ public final class SurvivalTokens {
             case "pull" -> (m.value("pullShape")==0?area(m.value("pullRadius")):
                     m.value("pullLength")*(m.value("pullStartRadius")+m.value("pullEndRadius")))
                     *seconds(m.value("pullDuration"))*m.value("pullStrength");
-            case "freeze" -> freezeReach(m)*m.value("freezeHeight")*seconds(m.value("freezeDuration"));
+            case "freeze" -> fieldReach(m,"freezeRadius")*m.value("freezeHeight")*seconds(m.value("freezeDuration"));
             case "grab" -> area(m.value("grabRadius"))*seconds(m.value("grabDuration"));
-            case "surface_field" -> fieldCost(m,m.value("fieldDuration"));
+            case "surface_field" -> fieldCost(m,m.value("fieldDuration"))
+                    +(m.value("fieldBlast")==1?fieldReach(m,"fieldRadius")*m.value("blastDamage"):0);
             case "summoned_weapon" -> m.value("summonCount")*seconds(m.value("summonDuration"));
             default -> throw new IllegalArgumentException("Missing Token formula for "+m.type());
         };
@@ -68,8 +69,8 @@ public final class SurvivalTokens {
         return m.value(key)==1?m.value("burn"):0;
     }
 
-    private static double freezeReach(dev.sablelife.module.VirtualModule m){
-        return m.value("fieldShape")==0?m.value("freezeRadius"):(m.value("fieldLength")+m.value("fieldWidth"))/4;
+    private static double fieldReach(dev.sablelife.module.VirtualModule m,String radius){
+        return m.value("fieldShape")==0?m.value(radius):(m.value("fieldLength")+m.value("fieldWidth"))/4;
     }
 
     private static double fieldArea(dev.sablelife.module.VirtualModule m,String radius){

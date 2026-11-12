@@ -6,9 +6,9 @@ Downloads, screenshots and the full gameplay description are available on [Curse
 
 ## Current Version
 
-**0.1.404** · GitHub test release
+**0.1.404-groups-test3** · GitHub pre-release
 
-[中文更新清单](docs/releases/0.1.404.md) · [English changelog](docs/releases/0.1.404_EN.md) · [Stress-test results](docs/performance/STRESS_TESTS_EN.md)
+[中文更新清单](docs/releases/0.1.404-groups-test3.md) · [English changelog](docs/releases/0.1.404-groups-test3_EN.md) · [Stress-test results](docs/performance/STRESS_TESTS_EN.md)
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 

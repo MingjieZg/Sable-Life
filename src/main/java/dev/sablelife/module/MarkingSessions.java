@@ -2,6 +2,7 @@ package dev.sablelife.module;
 
 import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.item.CoreRemoteItem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -19,7 +20,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.*;
 
 public final class MarkingSessions {
-    private record Session(HeartBlockEntity heart, UUID module, int revision, long expires, List<ModuleAnchor> points) {}
+    private record Session(HeartBlockEntity heart, UUID module, int revision, long expires, List<ModuleAnchor> points,
+                           boolean watchedPart, boolean remote) {}
     private static final Map<UUID, Session> sessions = new HashMap<>();
     private record Preview(HeartBlockEntity heart, UUID module, long expires) {}
     private static final Map<UUID, Preview> previews = new HashMap<>();
@@ -32,11 +34,25 @@ public final class MarkingSessions {
         player.closeContainer();
     }
     public static boolean start(Player player, HeartBlockEntity heart, VirtualModule module) {
-        if (!ModuleAvailability.enabled(heart,module)||module.coreModule()) return false;
+        return start(player, heart, module, false);
+    }
+    public static boolean start(Player player, HeartBlockEntity heart, VirtualModule module, boolean watchedPart) {
+        if (!ModuleAvailability.enabled(heart,module) || (watchedPart ? !module.listensToPart() : module.coreModule())) return false;
         if (!(player instanceof ServerPlayer server) || !heart.canEdit(player)) return false;
-        sessions.put(player.getUUID(), new Session(heart, module.id(), heart.modules().revision(), player.level().getGameTime() + 2400, new ArrayList<>()));
+        sessions.put(player.getUUID(), new Session(heart, module.id(), heart.modules().revision(), player.level().getGameTime() + 2400,
+                new ArrayList<>(), watchedPart, CoreRemoteItem.isRemoteEditor(server, heart)));
         player.closeContainer(); PacketDistributor.sendToPlayer(server, new ModuleNetworking.MarkState(true));
-        player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + (module.type().equals("blueprint_spawn")?(dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module)?"blueprint_follow":"blueprint_point"):module.type().equals("arena") ? "arena_point" : List.of("auto_facing","signal_turn").contains(module.type()) ? "auto_facing_point" : module.type().equals("navigation") ? "navigation_point" : module.area() ? "first" : "point")), true); return true;
+        prompt(player,module,watchedPart,false); return true;
+    }
+    private static void prompt(Player player, VirtualModule module, boolean watchedPart, boolean second) {
+        String key = watchedPart ? "watched_part" : switch (module.type()) {
+            case "blueprint_spawn" -> dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module) ? "blueprint_follow" : "blueprint_point";
+            case "arena" -> "arena_point";
+            case "auto_facing", "signal_turn" -> "auto_facing_point";
+            case "navigation" -> "navigation_point";
+            default -> module.area() ? (second ? "second" : "first") : "point";
+        };
+        player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + key), true);
     }
     public static void cancel(Player player) {
         if (sessions.remove(player.getUUID()) != null && player instanceof ServerPlayer server) {
@@ -44,6 +60,7 @@ public final class MarkingSessions {
             player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_cancelled"), true);
         }
     }
+    public static boolean isMarking(Player player) { return sessions.containsKey(player.getUUID()); }
     /** Clearing requires an active editing session and an authoritative sneak-click into air. */
     public static boolean clearMarks(Player player) {
         var session=sessions.get(player.getUUID());
@@ -52,7 +69,8 @@ public final class MarkingSessions {
         var hit=player.level().clip(new ClipContext(eye,eye.add(player.getLookAngle().scale(player.blockInteractionRange()+1)),ClipContext.Block.OUTLINE,ClipContext.Fluid.NONE,player));
         if(hit.getType()!=HitResult.Type.MISS)return false;
         var module=session.heart.modules().find(session.module);
-        if(module.type().equals("blueprint_spawn")){if(dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module))module.anchors(List.of());else module.clearFixedPoint();}else module.clearMarks();session.heart.modules().changed();session.heart.setChanged();
+        if (session.watchedPart) module.watchedPart(null);
+        else if(module.type().equals("blueprint_spawn")){if(dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module))module.anchors(List.of());else module.clearFixedPoint();}else module.clearMarks();session.heart.modules().changed();session.heart.setChanged();
         previews.entrySet().removeIf(e->e.getValue().heart==session.heart&&e.getValue().module.equals(session.module));
         sessions.remove(player.getUUID());DashboardSelection.set(session.heart,player.getUUID(),module.id());
         if(player instanceof ServerPlayer server)PacketDistributor.sendToPlayer(server,new ModuleNetworking.MarkState(false));
@@ -65,6 +83,7 @@ public final class MarkingSessions {
     }
     private static boolean valid(Player player, Session s) {
         return s.heart.canEdit(player) && ModuleAvailability.enabled(s.heart,s.heart.modules().find(s.module)) && s.heart.modules().find(s.module) != null
+                && (!s.remote || player instanceof ServerPlayer server && CoreRemoteItem.hasAuthorizedSession(server, s.heart))
                 && s.heart.modules().revision() == s.revision && player.level().getGameTime() < s.expires;
     }
     public static void click(PlayerInteractEvent.RightClickBlock event) {
@@ -124,10 +143,19 @@ public final class MarkingSessions {
             }
         }
         session.points.add(anchor);
-        if (module.area() && session.points.size() < 2) {
+        if (!session.watchedPart && module.area() && session.points.size() < 2) {
             player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_second"), true); return true;
         }
-        module.anchors(session.points); session.heart.modules().changed(); session.heart.setChanged();
+        if (session.watchedPart) module.watchedPart(anchor);
+        else {
+            if (module.type().equals("part_break") && !ModulePartBreak.validSelection(module, session.points)) {
+                session.points.removeLast();
+                player.displayClientMessage(Component.translatable("dashboard.sablelife.part_break_limit",ModulePartBreak.MAX_CELLS), true);
+                return false;
+            }
+            module.anchors(session.points);
+        }
+        session.heart.modules().changed(); session.heart.setChanged();
         sessions.remove(player.getUUID());
         if (player instanceof ServerPlayer server) {
             PacketDistributor.sendToPlayer(server, new ModuleNetworking.MarkState(false));
@@ -152,8 +180,7 @@ public final class MarkingSessions {
             if (!valid(player, session)) { cancel(player); continue; }
             if (player.level().getGameTime() % 5 == 0) {
                 var module = session.heart.modules().find(session.module);
-                player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + (module.type().equals("blueprint_spawn")?(dev.sablelife.ownership.BlueprintSpawnPlacement.follows(module)?"blueprint_follow":"blueprint_point"):module.type().equals("arena") ? "arena_point" : List.of("auto_facing","signal_turn").contains(module.type()) ? "auto_facing_point" : module.type().equals("navigation") ? "navigation_point" : module.area()
-                        ? session.points.isEmpty() ? "first" : "second" : "point")), true);
+                prompt(player,module,session.watchedPart,!session.points.isEmpty());
                 preview(player, session.heart, session.points);
                 if(module.type().equals("visual_shockwave")&&session.points.isEmpty())previewModule(player,session.heart,module);
             }

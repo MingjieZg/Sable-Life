@@ -28,6 +28,8 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     public static final int DEFAULT_DEATH_DELAY = 60;
     private HeartHealth health = new HeartHealth(DEFAULT_MAX_HEALTH, DEFAULT_DEATH_DELAY);
     private UUID creatureId = UUID.randomUUID();
+    public static final String REMOTE_ID_TAG = "CoreRemoteId";
+    private UUID remoteId;
     private final CoreRelations relations=new CoreRelations();
     public CoreRelations relations(){return relations;}
     private UUID boundBody;
@@ -41,10 +43,10 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     public boolean checkVoidDeath(){return level instanceof ServerLevel&&!isControlCore()&&!isSurvivalCore()&&health.state()==HeartState.ALIVE&&SableBodyProbe.toWorld(level,worldPosition.getCenter()).y<voidDeathHeight()&&forceDeath();}
     private boolean forceChunkLoading;
     public boolean forceChunkLoading(){return !isSurvivalCore()&&forceChunkLoading;}
-    public boolean canEditChunkLoading(Player player){return !isControlCore()&&!isSurvivalCore()&&canAccessEditor(player)&&level instanceof ServerLevel&&level.getBlockEntity(worldPosition)==this;}
+    public boolean canEditChunkLoading(Player player){return !isControlCore()&&!isSurvivalCore()&&canAccessEditor(player)&&loadedAtPosition();}
     private int miningMode;
     private boolean miningDrops;
-    private final dev.sablelife.ownership.DetachedLimbCleanup limbCleanup = new dev.sablelife.ownership.DetachedLimbCleanup();
+    private final dev.sablelife.ownership.DetachedLimbCleanup limbCleanup;
     public dev.sablelife.ownership.DetachedLimbCleanup limbCleanup() { return limbCleanup; }
     private boolean allowExplosion;
     private boolean allowLifeAttacks = true;
@@ -179,6 +181,8 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     public DeathPresentation deathPresentation() { return deathPresentation; }
     private final DeathPresentation removalPresentation = new DeathPresentation(true);
     public DeathPresentation removalPresentation() { return removalPresentation; }
+    private final HitPresentation hitPresentation = new HitPresentation();
+    public HitPresentation hitPresentation() { return hitPresentation; }
     private boolean deathTemplateMode;
     private final net.minecraft.core.NonNullList<net.minecraft.world.item.ItemStack> deathTemplates =
             net.minecraft.core.NonNullList.withSize(27, net.minecraft.world.item.ItemStack.EMPTY);
@@ -250,7 +254,10 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         return deathTemplates.stream().map(net.minecraft.world.item.ItemStack::copy).toList();
     }
     public boolean canEdit(Player player) {
-        return canAccessEditor(player) && level instanceof ServerLevel && level.getBlockEntity(worldPosition)==this && health.state()==HeartState.DORMANT;
+        return canAccessEditor(player) && loadedAtPosition() && health.state()==HeartState.DORMANT;
+    }
+    private boolean loadedAtPosition() {
+        return level instanceof ServerLevel server && dev.sablelife.ownership.LoadedCoreIndex.isLoadedCore(server, this);
     }
     /** Portable authoring configuration. Creature identity, ownership and runtime are never copied. */
     public CompoundTag copyConfiguration() {
@@ -262,6 +269,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         result.getCompound("Wireless").putLong("Elapsed", 0);
         result.put("DeathPresentation", deathPresentation.save());
         result.put("RemovalPresentation", removalPresentation.save());
+        if (saved.contains("HitPresentation")) result.put("HitPresentation", saved.getCompound("HitPresentation"));
         var list = new net.minecraft.nbt.ListTag();
         for (var module : modules.all()) if (module.known()) {
             var tag = module.save(); tag.putUUID("CopySourceId", module.id());
@@ -319,6 +327,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         deathExperience = Math.clamp(data.getInt("DeathExperience"), 0, ExperienceUnits.MAX_POINTS);deathExperienceLevels=data.getBoolean("DeathExperienceLevels"); deathTemplateMode = data.getBoolean("DeathTemplateMode");
         deathPresentation.load(data.getCompound("DeathPresentation"));
         removalPresentation.load(data.getCompound("RemovalPresentation"));
+        hitPresentation.load(data.getCompound("HitPresentation"));
         for (int i = 0; i < 27; i++) {
             var stack = templates.get(i); if (!stack.isEmpty()) stack.setCount(Math.min(stack.getCount(), stack.getMaxStackSize()));
             deathTemplates.set(i, stack);
@@ -327,8 +336,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         wireless.load(wirelessData, level.registryAccess()); modules.load(moduleData); if(isSurvivalCore())SurvivalLifeCorePolicy.sanitize(this); if(isControlCore()){RedstoneCorePolicy.sanitize(this);health=new HeartHealth(DEFAULT_MAX_HEALTH,DEFAULT_DEATH_DELAY);boundBody=null;ownershipCaptured=false;}wireless.finishMigration(); changed(); return true;
     }
     public boolean canToggleBreaking(Player player) {
-        return (player.isCreative() || !isControlCore() && canAccessEditor(player)) && !isRemoved() && level instanceof ServerLevel && player.level() == level
-                && level.getBlockEntity(worldPosition) == this
+        return (player.isCreative() || !isControlCore() && canAccessEditor(player)) && player.level() == level && loadedAtPosition()
                 && (health.state() == HeartState.DORMANT || health.state() == HeartState.ALIVE);
     }
     public boolean editCore(Player player, String key, double value, String text) {
@@ -374,6 +382,8 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             if (!canToggleBreaking(player) || !Double.isFinite(value) || value<0 || value>(key.equals("regen") ? 1000000 : key.equals("regenPercent")?100:600)) return false;
             if(key.equals("regen")) regenPerSecond=(float)value; else if(key.equals("regenPercent"))regenPercentPerSecond=value;else regenDelay=(int)Math.round(value*20);
             regenWait=regenDelay; regenProgress=0;
+        } else if (key.equals("hitParticleCount") || key.equals("hitParticleSpread")) {
+            if (!canToggleBreaking(player) || !hitPresentation.edit(key, value)) return false;
         } else if(key.equals("deathRestore")||key.equals("vanishRestore")){
             if(!canToggleBreaking(player))return false;
             (key.equals("vanishRestore")?removalPresentation:deathPresentation).restoreDefaults();
@@ -508,6 +518,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
 
     public HeartBlockEntity(BlockPos position, BlockState state) {
         super(SableLife.HEART_ENTITY.get(), position, state);
+        limbCleanup = new dev.sablelife.ownership.DetachedLimbCleanup(!isSurvivalCore() && !isControlCore());
         if(state.getBlock() instanceof SurvivalLifeCoreBlock)
             health=HeartHealth.restore(DEFAULT_MAX_HEALTH,0,0,HeartState.DORMANT,0);
     }
@@ -515,16 +526,43 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     /** Core NBT can contain level-2 command programs; creative mode alone is not authorization. */
     @Override public boolean onlyOpCanSetNbt() { return true; }
 
-    @Override public void onLoad() { super.onLoad();dev.sablelife.ownership.LoadedCoreIndex.observe(this); }
+    @Override public void onLoad() {
+        super.onLoad();
+        dev.sablelife.ownership.LoadedCoreIndex.observe(this);
+        dev.sablelife.ownership.LoadedCoreIndex.observeRemote(this);
+    }
     @Override public void setLevel(Level next) {
         if(level!=null&&level!=next){dev.sablelife.ownership.LoadedCoreIndex.remove(this);dev.sablelife.compat.sable.SableBodyProbe.invalidate(level);}
         super.setLevel(next);checkedCoreTick=Long.MIN_VALUE;
         dev.sablelife.ownership.LoadedCoreIndex.observe(this);
+        dev.sablelife.ownership.LoadedCoreIndex.observeRemote(this);
     }
 
     public HeartHealth health() { return health; }
     public int pulseSignal() { return pulseSignal; }
     public UUID creatureId() { return creatureId; }
+    public UUID remoteId() { return remoteId; }
+    public UUID bindRemote() {
+        if (remoteId == null) {
+            setRemoteId(UUID.randomUUID());
+            setChanged();
+        }
+        return remoteId;
+    }
+    public void clearRemoteId() {
+        if (remoteId == null) return;
+        setRemoteId(null);
+        setChanged();
+    }
+    private void setRemoteId(UUID next) {
+        if (java.util.Objects.equals(remoteId, next)) return;
+        dev.sablelife.ownership.LoadedCoreIndex.forgetRemote(this);
+        remoteId = next;
+        dev.sablelife.ownership.LoadedCoreIndex.observeRemote(this);
+    }
+    public boolean editorInRange(Player player, double distanceSquared) {
+        return dev.sablelife.item.CoreRemoteItem.editorInRange(this, player, distanceSquared);
+    }
 
     public void tryActivate(Player player) {
         if(isControlCore())return;
@@ -579,15 +617,21 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     /** Hit-aware entry point for combat; administrative damage(float) intentionally has no body location. */
     public boolean damageAt(BlockPos hit, float amount) {
         if (!(level instanceof ServerLevel) || health.state() != HeartState.ALIVE || dev.sablelife.combat.EntityHitboxes.blocksStructure(this)) return false;
-        return damage(dev.sablelife.module.ModuleArmor.damage(this, hit, amount));
+        return damageFromHit(hit, dev.sablelife.module.ModuleArmor.damage(this, hit, amount));
     }
-    public boolean damage(float amount) {
+    public boolean damage(float amount) { return damageFromHit(null, amount); }
+    /** Applies a settled hit whose part armor, if any, has already been evaluated. */
+    public boolean damageFromHit(BlockPos hit, float amount) {
         if(level==null||level.isClientSide||health.state()!=HeartState.ALIVE||!Float.isFinite(amount)||amount<=0)return false;
         float reduced=isSurvivalCore()?amount:adaptiveDefense.apply(amount,level.getGameTime());
         // Preserve positive health loss when adaptive mitigation would round a valid hit to zero at high HP.
         if(adaptiveDefense.enabled())reduced=Math.min(amount,Math.max(reduced,Math.ulp(health.current())));
         float before=health.current();boolean applied=applyDamage(reduced);
-        if(applied&&(!isSurvivalCore()||health.state()==HeartState.ALIVE))modules.damageAccumulation.record(this,Math.max(0,(double)before-health.current()));
+        if(applied&&(!isSurvivalCore()||health.state()==HeartState.ALIVE)){
+            double loss = Math.max(0, (double) before - health.current());
+            modules.damageAccumulation.record(this, hit, loss);
+            if (hit != null) modules.partBreak.record(this, hit, loss);
+        }
         return applied;
     }
     /** Physical destruction of the core must end life regardless of combat defenses. */
@@ -827,6 +871,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         tag.putInt("DataVersion", 1);
         tag.putLong("CombatMusicHits", combatMusicHits);
         tag.putUUID("CreatureId", creatureId);
+        if (remoteId != null) tag.putUUID(REMOTE_ID_TAG, remoteId);
         if (boundBody != null) tag.putUUID("BoundBody", boundBody);
         tag.putString("LifeState", health.state().name());
         tag.putFloat("MaxHealth", health.maximum());
@@ -846,6 +891,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         tag.putInt("DeathExperience", deathExperience);tag.putBoolean("DeathExperienceLevels",deathExperienceLevels);
         tag.put("DeathPresentation", deathPresentation.save());
         tag.put("RemovalPresentation", removalPresentation.save());
+        if (!isControlCore()) tag.put("HitPresentation", hitPresentation.save());
         tag.putBoolean("DeathTemplateMode", deathTemplateMode);
         var savedTemplates = new CompoundTag();
         net.minecraft.world.ContainerHelper.saveAllItems(savedTemplates, deathTemplates, registries);
@@ -894,10 +940,12 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         deathExperience = Math.clamp(tag.getInt("DeathExperience"), 0, ExperienceUnits.MAX_POINTS);deathExperienceLevels=tag.getBoolean("DeathExperienceLevels");
         deathPresentation.load(tag.getCompound("DeathPresentation"));
         removalPresentation.load(tag.getCompound("RemovalPresentation"));
+        hitPresentation.load(tag.getCompound("HitPresentation"));
         deathTemplateMode = tag.getBoolean("DeathTemplateMode");
         deathTemplates.clear();
         net.minecraft.world.ContainerHelper.loadAllItems(tag.getCompound("DeathTemplates"), deathTemplates, registries);
         if (tag.hasUUID("CreatureId")) creatureId = tag.getUUID("CreatureId");
+        setRemoteId(tag.hasUUID(REMOTE_ID_TAG) ? tag.getUUID(REMOTE_ID_TAG) : null);
         boundBody = tag.hasUUID("BoundBody") ? tag.getUUID("BoundBody") : null;
         pulseSignal = 0;
         if (!tag.contains("LifeState")) return;

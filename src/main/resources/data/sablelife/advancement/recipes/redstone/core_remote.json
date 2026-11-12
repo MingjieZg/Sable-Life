@@ -1,0 +1,15 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_lever": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": { "items": [ { "items": "minecraft:lever" } ] }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": { "recipe": "sablelife:core_remote" }
+    }
+  },
+  "requirements": [ [ "has_lever", "has_the_recipe" ] ],
+  "rewards": { "recipes": [ "sablelife:core_remote" ] }
+}

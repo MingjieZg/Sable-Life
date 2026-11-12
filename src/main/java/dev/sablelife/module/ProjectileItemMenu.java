@@ -2,7 +2,6 @@ package dev.sablelife.module;
 
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.*;
 import net.minecraft.world.inventory.*;
@@ -34,9 +33,8 @@ public final class ProjectileItemMenu extends AbstractContainerMenu {
     private void refresh() { if (heart != null) sample.setItem(0, module.projectileItem(heart.getLevel().registryAccess())); }
     @Override public void broadcastChanges() { refresh(); super.broadcastChanges(); }
     @Override public boolean stillValid(Player player) {
-        return heart == null || heart.canAccessEditor(player) && !heart.isRemoved() && player.level() == heart.getLevel()
-                && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart && heart.modules().find(module.id()) == module
-                && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
+        return heart == null || heart.canAccessEditor(player) && !heart.isRemoved() && player.level() == heart.getLevel() && heart.modules().find(module.id()) == module
+                && heart.editorInRange(player, 64);
     }
     private void set(ItemStack item) { module.projectileItem(item, heart.getLevel().registryAccess()); heart.modules().changed(); heart.setChanged(); refresh(); sendAllDataToRemote(); }
     @Override public void clicked(int slot, int button, ClickType type, Player player) {

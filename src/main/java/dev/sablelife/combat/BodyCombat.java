@@ -160,7 +160,7 @@ public final class BodyCombat {
 
     static void feedback(ServerLevel level, BlockHitResult hit, HeartBlockEntity heart, float damage, Player attacker, boolean critical) {
         Vec3 worldHit = SableBodyProbe.toWorld(level, hit.getLocation());
-        dev.sablelife.module.ModuleParticles.send(level, ParticleTypes.DAMAGE_INDICATOR, worldHit.x, worldHit.y, worldHit.z, 4, 0.15, 0.15, 0.15, 0.05);
+        if (damage > 0) heart.hitPresentation().emit(level, worldHit);
         if (critical) {
             dev.sablelife.module.ModuleParticles.send(level, ParticleTypes.CRIT, worldHit.x, worldHit.y, worldHit.z, 8, 0.25, 0.25, 0.25, 0.15);
         }

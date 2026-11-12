@@ -12,7 +12,7 @@ From the project root, use Java 21 to build the matching Sable Life candidate an
 .\gradlew.bat exampleAddonJar
 ```
 
-`build/libs/` contains `sablelife-neoforge-1.21.1-v0.1.404.jar` and `sablelife-example-addon-1.0.0.jar`. The example requires Sable Life `0.1.404`. When adapting it to your own project, declare the version range you actually support in your addon’s `META-INF/neoforge.mods.toml`.
+`build/libs/` contains the Sable Life JAR and `sablelife-example-addon-1.0.0.jar`. The example declares Sable Life `0.1.404` as its minimum version. Use the same Sable Life build on the server and all clients. When adapting the example to your own project, declare the version range you support in your addon’s `META-INF/neoforge.mods.toml`.
 
 1. Install both files and Sable Life’s dependencies in an isolated test profile.
 2. Open an assembled structure’s core dashboard. Use **+ Add** to select **Marker Chime**. Set **Chime volume** and mark a face on the structure.

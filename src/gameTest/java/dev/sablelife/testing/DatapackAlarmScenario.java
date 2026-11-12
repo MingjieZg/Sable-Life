@@ -48,7 +48,7 @@ final class DatapackAlarmScenario {
         return Path.of(System.getProperty("sablelife.datapackAlarmObservations"), role + "-" + state);
     }
 
-    private static boolean observed(MinecraftServer server, int state) {
+    static boolean observed(MinecraftServer server, int state) {
         return server.isDedicatedServer()
                 ? Files.exists(observation("author", state)) && Files.exists(observation("observer", state))
                 : Files.exists(observation("singleplayer", state));

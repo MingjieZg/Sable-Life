@@ -1,7 +1,6 @@
 package dev.sablelife.module;
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.player.*;
 import net.minecraft.world.inventory.*;
@@ -20,7 +19,7 @@ public final class SignalRuleMenu extends AbstractContainerMenu {
  public CompoundTag snapshot(){return data.getItem(0).getOrDefault(DataComponents.CUSTOM_DATA,CustomData.EMPTY).copyTag();}
  private void refresh(){if(heart==null)return;var tag=new CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("Editable",(heart.canEdit(viewer)&&ModuleAvailability.enabled(heart,module)));tag.putUUID("ModuleId",module.id());tag.putString("Type",module.type());var sources=new net.minecraft.nbt.ListTag();for(var m:heart.modules().all()){var v=new CompoundTag();v.putUUID("Id",m.id());v.putString("Type",m.type());v.putString("Name",m.name());v.putBoolean("Enabled",m.enabled());sources.add(v);}tag.put("Modules",sources);tag.putInt("Revision",heart.modules().revision());tag.put("Groups",module.signalRules().save());tag.putInt("Channels",heart.wireless().size());tag.put("Runtime",module.type().equals("signal_logic")?heart.modules().signalLogic.snapshot(module.id()):heart.modules().combatEvents.snapshot(module.id()));if(selected!=null)tag.putUUID("Selected",selected);var paper=new ItemStack(Items.PAPER);paper.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));data.setItem(0,paper);}
  @Override public void broadcastChanges(){if(heart!=null&&heart.getLevel().getGameTime()%5==0)refresh();super.broadcastChanges();}
- @Override public boolean stillValid(Player p){return heart==null||heart.canAccessEditor(p)&&!heart.isRemoved()&&p.level()==heart.getLevel()&&heart.getLevel().getBlockEntity(heart.getBlockPos())==heart&&heart.modules().find(module.id())==module&&SignalRules.supported(module.type())&&(!heart.isControlCore()||dev.sablelife.heart.RedstoneCorePolicy.allowed(module))&&SableBodyProbe.toWorld(p.level(),p.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(p.level(),heart.getBlockPos().getCenter()))<=64;}
+ @Override public boolean stillValid(Player p){return heart==null||heart.canAccessEditor(p)&&!heart.isRemoved()&&p.level()==heart.getLevel()&&heart.modules().find(module.id())==module&&SignalRules.supported(module.type())&&(!heart.isControlCore()||dev.sablelife.heart.RedstoneCorePolicy.allowed(module))&&heart.editorInRange(p, 64);}
  public boolean action(Player p,int revision,UUID id,String key,double value){
   if(heart==null||!stillValid(p))return false;var group=module.signalRules().find(id);
   if(!(heart.canEdit(p)&&ModuleAvailability.enabled(heart,module))||revision!=heart.modules().revision()||!Double.isFinite(value)){refresh();sendAllDataToRemote();return false;}

@@ -10,10 +10,19 @@ public final class WeaponMixinPlugin implements IMixinConfigPlugin {
     public void onLoad(String mixinPackage){}
     public String getRefMapperConfig(){return null;}
     public boolean shouldApplyMixin(String target,String mixin){
+        if(mixin.startsWith("dev.sablelife.mixin.Ntgl")&&!hasVersion("ntgl","3.2.0"))return false;
+        if(mixin.endsWith(".CgsBlazeProjectileMixin")&&(!hasVersion("ntgl","3.2.0")||!hasVersion("cgs","1.4.9")
+                ||!WeaponMixinContract.inspect("NtglProjectileMixin","com.nukateam.ntgl.common.foundation.entity.ProjectileEntity",
+                        WeaponMixinPlugin::bytes).compatible()))return false;
         var result=WeaponMixinContract.inspect(mixin,target,WeaponMixinPlugin::bytes);
         if(!result.compatible()&&!result.reason().equals("Target class is absent"))
             com.mojang.logging.LogUtils.getLogger().warn("Sable Life skipped optional weapon hook {} for {}: {}",mixin,target,result.reason());
         return result.compatible();
+    }
+    private static boolean hasVersion(String id,String version){
+        var list=FMLLoader.getLoadingModList();
+        return list!=null&&list.getMods().stream().anyMatch(mod->mod.getModId().equals(id)
+                &&mod.getVersion().toString().equals(version));
     }
     private static byte[] bytes(String name){
         var list=FMLLoader.getLoadingModList();if(list==null)return null;

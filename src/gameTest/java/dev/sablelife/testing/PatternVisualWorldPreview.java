@@ -57,7 +57,7 @@ public final class PatternVisualWorldPreview {
         System.out.println("PATTERN_VISUAL_MODE "+name());
     }
     @SubscribeEvent public static void tick(ClientTickEvent.Post event)throws Exception{
-        if(!Boolean.getBoolean("sablelife.patternVisualPreview"))return;
+        if(!Boolean.getBoolean("sablelife.patternVisualPreview") || Boolean.getBoolean("sablelife.projectileTracerWorld"))return;
         var mc=Minecraft.getInstance();
         if(!started){
             if(mc.getOverlay()!=null||mc.screen==null)return;started=true;mc.options.pauseOnLostFocus=false;mc.options.hideGui=true;mc.options.framerateLimit().set(60);

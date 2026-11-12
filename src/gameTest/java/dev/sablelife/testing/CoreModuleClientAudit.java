@@ -24,6 +24,8 @@ public final class CoreModuleClientAudit {
     private record Case(int kind,String type,String key,int value){Case(int kind,String type){this(kind,type,"default",0);}}
     private static final List<Case> cases=new ArrayList<>();
     private static final List<String> failures=new ArrayList<>();
+    private static final boolean PART_DAMAGE_ONLY = Boolean.getBoolean("sablelife.partDamageUiOnly");
+    private static final boolean TRACER_ONLY = Boolean.getBoolean("sablelife.projectileTracerUiOnly");
     private static int phase,index,ticks,checked,pages;
     private static java.util.concurrent.CompletableFuture<?> reload;
     private static Preview screen;
@@ -34,6 +36,18 @@ public final class CoreModuleClientAudit {
         if(cases.isEmpty()){for(int kind=0;kind<3;kind++)for(var type:kind==0?VirtualModule.AVAILABLE_TYPES:kind==1?RedstoneCorePolicy.TYPES:SurvivalLifeCorePolicy.TYPES)cases.add(new Case(kind,type));if(Boolean.getBoolean("sablelife.propertyHelpOnly"))cases.removeIf(value->!List.of("linear_movement","sensor","health_bar","laser").contains(value.type));if(Boolean.getBoolean("sablelife.survivalAimOnly"))cases.removeIf(value->value.kind!=2||!List.of("arrow","gun","mortar","slash","sphere_blast","pull","freeze","pulse","quake","ground_strike").contains(value.type));}
         if(phase==0){
             if(mc.level!=null||mc.screen==null)return;
+            if(PART_DAMAGE_ONLY){
+                cases.removeIf(value->value.kind==1||!List.of("part_break","damage_accumulation").contains(value.type));
+                for(int kind : List.of(0,2)){
+                    cases.add(new Case(kind,"part_break","partBreakMode",1));
+                    cases.add(new Case(kind,"part_break","partBreakShape",1));
+                    cases.add(new Case(kind,"damage_accumulation","accumScope",1));
+                }
+            }
+            if (TRACER_ONLY) {
+                cases.removeIf(value -> !ProjectileTracer.supports(value.type));
+                for (var entry : List.copyOf(cases)) cases.add(new Case(entry.kind, entry.type, "projectileTrailStyle", 1));
+            }
             if(Boolean.getBoolean("sablelife.corePatternUi")){
                 var baseline=List.copyOf(cases);
                 for(var entry:baseline)for(var field:ModuleFields.forType(entry.type))if(field.choice()&&field.choices().size()>1)
@@ -45,7 +59,7 @@ public final class CoreModuleClientAudit {
         if(++ticks<3)return;
         var value=cases.get(index);String label=mc.options.languageCode+"/"+value.kind+"/"+value.type+"/"+value.key+"="+value.value;
         try{check();checked++;System.out.println("CORE_UI_AUDIT PASS "+label);
-            if((value.key.equals("default")||List.of("flameShape","fieldShape","particlePattern","pullShape","laserVisual").contains(value.key))&&(value.type.equals("flame")||value.type.equals("block_interaction")||Boolean.getBoolean("sablelife.survivalAimOnly")&&List.of("arrow","gun","mortar","slash").contains(value.type)||Boolean.getBoolean("sablelife.propertyHelpPreview")&&List.of("linear_movement","sensor","health_bar","laser").contains(value.type))){
+            if(PART_DAMAGE_ONLY||TRACER_ONLY||(value.key.equals("default")||List.of("flameShape","fieldShape","particlePattern","pullShape","laserVisual").contains(value.key))&&(value.type.equals("flame")||value.type.equals("block_interaction")||Boolean.getBoolean("sablelife.survivalAimOnly")&&List.of("arrow","gun","mortar","slash").contains(value.type)||Boolean.getBoolean("sablelife.propertyHelpPreview")&&List.of("linear_movement","sensor","health_bar","laser").contains(value.type))){
                 var target=mc.gameDirectory.toPath().resolve("screenshots/"+mc.options.languageCode+"-"+value.kind+"-"+value.type+"-"+value.key+"-"+value.value+".png");java.nio.file.Files.createDirectories(target.getParent());
                 try(var picture=Screenshot.takeScreenshot(mc.getMainRenderTarget())){picture.writeToFile(target);}
             }
@@ -65,7 +79,42 @@ public final class CoreModuleClientAudit {
         var sync=HeartDashboardScreen.class.getDeclaredMethod("sync");sync.setAccessible(true);
         var fields=(List<ModuleFields.Field>)get("parameters");int slots=(int)get("parameterSlots");
         if(slots<=0)throw new AssertionError("No parameter slots");
+        if(PART_DAMAGE_ONLY){
+            var value=cases.get(index);
+            boolean watches=List.of("partBreakMode","accumScope").contains(value.key);
+            boolean partBreak=value.type.equals("part_break");
+            boolean triggerVisible=((Button)get("trigger")).visible;
+            if(triggerVisible==(partBreak&&watches))throw new AssertionError("Unexpected trigger control visibility");
+            var keys=fields.stream().map(ModuleFields.Field::key).toList();
+            if(keys.contains("watchedPart")!=watches||keys.contains("partBreakThreshold")!=(partBreak&&watches))
+                throw new AssertionError("Unexpected watched-part or threshold fields");
+            if (value.type.equals("damage_accumulation")) {
+                var threshold = fields.stream().filter(field -> field.key().equals("accumThreshold")).findFirst().orElseThrow();
+                if (NumericWheelSteps.module(value.type, threshold.key(), threshold.scale(), threshold.min()) != 5)
+                    throw new AssertionError("Damage threshold must scroll by 5 health points");
+            }
+            for(var field:fields)if(List.of("partBreakMode","partBreakShape","watchedPart","partBreakThreshold","accumScope").contains(field.key())){
+                for(String prefix : List.of("dashboard.sablelife.","dashboard.sablelife.property_help.")){
+                    String key=prefix+field.key();
+                    if(Component.translatable(key).getString().equals(key))throw new AssertionError("Untranslated field text: "+key);
+                }
+            }
+        }
         int aimPage=0;
+        if (TRACER_ONLY) {
+            boolean tracer = cases.get(index).value == 1;
+            var keys = fields.stream().map(ModuleFields.Field::key).toList();
+            if (!keys.contains("projectileTrailStyle") || keys.contains("particles") == tracer)
+                throw new AssertionError("Wrong trail style or particle picker visibility");
+            for (String key : List.of("projectileTrailColor", "projectileTrailLength", "projectileTrailWidth")) {
+                if (keys.contains(key) != tracer) throw new AssertionError("Wrong visibility for " + key);
+                for (String prefix : List.of("dashboard.sablelife.", "dashboard.sablelife.property_help.")) {
+                    String translated = prefix + key;
+                    if (Component.translatable(translated).getString().equals(translated)) throw new AssertionError("Missing " + translated);
+                }
+            }
+            aimPage = keys.indexOf("projectileTrailStyle") / slots;
+        }
         if(Boolean.getBoolean("sablelife.survivalAimOnly")){
             String type=cases.get(index).type;boolean aimed=List.of("arrow","gun","mortar","slash").contains(type);
             String key=type.equals("mortar")?"aimMode":"shotAim";

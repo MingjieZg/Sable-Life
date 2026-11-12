@@ -53,8 +53,8 @@ public final class SoundTimelineMenu extends AbstractContainerMenu {
     @Override public boolean stillValid(Player p){
         if(heart==null)return true;
         var entity=heart;
-        return heart.canAccessEditor(p)&&(! (heart!=null&&heart.isControlCore())||context.equals("module")&&dev.sablelife.heart.RedstoneCorePolicy.audioKeyAllowed(module(),key))&&!entity.isRemoved()&&p.level()==entity.getLevel()&&entity.getLevel().getBlockEntity(entity.getBlockPos())==entity
-            &&(moduleId==null||module()!=null)&&dev.sablelife.compat.sable.SableBodyProbe.toWorld(p.level(),p.getEyePosition()).distanceToSqr(dev.sablelife.compat.sable.SableBodyProbe.toWorld(p.level(),entity.getBlockPos().getCenter()))<=4096;
+        return heart.canAccessEditor(p)&&(! (heart!=null&&heart.isControlCore())||context.equals("module")&&dev.sablelife.heart.RedstoneCorePolicy.audioKeyAllowed(module(),key))&&!entity.isRemoved()&&p.level()==entity.getLevel()
+            &&(moduleId==null||module()!=null)&&entity.editorInRange(p, 4096);
     }
     @Override public boolean clickMenuButton(Player p,int button){if(button!=0||!stillValid(p))return false;
         if(context.equals("module")){DashboardSelection.set(heart,p.getUUID(),moduleId);heart.openDashboard(p);}else heart.openSettings(p,context.equals("vanish")?3:2);return true;

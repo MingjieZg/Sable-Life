@@ -11,6 +11,6 @@ description="Adds a configurable chime at a marked position."
 [[dependencies.sablelife_example_addon]]
 modId="sablelife"
 type="required"
-versionRange="[0.1.404]"
+versionRange="[0.1.404,)"
 ordering="AFTER"
 side="BOTH"

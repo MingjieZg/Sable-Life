@@ -20,16 +20,31 @@ import java.util.*;
 /** Captures the actual dashboard, without modifying a player world or installation. */
 @EventBusSubscriber(modid="sablelife_tests",value=Dist.CLIENT)
 public final class RampClientPreview {
- private static boolean loading;private static Preview screen;private static int ticks;
+ private static final List<String> LANGUAGES = List.of("zh_cn", "en_us");
+ private static java.util.concurrent.CompletableFuture<?> reload;
+ private static Preview screen;
+ private static int languageIndex, ticks;
  @SubscribeEvent public static void tick(ClientTickEvent.Post event)throws Exception{
   if(!Boolean.getBoolean("sablelife.rampPreview"))return;var mc=Minecraft.getInstance();
+  var language = LANGUAGES.get(languageIndex);
   if(screen==null){
-   if(mc.screen==null||mc.getOverlay()!=null)return;
-   if(!loading){loading=true;mc.options.languageCode="zh_cn";mc.getLanguageManager().setSelected("zh_cn");mc.reloadResourcePacks();return;}
+   if(mc.screen==null||mc.getOverlay()!=null||reload!=null&&!reload.isDone())return;
+   if(!mc.options.languageCode.equals(language)){
+    mc.options.languageCode=language;
+    mc.getLanguageManager().setSelected(language);
+    reload=mc.reloadResourcePacks();
+    return;
+   }
    while(LifeUiStyle.density()!=2)LifeUiStyle.cycle();mc.options.guiScale().set(2);mc.resizeDisplay();screen=new Preview();mc.setScreen(screen);return;
   }
-  if(++ticks==15){check();var dir=mc.gameDirectory.toPath().resolve("screenshots");java.nio.file.Files.createDirectories(dir);try(var img=Screenshot.takeScreenshot(mc.getMainRenderTarget())){img.writeToFile(dir.resolve("wireless-redstone-ramp.png"));}}
-  if(ticks==20){System.out.println("Ramp dashboard layout, focus and disabled-control checks passed");mc.stop();}
+  if(++ticks==15){check();var dir=mc.gameDirectory.toPath().resolve("screenshots");java.nio.file.Files.createDirectories(dir);try(var img=Screenshot.takeScreenshot(mc.getMainRenderTarget())){img.writeToFile(dir.resolve("wireless-redstone-ramp-aligned-"+language+".png"));}}
+  if(ticks==20){
+   System.out.println("Ramp dashboard layout, focus and disabled-control checks passed for " + language);
+   if(languageIndex+1==LANGUAGES.size()){mc.stop();return;}
+   languageIndex++;
+   ticks=0;
+   screen=null;
+  }
  }
  private static Object member(String key)throws Exception{var f=HeartDashboardScreen.class.getDeclaredField(key);f.setAccessible(true);return f.get(screen.panel);}
  private static void check()throws Exception{

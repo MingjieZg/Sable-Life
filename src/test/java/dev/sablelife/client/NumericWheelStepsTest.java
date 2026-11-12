@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class NumericWheelStepsTest {
     @Test void ExplicitUserStepsStayProtected(){
         assertEquals(5,NumericWheelSteps.core("health"));
+        assertEquals(5,NumericWheelSteps.module("part_break","partBreakThreshold",1,1));
         assertEquals(5,NumericWheelSteps.core("regen"));
         assertEquals(5,NumericWheelSteps.core("regenPercent"));
         assertEquals(1,NumericWheelSteps.core("regenDelay"));

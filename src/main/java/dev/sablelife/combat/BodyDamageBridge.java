@@ -20,6 +20,13 @@ public final class BodyDamageBridge {
   dev.sablelife.attack.AttackHitCredit.record(source,Math.max(0,before-core.health().current()));dev.sablelife.attack.CombatEventHooks.killed(source,core);
   hits.putBoolean(key,true);data.put(HITS,hits);BodyCombat.feedback(level,hit,core,before-core.health().current(),source instanceof Projectile p&&p.getOwner() instanceof net.minecraft.world.entity.player.Player player?player:null,false);return true;
  }
+ public static void externalProjectile(ExternalProjectileDamageSource source,BlockHitResult hit,float amount){
+  var projectile=source.getDirectEntity();
+  if(!(projectile.level() instanceof ServerLevel level)||projectile.isRemoved()||!Float.isFinite(amount)||amount<=0)return;
+  var core=SableBodyProbe.findActivatedHeart(level,hit.getBlockPos());
+  if(core==null||core.isControlCore()||core.health().state()!=HeartState.ALIVE||EntityHitboxes.blocksStructure(core))return;
+  core.modules().damageBoxes.externalProjectileBody(core,source,hit,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));
+ }
  public static float contact(Entity source,BlockHitResult hit,float damage){
   if(source==null||source.isRemoved()||source instanceof LivingEntity living&&!living.isAlive()||!(source.level() instanceof ServerLevel level)||hit==null||hit.getType()!=HitResult.Type.BLOCK||!Double.isFinite(hit.getLocation().lengthSqr())||!Float.isFinite(damage)||damage<=0)return 0;
   var core=SableBodyProbe.findActivatedHeart(level,hit.getBlockPos());

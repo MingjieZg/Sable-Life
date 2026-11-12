@@ -256,7 +256,7 @@ neoForge {
             client()
             sourceSet = sourceSets.gameTest
             loadedMods = [mods.sablelife, mods.sablelife_tests]
-            gameDirectory = file('runs/entity-hitbox-preview')
+            gameDirectory = file(providers.gradleProperty('entityHitboxPreviewDirectory').getOrElse('runs/entity-hitbox-preview'))
             systemProperty 'sablelife.entityHitboxPreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '900'
         }
@@ -323,7 +323,7 @@ neoForge {
             client()
             sourceSet = sourceSets.gameTest
             loadedMods = [mods.sablelife, mods.sablelife_tests]
-            gameDirectory = file('runs/redstone-preview')
+            gameDirectory = file(providers.gradleProperty('redstonePreviewDirectory').getOrElse('runs/redstone-preview'))
             systemProperty 'sablelife.redstonePreview', 'true'
             programArguments.addAll '--width', '1280', '--height', '720'
         }
@@ -631,6 +631,7 @@ dependencies {
         gameTestRuntimeOnly files(exampleAddonJar)
     }
     if (providers.gradleProperty('artificeTests').getOrElse('false') == 'true') gameTestRuntimeOnly fileTree(dir: '.dev/artifice-testmods', include: ['*.jar'])
+    if (providers.gradleProperty('coreRemoteClaimsTest').isPresent()) gameTestRuntimeOnly files(providers.gradleProperty('coreRemoteClaimsTest').get())
     if(providers.gradleProperty('shaderParticleTests').getOrElse('false')=='true') {
         gameTestRuntimeOnly fileTree(dir: '.dev/shader-test-mods', include: ['iris*.jar'])
         gameTestRuntimeOnly fileTree(dir: '.dev/shader-merged', include: ['*.jar'])

@@ -79,6 +79,21 @@ public final class AddonModuleNetworkClient {
                 }
             }
             if (mc.player != null) joined = true;
+            if (DatapackFullCatalogScenario.ENABLED) {
+                boolean author = ROLE.equals("author");
+                if (mc.player != null) {
+                    if (author) editEighthOption(mc);
+                    if (!author || reloadPhase == 0 || phase == 4) {
+                        reloadPhase = DatapackFullCatalogScenario.verifyClient(mc.level.registryAccess(), ROLE, reloadPhase);
+                    }
+                } else if (joined) {
+                    if (reloadPhase != 2 || author && phase != 4) {
+                        throw new IllegalStateException("Catalog test disconnected before verification finished");
+                    }
+                    finish(mc);
+                }
+                return;
+            }
             if (joined && mc.player == null) {
                 int expectedChimes = DatapackAlarmScenario.ENABLED ? 3 : 1;
                 if (!picked || chimes != expectedChimes || !ROLE.equals("observer") && phase != 8
@@ -86,8 +101,7 @@ public final class AddonModuleNetworkClient {
                     throw new IllegalStateException("Incomplete client flow. Picker=" + picked + " phase=" + phase
                             + " chimes=" + chimes + " reloadPhase=" + reloadPhase);
                 }
-                System.out.println("ADDON_MODULE_NETWORK_CLIENT " + ROLE + " PASS");
-                mc.stop();
+                finish(mc);
                 return;
             }
             if (mc.player != null) {
@@ -98,6 +112,49 @@ public final class AddonModuleNetworkClient {
             failure.printStackTrace();
             System.out.println("ADDON_MODULE_NETWORK_CLIENT " + ROLE + " FAIL");
             mc.stop();
+        }
+    }
+
+    private static void finish(Minecraft mc) {
+        System.out.println("ADDON_MODULE_NETWORK_CLIENT " + ROLE + " PASS");
+        mc.stop();
+    }
+
+    private static void editEighthOption(Minecraft mc) {
+        String type = DatapackFullCatalogScenario.LAST_MODULE;
+        if (phase == 1 && mc.screen instanceof ModulePickerScreen picker) {
+            picker.children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast)
+                    .findFirst().orElseThrow().setValue(type);
+            var name = DatapackModules.clientPresentation(type).name().english();
+            button(picker, name).onPress();
+            button(picker, I18n.get("module_picker.sablelife.load")).onPress();
+            phase = 2;
+            return;
+        }
+        if (!(mc.screen instanceof HeartDashboardScreen dashboard)
+                || !(mc.player.containerMenu instanceof HeartDashboardMenu menu) || !menu.snapshot().getBoolean("Ready")) return;
+        if (phase == 0 && reloadPhase >= 1) {
+            button(dashboard, I18n.get("dashboard.sablelife.add_short")).onPress();
+            phase = 1;
+            return;
+        }
+        var row = menu.snapshot().getList("Modules", 10).stream().map(CompoundTag.class::cast)
+                .filter(module -> type.equals(module.getString("Type"))).findFirst().orElse(null);
+        if (row == null) return;
+        if (phase == 2) {
+            var field = dashboard.children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast)
+                    .filter(box -> box.visible && box.getValue().equals("1.25")).findFirst().orElse(null);
+            if (field == null) {
+                dashboard.children().stream().filter(Button.class::isInstance).map(Button.class::cast)
+                        .filter(button -> button.visible && button.active && button.getMessage().getString().equals("›"))
+                        .max(java.util.Comparator.comparingInt(Button::getX)).orElseThrow().onPress();
+                return;
+            }
+            enter(dashboard, field, "1.75");
+            phase = 3;
+        } else if (phase == 3 && row.getCompound("Settings").getDouble(DatapackFullCatalogScenario.LAST_PROPERTY) == 1.75) {
+            phase = 4;
+            System.out.println("DATAPACK_CAPACITY eighth option saved through the dashboard");
         }
     }
 

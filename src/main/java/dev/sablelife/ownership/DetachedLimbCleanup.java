@@ -26,6 +26,10 @@ public final class DetachedLimbCleanup {
     private boolean enabled;
     private int delay = 3;
 
+    public DetachedLimbCleanup() { this(false); }
+
+    public DetachedLimbCleanup(boolean enabled) { this.enabled = enabled; }
+
     public boolean enabled() { return enabled; }
     public int delay() { return delay; }
 
@@ -128,6 +132,7 @@ public final class DetachedLimbCleanup {
 
     public void loadSettings(CompoundTag tag) {
         clear();
+        // Older saves and blueprints without a cleanup setting used the disabled default.
         enabled = tag.getBoolean("Enabled");
         delay = tag.contains("Delay") ? Math.clamp(tag.getInt("Delay"), 1, MAX_SECONDS) : 3;
     }

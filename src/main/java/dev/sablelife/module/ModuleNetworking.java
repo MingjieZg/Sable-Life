@@ -41,10 +41,43 @@ public final class ModuleNetworking {
     }
     public record Action(int container, int revision, UUID module, String operation, String key, double value, String text) implements CustomPacketPayload {
         public static final Type<Action> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(SableLife.MOD_ID, "module_action"));
+        static final String WATCHED_PART = "watchedPart";
+        static final String GROUP_BATCH = "group_batch";
+        static final String GROUP_MEMBERS = "group_members";
+        static final int GROUP_BATCH_TEXT_LIMIT = HeartModules.LIMIT * 37 - 1;
+
+        public static Action mark(int container, int revision, UUID module, boolean watchedPart) {
+            return new Action(container, revision, module, "mark", watchedPart ? WATCHED_PART : "", 0, "");
+        }
+
+        public static Action groupBatch(int container, int revision, java.util.Collection<UUID> modules, String group) {
+            return groupAction(container, revision, modules, group, GROUP_BATCH);
+        }
+
+        public static Action groupMembers(int container, int revision, java.util.Collection<UUID> modules, String group) {
+            return groupAction(container, revision, modules, group, GROUP_MEMBERS);
+        }
+
+        private static Action groupAction(int container, int revision, java.util.Collection<UUID> modules, String group, String operation) {
+            return new Action(container, revision, new UUID(0, 0), operation, group, 0,
+                    modules.stream().map(UUID::toString).collect(java.util.stream.Collectors.joining(",")));
+        }
+
+        private static int textLimit(String operation, String key) {
+            return switch (operation) {
+                case "add_preset" -> ModulePreset.MAX_TEXT;
+                case "commands" -> CommandProgram.MAX_TEXT + 8;
+                case "sound_timeline" -> 256;
+                case "wild_encounter" -> key.equals("conditions") || key.endsWith("_rule") ? 16000 : 80;
+                case GROUP_BATCH, GROUP_MEMBERS -> GROUP_BATCH_TEXT_LIMIT;
+                default -> 80;
+            };
+        }
+
         public static final StreamCodec<RegistryFriendlyByteBuf, Action> CODEC = StreamCodec.of((buf, p) -> {
             buf.writeVarInt(p.container); buf.writeVarInt(p.revision); buf.writeUUID(p.module);
-            buf.writeUtf(p.operation, 16); buf.writeUtf(p.key, 64); buf.writeDouble(p.value); buf.writeUtf(p.text, p.operation.equals("add_preset") ? ModulePreset.MAX_TEXT : p.operation.equals("commands") ? CommandProgram.MAX_TEXT+8 : p.operation.equals("sound_timeline") ? 256 : p.operation.equals("wild_encounter") && (p.key.equals("conditions") || p.key.endsWith("_rule")) ? 16000 : 80);
-        }, buf -> { int container=buf.readVarInt(),revision=buf.readVarInt();var module=buf.readUUID();var operation=buf.readUtf(16);var key=buf.readUtf(64);double value=buf.readDouble();return new Action(container,revision,module,operation,key,value,buf.readUtf(operation.equals("add_preset")?ModulePreset.MAX_TEXT:operation.equals("commands")?CommandProgram.MAX_TEXT+8:operation.equals("sound_timeline")?256:operation.equals("wild_encounter")&&(key.equals("conditions")||key.endsWith("_rule"))?16000:80)); });
+            buf.writeUtf(p.operation, 16); buf.writeUtf(p.key, 64); buf.writeDouble(p.value); buf.writeUtf(p.text, textLimit(p.operation, p.key));
+        }, buf -> { int container=buf.readVarInt(),revision=buf.readVarInt();var module=buf.readUUID();var operation=buf.readUtf(16);var key=buf.readUtf(64);double value=buf.readDouble();return new Action(container,revision,module,operation,key,value,buf.readUtf(textLimit(operation,key))); });
         @Override public Type<Action> type() { return TYPE; }
     }
     public record MarkState(boolean active) implements CustomPacketPayload {
@@ -81,11 +114,13 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("48");
+        var registrar = event.registrar("50");
         registrar.playToClient(DatapackModuleCatalog.TYPE, DatapackModuleCatalog.CODEC,
                 (packet, context) -> DatapackModules.receive(packet));
         registrar.playToClient(MovementPreview.TYPE,MovementPreview.CODEC,(packet,ctx)->dev.sablelife.client.MovementPreviewClient.receive(packet));
         registrar.playToClient(LaserVisual.TYPE,LaserVisual.CODEC,(packet,ctx)->dev.sablelife.client.LaserVisualClient.receive(packet));
+        registrar.playToClient(ProjectileTracer.Segment.TYPE, ProjectileTracer.Segment.CODEC,
+                (packet, ctx) -> dev.sablelife.client.ProjectileTracerClient.receive(packet));
         registrar.playToClient(BlueprintProjection.TYPE,BlueprintProjection.CODEC,(p,ctx)->dev.sablelife.client.BlueprintPreviewClient.receive(p));
         registrar.playToClient(MarkOutline.TYPE,MarkOutline.CODEC,(p,ctx)->dev.sablelife.client.BlueprintPreviewClient.receive(p));
         registrar.playToClient(BlueprintPreview.TYPE,BlueprintPreview.CODEC,(p,ctx)->dev.sablelife.client.BlueprintPreviewClient.receive(p));

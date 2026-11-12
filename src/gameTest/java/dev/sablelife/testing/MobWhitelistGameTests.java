@@ -61,6 +61,23 @@ public final class MobWhitelistGameTests {
         var saved=core.saveWithFullMetadata(h.getLevel().registryAccess());var loaded=(HeartBlockEntity)net.minecraft.world.level.block.entity.BlockEntity.loadStatic(core.getBlockPos(),core.getBlockState(),saved,h.getLevel().registryAccess());
         h.assertTrue(loaded.relations().excludesMob(EntityType.COW),"Core save/reload lost type");restored.load(new CompoundTag());h.assertTrue(!restored.excludesMob(EntityType.COW),"Legacy empty relations did not clear types");h.succeed();
     }
+    @GameTest(template="combat",batch="mob_whitelist_groups")
+    public static void MobGroupsUseTagsAndRetainIndividualSelections(GameTestHelper h){
+        var data=new CoreRelations();
+        var passive=CoreRelations.MobGroup.PASSIVE.id().toString();
+        var neutral=CoreRelations.MobGroup.NEUTRAL.id().toString();
+        h.assertTrue(!data.excludesMob(EntityType.COW)&&!data.excludesMob(EntityType.IRON_GOLEM),"Groups were enabled by default");
+        h.assertTrue(data.excludeMob(passive)&&data.excludesMob(EntityType.SHEEP)&&data.excludesMob(EntityType.VILLAGER)
+                &&!data.excludesMob(EntityType.IRON_GOLEM),"Passive group matched the wrong entities");
+        h.assertTrue(data.excludeMob(neutral)&&data.excludesMob(EntityType.IRON_GOLEM)&&data.excludesMob(EntityType.WOLF)
+                &&data.excludesMob(EntityType.SPIDER)&&!data.excludesMob(EntityType.ZOMBIE),"Neutral group matched the wrong entities");
+        data.excludeMob("minecraft:cow");
+        var restored=new CoreRelations();restored.load(data.save());
+        h.assertTrue(restored.excludesMob(EntityType.SHEEP)&&restored.excludesMob(EntityType.WOLF),"Saved groups were lost");
+        h.assertTrue(restored.removeMob(passive)&&!restored.excludesMob(EntityType.SHEEP)&&restored.excludesMob(EntityType.COW)
+                &&restored.excludesMob(EntityType.WOLF),"Removing a group removed separate selections");
+        h.succeed();
+    }
     @GameTest(template="combat",batch="mob_whitelist_permissions")
     public static void ServerActionsValidateTypeRangeAndPermissions(GameTestHelper h){
         var core=core(h,0);var actor=TestActors.creative(h.getLevel());var point=dev.sablelife.compat.sable.SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter());actor.setPos(point);

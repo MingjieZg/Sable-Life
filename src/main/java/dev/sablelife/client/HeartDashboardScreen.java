@@ -33,12 +33,159 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private List<VirtualModule> filteredModules=List.of();
     private List<ModuleFolders.Row> folderRows=List.of();
     private final Set<String> collapsedGroups=new HashSet<>();
+    private final Set<UUID> groupSelection = new LinkedHashSet<>();
+    private final Map<UUID, Boolean> groupMembershipEdits = new LinkedHashMap<>();
+    private UUID groupSelectionAnchor;
+    private ModuleFolders.Row groupDestination;
+    private Button moveToGroup, ungroupSelection, cancelGroupSelection, confirmGroupMembers;
     private UUID pendingJump;private int pendingMove=-1;
     void inspectAction(String operation,UUID id,double value,String text){PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,menu.snapshot().getInt("Revision"),id,operation,"",value,text));}
     UUID selectedId(){return selected;}
     void jumpTo(UUID id,int move){sync();var target=modules.stream().filter(m->m.id().equals(id)).findFirst().orElse(null);if(target==null)return;moduleQuery="";collapsedGroups.remove(target.group());moduleSearch.setValue("");selected=id;refreshSidebar();page=Math.max(0,sidebarIndex(id))/Math.max(1,sidebarSlots);pendingJump=id;pendingMove=move;inspectAction("select",id,0,"");minecraft.setScreen(this);}
     private int sidebarIndex(UUID id){for(int i=0;i<folderRows.size();i++)if(!folderRows.get(i).header()&&folderRows.get(i).module().id().equals(id))return i;return -1;}
-    private void clickSidebar(int index){int n=page*sidebarSlots+index;if(n>=folderRows.size())return;var row=folderRows.get(n);if(row.header()){if(!collapsedGroups.add(row.group()))collapsedGroups.remove(row.group());refreshSidebar();page=Math.min(page,Math.max(0,(folderRows.size()-1)/sidebarSlots));}else{selected=row.module().id();action("select","",0,"");}}
+    private int sidebarCapacity() { return Math.max(1, sidebarSlots - (groupDestination == null ? 0 : 1)); }
+    private int lastSidebarPage() { return Math.max(0, (folderRows.size() - 1) / sidebarCapacity()); }
+    private int sidebarPosition(int index) { return page * sidebarCapacity() + index - (groupDestination == null ? 0 : 1); }
+
+    private ModuleFolders.Row visibleSidebarRow(int index) {
+        if (groupDestination != null && index == 0) return groupDestination;
+        int position = sidebarPosition(index);
+        return position < folderRows.size() ? folderRows.get(position) : null;
+    }
+
+    private void clickSidebar(int index, boolean control, boolean shift) {
+        var row = visibleSidebarRow(index);
+        if (row == null) return;
+        if (row.header()) {
+            if (groupDestination != null && row.group().equals(groupDestination.group())) return;
+            if (groupDestination == null && control && canGroup()) {
+                modules.stream().filter(module -> module.group().equals(row.group()))
+                        .map(VirtualModule::id).forEach(groupSelection::add);
+            } else {
+                if (!collapsedGroups.add(row.group())) collapsedGroups.remove(row.group());
+                refreshSidebar();
+            }
+        } else if (canGroup() && groupDestination != null) {
+            editGroupMembership(row.module(), sidebarPosition(index), shift);
+        } else if (canGroup() && (control || shift)) {
+            UUID id = row.module().id();
+            int anchor = sidebarIndex(groupSelectionAnchor == null ? selected : groupSelectionAnchor);
+            if (shift && anchor >= 0) {
+                int position = sidebarPosition(index);
+                for (var entry : folderRows.subList(Math.min(anchor, position), Math.max(anchor, position) + 1)) {
+                    if (!entry.header()) groupSelection.add(entry.module().id());
+                }
+            } else if (!groupSelection.add(id)) {
+                groupSelection.remove(id);
+            }
+            groupSelectionAnchor = id;
+        } else {
+            clearGroupSelection();
+            selected = row.module().id();
+            action("select", "", 0, "");
+        }
+        sync();
+    }
+
+    private void clearGroupSelection() {
+        groupSelection.clear();
+        groupSelectionAnchor = null;
+    }
+
+    private void startGroupAssignment(ModuleFolders.Row group) {
+        clearGroupSelection();
+        groupDestination = group;
+        collapsedGroups.remove(group.group());
+        refreshSidebar();
+        page = 0;
+        updateGroupConfirmTooltip();
+        sync();
+    }
+
+    private void endGroupAssignment() {
+        String group = groupDestination.group();
+        groupDestination = null;
+        groupMembershipEdits.clear();
+        clearGroupSelection();
+        refreshSidebar();
+        for (int i = 0; i < folderRows.size(); i++) {
+            var row = folderRows.get(i);
+            if (row.header() && row.group().equals(group)) {
+                page = i / sidebarCapacity();
+                break;
+            }
+        }
+    }
+
+    private boolean canGroup() { return snapshot.getBoolean("GroupTools") && snapshot.getBoolean("Editable"); }
+    private boolean canRemoveGroupMembers() { return snapshot.getBoolean("GroupMemberEditing"); }
+
+    private void updateGroupConfirmTooltip() {
+        confirmGroupMembers.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
+                tr(canRemoveGroupMembers() ? "group_members_help" : "group_confirm_help")));
+    }
+
+    private boolean isGroupMember(VirtualModule module) {
+        return module.group().equals(groupDestination.group());
+    }
+
+    private boolean groupMemberChecked(VirtualModule module) {
+        return groupMembershipEdits.getOrDefault(module.id(), isGroupMember(module));
+    }
+
+    private void setGroupMemberChecked(VirtualModule module, boolean checked) {
+        boolean member = isGroupMember(module);
+        if (member && !canRemoveGroupMembers()) return;
+        if (member == checked) groupMembershipEdits.remove(module.id());
+        else groupMembershipEdits.put(module.id(), checked);
+    }
+
+    private void editGroupMembership(VirtualModule module, int position, boolean shift) {
+        boolean checked = !groupMemberChecked(module);
+        int anchor = sidebarIndex(groupSelectionAnchor);
+        if (shift && anchor >= 0) {
+            for (var row : folderRows.subList(Math.min(anchor, position), Math.max(anchor, position) + 1)) {
+                if (!row.header()) setGroupMemberChecked(row.module(), checked);
+            }
+        } else {
+            setGroupMemberChecked(module, checked);
+        }
+        groupSelectionAnchor = module.id();
+    }
+
+    private void confirmGroupMembership() {
+        sync();
+        if (groupDestination == null || groupMembershipEdits.isEmpty()) return;
+        if (canRemoveGroupMembers()) {
+            var members = modules.stream().filter(this::groupMemberChecked).map(VirtualModule::id).toList();
+            PacketDistributor.sendToServer(ModuleNetworking.Action.groupMembers(
+                    menu.containerId, snapshot.getInt("Revision"), members, groupDestination.group()));
+        } else if (!assignGroup(groupMembershipEdits.keySet(), groupDestination.group())) {
+            return;
+        }
+        endGroupAssignment();
+        sync();
+    }
+
+    List<String> groups() {
+        return menu.snapshot().getList("Modules", 10).stream().map(value -> ((CompoundTag) value).getString("Group"))
+                .filter(group -> !group.isBlank()).distinct().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+    }
+
+    void moveToGroup(String name) {
+        if (assignGroup(groupSelection, name)) {
+            clearGroupSelection();
+            sync();
+        }
+    }
+
+    private boolean assignGroup(Collection<UUID> ids, String name) {
+        var current = menu.snapshot();
+        if (ids.isEmpty() || !current.getBoolean("GroupTools") || !current.getBoolean("Editable") || !ModuleFolders.valid(name)) return false;
+        collapsedGroups.remove(name.trim());
+        PacketDistributor.sendToServer(ModuleNetworking.Action.groupBatch(menu.containerId, current.getInt("Revision"), ids, name));
+        return true;
+    }
 
     private int reorderDestination=-1,reorderExpires;
     private int parameterSlots, rowPitch, detailX, inputX, applyX, detailWidth;
@@ -88,6 +235,9 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private void action(String operation, String key, double value, String text) {
         PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId, snapshot.getInt("Revision"), selected, operation, key, value, text));
     }
+    private void mark(boolean watchedPart) {
+        PacketDistributor.sendToServer(ModuleNetworking.Action.mark(menu.containerId, snapshot.getInt("Revision"), selected, watchedPart));
+    }
     boolean canAddModule(){return menu.snapshot().getBoolean("Editable")&&menu.snapshot().getList("Modules",10).size()<(menu.snapshot().contains("ModuleLimit")?menu.snapshot().getInt("ModuleLimit"):128);}
     void addType(String type){sync();trackAdd(type);action("add",type,0,"");}
     void addPreset(CompoundTag tag){sync();trackAdd(tag.getString("Type"));action("add_preset",tag.getString("Type"),0,ModulePreset.portable(tag).toString());}
@@ -96,7 +246,17 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     boolean savePreset(String name){sync();var module=selected();if(module==null)return false;try{ModulePresetLibrary.save(name,module.save());return true;}catch(java.io.IOException e){return false;}}
     public List<String> availableTypes(){var result=new java.util.ArrayList<String>();for(var value:menu.snapshot().getList("AvailableTypes",8))result.add(value.getAsString());return result;}
     private List<VirtualModule> sidebarModules() { return filteredModules; }
-    private void refreshSidebar(){var result=new ArrayList<VirtualModule>();for(int i=0;i<modules.size();i++){var m=modules.get(i);if(ModuleSearch.matches(m,ModuleText.name(m.type()).getString(),i+1,moduleQuery)||!moduleQuery.isBlank()&&m.group().toLowerCase(Locale.ROOT).contains(moduleQuery.toLowerCase(Locale.ROOT)))result.add(m);}filteredModules=List.copyOf(result);folderRows=ModuleFolders.rows(filteredModules,collapsedGroups,!moduleQuery.isBlank());}
+    private void refreshSidebar(){var result=new ArrayList<VirtualModule>();for(int i=0;i<modules.size();i++){var m=modules.get(i);if(ModuleSearch.matches(m,ModuleText.name(m.type()).getString(),i+1,moduleQuery)||!moduleQuery.isBlank()&&m.group().toLowerCase(Locale.ROOT).contains(moduleQuery.toLowerCase(Locale.ROOT)))result.add(m);}filteredModules=List.copyOf(result);folderRows=ModuleFolders.rows(filteredModules,collapsedGroups,!moduleQuery.isBlank());
+        if (groupDestination != null) {
+            String group = groupDestination.group();
+            int memberCount = (int) modules.stream().filter(module -> module.group().equals(group)).count();
+            groupDestination = new ModuleFolders.Row(group, null, memberCount);
+            var ordered = new ArrayList<ModuleFolders.Row>(folderRows.size());
+            folderRows.stream().filter(row -> row.group().equals(group) && !row.header()).forEach(ordered::add);
+            folderRows.stream().filter(row -> !row.group().equals(group)).forEach(ordered::add);
+            folderRows = List.copyOf(ordered);
+        }
+    }
 
 
     private VirtualModule selected() { return modules.stream().filter(m -> m.id().equals(selected)).findFirst().orElse(null); }
@@ -115,7 +275,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         sidebarPitch = Math.max(14,(int)Math.ceil(font.lineHeight*textScale())+8);
         sidebarSlots = Math.max(1,(imageHeight - 44 - 47)/sidebarPitch);
         if(topField!=null)for(int i=0;i<parameters.size();i++)if(parameters.get(i).key().equals(topField)){parameterPage=i/parameterSlots;break;}
-        if(sidebarIndex(selected)>=0)page=sidebarIndex(selected)/sidebarSlots;
+        if(groupDestination==null&&groupSelection.isEmpty()&&sidebarIndex(selected)>=0)page=sidebarIndex(selected)/sidebarSlots;
         detailX = Math.min(143,Math.max(103,Math.round(imageWidth*.30f))); detailWidth = imageWidth - detailX - 11;
         inputX = detailX + Math.round(detailWidth * .46f); applyX = imageWidth - 49;
         super.init(); rows.clear(); edits.clear(); fields.clear(); applyButtons.clear(); choices.clear(); soundFolders.clear(); vanillaFolders.clear(); noneButtons.clear();rgbButtons.clear();
@@ -142,13 +302,19 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         for (int i = 0; i < sidebarSlots; i++) {
             int index = i;
             rows.add(button(Component.empty(), 11, 47 + i * sidebarPitch, detailX-27, () -> {
-                clickSidebar(index);
+                clickSidebar(index, hasControlDown(), hasShiftDown());
             }));
             rows.getLast().setHeight(sidebarPitch - 2);
         }
-        button(Component.literal("‹"), 11, imageHeight - 44, 27, () -> page = Math.max(0, page - 1));
-        button(Component.literal("›"), detailX-43, imageHeight - 44, 27, () -> page = Math.min(Math.max(0, (folderRows.size() - 1) / sidebarSlots), page + 1));
+        button(Component.literal("‹"), 11, imageHeight - 44, 27, () -> { page = Math.max(0, page - 1); sync(); });
+        button(Component.literal("›"), detailX-43, imageHeight - 44, 27, () -> {
+            page = Math.min(lastSidebarPage(), page + 1); sync();
+        });
         int strip=detailX-27,arrow=strip>=110?19:14,space=strip-2*arrow-9,addWidth=(int)Math.ceil(space*.6),copyWidth=space-addWidth;
+        int confirmWidth = 30;
+        confirmGroupMembers = button(tr("group_confirm"), 11 + strip - confirmWidth, 47, confirmWidth, this::confirmGroupMembership);
+        confirmGroupMembers.setHeight(sidebarPitch - 2);
+        updateGroupConfirmTooltip();
         add=button(tr("add_short"),11,bottomY(),addWidth,()->minecraft.setScreen(new ModulePickerScreen(this,availableTypes())));
         copyModule=button(tr("copy_module"),14+addWidth,bottomY(),copyWidth,()->{sync();var current=selected();if(current!=null){trackAdd(current.type());action("copy","",0,"");}});
         copyModule.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("copy_module_help")));
@@ -156,6 +322,16 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         moveModuleDown=button(Component.literal("↓"),20+addWidth+copyWidth+arrow,bottomY(),arrow,()->reorderModule(1));
         moveModuleUp.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("module_picker.sablelife.move_up")));
         moveModuleDown.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("module_picker.sablelife.move_down")));
+        int cancelWidth = 14, ungroupWidth = Math.min(35, strip / 4);
+        int moveWidth = strip - ungroupWidth - cancelWidth - 6;
+        moveToGroup = button(Component.empty(), 11, bottomY(), moveWidth,
+                () -> minecraft.setScreen(new ModuleGroupPickerScreen(this, groupSelection.size())));
+        moveToGroup.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("group_move_help")));
+        ungroupSelection = button(tr("group_remove_short"), 14 + moveWidth, bottomY(), ungroupWidth, () -> moveToGroup(""));
+        ungroupSelection.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("group_remove")));
+        cancelGroupSelection = button(Component.literal("×"), 17 + moveWidth + ungroupWidth, bottomY(), cancelWidth,
+                () -> { clearGroupSelection(); sync(); });
+        cancelGroupSelection.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("group_select_done")));
         tokenHelp=button(Component.literal("?"),imageWidth-26,51,15,()->{});
         tokenHelp.setHeight(11);
         tokenHelp.visible=false;
@@ -193,7 +369,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         channel = new EditBox(font, leftPos + imageWidth - 94, topPos + triggerY() + 1, 47, 16, tr("channel"));
         channel.setMaxLength(5); channel.setFilter(s -> s.matches("[0-9]{0,5}")); addRenderableWidget(channel);
         channelApply = button(Component.literal("✓"), imageWidth - 42, triggerY(), 31, this::applyChannel); edits.add(channelApply);
-        mark = button(tr("mark"), detailX, markY(), (detailWidth - 6) / 2, () -> action("mark", "", 0, "")); edits.add(mark);
+        mark = button(tr("mark"), detailX, markY(), (detailWidth - 6) / 2, () -> mark(false)); edits.add(mark);
         preview = button(tr("preview"), detailX + (detailWidth + 6) / 2, markY(), (detailWidth - 6) / 2, () -> action("preview", "", 0, ""));
         toggle = button(Component.empty(), detailX, bottomY(), (detailWidth - 12) / 3, () -> {
             var m = selected(); if (m != null) action("edit", "enabled", m.enabled() ? 0 : 1, "");
@@ -257,6 +433,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if (field.key().equals("moveSetEditor")) { minecraft.setScreen(new MoveSetScreen(menu, minecraft.player.getInventory(), title, m.id())); return; }
         if (field.key().equals("sequenceSteps")) { action("sequence", "", 0, ""); return; }
         if(field.key().equals("accumReset")){action("accum_reset","",0,"");return;}
+        if(field.key().equals("watchedPart")){mark(true);return;}
         if (field.key().equals("gyroCalibrate")) { action("gyro_calibrate","",0,""); return; }
         if (field.key().equals("redstoneFrequency")) { action("frequency", "", 0, ""); return; }
         if (field.key().equals("effects") || field.key().equals("particles") || VirtualModule.particleStage(field.key())!=null) { action("effects", field.key(), 0, ""); return; }
@@ -306,6 +483,29 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         }));
     }
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 1 && canGroup()) {
+            for (int i = 0; i < rows.size(); i++) {
+                var widget = rows.get(i);
+                if (!widget.visible || !widget.isMouseOver(mouseX, mouseY)) continue;
+                var row = visibleSidebarRow(i);
+                if (row == null) continue;
+                if (row.header()) {
+                    if (groupDestination != null && i != 0) return true;
+                    widget.playDownSound(minecraft.getSoundManager());
+                    if (groupDestination == null) startGroupAssignment(row);
+                    else {
+                        endGroupAssignment();
+                        sync();
+                    }
+                    return true;
+                }
+                if (groupDestination == null && groupSelection.isEmpty() && !row.group().isEmpty()) {
+                    widget.playDownSound(minecraft.getSoundManager());
+                    assignGroup(List.of(row.module().id()), "");
+                    return true;
+                }
+            }
+        }
         if (button == 1) for (int i = 0; i < choices.size(); i++) {
             var choice = choices.get(i);
             int field = parameterPage * parameterSlots + i;
@@ -326,17 +526,25 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             datapackRevision = currentDatapackRevision;
             decodedData = data; snapshot = data.copyTag(); modules.clear(); statuses.clear(); var list = snapshot.getList("Modules", 10);
             for (int i = 0; i < list.size(); i++) { modules.add(VirtualModule.load(list.getCompound(i))); statuses.add(list.getCompound(i).getString("Status")); }refreshSidebar();
+            var ids = modules.stream().map(VirtualModule::id).toList();
+            groupSelection.retainAll(ids);
+            groupMembershipEdits.keySet().retainAll(ids);
+            if (groupDestination != null) {
+                for (var module : modules) groupMembershipEdits.remove(module.id(), isGroupMember(module));
+            }
         }
+        if (groupDestination != null && (!canGroup() || groupDestination.count() == 0)) endGroupAssignment();
+        if (!canGroup()) clearGroupSelection();
         if (!selectionRestored && snapshot.getBoolean("Ready")) {
             if (snapshot.hasUUID("Selected")) selected = snapshot.getUUID("Selected");
             selectionRestored = true;
-            if(sidebarIndex(selected)>=0)page=sidebarIndex(selected)/sidebarSlots;
+            if(groupDestination==null&&sidebarIndex(selected)>=0)page=sidebarIndex(selected)/sidebarSlots;
         }
 
         if (selected() == null)
             selected = sidebarModules().isEmpty() ? NONE : sidebarModules().getFirst().id();
-        page = Math.min(page, Math.max(0, (folderRows.size() - 1) / sidebarSlots));
-        if(beforeAdd!=null){var added=modules.stream().filter(m->m.type().equals(addingType)&&!beforeAdd.contains(m.id())&&snapshot.hasUUID("Selected")&&m.id().equals(snapshot.getUUID("Selected"))).findFirst();if(added.isPresent()){selected=added.get().id();if(!sidebarModules().contains(added.get())){moduleQuery="";moduleSearch.setValue("");}collapsedGroups.remove(added.get().group());refreshSidebar();page=Math.max(0,sidebarIndex(selected))/sidebarSlots;beforeAdd=null;}else if(tickCount>addExpires)beforeAdd=null;}
+        if(beforeAdd!=null){var added=modules.stream().filter(m->m.type().equals(addingType)&&!beforeAdd.contains(m.id())&&snapshot.hasUUID("Selected")&&m.id().equals(snapshot.getUUID("Selected"))).findFirst();if(added.isPresent()){selected=added.get().id();if(!sidebarModules().contains(added.get())){moduleQuery="";moduleSearch.setValue("");}collapsedGroups.remove(added.get().group());refreshSidebar();page=Math.max(0,sidebarIndex(selected))/sidebarCapacity();beforeAdd=null;}else if(tickCount>addExpires)beforeAdd=null;}
+        page = Math.min(page, lastSidebarPage());
         var m=selected();boolean editable=snapshot.getBoolean("Editable")&&!(m!=null&&m.type().equals("command")&&!snapshot.getBoolean("CommandEditable"));boolean usable=m!=null&&m.known()&&!List.of("server_disabled","unknown").contains(statuses.get(modules.indexOf(m)));
         releaseLife.visible=!snapshot.getBoolean("ControlCore");releaseLife.active = snapshot.getBoolean("Ready");
         lootNav.visible=!snapshot.getBoolean("ControlCore");if(snapshot.getBoolean("ControlCore"))settingsNav.setMessage(Component.translatable("manual.sablelife.open"));
@@ -372,6 +580,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         // Compare the final visible fields so mode-dependent filtering does not clear editor focus each tick.
         if(m!=null&&m.type().equals("linear_movement"))nextFields=nextFields.stream().filter(f->!(f.key().equals("moveObstruction")&&m.value("linearMode")==1)&&!(f.key().equals("travelSpeed")&&m.value("linearMode")==0)&&!(m.value("moveAim")==0&&List.of("target","moveTargetRange","moveStopDistance","moveTargetVertical","facingCreative").contains(f.key()))&&!(m.value("moveAim")==1&&List.of("moveDistance","moveHorizontal","moveVertical","direction").contains(f.key()))).toList();
         if(m!=null)nextFields=nextFields.stream().filter(f->dev.sablelife.module.SurfaceFieldSettings.visible(m,f.key())).toList();
+        if(m!=null)nextFields=nextFields.stream().filter(f->ProjectileTracer.visible(m,f.key())).toList();
         if(m!=null&&m.type().equals("blueprint_spawn"))nextFields=nextFields.stream().filter(f->!f.key().equals("spawnEvent")).toList();
         if(m!=null&&m.type().equals("arena"))nextFields=nextFields.stream().flatMap(field->field.key().equals("arenaRespawnClear")
                 ?java.util.stream.Stream.of(new ModuleFields.Field("arena_record_config_note",0,0,0,1,List.of("none")),
@@ -384,20 +593,51 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if(selectionChanged&&m!=null){var position=DashboardPageMemory.get(m.id());if(position!=null)parameterPage=position.restore(parameters.stream().map(ModuleFields.Field::key).toList(),parameterSlots);}
         if(!pendingRgb.isEmpty()&&m!=null&&m.value(pendingRgb+"Rgb")==pendingRgbMode){for(int i=0;i<parameters.size();i++)if(parameters.get(i).key().equals(pendingRgb))parameterPage=i/parameterSlots;pendingRgb="";}
         parameterPage = Math.min(parameterPage, Math.max(0, (parameters.size() - 1) / parameterSlots));
+        boolean assigningGroup = groupDestination != null;
+        boolean selectingGroups = !groupSelection.isEmpty();
+        confirmGroupMembers.visible = assigningGroup;
+        confirmGroupMembers.active = assigningGroup && !groupMembershipEdits.isEmpty();
+        rows.getFirst().setWidth(detailX - 27 - (assigningGroup ? confirmGroupMembers.getWidth() + 3 : 0));
         for (int i = 0; i < sidebarSlots; i++) {
-            int row=page*sidebarSlots+i;var button=rows.get(i);button.visible=row<folderRows.size();button.active=true;
-            if(row<folderRows.size()){
-                var folder=folderRows.get(row);if(folder.header()){
-                    button.setMessage(Component.literal((collapsedGroups.contains(folder.group())&&moduleQuery.isBlank()?"+ ":"- ")+folder.group()+" ("+folder.count()+")"));LifeUiStyle.bookmark(button,0);button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(folder.group())));continue;
+            var folder = visibleSidebarRow(i);
+            var button = rows.get(i);
+            button.visible = folder != null;
+            button.active = true;
+            if(folder != null){
+                if(folder.header()){
+                    button.setMessage(Component.literal((collapsedGroups.contains(folder.group())&&moduleQuery.isBlank()?"+ ":"- ")+folder.group()+" ("+folder.count()+")"));
+                    LifeUiStyle.bookmark(button,0);
+                    var hint = Component.literal(folder.group());
+                    if (assigningGroup && i == 0) hint.append("\n").append(tr("group_cancel_help"));
+                    else if (!assigningGroup && canGroup()) hint.append("\n").append(tr("group_add_help"));
+                    button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(hint));continue;
                 }
                 var entry=folder.module();Component label=entry.name().isEmpty()?ModuleText.name(entry.type()):Component.literal(entry.name());
-                button.setMessage(Component.literal(entry.id().equals(selected)?"▶ ":"").append(label).append(" #"+(modules.indexOf(entry)+1)));
+                boolean lockedMember = assigningGroup && isGroupMember(entry) && !canRemoveGroupMembers();
+                button.active = !lockedMember;
+                String prefix = assigningGroup || selectingGroups
+                        ? ((assigningGroup ? groupMemberChecked(entry) : groupSelection.contains(entry.id())) ? "[✓] " : "[ ] ")
+                        : entry.id().equals(selected) ? "▶ " : "";
+                button.setMessage(Component.literal(prefix).append(label).append(" #"+(modules.indexOf(entry)+1)));
                 LifeUiStyle.bookmark(button,ModuleCategory.of(entry.type()).color);
-                button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(ModuleText.name(entry.type()).copy().append("\n").append(ModuleText.description(entry.type()))));
+                var hint = ModuleText.name(entry.type()).copy().append("\n").append(ModuleText.description(entry.type()));
+                if (canGroup()) {
+                    if (lockedMember) hint.append("\n").append(tr("group_already_member"));
+                    else if (assigningGroup) hint.append("\n").append(tr("group_check_help"));
+                    else {
+                        hint.append("\n").append(tr("group_select_help"));
+                        if (!entry.group().isEmpty() && !selectingGroups) hint.append("\n").append(tr("group_remove_help"));
+                    }
+                }
+                button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(hint));
             }
         }
         add.active=editable&&modules.size()<(menu.snapshot().contains("ModuleLimit")?menu.snapshot().getInt("ModuleLimit"):128);add.setMessage(tr("add_short"));copyModule.active=add.active&&usable&&m!=null&&sidebarModules().contains(m);
         int selectedIndex=modules.indexOf(m);moveModuleUp.active=editable&&selectedIndex>0;moveModuleDown.active=editable&&selectedIndex>=0&&selectedIndex<modules.size()-1;
+        add.visible = copyModule.visible = moveModuleUp.visible = moveModuleDown.visible = !assigningGroup && !selectingGroups;
+        moveToGroup.visible = ungroupSelection.visible = cancelGroupSelection.visible = !assigningGroup && selectingGroups;
+        ungroupSelection.active = modules.stream().anyMatch(entry -> groupSelection.contains(entry.id()) && !entry.group().isEmpty());
+        moveToGroup.setMessage(Component.translatable("dashboard.sablelife.group_move", groupSelection.size()));
         if(reorderDestination>=0){if(selectedIndex==reorderDestination){page=Math.max(0,sidebarIndex(m.id()))/sidebarSlots;reorderDestination=-1;}else if(tickCount>reorderExpires)reorderDestination=-1;}
         int categoryColor = m == null ? 0 : ModuleCategory.of(m.type()).color;
         for (Button b : edits) { b.active = editable && usable; LifeUiStyle.bookmark(b, b.getWidth() >= 60 ? categoryColor : 0); }
@@ -433,7 +673,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 soundFolders.get(i).visible = false; soundFolders.get(i).active = true;
                 vanillaFolders.get(i).visible = false; vanillaFolders.get(i).active = true;
                 box.setWidth(exists && field.key().equals("phaseChannel") ? 40 : applyX - inputX - 32);
-                choices.get(i).setWidth(exists && field.key().equals("redstoneFrequency") ? frequencyButtonWidth() : exists && List.of("ignoreConditions","hitboxProvokeMobs","targetMultiple","armorWholeBody","shockReverse","fieldBurn","slashIgnite","slashBlockable","arrowFaceCamera").contains(field.key()) ? 18 : exists && List.of("lineOfSight", "arenaDeath", "arenaForceReturn", "trail").contains(field.key()) ? 36 : (imageWidth - inputX - 11) - (hasNone ? 20 : 0));
+                choices.get(i).setWidth(exists && field.key().equals("redstoneFrequency") ? frequencyButtonWidth() : exists && List.of("ignoreConditions","hitboxProvokeMobs","hitboxRetaliateAgainstWhitelisted","targetMultiple","armorWholeBody","shockReverse","fieldBurn","slashIgnite","slashBlockable","arrowFaceCamera").contains(field.key()) ? 18 : exists && List.of("lineOfSight", "arenaDeath", "arenaForceReturn", "trail").contains(field.key()) ? 36 : (imageWidth - inputX - 11) - (hasNone ? 20 : 0));
                 var rgbButton=rgbButtons.get(i);boolean colorField=exists&&ModuleColors.color(m.type(),field.key());rgbButton.visible=colorField;rgbButton.active=colorField&&editable&&usable;
                 if(colorField){rgbButton.setX(leftPos+inputX);LifeUiStyle.bookmark(rgbButton,m.value(field.key()+"Rgb")==1?0xB079E0:0);choices.get(i).setX(leftPos+inputX+40);choices.get(i).setWidth(imageWidth-inputX-51);}
                 if(exists&&field.key().equals("redstoneRampStart")){
@@ -490,7 +730,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                         if(!state.getBoolean("Available")||!snapshot.getBoolean("RespawnAllowed")){box.active=false;applyButtons.get(i).active=false;choices.get(i).setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("arena_respawn.sablelife.requires")));}
                     }
                     if (field.choice()) {
-                        Component label = field.key().equals("signalRules")?Component.translatable("signal_rules.sablelife.count",m.signalRules().rows().size()):field.key().equals("healthPhaseRules")?Component.translatable("phase_rules.sablelife.count",m.healthPhaseRules().rows().size()):field.key().equals("armorRules")?Component.translatable("armor_rules.sablelife.count",m.armorRules().rows().size()):field.key().equals("gyroCalibrate")?tr(snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getBoolean("GyroCalibrated")?"gyro_recalibrate":"gyro_record"):field.key().equals("arenaRespawnRecord")?Component.translatable("arena_respawn.sablelife.record"+(snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("RespawnRuntime").getBoolean("Recorded")?"ed":"")):field.key().equals("arenaBuffGroups")?Component.translatable("arena_buffs.sablelife.count",m.arenaBuffs().groups().size()):List.of("ignoreConditions","hitboxProvokeMobs","targetMultiple","armorWholeBody","shockReverse","fieldBurn","slashIgnite","slashBlockable","arrowFaceCamera").contains(field.key()) ? Component.literal(m.value(field.key()) == 1 || field.key().equals("ignoreConditions") && snapshot.getBoolean("ControlCore") ? "✓" : "") : VirtualModule.particleStage(field.key())!=null ? Component.translatable("particles.sablelife.count",m.movementParticles(VirtualModule.particleStage(field.key())).particles().size()) : field.key().equals("particles") ? Component.translatable("particles.sablelife.count", m.particles().size()) : field.key().equals("effects") ? Component.translatable("effects.sablelife.count", m.effects().size())
+                        Component label = field.key().equals("signalRules")?Component.translatable("signal_rules.sablelife.count",m.signalRules().rows().size()):field.key().equals("healthPhaseRules")?Component.translatable("phase_rules.sablelife.count",m.healthPhaseRules().rows().size()):field.key().equals("armorRules")?Component.translatable("armor_rules.sablelife.count",m.armorRules().rows().size()):field.key().equals("gyroCalibrate")?tr(snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getBoolean("GyroCalibrated")?"gyro_recalibrate":"gyro_record"):field.key().equals("arenaRespawnRecord")?Component.translatable("arena_respawn.sablelife.record"+(snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("RespawnRuntime").getBoolean("Recorded")?"ed":"")):field.key().equals("arenaBuffGroups")?Component.translatable("arena_buffs.sablelife.count",m.arenaBuffs().groups().size()):List.of("ignoreConditions","hitboxProvokeMobs","hitboxRetaliateAgainstWhitelisted","targetMultiple","armorWholeBody","shockReverse","fieldBurn","slashIgnite","slashBlockable","arrowFaceCamera").contains(field.key()) ? Component.literal(m.value(field.key()) == 1 || field.key().equals("ignoreConditions") && snapshot.getBoolean("ControlCore") ? "✓" : "") : VirtualModule.particleStage(field.key())!=null ? Component.translatable("particles.sablelife.count",m.movementParticles(VirtualModule.particleStage(field.key())).particles().size()) : field.key().equals("particles") ? Component.translatable("particles.sablelife.count", m.particles().size()) : field.key().equals("effects") ? Component.translatable("effects.sablelife.count", m.effects().size())
                                 : field.choices().equals(List.of("item")) ? (minecraft.level==null||m.save().getCompound("ProjectileItem").isEmpty() ? tr(m.type().equals("item_display")?"display_empty":m.type().equals("arrow") ? "projectile_default_arrow" : m.type().equals("homing") ? "projectile_default_homing" : "projectile_default") : m.projectileItem(minecraft.level.registryAccess()).getHoverName())
                                 : field.choices().equals(List.of("library")) ? Component.translatable("sound_timeline.sablelife.count",m.soundTimeline(field.key()).rows().size())
                                 : tr("choice_" + field.choices().get(Math.clamp((int) m.value(field.key()), 0, field.choices().size() - 1)));
@@ -500,6 +740,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                         if(field.key().equals("impactArea")){var ref=modules.stream().filter(x->x.id().equals(m.impactFieldId())).findFirst().orElse(null);label=ref==null?tr(m.impactFieldId()==null?"field_none":"field_missing"):Component.literal((ref.name().isEmpty()?tr("type_surface_field").getString():ref.name())+" #"+(modules.indexOf(ref)+1));}
                         if(m.type().equals("surface_field")&&field.key().equals("fieldRelease"))choices.get(i).active=false;
                         if(m.type().equals("damage_accumulation")&&field.key().equals("accumInvert")&&m.value("accumMode")==1)label=tr(m.value("accumInvert")==1?"accum_timed_met":"accum_timed_unmet");
+                        if(field.key().equals("watchedPart")&&m.watchedPart()!=null)label=tr("choice_part_remark");
                         if(field.key().equals("blueprintEditor")){
                             String blueprint=snapshot.getList("Modules",10).getCompound(modules.indexOf(m))
                                     .getCompound("BlueprintSpawn").getString("Name");
@@ -537,10 +778,12 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         hurtSettings.visible = !snapshot.getBoolean("ControlCore") && m != null && !loot && m.value("trigger") == 5; hurtSettings.active = usable;
         if(hurtSettings.visible) hurtSettings.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("hurt.sablelife.summary", Component.translatable("hurt.sablelife.mode_"+(int)m.value("hurtMode")), String.format(Locale.ROOT,"%.2f",m.value("hurtCooldown")/20))));
         if(m!=null&&m.type().equals("surface_field")){trigger.visible=channel.visible=channelApply.visible=hurtSettings.visible=mark.visible=preview.visible=false;}
+        if(m!=null&&m.type().equals("part_break")&&m.listensToPart())trigger.visible=channel.visible=channelApply.visible=hurtSettings.visible=false;
         preview.setMessage(tr("preview")); preview.active = usable && (bgm || TargetCastOrigin.targeted(m) || m.type().equals("arena") && m.arenaCenter() != null || !m.anchors().isEmpty());
         if(m!=null&&m.type().equals("blueprint_spawn")){var spawnState=snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("BlueprintSpawn");preview.visible=true;preview.active=usable&&snapshot.getBoolean("RespawnAllowed")&&spawnState.getBoolean("CanPreview");preview.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("blueprint_spawn.sablelife.preview_help")));}
         mark.setMessage(tr(m != null && m.area() ? "mark_particle_area" : m != null && m.type().equals("particles") ? "mark_particle_point" : m != null && m.type().equals("arena") ? "mark_arena_center" : loot ? "mark_limb" : m != null && List.of("navigation","auto_facing","signal_turn").contains(m.type()) ? "mark_front"
                 : m != null && (m.type().equals("trigger_sound") && m.value("contactMode") == 1 || m.type().equals("visual_shockwave")&&m.value("shockContact")==1) ? "mark_contact" : "mark"));
+        if(m!=null&&m.type().equals("part_break"))mark.setMessage(tr("mark_part_break"));
         mark.setTooltip(m!=null&&m.type().equals("entity_hitbox")?net.minecraft.client.gui.components.Tooltip.create(tr("hitbox_help")):m!=null&&m.type().equals("distortion_trail")?net.minecraft.client.gui.components.Tooltip.create(tr("distortion_trail_help")):m!=null&&m.type().equals("visual_shockwave")?net.minecraft.client.gui.components.Tooltip.create(tr("shock_help")):m!=null&&m.type().equals("hover_anchor")?net.minecraft.client.gui.components.Tooltip.create(tr("hover_help")):m!=null&&m.type().equals("gyroscope")?net.minecraft.client.gui.components.Tooltip.create(tr("gyro_help")):m!=null&&m.type().equals("sensor")?net.minecraft.client.gui.components.Tooltip.create(tr("sensor_output_help")):m!=null&&m.type().equals("signal_turn")?net.minecraft.client.gui.components.Tooltip.create(tr("signal_turn_help")):m != null && m.type().equals("auto_facing") ? net.minecraft.client.gui.components.Tooltip.create(tr("auto_facing_help")) : null);
         if (m != null && m.type().equals("particles")) {
             String status = statuses.get(modules.indexOf(m));
@@ -553,6 +796,12 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         last = selected;
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
+        if (key == 256 && (groupDestination != null || !groupSelection.isEmpty())) {
+            if (groupDestination != null) endGroupAssignment();
+            else clearGroupSelection();
+            sync();
+            return true;
+        }
         if (key == 257 || key == 335) {
             if (name.isFocused()) { action("edit", "name", 0, name.getValue()); name.setFocused(false); return true; }
             if (channel.isFocused()) { applyChannel(); return true; }
@@ -601,7 +850,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     }
     @Override protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         if(sidebarModules().isEmpty()&&!moduleQuery.isBlank())g.drawString(font,font.plainSubstrByWidth(tr("module_search_empty").getString(),detailX-29),13,49,0xBDC5D4,false);
-        g.drawString(font, (page + 1) + " / " + Math.max(1, (folderRows.size() + sidebarSlots - 1) / sidebarSlots), 11+(detailX-27)/2-20, imageHeight - 39, 0xD9C4ED, false);
+        g.drawString(font, (page + 1) + " / " + (lastSidebarPage() + 1), 11+(detailX-27)/2-20, imageHeight - 39, 0xD9C4ED, false);
         var m = selected(); if (m == null) { g.drawWordWrap(font, tr("empty"), detailX, 74, detailWidth, 0xD9C4ED); return; }
         Component current = Component.translatable("dashboard.sablelife.current", tr(m.enabled() ? "enabled" : "disabled"))
                 .append(" | ").append(tr((m.coreModule()) && statuses.get(modules.indexOf(m)).equals("valid") ? "status_core" : "status_" + statuses.get(modules.indexOf(m))));
@@ -678,7 +927,18 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 g.drawString(font, internal, 0, 0, 0xBDC5D4, false);
                 g.drawString(font, external, 0, font.lineHeight, 0xBDC5D4, false); g.pose().popPose();
             }
-            if(key.equals("redstoneRampStart"))g.drawString(font,"→",inputX+rampHalf()+3,66+i*rowPitch,0xBDC5D4,false);
+            if (key.equals("redstoneRampStart") && rampEnd.visible) {
+                var start = fields.get(i);
+                float centerX = (start.getX() + start.getWidth() + rampEnd.getX()) / 2f - leftPos;
+                float centerY = start.getY() - topPos + start.getHeight() / 2f;
+                int color = 0xFFBDC5D4;
+                g.pose().pushPose();
+                g.pose().translate(centerX - 3.5f, centerY - 2.5f, 0);
+                g.fill(0, 2, 7, 3, color);
+                g.fill(4, 0, 5, 5, color);
+                g.fill(5, 1, 6, 4, color);
+                g.pose().popPose();
+            }
             if (!field.choice() && !key.equals("phaseChannel")&&!key.equals("redstoneRampStart")) {
                 double maximum = field.max() / field.scale();
                 String hint = field.min() < 0 ? ((int) (field.min() / field.scale())) + "…" + (int) maximum : "≤" + (maximum == Math.rint(maximum) ? Integer.toString((int) maximum) : Double.toString(maximum));
@@ -712,6 +972,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if(running&&m.type().equals("sensor")){var sensorState=snapshot.getList("Modules",10).getCompound(modules.indexOf(m));runtime=sensorState.getBoolean("SensorDetected")?m.value("sensorInvert")==1?"runtime_sensor_detected_low":"runtime_detected":sensorState.getBoolean("SensorPowered")?"runtime_sensor_absent_high":"runtime_target_waiting";}
         if(m.type().equals("summoned_weapon")){var summon=snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("SummonRuntime");runtime=m.save().getCompound("ProjectileItem").isEmpty()?"summon_no_item":m.summonAttackId()==null||modules.stream().noneMatch(x->x.id().equals(m.summonAttackId())&&ModuleSummonedWeapon.ATTACKS.contains(x.type()))?"summon_no_attack":summon.getBoolean("Finished")?"summon_finished":summon.getBoolean("Active")?"summon_active":summon.getBoolean("Pending")?"summon_deploying":"summon_waiting";}
         if(m.type().equals("surface_field"))runtime="runtime_field_template";
+        if(m.type().equals("part_break")&&m.listensToPart())runtime="runtime_part_break_damage";
         Component runtimeLabel = tr(runtime);
         if(m.type().equals("summoned_weapon")&&runtime.equals("summon_active"))runtimeLabel=Component.translatable("dashboard.sablelife.summon_remaining",String.format(Locale.ROOT,"%.2f",snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("SummonRuntime").getInt("Remaining")/20.));
         if(m.type().equals("summoned_weapon")){var group=snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("SummonRuntime");if(group.getInt("Total")>1&&(group.getBoolean("Active")||group.getBoolean("Pending")))runtimeLabel=Component.translatable("dashboard.sablelife.summon_group_progress",group.getInt("ActiveCount"),group.getInt("Total"),group.getInt("PendingCount"),String.format(Locale.ROOT,"%.2f",group.getInt("Remaining")/20.));}

@@ -2,6 +2,7 @@ package dev.sablelife.client;
 
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartSettingsMenu;
+import dev.sablelife.heart.HitPresentation;
 import dev.sablelife.module.ModuleNetworking;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.*;
@@ -25,7 +26,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     private final List<Button> applies=new ArrayList<>();
     private final Map<String,Button> toggles=new LinkedHashMap<>(), sounds=new LinkedHashMap<>(), soundNones=new LinkedHashMap<>();
     private final java.text.DecimalFormat lifeFormat=new java.text.DecimalFormat("0.##");
-    private Button particle,pattern,preview,restore,experienceMode,release,bossColor,targetPriority;
+    private Button particle,pattern,preview,restore,experienceMode,release,bossColor,targetPriority,hitParticles;
     public HeartSettingsScreen(HeartSettingsMenu menu,Inventory inventory,Component title) { super(menu,inventory,title);imageWidth=330;imageHeight=246; }
     private Component tr(String key) { return Component.translatable("core.sablelife."+key); }
     private String prefix() { return page==3?"vanish":"death"; }
@@ -33,22 +34,24 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     private void navigation(int id) { if(minecraft!=null&&minecraft.gameMode!=null)minecraft.gameMode.handleInventoryButtonClick(menu.containerId,id); }
     private void edit(String key,double value,String text) { PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,0,new UUID(0,0),"core",key,value,text)); }
     private boolean survival(){return menu.snapshot().getBoolean("SurvivalCore");}
+    private boolean hitEffectPage(){return page==HeartSettingsMenu.HIT_EFFECT_PAGE;}
     private int lastPage(){return survival()?2:6;}
-    private void showPage(int next){page=Math.clamp(next,0,lastPage());rebuildWidgets();edit("viewPage",page,"");}
+    private int settingsPage(int next){return next==HeartSettingsMenu.HIT_EFFECT_PAGE?next:Math.clamp(next,0,lastPage());}
+    private void showPage(int next){page=settingsPage(next);rebuildWidgets();edit("viewPage",page,"");}
     @Override protected void init() {
         imageHeight=page>=4||page==1?Math.min(246,height-12):246;
-        super.init();inputs.clear();applies.clear();toggles.clear();sounds.clear();soundNones.clear();particle=pattern=preview=restore=experienceMode=bossColor=targetPriority=null;
-        keys=page==6?new String[]{"limbCleanupDelay"}:page==5?new String[]{"crushDelay"}:page==4?new String[]{"defenseThreshold","defenseMaximum","defenseWindow","knockbackResistance"}:page==0?new String[]{"name","health","delay","xp","regen","regenPercent","regenDelay"}:page==1?new String[]{"voidDeathHeight","ownerName"}:page==2?new String[]{"deathCount","deathSpread","deathEffectRadius"}:page==3?new String[]{"vanishCount","vanishSpread"}:new String[]{};
+        super.init();inputs.clear();applies.clear();toggles.clear();sounds.clear();soundNones.clear();particle=pattern=preview=restore=experienceMode=bossColor=targetPriority=hitParticles=null;
+        keys=hitEffectPage()?new String[]{"hitParticleCount","hitParticleSpread"}:page==6?new String[]{"limbCleanupDelay"}:page==5?new String[]{"crushDelay"}:page==4?new String[]{"defenseThreshold","defenseMaximum","defenseWindow","knockbackResistance"}:page==0?new String[]{"name","health","delay","xp","regen","regenPercent","regenDelay"}:page==1?new String[]{"voidDeathHeight","ownerName"}:page==2?new String[]{"deathCount","deathSpread","deathEffectRadius"}:page==3?new String[]{"vanishCount","vanishSpread"}:new String[]{};
         if(survival()&&page==0)keys=new String[]{"name","health","regen","regenPercent","regenDelay","ownerName"};
         if(survival()&&page==1)keys=new String[]{};
         button(Component.translatable("manual.sablelife.open"),10,9,75,()->minecraft.setScreen(new ManualScreen(this,survival()?"survival_heart_core":"core")));button(Component.translatable("relations.sablelife.title"),90,9,80,()->minecraft.setScreen(new CoreRelationsScreen(this,menu)));
         release=button(Component.translatable("dashboard.sablelife.release").withStyle(net.minecraft.ChatFormatting.RED),175,9,85,()->edit("release",0,""));release.setTooltip(Tooltip.create(Component.translatable("dashboard.sablelife.release_help")));
-        button(Component.translatable("dashboard.sablelife.back"),265,9,55,()->navigation(0));
+        button(Component.translatable("dashboard.sablelife.back"),265,9,55,()->{if(hitEffectPage())showPage(0);else navigation(0);});
         for(int i=0;i<keys.length;i++) {
-            final int n=i;int y=(page>=5?87:page==4?69:page==1?161:51)+i*18;var input=new EditBox(font,leftPos+150,topPos+y,textKey(keys[i])?135:85,16,tr(keys[i]));
+            final int n=i;int y=fieldY(i);var input=new EditBox(font,leftPos+150,topPos+y,textKey(keys[i])?135:85,16,tr(keys[i]));
             if(keys[i].equals("name"))input.setTooltip(net.minecraft.client.gui.components.Tooltip.create(tr("name_help")));
-            input.setMaxLength(keys[i].equals("ownerName")?16:keys[i].equals("name")?64:10);if(!textKey(keys[i]))input.setFilter(s->s.matches(keys[n].equals("voidDeathHeight")?"-?[0-9]{0,4}":"[0-9]{0,7}(\\.[0-9]{0,2})?"));
-            if(keys[i].equals("ownerName"))input.setTooltip(Tooltip.create(tr("owner_help")));else if(page==6)input.setTooltip(Tooltip.create(tr("limbCleanup_help")));else if(page==5)input.setTooltip(Tooltip.create(tr("crush_help")));else if(page==1)input.setTooltip(Tooltip.create(tr("void_death_help")));else if(page==4)input.setTooltip(Tooltip.create(tr(keys[i]+"_help")));else if(page>=2)input.setTooltip(Tooltip.create(tr(keys[i].equals("deathEffectRadius")?"deathEffectRadius_help":page==3?"vanish_help":"death_help")));else if(i>=4)input.setTooltip(Tooltip.create(tr("regen_help")));
+            input.setMaxLength(keys[i].equals("ownerName")?16:keys[i].equals("name")?64:10);if(!textKey(keys[i]))input.setFilter(s->s.matches(keys[n].equals("voidDeathHeight")?"-?[0-9]{0,4}":keys[n].equals("hitParticleCount")?"[0-9]{0,2}":"[0-9]{0,7}(\\.[0-9]{0,2})?"));
+            if(keys[i].equals("ownerName"))input.setTooltip(Tooltip.create(tr("owner_help")));else if(page==6)input.setTooltip(Tooltip.create(tr("limbCleanup_help")));else if(page==5)input.setTooltip(Tooltip.create(tr("crush_help")));else if(page==1)input.setTooltip(Tooltip.create(tr("void_death_help")));else if(page==4||hitEffectPage())input.setTooltip(Tooltip.create(tr(keys[i]+"_help")));else if(page>=2)input.setTooltip(Tooltip.create(tr(keys[i].equals("deathEffectRadius")?"deathEffectRadius_help":page==3?"vanish_help":"death_help")));else if(i>=4)input.setTooltip(Tooltip.create(tr("regen_help")));
             inputs.add(addRenderableWidget(input));applies.add(button(Component.literal("✓"),292,y,28,()->apply(n)));
             if(page==1&&keys[i].equals("voidDeathHeight")){LifeUiStyle.reverse(applies.getLast(),()->{input.setFocused(false);edit("voidDeathDefault",0,"");});applies.getLast().setTooltip(Tooltip.create(tr("void_death_help")));}
         }
@@ -76,6 +79,11 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         }
         if(page==4){var enabled=button(Component.empty(),150,51,170,()->edit("defenseEnabled",menu.snapshot().getBoolean("defenseEnabled")?0:1,""));toggles.put("defenseEnabled",enabled);enabled.setTooltip(Tooltip.create(tr("defense_help")));}
         if(page<=1&&!survival())button(tr("defense_open"),150,page==1?197:195,170,()->showPage(4));
+        if(page==0)button(tr("hit_particles_title"),10,survival()?169:195,134,()->showPage(HeartSettingsMenu.HIT_EFFECT_PAGE));
+        if(hitEffectPage()){
+            hitParticles=button(Component.empty(),150,51,170,()->navigation(6));
+            hitParticles.setTooltip(Tooltip.create(tr("hit_particles_help")));
+        }
         if(page==2||page==3) {
             pattern=button(Component.empty(),150,141,170,()->cyclePattern(1));LifeUiStyle.reverse(pattern,()->cyclePattern(-1));pattern.setTooltip(Tooltip.create(tr("pattern_help")));
             particle=button(Component.empty(),150,159,170,()->navigation(page==3?5:4));particle.setTooltip(Tooltip.create(tr(page==3?"vanish_help":"death_help")));
@@ -84,6 +92,10 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
             preview=button(tr("preview"),250,31,70,this::previewDeath);preview.setTooltip(Tooltip.create(tr(page==3?"vanish_help":"death_help")));
         }
         int footer=page>=4||page==1?imageHeight-22:224;
+        if(hitEffectPage()){
+            sync();
+            return;
+        }
         var previous=button(Component.literal("<"),10,footer,28,()->showPage(page-1));previous.active=page>0;
         var next=button(Component.literal(">"),292,footer,28,()->showPage(page+1));next.active=page<lastPage();sync();
     }
@@ -96,9 +108,11 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         var choice=button(Component.empty(),150,y,170,()->edit("soundEditor:"+key,0,""));sounds.put(key,choice);
         choice.setTooltip(Tooltip.create(Component.translatable("sound_timeline.sablelife.open_help")));
     }
-    private double maximum(int i) { return switch(keys[i].replace("vanish","death")) { case "health","regen","defenseThreshold"->1000000;case "regenPercent"->100;case "defenseMaximum","knockbackResistance"->100;case "crushDelay","defenseWindow"->10;case "xp"->menu.snapshot().getBoolean("xpLevels")?dev.sablelife.heart.ExperienceUnits.MAX_LEVELS:dev.sablelife.heart.ExperienceUnits.MAX_POINTS;case "voidDeathHeight"->2048;case "limbCleanupDelay"->dev.sablelife.ownership.DetachedLimbCleanup.MAX_SECONDS;case "delay"->60;case "regenDelay"->600;case "deathCount","deathRadius","deathEffectRadius"->256;case "deathSpread"->32;case "deathPitch"->2;case "deathVolume"->4;default->10000; }; }
+    private int fieldY(int index){return (hitEffectPage()?69:page>=5?87:page==4?69:page==1?161:51)+index*18;}
+    private double maximum(int i) { return switch(keys[i].replace("vanish","death")) { case "hitParticleCount"->HitPresentation.MAX_COUNT;case "hitParticleSpread"->HitPresentation.MAX_SPREAD;case "health","regen","defenseThreshold"->1000000;case "regenPercent"->100;case "defenseMaximum","knockbackResistance"->100;case "crushDelay","defenseWindow"->10;case "xp"->menu.snapshot().getBoolean("xpLevels")?dev.sablelife.heart.ExperienceUnits.MAX_LEVELS:dev.sablelife.heart.ExperienceUnits.MAX_POINTS;case "voidDeathHeight"->2048;case "limbCleanupDelay"->dev.sablelife.ownership.DetachedLimbCleanup.MAX_SECONDS;case "delay"->60;case "regenDelay"->600;case "deathCount","deathRadius","deathEffectRadius"->256;case "deathSpread"->32;case "deathPitch"->2;case "deathVolume"->4;default->10000; }; }
     private double minimum(int i) { return keys[i].equals("deathEffectRadius")?0:keys[i].equals("voidDeathHeight")?-2048:keys[i].equals("defenseThreshold")||keys[i].equals("defenseWindow")?.1:keys[i].equals("health")||keys[i].equals("limbCleanupDelay")||keys[i].endsWith("Radius")?1:keys[i].endsWith("Pitch")?.5:0; }
     private static boolean textKey(String key){return key.equals("name")||key.equals("ownerName");}
+    private static boolean integerDisplay(String key){return key.equals("voidDeathHeight")||key.equals("hitParticleCount");}
     private boolean valid(int i) {
         if(keys[i].equals("ownerName"))return inputs.get(i).getValue().strip().matches("[A-Za-z0-9_]{0,16}");
         if(keys[i].equals("name"))return true;
@@ -116,16 +130,28 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         if(preview!=null)preview.active=live;
         if(restore!=null)restore.active=live;
         if(experienceMode!=null){experienceMode.active=ready&&data.getBoolean("Editable");experienceMode.setMessage(tr(data.getBoolean("xpLevels")?"xp_levels":"xp_points"));experienceMode.setTooltip(Tooltip.create(tr("xp_units_help").copy().append("\n").append(Component.translatable(data.getBoolean("xpLevels")?"core.sablelife.xp_actual_levels":"core.sablelife.xp_actual",data.getBoolean("xpLevels")?data.getInt("xp"):data.getInt("xpPoints")))));}
-        for(int i=0;i<inputs.size();i++){var input=inputs.get(i);boolean active=ready&&data.getBoolean(textKey(keys[i])||keys[i].equals("voidDeathHeight")||keys[i].startsWith("regen")||page>=2?"LiveControls":"Editable");input.active=active;input.setEditable(active);applies.get(i).active=active;if(!input.isFocused()&&ready)input.setValue(textKey(keys[i])?data.getString(keys[i]):keys[i].equals("xp")||keys[i].equals("voidDeathHeight")?Integer.toString(data.getInt(keys[i])):String.format(Locale.ROOT,"%.2f",data.getDouble(keys[i])));if(!active)input.setFocused(false);}
+        for(int i=0;i<inputs.size();i++){var input=inputs.get(i);boolean active=ready&&data.getBoolean(textKey(keys[i])||keys[i].equals("voidDeathHeight")||keys[i].startsWith("regen")||page>=2?"LiveControls":"Editable");input.active=active;input.setEditable(active);applies.get(i).active=active;if(!input.isFocused()&&ready)input.setValue(textKey(keys[i])?data.getString(keys[i]):keys[i].equals("xp")||integerDisplay(keys[i])?Integer.toString(data.getInt(keys[i])):String.format(Locale.ROOT,"%.2f",data.getDouble(keys[i])));if(!active)input.setFocused(false);}
         toggles.forEach((key,b)->{b.active=key.equals("forceChunkLoading")?ready&&data.getBoolean("ChunkLoadingEditable"):live;b.setMessage(tr(key.equals("breaking")?"mining_mode_"+data.getInt("MiningMode"):data.getBoolean(key)?"on":"off"));});
         if(particle!=null){particle.active=pattern.active=live;pattern.setMessage(tr("pattern_"+(int)data.getDouble(prefix()+"Pattern")));particle.setMessage(Component.translatable("particles.sablelife.count",data.getInt(page==3?"VanishParticleCount":"DeathParticleCount")));}
+        if(hitParticles!=null){hitParticles.active=live;hitParticles.setMessage(Component.translatable("particles.sablelife.count",data.getInt("HitParticleTypes")));}
         sounds.forEach((key,b)->{b.active=ready;b.setMessage(Component.translatable("sound_timeline.sablelife.count",data.getInt(key+"Count")));});
     }
-    @Override protected void containerTick(){super.containerTick();if(!pageInitialized&&menu.snapshot().getBoolean("Ready")){pageInitialized=true;page=Math.clamp(menu.snapshot().getInt("InitialPage"),0,lastPage());rebuildWidgets();}sync();}
+    @Override protected void containerTick(){super.containerTick();if(!pageInitialized&&menu.snapshot().getBoolean("Ready")){pageInitialized=true;page=settingsPage(menu.snapshot().getInt("InitialPage"));rebuildWidgets();}sync();}
     @Override public boolean keyPressed(int key,int scan,int modifiers){if(key==257||key==335)for(int i=0;i<inputs.size();i++)if(inputs.get(i).isFocused()){apply(i);return true;}if(key!=256)for(var input:inputs)if(input.active&&input.isFocused()){input.keyPressed(key,scan,modifiers);return true;}return super.keyPressed(key,scan,modifiers);}
-    @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){if(vertical!=0)for(int i=0;i<inputs.size();i++){var input=inputs.get(i);if(textKey(keys[i])||!input.active||!input.isMouseOver(x,y))continue;double value;try{value=Double.parseDouble(input.getValue());}catch(NumberFormatException ignored){value=menu.snapshot().getDouble(keys[i]);}value=Math.clamp(Math.round((value+Math.signum(vertical)*NumericWheelSteps.core(keys[i]))*100)/100.,minimum(i),maximum(i));input.setValue(keys[i].equals("voidDeathHeight")?Integer.toString((int)value):String.format(Locale.ROOT,"%.2f",value));apply(i);input.setFocused(true);return true;}return super.mouseScrolled(x,y,horizontal,vertical);}
+    @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){if(vertical!=0)for(int i=0;i<inputs.size();i++){var input=inputs.get(i);if(textKey(keys[i])||!input.active||!input.isMouseOver(x,y))continue;double value;try{value=Double.parseDouble(input.getValue());}catch(NumberFormatException ignored){value=menu.snapshot().getDouble(keys[i]);}value=Math.clamp(Math.round((value+Math.signum(vertical)*NumericWheelSteps.core(keys[i]))*100)/100.,minimum(i),maximum(i));input.setValue(integerDisplay(keys[i])?Integer.toString((int)value):String.format(Locale.ROOT,"%.2f",value));apply(i);input.setFocused(true);return true;}return super.mouseScrolled(x,y,horizontal,vertical);}
     @Override protected void renderBg(GuiGraphics g,float partial,int x,int y){g.fill(leftPos-2,topPos-2,leftPos+imageWidth+2,topPos+imageHeight+2,0xFF19151D);g.fill(leftPos,topPos,leftPos+imageWidth,topPos+imageHeight,0xFF9B614E);g.fill(leftPos+3,topPos+3,leftPos+imageWidth-3,topPos+imageHeight-3,0xFF242632);}
-    @Override protected void renderLabels(GuiGraphics g,int x,int y){label(g,page==6?"limbCleanup_title":page==5?"crush_title":page==4?"defense_title":page==2?(survival()?"depleted_stage":"death_stage"):page==3?"vanish_stage":page==1?"target_priority_label":"title",34,page==2||page==3?158:page==1?134:230,0xD9C4ED);for(int i=0;i<keys.length;i++){label(g,keys[i],(page>=5?91:page==4?73:page==1?165:55)+i*18,keys[i].equals("xp")?84:134);if(!textKey(keys[i]))renderFieldLimit(g,i,(page>=5?91:page==4?73:page==1?165:55)+i*18);}for(var key:toggles.keySet())label(g,key,toggles.get(key).getY()-topPos+4,134);if(page==2||page==3){label(g,prefix()+"Pattern",145,134);label(g,prefix()+"Particle",163,134);label(g,prefix()+"Sound",181,134);}if(page==1&&!survival()){var data=menu.snapshot();g.drawCenteredString(font,Component.translatable("core.sablelife.chunk_status",tr("chunk_"+(data.getString("ChunkLoadingStatus").isBlank()?"off":data.getString("ChunkLoadingStatus"))),data.getInt("ChunkLoadingCount")),imageWidth/2,imageHeight-32,0xAEB8C7);}
+    @Override protected void renderLabels(GuiGraphics g,int x,int y){
+        label(g,hitEffectPage()?"hit_particles_title":page==6?"limbCleanup_title":page==5?"crush_title":page==4?"defense_title":page==2?(survival()?"depleted_stage":"death_stage"):page==3?"vanish_stage":page==1?"target_priority_label":"title",34,page==2||page==3?158:page==1?134:230,0xD9C4ED);
+        for(int i=0;i<keys.length;i++){
+            int yLabel=fieldY(i)+4;
+            label(g,keys[i],yLabel,keys[i].equals("xp")?84:134);
+            if(!textKey(keys[i]))renderFieldLimit(g,i,yLabel);
+        }
+        if(hitEffectPage()){
+            label(g,"hit_particles_types",55,134);
+            return;
+        }
+        for(var key:toggles.keySet())label(g,key,toggles.get(key).getY()-topPos+4,134);if(page==2||page==3){label(g,prefix()+"Pattern",145,134);label(g,prefix()+"Particle",163,134);label(g,prefix()+"Sound",181,134);}if(page==1&&!survival()){var data=menu.snapshot();g.drawCenteredString(font,Component.translatable("core.sablelife.chunk_status",tr("chunk_"+(data.getString("ChunkLoadingStatus").isBlank()?"off":data.getString("ChunkLoadingStatus"))),data.getInt("ChunkLoadingCount")),imageWidth/2,imageHeight-32,0xAEB8C7);}
         if(page==4){var data=menu.snapshot();int footer=imageHeight-22;int dpsY=Math.min(149,footer-48),reductionY=Math.min(165,footer-34);
             g.drawString(font,Component.translatable("core.sablelife.defense_dps",String.format(Locale.ROOT,data.getDouble("DefenseDps")>10000000?"%.2e":"%.1f",data.getDouble("DefenseDps"))),10,dpsY,0xD9C4ED,false);
             g.drawString(font,Component.translatable("core.sablelife.defense_reduction",String.format(Locale.ROOT,"%.1f",data.getDouble("DefenseReduction"))),10,reductionY,0xFFFF55,false);

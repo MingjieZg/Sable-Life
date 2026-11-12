@@ -56,6 +56,11 @@ public final class AnchorTransfers {
     public static void replaced(ServerLevel level, BlockPos pos) {
         if (Sable.HELPER.getContaining(level, pos) == null) return;
         for (var heart : SableBodyProbe.findConnectedHearts(level, pos)) for (var module : heart.modules().all()) {
+            var watched = module.watchedPart();
+            var watchedBody = watched == null ? null : watched.body(heart);
+            if (watchedBody != null && watched.position(watchedBody).equals(pos)) {
+                module.watchedPart(null); heart.modules().changed(); heart.setChanged();
+            }
             if (module.invalidated()) continue;
             for (var anchor : module.anchors()) {
                 var body = anchor.body(heart);

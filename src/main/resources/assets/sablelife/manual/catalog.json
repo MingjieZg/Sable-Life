@@ -1,5 +1,5 @@
 {
-  "revision": 200,
+  "revision": 205,
   "entries": [
     {
       "id": "getting_started",
@@ -949,6 +949,22 @@
         ]
       },
       "module": "block_interaction"
+    },
+    {
+      "id": "part_break",
+      "title": "manual.sablelife.chapter.part_break",
+      "sections": {
+        "usage": [
+          "manual.sablelife.part_break.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.part_break.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.part_break.brief_troubleshooting"
+        ]
+      },
+      "module": "part_break"
     }
   ]
 }

@@ -5,6 +5,7 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
@@ -89,6 +90,10 @@ public final class AddonModuleNetworkServer {
                 System.out.println("ADDON_MODULE_NETWORK opened " + players.stream().map(player ->
                         player.containerMenu.getClass().getSimpleName() + " at " + player.position()).toList());
             }
+            if (DatapackFullCatalogScenario.ENABLED) {
+                if (DatapackFullCatalogScenario.verifyReload(server, core)) finish(server);
+                return;
+            }
             if (powered == 0) {
                 var module = core.modules().all().stream().filter(row -> row.type().equals(MODULE))
                         .findFirst().orElse(null);
@@ -104,9 +109,7 @@ public final class AddonModuleNetworkServer {
                 if (DatapackAlarmScenario.ENABLED) {
                     if (!DatapackAlarmScenario.verifyReload(server, core, chimes, ticks)) return;
                 } else if (chimes != 1) throw new IllegalStateException("Expected one server chime, got " + chimes);
-                done = true;
-                System.out.println("ADDON_MODULE_NETWORK_SERVER PASS");
-                server.halt(false);
+                finish(server);
             }
         } catch (RuntimeException failure) {
             done = true;
@@ -114,5 +117,11 @@ public final class AddonModuleNetworkServer {
             System.out.println("ADDON_MODULE_NETWORK_SERVER FAIL");
             server.halt(false);
         }
+    }
+
+    private static void finish(MinecraftServer server) {
+        done = true;
+        System.out.println("ADDON_MODULE_NETWORK_SERVER PASS");
+        server.halt(false);
     }
 }

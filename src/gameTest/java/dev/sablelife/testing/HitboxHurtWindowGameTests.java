@@ -12,6 +12,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
@@ -58,7 +60,10 @@ public final class HitboxHurtWindowGameTests {
     }
     @GameTest(template="combat",batch="hitbox_window_bypass",timeoutTicks=30)
     public static void NativeBypassesCooldownDamageKeepsItsOwnCadence(GameTestHelper h){
-        var core=core(h);var type=h.getLevel().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).listElements().filter(t->t.is(DamageTypeTags.BYPASSES_COOLDOWN)).findFirst().orElseThrow();
+        var core=core(h);
+        var key=ResourceKey.create(Registries.DAMAGE_TYPE,ResourceLocation.fromNamespaceAndPath("sablelife_hitbox_tests","cooldown_bypass"));
+        var type=h.getLevel().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(key);
+        h.assertTrue(type.is(DamageTypeTags.BYPASSES_COOLDOWN),"Test damage type is missing its cooldown-bypass tag");
         var source=new DamageSource(type,EntityType.ZOMBIE.create(h.getLevel()));hit(core,source,14);
         h.runAfterDelay(1,()->{hit(core,source,14);hp(h,core,972);h.succeed();});
     }

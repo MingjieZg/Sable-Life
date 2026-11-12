@@ -17,6 +17,7 @@ public final class LoadedCoreIndex {
     private static final class State {
         final Map<BlockPos, WeakReference<HeartBlockEntity>> cores = new HashMap<>();
         final Map<UUID, BlockPos> identities = new HashMap<>();
+        final Map<UUID, Set<HeartBlockEntity>> remoteIdentities = new HashMap<>();
         final Map<HeartBlockEntity, AABB> bounds = new WeakHashMap<>();
         final Map<Cell, Set<HeartBlockEntity>> cells = new HashMap<>();
         final List<HeartBlockEntity> oversized = new ArrayList<>();
@@ -38,6 +39,7 @@ public final class LoadedCoreIndex {
     public static void remove(HeartBlockEntity core) {
         if (!(core.getLevel() instanceof ServerLevel level)) return;
         var s = levels.get(level); if (s == null) return;
+        forgetRemote(core);
         var ref = s.cores.get(core.getBlockPos());
         if (ref != null && ref.get() == core) { s.cores.remove(core.getBlockPos()); s.identities.values().removeIf(core.getBlockPos()::equals); s.dirty = true; }
         s.bounds.remove(core);s.cells.clear();s.oversized.clear();
@@ -45,6 +47,13 @@ public final class LoadedCoreIndex {
     private static boolean valid(ServerLevel level, HeartBlockEntity core) {
         return core != null && !core.isRemoved() && core.getLevel() == level && level.hasChunkAt(core.getBlockPos())
                 && level.getBlockEntity(core.getBlockPos()) == core;
+    }
+    public static boolean isLoadedCore(ServerLevel level, HeartBlockEntity core) {
+        if (core.isRemoved() || core.getLevel() != level) return false;
+        var pos = core.getBlockPos();
+        var chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+        return chunk != null && chunk.getBlockEntity(pos,
+                net.minecraft.world.level.chunk.LevelChunk.EntityCreationType.CHECK) == core;
     }
     public static List<HeartBlockEntity> all(ServerLevel level) {
         var s = state(level); var result = new ArrayList<HeartBlockEntity>();
@@ -59,6 +68,30 @@ public final class LoadedCoreIndex {
         var s = state(level); var pos = s.identities.get(id); var ref = pos == null ? null : s.cores.get(pos);
         var core = ref == null ? null : ref.get();
         return valid(level, core) && id.equals(core.creatureId()) ? core : null;
+    }
+    public static void observeRemote(HeartBlockEntity core) {
+        if (core.remoteId() == null || !(core.getLevel() instanceof ServerLevel level) || core.isRemoved()) return;
+        state(level).remoteIdentities.computeIfAbsent(core.remoteId(), ignored ->
+                Collections.newSetFromMap(new WeakHashMap<>())).add(core);
+    }
+    public static void forgetRemote(HeartBlockEntity core) {
+        if (core.remoteId() == null || !(core.getLevel() instanceof ServerLevel level)) return;
+        var index = levels.get(level);
+        if (index == null) return;
+        var entries = index.remoteIdentities.get(core.remoteId());
+        if (entries != null && entries.remove(core) && entries.isEmpty()) index.remoteIdentities.remove(core.remoteId());
+    }
+    public static HeartBlockEntity findRemote(ServerLevel level, UUID id) {
+        var index = levels.get(level);
+        var entries = index == null ? null : index.remoteIdentities.get(id);
+        if (entries == null) return null;
+        HeartBlockEntity match = null;
+        for (var core : entries) {
+            if (!id.equals(core.remoteId()) || !isLoadedCore(level, core)) continue;
+            if (match != null) return null;
+            match = core;
+        }
+        return match;
     }
     public static void geometryChanged(ServerLevel level) { var s = levels.get(level); if (s != null) { s.dirty = true; s.bounds.clear(); } }
     public static AABB bounds(HeartBlockEntity core) {

@@ -75,7 +75,40 @@ public final class ArenaRespawnScenarios {
   h.runAfterDelay(30,()->{var current=restored.save(new CompoundTag(),h.getLevel().registryAccess()).getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(original)).findFirst().orElseThrow();h.assertTrue(current.getInt("Remaining")==100&&!h.getLevel().hasChunk(1000000>>4,1000000>>4),"Unloaded countdown advanced or loaded terrain");s.actor.setPos(1000000,40,1000000); // cleanup through common cancellation command
    h.getLevel().getServer().getCommands().performPrefixedCommand(s.actor.createCommandSourceStack().withPermission(4),"sablelife_respawn cancel");h.succeed();});
  }}
- public static void repeats(GameTestHelper h){var s=setup(h,false);final UUID original=s.core.creatureId();h.assertTrue(ArenaRespawns.record(s.actor,s.core,s.arena),"Capture failed");s.core.tryActivate(s.actor);s.core.forceDeath();var generation=new UUID[]{original};var cycles=new int[]{0};var finished=new boolean[]{false};h.onEachTick(()->{if(finished[0])return;var found=LoadedCoreIndex.all(h.getLevel()).stream().filter(c->c.health().state()==HeartState.ALIVE&&c.modules().all().stream().anyMatch(m->m.name().equals(s.name))).toList();if(found.isEmpty())return;h.assertTrue(found.size()==1,"Several alive generations exist");var core=found.getFirst();if(core.creatureId().equals(generation[0]))return;generation[0]=core.creatureId();cycles[0]++;if(cycles[0]<2){core.forceDeath();return;}finished[0]=true;ArenaRespawns.clear(s.actor,core,core.modules().all().stream().filter(m->m.type().equals("arena")).findFirst().orElseThrow());h.succeed();});}
+ public static void repeats(GameTestHelper h) {
+  var s = setup(h, false);
+  UUID original = s.core.creatureId();
+  String recordedGroup = "Boss phase";
+  s.arena.group(recordedGroup);
+  var melee = s.core.modules().find(s.mark);
+  melee.group(recordedGroup);
+  h.assertTrue(ArenaRespawns.record(s.actor, s.core, s.arena), "Capture failed");
+  melee.group("Later edit");
+  s.core.tryActivate(s.actor);
+  s.core.forceDeath();
+  var generation = new UUID[]{original};
+  var cycles = new int[]{0};
+  var finished = new boolean[]{false};
+  h.onEachTick(() -> {
+   if (finished[0]) return;
+   var found = LoadedCoreIndex.all(h.getLevel()).stream()
+           .filter(c -> c.health().state() == HeartState.ALIVE && c.modules().all().stream().anyMatch(m -> m.name().equals(s.name))).toList();
+   if (found.isEmpty()) return;
+   h.assertTrue(found.size() == 1, "Several alive generations exist");
+   var core = found.getFirst();
+   if (core.creatureId().equals(generation[0])) return;
+   generation[0] = core.creatureId();
+   h.assertTrue(core.modules().all().stream().map(VirtualModule::group).toList().equals(List.of(recordedGroup, recordedGroup)),
+           "Respawn did not restore the recorded groups");
+   if (++cycles[0] < 2) {
+    core.forceDeath();
+    return;
+   }
+   finished[0] = true;
+   ArenaRespawns.clear(s.actor, core, core.modules().all().stream().filter(m -> m.type().equals("arena")).findFirst().orElseThrow());
+   h.succeed();
+  });
+ }
  private static void seedLegacyPartial(GameTestHelper h,CompoundTag row){
   var blueprint=dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(row.getCompound("Template"));
   var progress=new dev.rew1nd.sableschematicapi.survival.BlueprintBuildProgress();

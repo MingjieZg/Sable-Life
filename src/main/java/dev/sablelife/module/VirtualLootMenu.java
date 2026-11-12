@@ -2,7 +2,6 @@ package dev.sablelife.module;
 
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.SimpleContainer;
@@ -67,9 +66,8 @@ public final class VirtualLootMenu extends ChestMenu {
     }
     private void metadata(){var tag=new net.minecraft.nbt.CompoundTag();tag.putBoolean("Ready",true);tag.putBoolean("Editable",(heart.canEdit(viewer)&&ModuleAvailability.enabled(heart,module)));tag.putBoolean("Weighted",module.value("weighted")!=0);tag.putInt("Rolls",(int)module.value("rolls"));tag.putInt("MaxRule",module.value("weighted")==0?100:1000);tag.putUUID("Id",module.id());tag.putInt("Revision",heart.modules().revision());for(int i=0;i<27;i++)tag.putInt("Rule"+i,rule(i));getContainer().getItem(40).set(DataComponents.CUSTOM_DATA,net.minecraft.world.item.component.CustomData.of(tag));}
     @Override public boolean stillValid(Player player) {
-        return heart.canAccessEditor(player)
-                && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart && heart.modules().find(module.id()) == module
-                && SableBodyProbe.toWorld(player.level(), player.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(player.level(), heart.getBlockPos().getCenter())) <= 64;
+        return heart.canAccessEditor(player) && heart.modules().find(module.id()) == module
+                && heart.editorInRange(player, 64);
     }
     @Override public void broadcastChanges() { refresh(); super.broadcastChanges(); }
     @Override public void clicked(int slot, int button, ClickType type, Player player) {

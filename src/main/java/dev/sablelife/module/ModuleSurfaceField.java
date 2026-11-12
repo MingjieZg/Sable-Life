@@ -8,14 +8,18 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.*;
 import java.util.*;
 
-/** World-fixed impact effects owned and cleaned up by one creature. No terrain mutations. */
+/** World-fixed impact effects owned and cleaned up by one creature. */
 public final class ModuleSurfaceField {
     public static final int LIMIT=64;
     public static final Set<String> IMPACT_ATTACKS=Set.of("mortar","flame","gun","arrow","slash","laser","ground_strike","homing");
     private static final class Field {
         final UUID source,template; final VirtualModule config; final SurfaceFieldGeometry.Frame frame; final List<Vec3> samples;
-        long expires,nextScan;
-        Field(UUID source,UUID template,VirtualModule config,SurfaceFieldGeometry.Frame frame,List<Vec3> samples,long expires){this.source=source;this.template=template;this.config=config;this.frame=frame;this.samples=samples;this.expires=expires;}
+        long expires,nextScan,blastAt;
+        Field(UUID source,UUID template,VirtualModule config,SurfaceFieldGeometry.Frame frame,List<Vec3> samples,long now){
+            this.source=source;this.template=template;this.config=config;this.frame=frame;this.samples=samples;
+            expires=now+(long)config.value("fieldDuration");
+            blastAt=config.value("fieldBlast")==1?now+(long)config.value("fieldBlastDelay"):Long.MAX_VALUE;
+        }
     }
     private record HitKey(UUID source,UUID template,UUID target){}
     private final List<Field> fields=new ArrayList<>();
@@ -44,27 +48,39 @@ public final class ModuleSurfaceField {
         if(!Double.isFinite(point.lengthSqr()+normal.lengthSqr()+incoming.lengthSqr())||!level.hasChunkAt(BlockPos.containing(point)))return;
         normal=normal.lengthSqr()<.5?new Vec3(0,1,0):normal.normalize();
         var surface=SurfaceFieldGeometry.surface(level,point,normal);if(surface==null)return;
-        var frame=SurfaceFieldGeometry.frame(config,surface,normal,incoming);long expires=level.getGameTime()+(long)config.value("fieldDuration");
+        var frame=SurfaceFieldGeometry.frame(config,surface,normal,incoming);
+        long now=level.getGameTime(),expires=now+(long)config.value("fieldDuration");
         // Refresh a local patch, never enlarge it or add a second damage clock.
-        for(var old:fields)if(old.source.equals(source)&&old.template.equals(template)&&old.frame.normal().dot(frame.normal())>.99&&old.frame.center().distanceToSqr(surface)<1){
+        for(var old:fields)if(old.expires>=now&&old.source.equals(source)&&old.template.equals(template)&&old.frame.normal().dot(frame.normal())>.99&&old.frame.center().distanceToSqr(surface)<1){
             if(heart==null)old.expires=expires;
-            else if(expires>old.expires&&dev.sablelife.heart.SurvivalTokens.chargeFieldExtension(heart,old.config,expires-Math.max(level.getGameTime(),old.expires)))
+            else if(expires>old.expires&&SurvivalTokens.chargeFieldExtension(heart,old.config,expires-old.expires))
                 old.expires=expires;
             return;
         }
         if(fields.size()>=LIMIT)return;var samples=SurfaceFieldGeometry.samples(level,frame);if(samples.isEmpty())return;
         if(heart!=null&&!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,config,1))return;
-        fields.add(new Field(source,template,VirtualModule.load(config.save()),frame,samples,expires));
+        fields.add(new Field(source,template,VirtualModule.load(config.save()),frame,samples,now));
     }
     public void tick(HeartBlockEntity heart){
         if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()||heart.health().state()!=HeartState.ALIVE){clear();return;}
         long now=level.getGameTime();
-        fields.removeIf(f->{var source=heart.modules().find(f.source);var template=heart.modules().find(f.template);return now>=f.expires||!sourceEnabled(heart,source)||template==null||!ModuleAvailability.enabled(heart,template)||!template.enabled();});
+        fields.removeIf(f->{var source=heart.modules().find(f.source);var template=heart.modules().find(f.template);
+            boolean expired=now>f.expires||now==f.expires&&f.blastAt!=now;
+            return expired||!sourceEnabled(heart,source)||template==null||!ModuleAvailability.enabled(heart,template)||!template.enabled();});
         hits.entrySet().removeIf(e->e.getValue()<=now);
         int visuals=192;
+        boolean endedWithBlast=false;
         for(int index=0;index<fields.size();index++){
             // Rotate visual priority so a dense old patch cannot hide newer impacts forever.
             var f=fields.get(Math.floorMod(index+(int)(now/4),fields.size()));
+            if(now>=f.blastAt){
+                f.blastAt=Long.MAX_VALUE;
+                if(level.hasChunkAt(BlockPos.containing(f.frame.midpoint()))){
+                    if(f.config.value("blastDamage")>0)scan(heart,level,f,now,true);
+                    SurfaceFieldBlast.present(level,heart,f.config,f.frame);
+                }
+            }
+            if(now==f.expires){endedWithBlast=true;continue;}
             if(now%4==0&&visuals>0){var entries=f.config.particleEntries();int count=visualSampleCount(f.config,f.samples.size(),visuals);visuals-=count*entries.size();
                 for(int i=0;i<count;i++){var p=f.samples.get(level.random.nextInt(f.samples.size()));if(!level.hasChunkAt(BlockPos.containing(p)))continue;
                     var surface=SurfaceFieldGeometry.surface(level,p,f.frame.normal());if(surface==null||surface.distanceToSqr(p)>.25)continue;
@@ -72,18 +88,41 @@ public final class ModuleSurfaceField {
                 }
             }
             if(now<f.nextScan)continue;f.nextScan=now+(f.config.value("fieldBurn")==1?1:Math.min(5,(long)f.config.value("hitInterval")));
-            var frame=f.frame;double radius=frame.circle()?frame.length():Math.hypot(frame.length(),frame.width());
-            var center=frame.ahead()&&!frame.circle()?frame.center().add(frame.forward().scale(frame.length()/2)):frame.center();
-            for(var victim:ModuleTargets.damageQuery(level,heart.creatureId(),new AABB(center,center).inflate(radius+3),e->!(e instanceof ModuleTargets.LifeTarget)&&ModuleTargets.matches(e,f.config))) {
-                var box=victim.getBoundingBox();var p=new Vec3(Math.clamp(center.x,box.minX,box.maxX),Math.clamp(center.y,box.minY,box.maxY),Math.clamp(center.z,box.minZ,box.maxZ));
-                if(contact(level,f,p,box))apply(heart,level,f,victim,now);
+            scan(heart,level,f,now,false);
+        }
+        if(endedWithBlast)fields.removeIf(f -> now>=f.expires);
+    }
+    private void scan(HeartBlockEntity heart,ServerLevel level,Field f,long now,boolean blast){
+        var frame=f.frame;
+        double radius=frame.circle()?frame.length():Math.hypot(frame.length(),frame.width());
+        var center=frame.midpoint();
+        var bounds=new AABB(center,center).inflate(radius+3);
+        float damage=(float)f.config.value(blast?"blastDamage":"damage");
+        var attack=heart.modules().find(f.source);
+        for(var victim:ModuleTargets.damageQuery(level,heart.creatureId(),bounds,e->!(e instanceof ModuleTargets.LifeTarget)&&ModuleTargets.matches(e,f.config))) {
+            var box=victim.getBoundingBox();
+            var p=new Vec3(Math.clamp(center.x,box.minX,box.maxX),Math.clamp(center.y,box.minY,box.maxY),Math.clamp(center.z,box.minZ,box.maxZ));
+            if(!contact(level,f,p,box))continue;
+            if(blast)ModuleDamage.hurt(victim,ModuleDamage.blast(level,null),damage,heart,attack);
+            else apply(heart,level,f,victim,now);
+        }
+        // Use actual owned collision surfaces, not the creature's enclosing target box.
+        if(f.config.value("target")<2||damage<=0||dev.sablelife.ownership.LoadedCoreIndex.query(level,bounds).stream().noneMatch(core->core!=heart&&core.acceptsLifeAttack(heart.creatureId())))return;
+        var origin=center.add(frame.normal().scale(.1));
+        for(var hit:dev.sablelife.combat.BodySphereQuery.query(level,origin,origin,Math.min(128,radius+3))){
+            if(!hit.core().acceptsLifeAttack(heart.creatureId())||!frame.contains(hit.point()))continue;
+            if(blast){
+                var surface=SurfaceFieldGeometry.surface(level,hit.point(),frame.normal());
+                if(surface==null||surface.distanceToSqr(hit.point())>=.75*.75)continue;
+            }else{
+                var key=new HitKey(f.source,f.template,hit.core().creatureId());
+                if(hits.containsKey(key)||f.samples.stream().noneMatch(p->p.distanceToSqr(hit.point())<.75*.75))continue;
+                hits.put(key,now+(long)f.config.value("hitInterval"));
             }
-            // Use actual owned collision surfaces, not the creature's enclosing target box.
-            if(f.config.value("target")<2||f.config.value("damage")<=0||dev.sablelife.ownership.LoadedCoreIndex.query(level,new AABB(center,center).inflate(radius+3)).stream().noneMatch(core->core!=heart&&core.acceptsLifeAttack(heart.creatureId())))continue;
-            for(var hit:dev.sablelife.combat.BodySphereQuery.query(level,center.add(frame.normal().scale(.1)),center.add(frame.normal().scale(.1)),Math.min(128,radius+3))){
-                if(!hit.core().acceptsLifeAttack(heart.creatureId())||!frame.contains(hit.point())||f.samples.stream().noneMatch(p->p.distanceToSqr(hit.point())<.75*.75))continue;
-                var key=new HitKey(f.source,f.template,hit.core().creatureId());if(hits.containsKey(key)||f.config.value("damage")<=0)continue;
-                hits.put(key,now+(long)f.config.value("hitInterval"));float before=hit.core().health().current();if(hit.core().damageAt(hit.block(),(float)f.config.value("damage"))){heart.modules().hitCounter.record(heart,f.source,Math.max(0,before-hit.core().health().current()));dev.sablelife.attack.CombatEventHooks.killed(heart,f.source,hit.core());}
+            float before=hit.core().health().current();
+            if(hit.core().damageAt(hit.block(),damage)){
+                heart.modules().hitCounter.record(heart,f.source,Math.max(0,before-hit.core().health().current()));
+                CombatEventHooks.killed(heart,f.source,hit.core());
             }
         }
     }

@@ -2,18 +2,19 @@ package dev.sablelife.module;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import java.util.UUID;
 import java.util.List;
 import java.util.ArrayList;
 
 /** Persistent authoring settings shared by the dashboard and validated server runtime. */
 public final class VirtualModule {
-    public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction");
+    public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break");
     /** New-module catalog grouped by sidebar color: signal, weapon, function. */
     public static final List<String> AVAILABLE_TYPES = List.of(
             "move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation",
             "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon",
-            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction");
+            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break");
     public record Emitter(net.minecraft.world.phys.Vec3 position,net.minecraft.world.phys.Vec3 direction,org.joml.Quaterniond rotation,UUID audioOwner){}
     private Emitter emitter;
     public Emitter emitter(){return emitter;}
@@ -23,7 +24,7 @@ public final class VirtualModule {
     public void summonAttack(UUID value){if(value==null)settings.remove("SummonAttackId");else settings.putUUID("SummonAttackId",value);}
     private final java.util.Map<String,VirtualModule> movementParticles = new java.util.HashMap<>();
     public VirtualModule movementParticles(String stage) { return movementParticles.get(stage); }
-    public static String particleStage(String key){if(key.startsWith("summon")&&key.endsWith("Particles"))return key.substring(6,key.length()-9);if(key.equals("impactParticles"))return "Impact";if(key.startsWith("pulse")&&key.endsWith("Particles"))return key.substring(5,key.length()-9);if(key.startsWith("move")&&key.endsWith("Particles"))return key.substring(4,key.length()-9);if(key.startsWith("sphere")&&key.endsWith("Particles"))return key.substring(6,key.length()-9);return null;}
+    public static String particleStage(String key){if(key.equals("fieldBlastParticles"))return "Blast";if(key.startsWith("summon")&&key.endsWith("Particles"))return key.substring(6,key.length()-9);if(key.equals("impactParticles"))return "Impact";if(key.startsWith("pulse")&&key.endsWith("Particles"))return key.substring(5,key.length()-9);if(key.startsWith("move")&&key.endsWith("Particles"))return key.substring(4,key.length()-9);if(key.startsWith("sphere")&&key.endsWith("Particles"))return key.substring(6,key.length()-9);return null;}
     private SignalRules signalRules;
     public SignalRules signalRules(){if(signalRules==null)signalRules=new SignalRules(type);return signalRules;}
     private final HealthPhaseRules healthPhaseRules=new HealthPhaseRules();
@@ -80,6 +81,13 @@ public final class VirtualModule {
     private boolean enabled = true;
     private boolean invalidated;
     private boolean detached;
+    private ModuleAnchor watchedPart;
+    public ModuleAnchor watchedPart() { return watchedPart; }
+    public void watchedPart(ModuleAnchor anchor) { watchedPart = anchor; }
+    public boolean listensToPart() {
+        return type.equals("part_break") && value("partBreakMode") == 1
+                || type.equals("damage_accumulation") && value("accumScope") == 1;
+    }
     private UUID rewardOwner;
     public UUID rewardOwner() { return rewardOwner; }
     public void rewardOwner(UUID owner) { rewardOwner = owner; }
@@ -101,7 +109,8 @@ public final class VirtualModule {
     public boolean area() {
         var addon = ModuleTypes.find(type);
         if (addon != null) return addon.markMode() == dev.sablelife.api.module.ModuleDefinition.MarkMode.AREA;
-        return type.equals("melee") || type.equals("particles") && value("particlePattern") == 0;
+        return type.equals("melee") || type.equals("particles") && value("particlePattern") == 0
+                || type.equals("part_break") && value("partBreakShape") == 1;
     }
     private final List<String> particles = new ArrayList<>();
     public List<String> particles() { return List.copyOf(particles); }
@@ -179,7 +188,13 @@ public final class VirtualModule {
             for(String stage:List.of("Spawn","End")){var child=new VirtualModule("particles");if(stage.equals("Spawn"))child.editParticle("add","sablelife:random_starburst");movementParticles.put(stage,child);}
             settings.putString("summonSpawnSound","minecraft:entity.firework_rocket.launch");
         }
-        if(type.equals("surface_field"))particles.add("minecraft:effect");
+        if(type.equals("surface_field")){
+            particles.add("minecraft:effect");
+            var blast = new VirtualModule("particles");
+            blast.editParticle("add", "minecraft:explosion_emitter");
+            movementParticles.put("Blast", blast);
+            settings.putString("blastSound", "minecraft:entity.generic.explode");
+        }
         if(type.equals("flame"))particles.add("minecraft:flame");
         if (type.equals("linear_movement")) {
             trigger=2;
@@ -233,12 +248,14 @@ public final class VirtualModule {
     public List<StoredAnchor> storedAnchors() {
         var result = new ArrayList<StoredAnchor>();
         if (source != null) result.add(new StoredAnchor("ImportSource", 0, source));
+        if (watchedPart != null) result.add(new StoredAnchor("WatchedPart", 0, watchedPart));
         for (int i = 0; i < anchors.size(); i++) result.add(new StoredAnchor("Anchors", i, anchors.get(i)));
         if (type.equals("particles")) for (int i = 0; i < particlePointAnchors.size(); i++)
             result.add(new StoredAnchor("ParticlePointAnchors", i, particlePointAnchors.get(i)));
         return List.copyOf(result);
     }
     public boolean replaceStoredAnchor(String group, int index, ModuleAnchor anchor) {
+        if (group.equals("WatchedPart")) { if (watchedPart == null) return false; watchedPart = anchor; return true; }
         if (group.equals("ImportSource")) { if (source == null) return false; source = anchor; return true; }
         var values = group.equals("Anchors") ? anchors : group.equals("ParticlePointAnchors") && type.equals("particles") ? particlePointAnchors : null;
         if (values == null || index < 0 || index >= values.size()) return false;
@@ -389,7 +406,7 @@ public final class VirtualModule {
         if (type.equals("move_set")) tag.put("Moves", moveSet.save());
         if (type.equals("command")) tag.put("Commands", commands.save());
         if (commandApprovalRequired) tag.putBoolean("CommandApprovalRequired", true);
-        if(type.equals("summoned_weapon")||type.equals("linear_movement")||type.equals("sphere_blast")||type.equals("pulse")||type.equals("mortar")||type.equals("ground_strike")){var stages=new CompoundTag();movementParticles.forEach((stage,selection)->stages.put(stage,selection.save()));tag.put("MovementParticles",stages);}
+        if(!movementParticles.isEmpty()){var stages=new CompoundTag();movementParticles.forEach((stage,selection)->stages.put(stage,selection.save()));tag.put("MovementParticles",stages);}
         if (type.equals("homing")) tag.putInt("HomingFormationVersion", 4);
         tag.putString("Group",group);tag.putString("Name", name); tag.putBoolean("Enabled", enabled);
         tag.putBoolean("Invalidated", invalidated);
@@ -404,6 +421,7 @@ public final class VirtualModule {
         if (!steps.isEmpty()) tag.put("Sequence", steps);
         tag.put("ImportData", importData.copy()); if (source != null) tag.put("ImportSource", source.save());
         tag.putInt("Trigger", trigger); tag.putInt("Channel", channel);
+        if (watchedPart != null) { var part = new ListTag(); part.add(watchedPart.save()); tag.put("WatchedPart", part); }
         var list = new ListTag(); anchors().forEach(a -> list.add(a.save())); tag.put("Anchors", list);
         if (type.equals("particles")) {
             var areaMarks = new ListTag(); anchors.forEach(a -> areaMarks.add(a.save())); tag.put("ParticleAreaAnchors", areaMarks);
@@ -476,7 +494,16 @@ public final class VirtualModule {
         }
         if (module.type.equals("move_set")) module.moveSet.load(tag.getList("Moves", 10));
         if (module.type.equals("command")) module.commands.load(tag.getList("Commands", 10));
-        if(module.type.equals("summoned_weapon")||module.type.equals("linear_movement")||module.type.equals("sphere_blast")||module.type.equals("pulse")||module.type.equals("mortar")||module.type.equals("ground_strike")){var stages=tag.getCompound("MovementParticles");for(String stage:module.type.equals("summoned_weapon")?List.of("Spawn","End"):module.type.equals("mortar")||module.type.equals("ground_strike")?List.of("Impact"):module.type.equals("pulse")?List.of("Center","Wave"):module.type.equals("sphere_blast")?List.of("Charge","Blast"):List.of("Charge","Departure","Arrival"))if(stages.contains(stage)){var child=stages.getCompound(stage).copy();child.putString("Type","particles");child.remove("MovementParticles");module.movementParticles.put(stage,VirtualModule.load(child));}}
+        if(!module.movementParticles.isEmpty()){
+            var stages=tag.getCompound("MovementParticles");
+            module.movementParticles.replaceAll((stage, selection) -> {
+                if(!stages.contains(stage, Tag.TAG_COMPOUND))return selection;
+                var child=stages.getCompound(stage).copy();
+                child.putString("Type","particles");
+                child.remove("MovementParticles");
+                return VirtualModule.load(child);
+            });
+        }
         module.lootSamples = tag.getCompound("LootSamples").copy();
         module.importData = tag.getCompound("ImportData").copy();
         if(module.type.equals("flame")||module.type.equals("surface_field"))module.particles.clear();
@@ -500,6 +527,9 @@ public final class VirtualModule {
                     saved.contains("effectTicks") ? Math.clamp((int) saved.getDouble("effectTicks"), 0, 1200) : 60,
                     saved.contains("effectLevel") ? Math.clamp((int) saved.getDouble("effectLevel"), 1, 5) : 1));
         }
+        var watched = tag.getList("WatchedPart", 10);
+        if (!watched.isEmpty() && (module.type.equals("part_break") || module.type.equals("damage_accumulation")))
+            module.watchedPart = ModuleAnchor.load(watched.getCompound(0));
         if (tag.contains("ImportSource")) module.source = ModuleAnchor.load(tag.getCompound("ImportSource"));
         if (datapack) module.trigger = Math.clamp(tag.getInt("Trigger"), 0, 5);
         else module.edit("trigger", tag.getInt("Trigger"), "");

@@ -1,7 +1,6 @@
 package dev.sablelife.module;
 
 import dev.sablelife.SableLife;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.HeartBlockEntity;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -68,8 +67,8 @@ public final class SequenceMenu extends AbstractContainerMenu {
     @Override public void broadcastChanges() { if (heart != null) refresh(); super.broadcastChanges(); }
     @Override public boolean stillValid(Player p) {
         return heart == null || heart.canAccessEditor(p) && !heart.isRemoved() && p.level() == heart.getLevel()
-                && heart.modules().find(module.id()) == module && heart.getLevel().getBlockEntity(heart.getBlockPos()) == heart
-                && SableBodyProbe.toWorld(p.level(), p.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(p.level(), heart.getBlockPos().getCenter())) <= 64;
+                && heart.modules().find(module.id()) == module
+                && heart.editorInRange(p, 64);
     }
     public boolean action(Player p, java.util.UUID id, String key, double value, String index) {
         if (heart == null || !stillValid(p) || !module.id().equals(id) || !Double.isFinite(value)) return false;

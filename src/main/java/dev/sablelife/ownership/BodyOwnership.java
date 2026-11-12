@@ -165,6 +165,14 @@ public final class BodyOwnership extends SavedData {
         if(!index.containsKey(id))cursors.remove(id);
         return new CleanupResult(removed,examined);
     }
+    public boolean breakMarkedBlock(ServerLevel level, BlockPos pos, UUID creature, dev.ryanhcode.sable.sublevel.SubLevel body) {
+        if (body.isRemoved() || !level.hasChunkAt(pos) || Sable.HELPER.getContaining(level, pos) != body
+                || !creature.equals(owner(pos)) || part(pos) != null) return false;
+        var state = level.getBlockState(pos);
+        if (state.isAir() || state.getBlock() instanceof dev.sablelife.heart.HeartBlock || !eraseOwnedBlock(level, pos)) return false;
+        forget(pos);
+        return true;
+    }
     static boolean eraseOwnedBlock(ServerLevel level,BlockPos pos) {
         BodyProtection.CLEANING.set(BodyProtection.CLEANING.get()+1);
         try {

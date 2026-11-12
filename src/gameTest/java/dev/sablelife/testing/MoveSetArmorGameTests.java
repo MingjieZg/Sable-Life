@@ -17,7 +17,9 @@ public final class MoveSetArmorGameTests {
  public static void WholeModifierCanBeSelectedAndRunsOnlyInActionWindow(GameTestHelper h){run(h,true);}
  private static void run(GameTestHelper h,boolean whole){
   var level=h.getLevel();var pos=h.absolutePos(new BlockPos(4,30,4));level.setBlockAndUpdate(pos,SableLife.HEART.get().defaultBlockState());level.setBlockAndUpdate(pos.east(),Blocks.IRON_BLOCK.defaultBlockState());var body=SubLevelAssemblyHelper.assembleBlocks(level,pos,List.of(pos,pos.east()),new BoundingBox3i(pos.getX(),pos.getY(),pos.getZ(),pos.getX()+1,pos.getY(),pos.getZ()));var c=(HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());
-  c.wireless().add();var m=c.modules().add("armor");
+  int silentChannel = c.wireless().add();
+  c.wireless().channel(silentChannel).set(0, 0);
+  var m=c.modules().add("armor");
   if(whole)m.edit("armorWholeBody",1,"");else m.anchors(List.of(ModuleAnchor.create(c,c.getBlockPos(),Direction.UP)));var row=m.armorRules().add();row.edit("modifier",-50);row.edit("when",1);
   var table=c.modules().add("move_set");table.moveSet().edit("add",0,"",c.modules());h.assertTrue(table.moveSet().edit("action_add",0,"0|"+m.id(),c.modules())&&m.value("trigger")==4,"Damage modifier filtered or trigger refused");
   table.moveSet().edit("action_start",.1,"0|0",c.modules());table.moveSet().edit("action_duration",.15,"0|0",c.modules());var cfg=table.moveSet().get(0).config();cfg.edit("dispatchBusy",1,"");cfg.edit("dispatchCooldown",100,"");cfg.edit("target",1,"");cfg.edit("dispatchFar",16,"");

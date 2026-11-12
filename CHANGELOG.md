@@ -1,3 +1,10 @@
+## 0.1.404-groups-test3 — Pre-release
+
+- Core Remote, inline group editing, Part Break, mob whitelist presets and retaliation.
+- Eight numeric settings per datapack module, projectile tracers, hit particles and delayed area explosions.
+- Create: Gunsmithing compatibility, tracking-laser and marking fixes.
+- [English release notes](docs/releases/0.1.404-groups-test3_EN.md) · [中文更新说明](docs/releases/0.1.404-groups-test3.md)
+
 # Changelog
 
 ## 0.1.404

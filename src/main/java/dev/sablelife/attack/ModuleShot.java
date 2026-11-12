@@ -1,6 +1,7 @@
 package dev.sablelife.attack;
 
 import dev.sablelife.SableLife;
+import dev.sablelife.module.ProjectileTracer;
 import dev.sablelife.module.VirtualModule;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.compat.sable.SableBodyProbe;
@@ -35,6 +36,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     public org.joml.Quaternionf fallingItemRotation(){var r=fallingItemAngles();return new org.joml.Quaternionf().rotationXYZ((float)Math.toRadians(r.x),(float)Math.toRadians(r.y),(float)Math.toRadians(r.z));}
     private static float visualAngle(float v){return Float.isFinite(v)?Math.clamp(v,-180,180):0;}
     private java.util.List<dev.sablelife.module.ModuleParticles.Entry> trail = java.util.List.of();
+    private ProjectileTracer tracer;
     private int mortarWarningColor;
     private CompoundTag blast = new CompoundTag();
     private VirtualModule impactConfig;
@@ -80,10 +82,11 @@ public final class ModuleShot extends Entity implements ItemSupplier {
             int deploy=(int)homingConfig.value("homingDeploy");
             if(age < deploy) {
                 var previous=position(); setPos(homingCenter.lerp(homingHover,++age/(double)deploy));
-                drawHomingTrail(world,previous,position()); return false;
+                if (tracer == null) drawHomingTrail(world,previous,position());
+                return false;
             }
             if(age++ < deploy+(int)homingConfig.value("chargeTime")) {
-                if(age%4==0) drawHomingTrail(world,position(),position());
+                if(tracer == null && age%4==0) drawHomingTrail(world,position(),position());
                 return false;
             }
             var targets=dev.sablelife.module.ModuleHoming.targets(world,homingHeart,homingConfig,homingCenter);
@@ -147,6 +150,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         mortarWarningColor = dev.sablelife.module.ModuleColors.packed(module,"mortarWarningColor");
         if(dev.sablelife.module.ModuleSurfaceField.impactAttack(module)&&module.impactFieldId()!=null)impactConfig=VirtualModule.load(module.save());
         range = mortar() ? 2048 : module.value("range"); blast = ModuleBlast.settings(module,dev.sablelife.module.ModuleEffects.forCore(heart,module)); trail = module.particleEntries(); owner = heart.creatureId();
+        tracer = ProjectileTracer.from(module);
         getPersistentData().putUUID("SableLifeAttackOwner", owner);
         ModuleDamage.nameProjectile(this,heart);AttackHitCredit.attach(this,heart,module);blast.putString(ModuleDamage.ATTACK_NAME,heart.creatureName());
     }
@@ -219,12 +223,15 @@ public final class ModuleShot extends Entity implements ItemSupplier {
                 if (heart != null && heart.acceptsLifeAttack(owner)){float before=heart.health().current();if(heart.damageAt(block.getBlockPos(), damage)){AttackHitCredit.record(this,Math.max(0,before-heart.health().current()));CombatEventHooks.killed(this,heart);}}
                 stop = stop.add(net.minecraft.world.phys.Vec3.atLowerCornerOf(block.getDirection().getNormal()).scale(.03));
             }
+            if (tracer != null) tracer.send(world, getId(), start, stop);
             if (entity != null || block.getType() == HitResult.Type.BLOCK) {
                 if(impactConfig!=null)dev.sablelife.module.SurfaceFieldImpact.projectile(this,impactConfig,entity!=null?entity:block,velocity);
                 setPos(stop); if(homingProjectile()) homingSound(world,"impactSound"); ModuleBlast.explode(world, this, stop, blast); discard(); return;
             }
             traveled += start.distanceTo(end);
-            if(homingProjectile()) drawHomingTrail(world,start,end); else dev.sablelife.module.ProjectileTrail.draw(world, start, end, trail);
+            if (tracer == null) {
+                if(homingProjectile()) drawHomingTrail(world,start,end); else dev.sablelife.module.ProjectileTrail.draw(world, start, end, trail);
+            }
             if (mortar() && age % 5 == 0) ShotTrajectory.ring(world, null,
                     ShotTrajectory.trace(world, end, velocity.add(0, -ShotTrajectory.GRAVITY, 0)).landing(), blast.getFloat("Radius"), mortarWarningColor);
         }
@@ -239,6 +246,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         tag.putInt("MortarWarningColor", mortarWarningColor);
         if(impactConfig!=null)tag.put("ImpactConfig",impactConfig.save());
         tag.putInt("VisualLife", visualLife); tag.put("Trail", dev.sablelife.module.ModuleParticles.save(trail.stream().map(dev.sablelife.module.ModuleParticles.Entry::id).toList())); tag.put("TrailProperties", dev.sablelife.module.ModuleParticles.saveEntries(trail));
+        if (tracer != null) tracer.save(tag);
         if (owner != null) tag.putUUID("Owner", owner);
         if(homingConfig!=null) {
             tag.put("HomingConfig",homingConfig.save()); tag.putInt("HomingIndex",homingIndex); tag.putBoolean("HomingLaunched",homingLaunched);
@@ -259,6 +267,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         range = Math.clamp(tag.getDouble("Range"), 1, 2048); int savedColor=tag.getInt("MortarWarningColor");mortarWarningColor=savedColor>=0x1000000&&savedColor<=0x1FFFFFF?savedColor:Math.clamp(savedColor,0,6);
         traveled = Math.max(0, tag.getDouble("Traveled"));
         trail = dev.sablelife.module.ModuleParticles.loadEntries(tag.getList("TrailProperties", 10), dev.sablelife.module.ModuleParticles.load(tag.getList("Trail", 8))); age = Math.clamp(tag.getInt("Age"), 0, 1400); blast = tag.getCompound("Blast").copy();
+        tracer = ProjectileTracer.read(tag);
         impactConfig=tag.contains("ImpactConfig")?VirtualModule.load(tag.getCompound("ImpactConfig")):null;
         owner = tag.hasUUID("Owner") ? tag.getUUID("Owner") : null;
         if (owner != null) getPersistentData().putUUID("SableLifeAttackOwner", owner);

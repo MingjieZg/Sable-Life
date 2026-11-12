@@ -30,7 +30,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
         var tag = defaultTag.copy();
         for (var entry : tag.getCompound("VirtualModules").getList("Modules", 10)) {
             var module = (CompoundTag) entry;
-            for (String key : java.util.List.of("Anchors", "ParticleAreaAnchors", "ParticlePointAnchors")) {
+            for (String key : java.util.List.of("Anchors", "ParticleAreaAnchors", "ParticlePointAnchors", "WatchedPart")) {
                 if (!module.contains(key)) continue;
                 var marks = new ListTag();
                 for (var mark : module.getList(key, 10)) {
@@ -99,7 +99,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
             }
             for(var value:module.getList("SignalRules",10)){var row=(CompoundTag)value;if(row.hasUUID("Source"))row.putUUID("Source",context.allocateMappedUuid(row.getUUID("Source")));}
             module.remove("RewardOwner"); module.remove("Detached"); module.remove("Invalidated");
-            for (String key : java.util.List.of("Anchors", "ParticleAreaAnchors", "ParticlePointAnchors")) {
+            for (String key : java.util.List.of("Anchors", "ParticleAreaAnchors", "ParticlePointAnchors", "WatchedPart")) {
                 if (!module.contains(key)) continue;
                 var marks = new ListTag();
                 for (var mark : module.getList(key, 10)) {
@@ -150,6 +150,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
 
     private static void resetRuntime(CompoundTag tag) {
         tag.remove("BoundBody"); tag.remove("CombatMusicHits");
+        tag.remove(HeartBlockEntity.REMOTE_ID_TAG);
         boolean survival=tag.contains("SurvivalTokens",4);
         if(survival)tag.putLong("SurvivalTokens",0);
         tag.putString("LifeState", "DORMANT"); tag.putFloat("Health", survival?0:tag.getFloat("MaxHealth"));

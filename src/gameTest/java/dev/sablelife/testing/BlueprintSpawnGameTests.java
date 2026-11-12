@@ -433,7 +433,8 @@ public final class BlueprintSpawnGameTests {
     }
     private record Template(CompoundTag tag,HeartBlockEntity core){}
     private static net.neoforged.neoforge.common.util.FakePlayer admin(GameTestHelper h){var p=new net.neoforged.neoforge.common.util.FakePlayer(h.getLevel(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),"BlueprintAdmin")){@Override public boolean canUseGameMasterBlocks(){return isCreative();}};p.setGameMode(GameType.CREATIVE);return p;}
-    private static Template template(GameTestHelper h,int kind,int offset){var l=h.getLevel();var p=h.absolutePos(new BlockPos(4+offset,40,4));l.setBlockAndUpdate(p,kind==0?Blocks.IRON_BLOCK.defaultBlockState():kind==3?SableLife.REDSTONE_CORE.get().defaultBlockState():SableLife.HEART.get().defaultBlockState());l.setBlockAndUpdate(p.east(),kind==2?SableLife.HEART.get().defaultBlockState():Blocks.IRON_BLOCK.defaultBlockState());var body=SubLevelAssemblyHelper.assembleBlocks(l,p,List.of(p,p.east()),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+1,p.getY(),p.getZ()));var c=l.getBlockEntity(body.getPlot().getCenterBlock()) instanceof HeartBlockEntity core?core:null;if(c!=null&&!c.isControlCore())c.editCore(admin(h),"name",0,"Spawn"+UUID.randomUUID().toString().substring(0,8));var tag=dev.rew1nd.sableschematicapi.blueprint.SableBlueprintExporter.exportSelected(l,new Vec3(body.logicalPose().position().x(),body.logicalPose().position().y(),body.logicalPose().position().z()),List.of(body.getUniqueId())).save();return new Template(tag,c);}
+    private static Template template(GameTestHelper h,int kind,int offset){return template(h,kind,offset,core->{});}
+    private static Template template(GameTestHelper h,int kind,int offset,java.util.function.Consumer<HeartBlockEntity> configureCore){var l=h.getLevel();var p=h.absolutePos(new BlockPos(4+offset,40,4));l.setBlockAndUpdate(p,kind==0?Blocks.IRON_BLOCK.defaultBlockState():kind==3?SableLife.REDSTONE_CORE.get().defaultBlockState():SableLife.HEART.get().defaultBlockState());l.setBlockAndUpdate(p.east(),kind==2?SableLife.HEART.get().defaultBlockState():Blocks.IRON_BLOCK.defaultBlockState());var body=SubLevelAssemblyHelper.assembleBlocks(l,p,List.of(p,p.east()),new BoundingBox3i(p.getX(),p.getY(),p.getZ(),p.getX()+1,p.getY(),p.getZ()));var c=l.getBlockEntity(body.getPlot().getCenterBlock()) instanceof HeartBlockEntity core?core:null;if(c!=null&&!c.isControlCore())c.editCore(admin(h),"name",0,"Spawn"+UUID.randomUUID().toString().substring(0,8));if(c!=null)configureCore.accept(c);var tag=dev.rew1nd.sableschematicapi.blueprint.SableBlueprintExporter.exportSelected(l,new Vec3(body.logicalPose().position().x(),body.logicalPose().position().y(),body.logicalPose().position().z()),List.of(body.getUniqueId())).save();return new Template(tag,c);}
     private static HeartBlockEntity core(GameTestHelper h){return template(h,1,0).core;}
     private static VirtualModule module(GameTestHelper h,HeartBlockEntity c,CompoundTag template){var m=c.modules().add("blueprint_spawn");m.edit("spawnAnchor",1,"");m.arenaCenter(h.absoluteVec(new Vec3(4,25,12)),h.getLevel().dimension().location().toString());m.edit("spawnDelay",0,"");m.edit("spawnCooldown",1,"");BlueprintSpawns.install(c,m,"test",SpawnTemplateBridge.inspect(template));return m;}
     @GameTest(template="combat",batch="spawn_metadata")
@@ -441,7 +442,29 @@ public final class BlueprintSpawnGameTests {
     @GameTest(template="combat",batch="spawn_ordinary")
     public static void OrdinaryBlueprintGeneratesOnceOnHeldTriggerAndHonorsLimit(GameTestHelper h){var c=core(h);var m=module(h,c,template(h,0,8).tag);c.tryActivate(admin(h));var data=BlueprintSpawns.get(h.getLevel().getServer());BlueprintSpawns.tickCore(c);data.advance(h.getLevel().getServer());h.assertTrue(BlueprintSpawns.snapshot(c,m).getInt("Count")==1&&BlueprintSpawns.snapshot(c,m).getString("Phase").equals("done"),"Ordinary no-core structure failed native placement: "+BlueprintSpawns.snapshot(c,m));for(int i=0;i<5;i++){BlueprintSpawns.tickCore(c);data.advance(h.getLevel().getServer());}h.assertTrue(BlueprintSpawns.snapshot(c,m).getInt("Count")==1,"Held signal repeatedly generated structures");m.edit("trigger",2,"");BlueprintSpawns.tickCore(c);m.edit("trigger",0,"");BlueprintSpawns.tickCore(c);data.advance(h.getLevel().getServer());h.assertTrue(BlueprintSpawns.snapshot(c,m).getInt("Count")==1,"Generation limit was bypassed");c.forceDeath();h.assertTrue(BlueprintSpawns.snapshot(c,m).getString("Name").isEmpty(),"Dead source retained an idle template registration");h.succeed();}
     @GameTest(template="combat",batch="spawn_activate",timeoutTicks=50)
-    public static void SingleCoreGenerationAutoActivatesWithNewIdentity(GameTestHelper h){var c=core(h);var source=template(h,1,8);String name=source.core.creatureName();UUID old=source.core.creatureId();var m=module(h,c,source.tag);m.edit("spawnActivate",1,"");c.tryActivate(admin(h));h.succeedWhen(()->{var alive=LoadedCoreIndex.all(h.getLevel()).stream().filter(v->v.creatureName().equals(name)&&v.health().state()==HeartState.ALIVE).toList();h.assertTrue(alive.size()==1&&!alive.getFirst().creatureId().equals(old),"Generated life core not activated with a new identity");h.assertTrue(BlueprintSpawns.snapshot(c,m).getInt("Count")==1,"Generation completion missing");});}
+    public static void SingleCoreGenerationAutoActivatesWithNewIdentity(GameTestHelper h) {
+        var c = core(h);
+        var source = template(h, 1, 8, heart -> {
+            heart.modules().add("sound").group("警报");
+            heart.modules().add("melee").group("警报");
+            heart.modules().add("particles");
+        });
+        String name = source.core.creatureName();
+        UUID old = source.core.creatureId();
+        var m = module(h, c, source.tag);
+        m.edit("spawnActivate", 1, "");
+        c.tryActivate(admin(h));
+        h.succeedWhen(() -> {
+            var alive = LoadedCoreIndex.all(h.getLevel()).stream()
+                    .filter(v -> v.creatureName().equals(name) && v.health().state() == HeartState.ALIVE).toList();
+            h.assertTrue(alive.size() == 1 && !alive.getFirst().creatureId().equals(old), "Generated life core not activated with a new identity");
+            h.assertTrue(BlueprintSpawns.snapshot(c, m).getInt("Count") == 1, "Generation completion missing");
+            var restored = alive.getFirst().modules().all();
+            h.assertTrue(restored.stream().map(VirtualModule::type).toList().equals(List.of("sound", "melee", "particles"))
+                    && restored.stream().map(VirtualModule::group).toList().equals(List.of("警报", "警报", "")),
+                    "Blueprint placement lost group membership or module order");
+        });
+    }
     @GameTest(template="combat",batch="spawn_no_activate",timeoutTicks=40)
     public static void LifeBlueprintDefaultsToDormantAndRedstoneBlueprintNeedsNoLifeActivation(GameTestHelper h){var c=core(h);var source=template(h,1,8);String name=source.core.creatureName();var m=module(h,c,source.tag);h.assertTrue(m.value("spawnActivate")==0,"Auto activation default changed");c.tryActivate(admin(h));h.succeedWhen(()->{var copies=LoadedCoreIndex.all(h.getLevel()).stream().filter(v->v!=source.core&&v.creatureName().equals(name)).toList();h.assertTrue(copies.size()==1&&copies.getFirst().health().state()==HeartState.DORMANT,"Auto activation Off spawned active life");h.assertTrue(BlueprintSpawns.snapshot(c,m).getInt("Count")==1,"Dormant placement did not complete");});}
     @GameTest(template="combat",batch="spawn_conflict")

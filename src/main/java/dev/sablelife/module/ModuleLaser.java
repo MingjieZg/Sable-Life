@@ -67,8 +67,9 @@ public final class ModuleLaser {
     }
     private static Vec3 direction(HeartBlockEntity heart, VirtualModule m, State state) {
         if(m.emitter()!=null)return m.emitter().direction();
-        var origin = ModuleCombat.nozzle(heart,m);
-        if (m.value("laserAim") == 1 && state.target != null) {
+        if (m.value("laserAim") == 1) {
+            if (state.target == null) return state.trackedDirection;
+            var origin = ModuleCombat.nozzle(heart,m);
             long now = heart.getLevel().getGameTime();
             state.warningUpdated = false;
             if (state.aimPoint == null) state.aimPoint = state.target.getBoundingBox().getCenter();
@@ -135,6 +136,13 @@ public final class ModuleLaser {
     private static boolean continuousVisual(VirtualModule m) {
         return m.value("laserVisualStyle") == 0;
     }
+
+    private static boolean canTrack(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
+                                    LivingEntity target, Vec3 origin, double range) {
+        return target != null && target.level() == level && eligible(target, module)
+                && dev.sablelife.heart.CoreRelations.targetAllowed(level, heart.creatureId(), target)
+                && target.getBoundingBox().getCenter().distanceToSqr(origin) <= range * range;
+    }
     public static DustParticleOptions color(VirtualModule m) {
         return new DustParticleOptions(ModuleColors.vector(m,"beamColor"),(float)Math.clamp(m.value("beamWidth")*2,.2,4));
     }
@@ -192,9 +200,11 @@ public final class ModuleLaser {
             if (!m.type().equals("laser") || !external&&!HeartModules.triggered(m, heart)) continue;
             active.add(m.id()); var s = states.computeIfAbsent(m.id(), ignored -> new State());
             var origin = ModuleCombat.nozzle(heart,m);
+            boolean tracking = m.value("laserAim") == 1;
+            double range = m.value("beamLength");
             if (!s.casting) {
                 if (now < s.ready || !external&&!heart.modules().hurtTriggers.start(m)) continue;
-                if (m.value("laserAim") == 1) {
+                if (tracking) {
                     var targets = acquireTargets(level, heart, m, origin);
                     if (targets.isEmpty()) continue;
                     s.beams = targets.stream().map(target -> { var beam = new State(); beam.target = target; return beam; }).toList();
@@ -219,17 +229,20 @@ public final class ModuleLaser {
             var visualEnds=new ArrayList<LaserVisual.End>();
             var body=!external&&s.firing&&continuousVisual(m)?m.anchors().getFirst().body(heart):null;
             for (var beam : s.beams) {
-                if (m.value("laserAim") == 1 && (!dev.sablelife.heart.CoreRelations.targetAllowed(level,heart.creatureId(),beam.target)||!eligible(beam.target, m)
-                        || beam.target.getBoundingBox().getCenter().distanceToSqr(origin) > m.value("beamLength") * m.value("beamLength"))) continue;
+                if (tracking && !canTrack(level, heart, m, beam.target, origin, range)) {
+                    // An emitted beam keeps its last heading for the rest of this burst.
+                    if (!beam.firing || beam.trackedDirection == null) continue;
+                    beam.target = null;
+                }
                 beam.firing = s.firing;
                 var dir = direction(heart, m, beam); var start = origin;
-                var endpoint=start.add(dir.scale(m.value("beamLength")));
+                var endpoint=start.add(dir.scale(range));
                 var end=s.firing&&m.value("laserBreakBlocks")==1?LaserBlockCut.cut(level,heart,m,start,endpoint,beam.cut,now):SensorGeometry.beamEnd(level,heart.creatureId(),start,endpoint);
                 if(s.firing&&continuousVisual(m)){
-                    boolean local=body!=null&&m.value("laserAim")==0&&end.distanceToSqr(endpoint)<1e-6;
+                    boolean local=body!=null&&!tracking&&end.distanceToSqr(endpoint)<1e-6;
                     visualEnds.add(new LaserVisual.End(local?body.logicalPose().transformPositionInverse(end):end,local));
                 }
-                if (s.firing || (m.value("laserAim") == 1 ? beam.warningUpdated : now % 4 == 0)) draw(level, null, m, start, end, !s.firing);
+                if (s.firing || (tracking ? beam.warningUpdated : now % 4 == 0)) draw(level, null, m, start, end, !s.firing);
                 if (!s.firing) {
                     ModuleParticles.send(level, color(m), start.x, start.y, start.z, 3, .15, .15, .15, 0);
                     continue;

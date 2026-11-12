@@ -9,7 +9,11 @@
     "TaczBodyDamageMixin",
     "TaczBlockRayTraceMixin",
     "CannonBodyDamageMixin",
-    "TaczBlastProfileMixin"
+    "TaczBlastProfileMixin",
+    "NtglProjectileMixin",
+    "NtglExplosionMixin",
+    "NtglMeleeMixin",
+    "CgsBlazeProjectileMixin"
   ],
   "injectors": {"defaultRequire": 1}
 }

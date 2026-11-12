@@ -7,8 +7,8 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $jdkCandidates = @(
     $env:JAVA_HOME,
-    'C:\Program Files\Java\jdk-21'
-) + @(Get-ChildItem 'C:\Program Files\Eclipse Adoptium' -Directory -Filter 'jdk-21*' -ErrorAction SilentlyContinue | ForEach-Object FullName)
+    (Join-Path $env:ProgramFiles 'Java\jdk-21')
+) + @(Get-ChildItem (Join-Path $env:ProgramFiles 'Eclipse Adoptium') -Directory -Filter 'jdk-21*' -ErrorAction SilentlyContinue | ForEach-Object FullName)
 $jdk = $jdkCandidates | Where-Object { $_ -and (Test-Path (Join-Path $_ 'bin\javac.exe')) } | Where-Object {
     (& (Join-Path $_ 'bin\javac.exe') -version 2>&1 | Out-String) -match 'javac 21\.'
 } | Select-Object -First 1

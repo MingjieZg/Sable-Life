@@ -5,6 +5,7 @@ import java.util.List;
 /** Shared mode visibility, also exercised without a client. Stored hidden values are retained. */
 public final class SurfaceFieldSettings {
     public static boolean visible(VirtualModule m,String key){
+        if(key.equals("watchedPart")||key.equals("partBreakThreshold"))return m.listensToPart();
         if(m.type().equals("visual_shockwave")){
             if(List.of("filterColor","filterStrength","filterFadeIn","filterFadeOut").contains(key))return m.value("filterEnabled")==1;
             if(key.equals("shockPattern"))return m.value("shockWaveEnabled")==1;
@@ -41,6 +42,7 @@ public final class SurfaceFieldSettings {
             if(List.of("fieldLength","fieldWidth","fieldAngle","fieldPlacement").contains(key))return m.value("fieldShape")==1;
         }
         if(!m.type().equals("surface_field"))return true;
+        if(List.of("fieldBlastDelay","blastDamage","blastBlocks","fieldBlastParticles","blastSound").contains(key))return m.value("fieldBlast")==1;
         if(key.equals("burn"))return m.value("fieldBurn")==1;
         if(key.equals("fieldRadius"))return m.value("fieldShape")==0;
         if(List.of("fieldLength","fieldWidth","fieldAngle","fieldPlacement").contains(key))return m.value("fieldShape")==1;

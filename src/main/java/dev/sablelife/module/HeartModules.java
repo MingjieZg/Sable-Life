@@ -45,6 +45,8 @@ public final class HeartModules {
     private final ModuleSphereBlast sphereBlast=new ModuleSphereBlast();
     private final ModuleLaser laser = new ModuleLaser();
     public final ModuleDamageAccumulation damageAccumulation=new ModuleDamageAccumulation();
+    public final ModulePartBreak partBreak = new ModulePartBreak();
+    private List<VirtualModule> partBreakModules;
     public final ModuleHitCounter hitCounter=new ModuleHitCounter();
     private final ModuleHealthAdjustment healthAdjustment=new ModuleHealthAdjustment();
     public void movementTurned(HeartBlockEntity heart,net.minecraft.world.phys.Vec3 pivot,org.joml.Quaterniond turn){linearMovement.turned(heart,pivot,turn);}
@@ -89,7 +91,7 @@ public final class HeartModules {
         } else {
             audioLifecycle(heart); damageBoxes.tick(heart); dev.sablelife.ownership.BlueprintSpawns.tickCore(heart);
             hurtTriggers.tick(heart); healthPhase.tick(heart); combatEvents.tick(heart); signalLogic.tick(heart);
-            moveSets.tick(heart); sequence.tick(heart); armorBilling.tick(heart); hitCounter.tick(heart);
+            partBreak.tick(heart); moveSets.tick(heart); sequence.tick(heart); armorBilling.tick(heart); hitCounter.tick(heart);
             healthAdjustment.tick(heart); commands.tick(heart); tickMotion(heart); ModuleLoot.tick(heart);
             events.tick(heart); combat.tick(heart); summonedWeapons.tick(heart); surfaceFields.tick(heart);
             arena.tick(heart); groundStrike.tick(heart); sphereBlast.tick(heart); slash.tick(heart);
@@ -110,11 +112,44 @@ public final class HeartModules {
         boolean manualBusy=signalTurn.tick(heart,hoverBusy||linearMovement.blocksTurning()||gyroBusy,linearMovement.preserveTranslation());
         autoFacing.tick(heart,hoverBusy||linearMovement.blocksTurning()||gyroBusy||manualBusy,linearMovement.preserveTranslation());
     }
-    public void clearRuntime() { if (addonModules != null) addonModules.clear(); armorBilling.clear(); blockInteraction.clear(); damageBoxes.clear(); summonedWeapons.clear(); signalLogic.clear();combatEvents.clear(); surfaceFields.clear(); distortionTrail.clear(); shockwave.clear(); hitCounter.clear();healthAdjustment.clear(); hoverAnchor.clear(); if(audioLevel!=null)audioModules.forEach(id->ModuleAudio.stop(audioLevel,id));audioModules.clear();audioLevel=null; linearMovement.clear(); gyroscope.clear(); signalTurn.clear(); autoFacing.clear(); commands.clear(); hurtTriggers.clear(); combat.clear(); events.clear(); arena.clear(); groundStrike.clear(); sphereBlast.clear(); slash.clear(); laser.clear(); pull.clear();freeze.clear();grab.clear(); quake.clear(); homing.clear(); moveSets.clear(); sequence.clear(); healthPhase.clear(); damageAccumulation.clear(); }
+    public void clearRuntime() { if (addonModules != null) addonModules.clear(); armorBilling.clear(); blockInteraction.clear(); damageBoxes.clear(); summonedWeapons.clear(); signalLogic.clear();combatEvents.clear(); surfaceFields.clear(); distortionTrail.clear(); shockwave.clear(); hitCounter.clear();healthAdjustment.clear(); hoverAnchor.clear(); if(audioLevel!=null)audioModules.forEach(id->ModuleAudio.stop(audioLevel,id));audioModules.clear();audioLevel=null; linearMovement.clear(); gyroscope.clear(); signalTurn.clear(); autoFacing.clear(); commands.clear(); hurtTriggers.clear(); combat.clear(); events.clear(); arena.clear(); groundStrike.clear(); sphereBlast.clear(); slash.clear(); laser.clear(); pull.clear();freeze.clear();grab.clear(); quake.clear(); homing.clear(); moveSets.clear(); sequence.clear(); healthPhase.clear(); damageAccumulation.clear(); partBreak.clear(); }
     public List<VirtualModule> all() { return List.copyOf(modules); }
     public VirtualModule find(UUID id) { return modules.stream().filter(m -> m.id().equals(id)).findFirst().orElse(null); }
     public int revision() { return revision; }
-    public void changed() { revision++; }
+    public void changed() { revision++; partBreakModules = null; }
+
+    boolean assignGroups(String group, String encodedIds, boolean replaceGroup) {
+        if (!ModuleFolders.valid(group) || encodedIds.length() > ModuleNetworking.Action.GROUP_BATCH_TEXT_LIMIT) return false;
+        String name = group.trim();
+        if (replaceGroup && (name.isEmpty() || modules.stream().noneMatch(module -> module.group().equals(name)))) return false;
+        String[] ids = replaceGroup && encodedIds.isEmpty() ? new String[0] : encodedIds.split(",", LIMIT + 1);
+        if (ids.length > LIMIT) return false;
+        var targets = new java.util.LinkedHashSet<VirtualModule>();
+        for (String text : ids) {
+            if (text.length() != 36) return false;
+            try {
+                var module = find(java.util.UUID.fromString(text));
+                if (module == null || !targets.add(module)) return false;
+            } catch (IllegalArgumentException invalidId) {
+                return false;
+            }
+        }
+        boolean updated = false;
+        for (var module : modules) {
+            String current = module.group();
+            String next = targets.contains(module) ? name : replaceGroup && current.equals(name) ? "" : current;
+            if (!current.equals(next)) {
+                module.group(next);
+                updated = true;
+            }
+        }
+        if (updated) changed();
+        return true;
+    }
+    List<VirtualModule> partBreakModules() {
+        if (partBreakModules == null) partBreakModules = modules.stream().filter(m -> m.type().equals("part_break")).toList();
+        return partBreakModules;
+    }
     public VirtualModule addPreset(CompoundTag tag) {
         var module=ModulePreset.create(tag);if(!module.known()||!ModuleAvailability.authorable(module.type())||modules.size()>=authoringLimit())return null;modules.add(module);changed();return module;
     }
@@ -226,10 +261,17 @@ public final class HeartModules {
             if (!heart.getLevel().dimension().location().toString().equals(module.arenaDimension())) return "unloaded";
             return module.enabled() ? "valid" : "disabled";
         }
+        if (module.listensToPart()) {
+            var mark = module.watchedPart();
+            if (mark == null) return "unmarked";
+            String state = mark.status(heart);
+            if (!state.equals("valid")) return state;
+        }
         if (module.coreModule()) return module.enabled() ? "valid" : "disabled";
         // Mark and external frequency are optional output destinations, not prerequisites for scheduling.
         if(module.type().equals("wireless_redstone") && module.anchors().isEmpty()) return module.enabled() ? "valid" : "disabled";
         if (module.anchors().isEmpty() || module.area() && module.anchors().size() != 2) return "unmarked";
+        if (module.type().equals("part_break") && !ModulePartBreak.validSelection(module, module.anchors())) return "unmarked";
         var addon = ModuleTypes.find(module.type());
         if (addon != null && addon.markMode() == dev.sablelife.api.module.ModuleDefinition.MarkMode.POINT
                 && module.anchors().size() != 1) return "unmarked";
@@ -267,7 +309,7 @@ public final class HeartModules {
     public void load(CompoundTag tag) {
         clearRuntime();
         templateRevision=Integer.MIN_VALUE;templateCreature=null;
-        modules.clear(); revision = tag.getInt("Revision"); var list = tag.getList("Modules", 10);
+        modules.clear(); partBreakModules = null; revision = tag.getInt("Revision"); var list = tag.getList("Modules", 10);
         for (int i = 0; i < Math.min(LIMIT, list.size()); i++) {
             if(list.getCompound(i).getString("Type").equals("dispatch"))continue; // Removed standalone scheduler, not a move row.
             var module = VirtualModule.load(list.getCompound(i)); if (find(module.id()) == null) modules.add(module);
@@ -279,7 +321,7 @@ public final class HeartModules {
             var migrated = old.copy(); migrated.putString("Type", "bgm"); migrated.putUUID("Id", UUID.randomUUID());
             String oldName = old.getString("Name");
             migrated.putString("Name", oldName.isEmpty() ? "" : oldName.substring(0, Math.min(oldName.length(), 36)) + " BGM");
-            for (String key : List.of("Anchors", "ImportSource", "ImportData", "RewardOwner", "Detached", "Invalidated", "LootSamples")) migrated.remove(key);
+            for (String key : List.of("Anchors", "WatchedPart", "ImportSource", "ImportData", "RewardOwner", "Detached", "Invalidated", "LootSamples")) migrated.remove(key);
             modules.add(VirtualModule.load(migrated)); revision++;
         }
     }

@@ -106,7 +106,17 @@ public final class HeartWireless {
     public int size() { return channels.size(); }
     public WirelessChannel channel(int index) { return index >= 0 && index < channels.size() ? channels.get(index) : new WirelessChannel(); }
     public int limit() { return dev.sablelife.SableLifeServerConfig.maximumWirelessChannels(); }
-    public int add() { if (channels.size() >= limit()) return -1; var channel=new WirelessChannel();channel.onChange(this::configurationChanged);channels.add(channel);configuredChannels=null;latchChannels=null; heart.setChanged(); return channels.size() - 1; }
+    public int add() {
+        if (channels.size() >= limit()) return -1;
+        var channel = new WirelessChannel();
+        channel.set(0, 1);
+        channel.onChange(this::configurationChanged);
+        channels.add(channel);
+        configuredChannels = null;
+        latchChannels = null;
+        heart.setChanged();
+        return channels.size() - 1;
+    }
     public boolean remove(int index) {
         if (index < 0 || index >= channels.size()) return false;
         stop(); channels.remove(index);

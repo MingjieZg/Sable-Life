@@ -104,7 +104,7 @@ public final class AddonModuleRestartScenario {
                         && module.save().equals(raw), "Missing addon row was changed");
                 check(chimes == 0, "Missing addon emitted a chime");
             } else {
-                check(module.known() && module.enabled() && module.value("addon_volume") == 1.75
+                check(module.known() && module.enabled() && module.save().equals(raw) && module.value("addon_volume") == 1.75
                         && module.anchors().size() == 1 && module.value("trigger") == 2, "Addon settings did not restore");
                 core.wireless().programOutputs("addon_restart", Map.of((int) module.value("channel"), 15));
                 core.modules().tick(core);

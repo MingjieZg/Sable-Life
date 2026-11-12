@@ -9,7 +9,7 @@ public final class ModulePreset {
     public static final int MAX_TEXT=65536;
     public static CompoundTag portable(CompoundTag source){
         var tag=source.copy();
-        for(String key:List.of("Id","CopySourceId","GyroDown","Anchors","ParticleAreaAnchors","ParticlePointAnchors","ArenaCenter","ImportSource","ImportData","RewardOwner","Invalidated","Detached"))tag.remove(key);
+        for(String key:List.of("Id","CopySourceId","GyroDown","Anchors","ParticleAreaAnchors","ParticlePointAnchors","WatchedPart","ArenaCenter","ImportSource","ImportData","RewardOwner","Invalidated","Detached"))tag.remove(key);
         for(var move:tag.getList("Moves",10))((CompoundTag)move).remove("Actions");
         return tag;
     }

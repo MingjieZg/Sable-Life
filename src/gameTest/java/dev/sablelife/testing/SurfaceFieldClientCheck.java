@@ -18,6 +18,9 @@ public final class SurfaceFieldClientCheck {
             for(String key:List.of("fieldRadius","fieldLength","fieldWidth","fieldDuration")){var f=ModuleFields.find(m.type(),key);if(NumericWheelSteps.module(m.type(),key,f.scale(),f.min())!=1)throw new AssertionError("Wheel is not one display unit: "+key);}
             if(params.stream().anyMatch(f->f.key().equals("burn"))!=(m.value("fieldBurn")==1))throw new AssertionError("Burn duration visibility wrong");
             if(params.stream().anyMatch(f->f.key().equals(m.value("fieldShape")==0?"fieldLength":"fieldRadius")))throw new AssertionError("Wrong geometry fields visible");
+            var blastKeys=List.of("fieldBlastDelay","blastDamage","blastBlocks","fieldBlastParticles","blastSound");
+            for(var key:blastKeys)if(params.stream().anyMatch(f->f.key().equals(key))!=(m.value("fieldBlast")==1))throw new AssertionError("Blast visibility wrong: "+key);
+            if(NumericWheelSteps.module("surface_field","fieldBlastDelay",20,0)!=.25||NumericWheelSteps.module("surface_field","blastDamage",1,0)!=1)throw new AssertionError("Blast wheel steps wrong");
         }else if(params.stream().noneMatch(f->f.key().equals("impactArea"))||params.stream().anyMatch(f->f.key().startsWith("impactFire")))throw new AssertionError("Impact controls missing");
         if(m.type().equals("slash")&&params.stream().anyMatch(f->f.key().equals("burn"))!=(m.value("slashIgnite")==1))throw new AssertionError("Slash burn duration visibility wrong");
         var sync=HeartDashboardScreen.class.getDeclaredMethod("sync");sync.setAccessible(true);var page=HeartDashboardScreen.class.getDeclaredField("parameterPage");page.setAccessible(true);

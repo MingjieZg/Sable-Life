@@ -2,7 +2,6 @@ package dev.sablelife.module;
 
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
-import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.*;
 import net.minecraft.world.inventory.*;
@@ -33,9 +32,8 @@ public final class ModuleFrequencyMenu extends AbstractContainerMenu {
     public boolean editable(){return data.get(0)!=0;}
     private void refresh(){if(heart!=null)for(int i=0;i<2;i++)samples.setItem(i,module!=null?module.redBlue(i==1,heart.getLevel().registryAccess()):i==0?heart.wireless().channel(wirelessChannel).first():heart.wireless().channel(wirelessChannel).second());}
     @Override public void broadcastChanges(){refresh();super.broadcastChanges();}
-    @Override public boolean stillValid(Player player){return heart==null || heart.canAccessEditor(player)&&!heart.isRemoved()&&player.level()==heart.getLevel()
-        &&heart.getLevel().getBlockEntity(heart.getBlockPos())==heart&&(module!=null?heart.modules().find(module.id())==module:wirelessChannel>=0&&wirelessChannel<heart.wireless().size())
-        &&SableBodyProbe.toWorld(player.level(),player.getEyePosition()).distanceToSqr(SableBodyProbe.toWorld(player.level(),heart.getBlockPos().getCenter()))<=64;}
+    @Override public boolean stillValid(Player player){return heart==null || heart.canAccessEditor(player)&&!heart.isRemoved()&&player.level()==heart.getLevel()&&(module!=null?heart.modules().find(module.id())==module:wirelessChannel>=0&&wirelessChannel<heart.wireless().size())
+        &&heart.editorInRange(player, 64);}
     private void set(boolean blue,ItemStack stack){if(module!=null){module.redBlue(blue,stack,heart.getLevel().registryAccess());heart.modules().changed();}else{heart.wireless().channel(wirelessChannel).frequency(blue,stack);heart.wireless().configurationChanged();}heart.setChanged();refresh();sendAllDataToRemote();}
     @Override public void clicked(int slot,int button,ClickType type,Player player){
         if(!stillValid(player))return;

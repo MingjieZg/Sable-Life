@@ -15,6 +15,53 @@ import org.joml.Vector3f;
 
 @GameTestHolder("sablelife_blast_tests") @PrefixGameTestTemplate(false)
 public final class ProjectileItemRotationGameTests {
+    @GameTest(template="combat",batch="projectile_tracer")
+    public static void TracerPreservesLegacyParticlesAndRoundTripsOnEveryProjectile(GameTestHelper h) {
+        var world = h.getLevel();
+        var pos = h.absolutePos(new BlockPos(1, 6, 1));
+        world.setBlockAndUpdate(pos, SableLife.HEART.get().defaultBlockState());
+        var core = (HeartBlockEntity) world.getBlockEntity(pos);
+        var expected = new ProjectileTracer(0x2B75E0, 6F, .12F);
+        for (String type : java.util.List.of("arrow", "gun", "mortar", "homing")) {
+            var module = new VirtualModule(type);
+            module.editParticle("add", "minecraft:flame");
+            module = VirtualModule.load(module.save());
+            h.assertTrue(ProjectileTracer.from(module) == null && ProjectileTracer.visible(module, "particles"),
+                    "Legacy projectile no longer defaults to particles: " + type);
+            module.edit("projectileTrailStyle", 1, "");
+            module.edit("projectileTrailColorRgb", 1, "");
+            module.edit("projectileTrailColorRed", 0x2B, "");
+            module.edit("projectileTrailColorGreen", 0x75, "");
+            module.edit("projectileTrailColorBlue", 0xE0, "");
+            module.edit("projectileTrailLength", 6, "");
+            module.edit("projectileTrailWidth", .12, "");
+            module = VirtualModule.load(module.save());
+            h.assertTrue(expected.equals(ProjectileTracer.from(module)), "Tracer settings did not reload: " + type);
+            h.assertTrue(!ProjectileTracer.visible(module, "particles"), "Particle picker visible in tracer mode: " + type);
+            net.minecraft.world.entity.Entity projectile;
+            if (type.equals("arrow")) {
+                var arrow = new ModuleArrow(SableLife.MODULE_ARROW.get(), world);
+                arrow.configure(module);
+                projectile = arrow;
+            } else if (type.equals("homing")) {
+                projectile = ModuleShot.homing(world, pos.getCenter(), pos.getCenter(), module, core, 0);
+            } else {
+                projectile = new ModuleShot(world, pos.getCenter(), new Vec3(1, 0, 0), module, core);
+            }
+            var saved = projectile.saveWithoutId(new CompoundTag());
+            h.assertTrue(expected.equals(ProjectileTracer.read(saved)), "Projectile did not capture tracer: " + type);
+            var restored = projectile.getType().create(world);
+            restored.load(saved);
+            h.assertTrue(expected.equals(ProjectileTracer.read(restored.saveWithoutId(new CompoundTag()))),
+                    "Projectile lost tracer after reload: " + type);
+            saved.remove("ProjectileTracer");
+            restored.load(saved);
+            h.assertTrue(ProjectileTracer.read(restored.saveWithoutId(new CompoundTag())) == null, "Legacy projectile enabled tracer: " + type);
+            module.edit("projectileTrailStyle", 0, "");
+            h.assertTrue(module.particles().contains("minecraft:flame"), "Switching modes lost particles: " + type);
+        }
+        h.succeed();
+    }
     @GameTest(template="combat",batch="projectile_item_rotation")
     public static void RotationSurvivesLaunchMetadataReloadAndModuleCopy(GameTestHelper h){
         var world=h.getLevel();var pos=h.absolutePos(new BlockPos(1,6,1));world.setBlockAndUpdate(pos,SableLife.HEART.get().defaultBlockState());

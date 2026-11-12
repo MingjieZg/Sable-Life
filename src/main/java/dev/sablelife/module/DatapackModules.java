@@ -52,7 +52,7 @@ import java.util.function.Supplier;
 @EventBusSubscriber(modid = SableLife.MOD_ID)
 public final class DatapackModules {
     static final int MAX_MODULES = 64;
-    static final int MAX_OPTIONS = 4;
+    static final int MAX_OPTIONS = 8;
     static final int LABEL_LIMIT = 64;
     static final int DESCRIPTION_LIMIT = 192;
     private static final int MAX_FILE_BYTES = 8192;

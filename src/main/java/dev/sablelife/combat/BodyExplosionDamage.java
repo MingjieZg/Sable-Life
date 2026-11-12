@@ -13,6 +13,7 @@ import net.minecraft.world.phys.*;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import org.joml.Quaterniond;
 import java.util.*;
+import java.util.function.DoubleUnaryOperator;
 /** Actual collision voxels, never the empty space in a creature's enclosing box. Event-only work. */
 public final class BodyExplosionDamage {
  private record Hit(BlockPos block,double distance){}
@@ -29,10 +30,19 @@ public final class BodyExplosionDamage {
   // Our own modules already apply their configured damage. Their terrain/VFX explosion must not duplicate it.
   if(source!=null&&source.getPersistentData().hasUUID("SableLifeAttackOwner"))return;
   var calculator=((ExplosionDamageAccess)explosion).sablelife$calculator();if(calculator.getClass().getName().startsWith("dev.sablelife."))return;
-  double range=BodyDamageBridge.explosionRange(explosion);var center=SableBodyProbe.toWorld(level,explosion.center());if(!Double.isFinite(range)||range<=0||!Double.isFinite(center.lengthSqr()))return;
+  double range=BodyDamageBridge.explosionRange(explosion);
+  damageBodies(level,explosion,damageSource,range,distance->BodyDamageBridge.explosionDamage(explosion,distance,range));
+ }
+ public static void externalDetonation(ServerLevel level, Explosion explosion, net.minecraft.world.damagesource.DamageSource source, double range, float amount, boolean falloff) {
+  if(source==null||!Float.isFinite(amount)||amount<=0)return;
+  NATIVE_SOURCES.put(source,level.getGameTime());
+  damageBodies(level,explosion,source,range,distance->falloff?amount*Math.max(0,1-distance/range):amount);
+ }
+ private static void damageBodies(ServerLevel level, Explosion explosion, net.minecraft.world.damagesource.DamageSource source, double range, DoubleUnaryOperator damageAtDistance) {
+  var center=SableBodyProbe.toWorld(level,explosion.center());if(!Double.isFinite(range)||range<=0||!Double.isFinite(center.lengthSqr()))return;
   var seen=SEEN.computeIfAbsent(explosion,e->new HashSet<>());
   for(var core:dev.sablelife.ownership.LoadedCoreIndex.query(level,new AABB(center,center).inflate(range))){
-   if(core.isControlCore()||EntityHitboxes.blocksStructure(core)||core.health().state()!=HeartState.ALIVE||seen.contains(core.creatureId()))continue;var hit=nearestVisible(level,core,center,range);if(hit==null)continue;seen.add(core.creatureId());float amount=BodyDamageBridge.explosionDamage(explosion,hit.distance,range);if(Float.isFinite(amount)&&amount>0){if(EntityHitboxes.hybrid(core))core.modules().damageBoxes.bodyExplosion(core,((ExplosionDamageAccess)explosion).sablelife$damageSource(),hit.block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));else core.damageAt(hit.block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));}
+   if(core.isControlCore()||EntityHitboxes.blocksStructure(core)||core.health().state()!=HeartState.ALIVE||seen.contains(core.creatureId()))continue;var hit=nearestVisible(level,core,center,range);if(hit==null)continue;seen.add(core.creatureId());float amount=(float)damageAtDistance.applyAsDouble(hit.distance);if(Float.isFinite(amount)&&amount>0){if(EntityHitboxes.hybrid(core))core.modules().damageBoxes.bodyExplosion(core,source,hit.block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));else core.damageAt(hit.block,Math.min(amount,HeartHealth.MAX_CONFIGURED_HEALTH));}
   }
  }
  private static Hit nearestVisible(ServerLevel level,HeartBlockEntity core,Vec3 center,double range){

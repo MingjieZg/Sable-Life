@@ -17,6 +17,18 @@ public final class WeaponMixinContract {
                         &&hasCall(m,"net/minecraft/world/entity/projectile/Projectile","onHitBlock","(Lnet/minecraft/world/phys/BlockHitResult;)V"));
                 case "TaczBlockRayTraceMixin" -> node.methods.stream().anyMatch(m->method(m,"rayTraceBlocks","(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/ClipContext;)Lnet/minecraft/world/phys/BlockHitResult;",true));
                 case "TaczBlastProfileMixin" -> field(node,"radius","F",provider,new HashSet<>())&&field(node,"power","F",provider,new HashSet<>());
+                case "NtglProjectileMixin" -> ntglProjectile(node);
+                case "CgsBlazeProjectileMixin" -> node.methods.stream().anyMatch(m->method(m,"onHitEntity",
+                        "(Lcom/nukateam/ntgl/common/util/util/math/ExtendedEntityRayTraceResult;)V",false)
+                        &&hasCall(m,"com/nukateam/ntgl/common/foundation/entity/ProjectileEntity","onHitEntity",m.desc)
+                        &&hasCall(m,"net/minecraft/world/entity/Entity","hurt","(Lnet/minecraft/world/damagesource/DamageSource;F)Z")
+                        &&hasCall(m,"net/minecraft/world/entity/Entity","igniteForSeconds","(F)V"));
+                case "NtglExplosionMixin" -> ntglExplosion(node,provider);
+                case "NtglMeleeMixin" -> node.methods.stream().anyMatch(m->method(m,"tryMeleeAttack","(Lcom/nukateam/ntgl/common/data/WeaponData;)V",false)
+                        &&hasCall(m,"java/util/ArrayList","isEmpty","()Z"))
+                        &&field(node,"attackDistance","D",provider,new HashSet<>())
+                        &&field(node,"meleeDamage","F",provider,new HashSet<>())
+                        &&field(node,"maxTargets","I",provider,new HashSet<>());
                 case "CannonMountCleanupMixin" -> node.methods.stream().anyMatch(m->method(m,"disassemble","()V",false))&&field(node,"running","Z",provider,new HashSet<>());
                 case "CannonBodyDamageMixin" -> node.methods.stream().anyMatch(m->{
                     if(!m.name.equals("calculateBlockPenetration")||!concrete(m,false))return false;
@@ -30,6 +42,27 @@ public final class WeaponMixinContract {
             };
             return new Result(valid,valid?"Injection contract matched":"Required method, field or invocation changed");
         }catch(RuntimeException failure){return new Result(false,"Cannot inspect target: "+failure.getClass().getSimpleName());}
+    }
+    private static boolean ntglProjectile(ClassNode node){
+        String hit="Lnet/minecraft/world/phys/";
+        String entity="Lnet/minecraft/world/entity/Entity;";
+        return node.methods.stream().anyMatch(m->method(m,"getDamage","()F",false))
+                &&node.methods.stream().anyMatch(m->method(m,"getDamageSource","()Lnet/minecraft/world/damagesource/DamageSource;",false))
+                &&node.methods.stream().anyMatch(m->method(m,"burnEntity","("+entity+")V",false))
+                &&node.methods.stream().anyMatch(m->method(m,"onHit","("+hit+"HitResult;"+hit+"Vec3;"+hit+"Vec3;)V",false)
+                    &&hasCall(m,node.name,"onHitBlock","("+hit+"BlockHitResult;Lnet/minecraft/world/level/block/state/BlockState;)V"))
+                &&node.methods.stream().anyMatch(m->method(m,"damageEntity","(Lcom/nukateam/ntgl/common/util/util/math/ExtendedEntityRayTraceResult;)V",false)
+                    &&hasCall(m,"net/minecraft/world/entity/Entity","hurt","(Lnet/minecraft/world/damagesource/DamageSource;F)Z"));
+    }
+    private static boolean ntglExplosion(ClassNode node,Function<String,byte[]> provider){
+        return "net/minecraft/world/level/Explosion".equals(node.superName)
+                &&node.methods.stream().anyMatch(m->method(m,"explode","()V",false))
+                &&node.methods.stream().anyMatch(m->method(m,"finalizeExplosion","(Z)V",false))
+                &&field(node,"level","Lnet/minecraft/world/level/Level;",provider,new HashSet<>())
+                &&field(node,"damageSource","Lnet/minecraft/world/damagesource/DamageSource;",provider,new HashSet<>())
+                &&field(node,"radius","F",provider,new HashSet<>())
+                &&field(node,"damage","F",provider,new HashSet<>())
+                &&field(node,"damageDecreaseWithDistance","Z",provider,new HashSet<>());
     }
     private static ClassNode read(String name,Function<String,byte[]> provider){
         byte[] bytes=provider.apply(name);if(bytes==null)return null;

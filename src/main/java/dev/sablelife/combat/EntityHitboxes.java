@@ -7,19 +7,23 @@ import dev.sablelife.module.*;
 import dev.sablelife.attack.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.*;
 import java.util.*;
 
 /** Per-core receiver ownership and tick-scoped aggregate. No world-global references or saved entities. */
 public final class EntityHitboxes {
+    private static final int RETALIATION_TICKS = 15 * 20;
+    private static final int MAX_RETALIATION_TARGETS = 64;
     private final Map<UUID,EntityHitbox> boxes=new LinkedHashMap<>();
     private final Map<Object,Hit> pending=new LinkedHashMap<>();
     private final Map<UUID,Boolean> bodyClaims=new HashMap<>();
     private final Set<Object> settled=new HashSet<>();
     private final Map<Resistance,Window> hurtWindows=new LinkedHashMap<>();
     private long claimTick=Long.MIN_VALUE;
-    private record Hit(DamageSource source,float damage,float raw,EntityHitbox receiver,net.neoforged.neoforge.common.damagesource.DamageContainer event){}
+    private LinkedHashMap<UUID, Long> retaliationTargets;
+    private record Hit(DamageSource source,float damage,float raw,EntityHitbox receiver,net.neoforged.neoforge.common.damagesource.DamageContainer event,BlockHitResult block,net.minecraft.core.BlockPos part,boolean retaliates){}
     private record Attack(UUID direct,UUID attacker,Object type,long tick){}
     private record Resistance(UUID attacker,Object type){}
     private record Window(long until,float raw){}
@@ -61,7 +65,19 @@ public final class EntityHitboxes {
         if(!hybrid(core)||!allowed(core,source)||!Float.isFinite(raw)||raw<=0)return;
         currentTick(core);if(settled.contains(source))return;
         float damage=ModuleArmor.damage(core,block,raw);if(!Float.isFinite(damage)||damage<0)return;
-        var previous=pending.get(source);if(previous==null||damage>previous.damage)pending.put(source,new Hit(source,damage,raw,previous==null?null:previous.receiver,previous==null?null:previous.event));
+        var previous=pending.get(source);if(previous==null||damage>previous.damage)pending.put(source,new Hit(source,damage,raw,previous==null?null:previous.receiver,previous==null?null:previous.event,null,block,false));
+    }
+    /** Give optional native projectiles one core hit while retaining their normal hurt window. */
+    public void externalProjectileBody(HeartBlockEntity core,ExternalProjectileDamageSource source,BlockHitResult block,float raw){
+        if(!allowed(core,source))return;
+        currentTick(core);
+        var direct=source.getDirectEntity();var key=direct.getUUID();
+        if(settled.contains(key)||bodyClaims.containsKey(key)
+                ||direct.getPersistentData().getCompound("SableLifeHitCreatures").getBoolean(core.creatureId().toString()))return;
+        float damage=ModuleArmor.damage(core,block.getBlockPos(),raw);
+        if(!Float.isFinite(damage)||damage<0)return;
+        var previous=pending.get(key);
+        if(previous==null||previous.block==null)pending.put(key,new Hit(source,damage,raw,null,null,block,block.getBlockPos(),false));
     }
     public static Vec3 center(HeartBlockEntity core,VirtualModule m){
         if(m.anchors().size()!=1)return null;var a=m.anchors().getFirst();var body=a.body(core);if(body==null||body.isRemoved())return null;
@@ -78,7 +94,29 @@ public final class EntityHitboxes {
         if(Math.floorMod(core.getLevel().getGameTime(),10)==Math.floorMod(core.creatureId().hashCode(),10))
             for(var box:boxes.values())HitboxAggro.offer(box);
     }
-    public void clear(){for(var e:boxes.values())e.discard();boxes.clear();pending.clear();bodyClaims.clear();settled.clear();hurtWindows.clear();claimTick=Long.MIN_VALUE;}
+    public void clear(){for(var e:boxes.values())e.discard();boxes.clear();pending.clear();bodyClaims.clear();settled.clear();hurtWindows.clear();claimTick=Long.MIN_VALUE;retaliationTargets=null;}
+
+    public boolean retaliatesAgainst(HeartBlockEntity core, LivingEntity target) {
+        if (retaliationTargets == null) return false;
+        Long until = retaliationTargets.get(target.getUUID());
+        return until != null && core.getLevel().getGameTime() < until && target.isAlive();
+    }
+
+    private void rememberAttacker(HeartBlockEntity core, DamageSource source) {
+        var attacker = source.getEntity();
+        if (attacker == null && source.getDirectEntity() instanceof Projectile projectile) attacker = projectile.getOwner();
+        if (attacker instanceof LivingEntity living && ModuleTargets.matches(living, 1)
+                && core.relations().excludesMob(living.getType())) {
+            if (retaliationTargets == null) retaliationTargets = new LinkedHashMap<>();
+            if (retaliationTargets.size() >= MAX_RETALIATION_TARGETS) {
+                retaliationTargets.values().removeIf(until -> until <= claimTick);
+            }
+            UUID id = living.getUUID();
+            if (retaliationTargets.containsKey(id) || retaliationTargets.size() < MAX_RETALIATION_TARGETS) {
+                retaliationTargets.put(id, claimTick + RETALIATION_TICKS);
+            }
+        }
+    }
     public static boolean allowed(HeartBlockEntity core,DamageSource source){
         UUID owner=source instanceof CreatureAttackSource attack?attack.creatureOwner():null;
         var direct=source.getDirectEntity();if(owner==null&&direct!=null&&direct.getPersistentData().hasUUID("SableLifeAttackOwner"))owner=direct.getPersistentData().getUUID("SableLifeAttackOwner");
@@ -91,7 +129,7 @@ public final class EntityHitboxes {
         var direct=source.getDirectEntity();Object key;
         if(BodyExplosionDamage.routedTerrainSource(source,claimTick))return; // Explicit spell damage already owns this visual/terrain explosion.
         if(explosion(source))key=source;
-        else if(direct instanceof Projectile){
+        else if(direct!=null&&ExternalProjectileDamageSource.identifiesProjectile(source)){
             var data=direct.getPersistentData();var seen=data.getCompound("SableLifeHitCreatures");String id=core.creatureId().toString();if(seen.getBoolean(id)||pending.containsKey(direct.getUUID()))return;
             // One projectile uses its first effective receiver, even if that part is fully immune.
             key=direct.getUUID();
@@ -101,10 +139,11 @@ public final class EntityHitboxes {
             if(Boolean.TRUE.equals(bodyClaims.get(identity(source))))return;
             if(direct!=null&&direct.getPersistentData().getCompound("SableLifeHitCreatures").getBoolean(core.creatureId().toString()))return;
         }
-        var a=m.anchors().getFirst();float damage=ModuleArmor.damage(core,a.position(a.body(core)),raw);if(!Float.isFinite(damage)||damage<0)return;
+        var a=m.anchors().getFirst();var part=a.position(a.body(core));float damage=ModuleArmor.damage(core,part,raw);if(!Float.isFinite(damage)||damage<0)return;
         var previous=pending.get(key);boolean melee=source.is(net.minecraft.world.damagesource.DamageTypes.PLAYER_ATTACK)||source.is(net.minecraft.world.damagesource.DamageTypes.MOB_ATTACK)||source.is(net.minecraft.world.damagesource.DamageTypes.MOB_ATTACK_NO_AGGRO);
-        if(previous==null||!melee&&damage>previous.damage)pending.put(key,new Hit(source,damage,raw,box,event));
-        else if(previous.receiver==null)pending.put(key,new Hit(source,previous.damage,previous.raw,box,event));
+        boolean retaliates=m.value("hitboxRetaliateAgainstWhitelisted")==1;
+        if(previous==null||previous.block==null&&!melee&&damage>previous.damage)pending.put(key,new Hit(source,damage,raw,box,event,null,part,retaliates));
+        else if(previous.receiver==null&&previous.block==null)pending.put(key,new Hit(source,previous.damage,previous.raw,box,event,null,previous.part,false));
     }
     /** Native non-projectile contact attacks share the victim's hurt window across all parts.
      * Separate attackers/types remain independent; real projectiles and blasts retain their existing identities.
@@ -131,10 +170,12 @@ public final class EntityHitboxes {
         var hits=new ArrayList<>(pending.entrySet());pending.clear();if(core.isRemoved()||core.health().state()!=HeartState.ALIVE)return;
         for(var entry:hits){if(core.health().state()!=HeartState.ALIVE)break;var hit=entry.getValue();if(!settled.add(entry.getKey()))continue;var direct=hit.source.getDirectEntity();boolean blast=entry.getKey() instanceof DamageSource;
             if(!blast){UUID identity=identity(hit.source);if(Boolean.TRUE.equals(bodyClaims.get(identity)))continue;if(identity!=null)bodyClaims.put(identity,false);}
-            if(direct instanceof Projectile&&!blast){var data=direct.getPersistentData();var seen=data.getCompound("SableLifeHitCreatures");var id=core.creatureId().toString();if(seen.getBoolean(id))continue;if(seen.getAllKeys().size()>=64)continue;seen.putBoolean(id,true);data.put("SableLifeHitCreatures",seen);}
+            if(direct!=null&&!blast&&ExternalProjectileDamageSource.identifiesProjectile(hit.source)){var data=direct.getPersistentData();var seen=data.getCompound("SableLifeHitCreatures");var id=core.creatureId().toString();if(seen.getBoolean(id))continue;if(seen.getAllKeys().size()>=64)continue;seen.putBoolean(id,true);data.put("SableLifeHitCreatures",seen);}
             float fraction=acceptedFraction(hit);if(fraction<=0)continue;
-            float before=core.health().current();boolean applied=core.damage(hit.damage*fraction);float actual=Math.max(0,before-core.health().current());
+            float before=core.health().current();boolean applied=core.damageFromHit(hit.part,hit.damage*fraction);float actual=Math.max(0,before-core.health().current());
             if(applied){
+                if(hit.retaliates && actual>0 && core.health().state()==HeartState.ALIVE) rememberAttacker(core,hit.source);
+                if(hit.block!=null)BodyCombat.feedback((ServerLevel)core.getLevel(),hit.block,core,actual,hit.source.getEntity() instanceof net.minecraft.world.entity.player.Player player?player:null,false);
                 if(hit.receiver!=null&&actual>0){var attacker=hit.source.getEntity() instanceof net.minecraft.world.entity.player.Player p?p:direct instanceof Projectile projectile&&projectile.getOwner() instanceof net.minecraft.world.entity.player.Player p?p:null;BodyCombat.damageMessage(core,actual,attacker);}
                 AttackHitCredit.record(direct,actual);if(core.health().state()!=HeartState.ALIVE)CombatEventHooks.emit((ServerLevel)core.getLevel(),hit.source,0,2,core.creatureId());}
             // Post-hit consumers (including lifesteal) see one accepted hit and actual core HP loss.
@@ -146,7 +187,7 @@ public final class EntityHitboxes {
     public boolean lifeHit(HeartBlockEntity core,DamageSource source,float raw){
         if(!allowed(core,source))return false;var origin=source.getSourcePosition();var candidates=selected(core);if(candidates.isEmpty())return false;
         var m=origin==null?candidates.getFirst():candidates.stream().min(Comparator.comparingDouble(v->center(core,v).distanceToSqr(origin))).orElseThrow();
-        var a=m.anchors().getFirst();return core.damage(ModuleArmor.damage(core,a.position(a.body(core)),raw));
+        var a=m.anchors().getFirst();var part=a.position(a.body(core));return core.damageFromHit(part,ModuleArmor.damage(core,part,raw));
     }
     public static void endTick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event){
         for(var level:event.getServer().getAllLevels())for(var core:dev.sablelife.ownership.LoadedCoreIndex.all(level))core.modules().damageBoxes.flush(core);

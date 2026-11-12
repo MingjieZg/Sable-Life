@@ -10,6 +10,7 @@ import net.minecraft.world.entity.*;
 import net.minecraft.network.syncher.*;
 import net.minecraft.nbt.CompoundTag;
 import dev.sablelife.SableLife;
+import dev.sablelife.module.ProjectileTracer;
 import dev.sablelife.module.VirtualModule;
 import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.server.level.ServerLevel;
@@ -25,6 +26,8 @@ public final class ModuleArrow extends Arrow {
     private static final EntityDataAccessor<org.joml.Vector3f> ITEM_ROTATION = SynchedEntityData.defineId(ModuleArrow.class, EntityDataSerializers.VECTOR3);
     public org.joml.Vector3f itemRotation(){return new org.joml.Vector3f(entityData.get(ITEM_ROTATION));}
     private java.util.List<dev.sablelife.module.ModuleParticles.Entry> trail = java.util.List.of();
+    private ProjectileTracer tracer;
+    private Vec3 tracerImpact;
     private int residueTicks = 200, residueAge;
     private VirtualModule impactConfig;
     private boolean fieldBlockSpent;
@@ -44,6 +47,7 @@ public final class ModuleArrow extends Arrow {
         entityData.set(HITBOX, (float) module.value("arrowHitbox"));
         entityData.set(SIZE, (float) module.value("projectileSize")); refreshDimensions();
         residueTicks = (int) module.value("arrowResidue"); trail = module.particleEntries();
+        tracer = ProjectileTracer.from(module);
         // soundTimeline returns a fresh snapshot; later editor changes cannot alter this shot.
         landingSound = module.soundTimeline("arrowLandSound");
         customLandingSound = module.hasSoundTimeline("arrowLandSound") || !module.text("arrowLandSound").equals("minecraft:entity.arrow.hit");
@@ -64,6 +68,7 @@ public final class ModuleArrow extends Arrow {
         return ProjectileUtil.getEntityHitResult(level(), this, start, end, new AABB(start, end).inflate(hitbox() / 2. + .3), this::canHitEntity, hitbox() / 2F);
     }
     @Override public void tick() {
+        tracerImpact = null;
         if (entityData.get(EDGE_STUCK)) {
             if (level() instanceof ServerLevel && edgeBlock != null && level().getBlockState(edgeBlock).getCollisionShape(level(), edgeBlock).isEmpty()) {
                 entityData.set(EDGE_STUCK, false); inGround = false; edgeBlock = null;
@@ -86,8 +91,12 @@ public final class ModuleArrow extends Arrow {
                 if (entity == null) {
                     var impact = new net.neoforged.neoforge.event.entity.ProjectileImpactEvent(this, block);
                     net.neoforged.neoforge.common.NeoForge.EVENT_BUS.post(impact);
-                    if (impact.isCanceled() || isRemoved()) return;
+                    if (impact.isCanceled() || isRemoved()) {
+                        drawTracer(world, start);
+                        return;
+                    }
                     onHitBlock(block); setPos(point); setDeltaMovement(Vec3.ZERO);
+                    drawTracer(world, start);
                     edgeBlock = block.getBlockPos().immutable(); entityData.set(EDGE_STUCK, true);
                     if (residueTicks == 0) discard();
                     return;
@@ -97,12 +106,30 @@ public final class ModuleArrow extends Arrow {
         }
         var trailStart = position(); boolean flying = !inGround;
         super.tick();
-        if (flying && !isRemoved() && level() instanceof ServerLevel server) dev.sablelife.module.ProjectileTrail.draw(server, trailStart, position(), trail);
+        if (flying && level() instanceof ServerLevel server) {
+            if (tracer != null) drawTracer(server, trailStart);
+            else if (!isRemoved()) dev.sablelife.module.ProjectileTrail.draw(server, trailStart, position(), trail);
+        }
         if (!level().isClientSide && inGround && residueTicks == 0) discard();
     }
     @Override protected void tickDespawn() {
         // Override vanilla's fixed 60-second limit; snapshot the module setting per shot.
         if (++residueAge >= residueTicks) discard();
+    }
+    private void drawTracer(ServerLevel level, Vec3 start) {
+        if (tracer != null) tracer.send(level, getId(), start, tracerImpact == null ? position() : tracerImpact);
+    }
+
+    void recordTracerImpact(HitResult hit) {
+        if (tracer != null && tracerImpact == null) {
+            if (hit instanceof EntityHitResult entity) {
+                var start = position();
+                tracerImpact = entity.getEntity().getBoundingBox().inflate(hitbox() * .5)
+                        .clip(start, start.add(getDeltaMovement())).orElse(start);
+            } else {
+                tracerImpact = SableBodyProbe.toWorld(level(), hit.getLocation());
+            }
+        }
     }
     @Override public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
@@ -113,6 +140,7 @@ public final class ModuleArrow extends Arrow {
         tag.putBoolean("ModuleFaceCamera",facesCamera());
         tag.put("ProjectileItemRotation",ProjectileItemPose.save(itemRotation()));
         tag.put("ModuleTrail", dev.sablelife.module.ModuleParticles.save(trail.stream().map(dev.sablelife.module.ModuleParticles.Entry::id).toList())); tag.put("ModuleTrailProperties", dev.sablelife.module.ModuleParticles.saveEntries(trail)); tag.putInt("ModuleResidueTicks", residueTicks); tag.putInt("ModuleResidueAge", residueAge);
+        if (tracer != null) tracer.save(tag);
         if (edgeBlock != null) tag.putLong("ModuleEdgeBlock", edgeBlock.asLong());
         if (customLandingSound) tag.put("ModuleLandingSound", landingSound.save());
     }
@@ -127,6 +155,7 @@ public final class ModuleArrow extends Arrow {
         entityData.set(SIZE, tag.contains("ModuleSize") ? Math.clamp(tag.getFloat("ModuleSize"), .1F, 8F) : 1F); refreshDimensions();
         residueTicks = tag.contains("ModuleResidueTicks") ? Math.clamp(tag.getInt("ModuleResidueTicks"), 0, 12000) : 200;
         residueAge = Math.clamp(tag.getInt("ModuleResidueAge"), 0, 12000); trail = dev.sablelife.module.ModuleParticles.loadEntries(tag.getList("ModuleTrailProperties", 10), dev.sablelife.module.ModuleParticles.load(tag.getList("ModuleTrail", 8)));
+        tracer = ProjectileTracer.read(tag);
         edgeBlock = tag.contains("ModuleEdgeBlock") ? net.minecraft.core.BlockPos.of(tag.getLong("ModuleEdgeBlock")) : null;
         entityData.set(EDGE_STUCK, edgeBlock != null);
         customLandingSound = tag.contains("ModuleLandingSound");
@@ -145,6 +174,7 @@ public final class ModuleArrow extends Arrow {
         dev.sablelife.module.SurfaceFieldImpact.projectile(this,impactConfig,hit,getDeltaMovement());
     }
     @Override protected void onHitBlock(BlockHitResult hit) {
+        recordTracerImpact(hit);
         emitSurfaceField(hit);
         suppressNativeLanding = customLandingSound;
         try { super.onHitBlock(hit); }
@@ -156,6 +186,7 @@ public final class ModuleArrow extends Arrow {
         super.playSound(sound, volume, pitch);
     }
     @Override protected void onHitEntity(EntityHitResult hit) {
+        recordTracerImpact(hit);
         emitSurfaceField(hit);
         if (hit.getEntity() instanceof LivingEntity target) {
             float before=target.getHealth();
