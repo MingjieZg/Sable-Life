@@ -67,6 +67,9 @@ public final class SignalModuleGameTests {
  @GameTest(template="combat",batch="logic_snapshot",timeoutTicks=20) public static void LogicChainUsesOneSnapshotAndDoesNotDependOnOrder(GameTestHelper h){
   var c=core(h);var a=logic(c,1,2);var b=logic(c,2,3);input(c,Map.of(0,15));c.modules().signalLogic.tick(c);h.assertTrue(c.wireless().output(1)==15&&c.wireless().output(2)==0,"Logic recursively consumed same-frame output");c.modules().reorder(b.id(),-1);
   h.runAfterDelay(2,()->{c.modules().signalLogic.tick(c);h.assertTrue(c.wireless().output(2)==15,"Logic chain depends on list order");c.modules().remove(a.id());});
+  // Native actor registration can lag assembly. Advance the frame explicitly rather
+  // than relying on automatic core ticking to drain the deleted upstream output.
+  h.runAfterDelay(3,()->{c.modules().signalLogic.tick(c);h.assertTrue(c.wireless().output(1)==0,"Removed upstream producer stayed powered");});
   h.runAfterDelay(5,()->{c.modules().signalLogic.tick(c);h.assertTrue(c.wireless().output(1)==0&&c.wireless().output(2)==0,"Deleted logic output stayed powered");h.succeed();});
  }
  @GameTest(template="combat",batch="logic_pulse",timeoutTicks=25) public static void RisingEdgePulseDoesNotRepeatAndDisablingClearsOutput(GameTestHelper h){

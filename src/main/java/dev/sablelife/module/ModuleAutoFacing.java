@@ -64,19 +64,27 @@ public final class ModuleAutoFacing {
             var target=facingPoint(level,heart,module,pivot);
             if(target==null){states.put(module.id(),"no_target");continue;}controlled=true;
             var anchor=module.anchors().getFirst();var marked=anchor.body(heart);if(marked==null)continue;
-            var front=ContactBox.rotate(new Quaterniond(marked.logicalPose().orientation()),Vec3.atLowerCornerOf(anchor.face().getNormal()));
+            var orientation=new Quaterniond(marked.logicalPose().orientation());
+            var localFront=Vec3.atLowerCornerOf(anchor.face().getNormal());
+            var front=ContactBox.rotate(orientation,localFront);
             boolean vertical=module.value("facingVertical")==1;
             if(!vertical&&front.x*front.x+front.z*front.z<1e-8){states.put(module.id(),"front_invalid");continue;}
             var bodies=LinearMovementGeometry.capture(heart);if(bodies.isEmpty()){states.put(module.id(),"blocked");continue;}
             double radius=AutoFacingGeometry.radius(bodies,pivot);
             double degrees=module.value("facingCollision")==0?module.value("facingSpeed")/20:Math.min(module.value("facingSpeed")/20,Math.toDegrees(4/radius));
+            var offset=AutoFacingGeometry.aimOffset(orientation,localFront,module.value("facingOffsetLeft"),vertical?module.value("facingOffsetUp"):0);
             var desired=target.subtract(pivot);
-            var turn=AutoFacingGeometry.turn(front,desired,vertical,degrees);
+            var reference=AutoFacingGeometry.aimReference(front,desired,offset,vertical);
+            if(reference==null){states.put(module.id(),"offset_unreachable");continue;}
+            var turn=AutoFacingGeometry.turn(reference,desired,vertical,degrees);
             double angle=2*Math.acos(Math.min(1,Math.abs(turn.w)));if(angle<1e-5){states.put(module.id(),"tracking");continue;}
             boolean clear=module.value("facingCollision")==0||AutoFacingGeometry.clearTurn(level,bodies,pivot,turn,radius),verticalBlocked=false;
             if(!clear&&vertical){
                 // A blocked pitch must not veto an otherwise safe horizontal turn.
-                turn=AutoFacingGeometry.turn(front,desired,false,degrees);
+                var horizontalOffset=AutoFacingGeometry.aimOffset(orientation,localFront,module.value("facingOffsetLeft"),0);
+                var horizontalReference=AutoFacingGeometry.aimReference(front,desired,horizontalOffset,false);
+                if(horizontalReference==null){states.put(module.id(),"offset_unreachable");continue;}
+                turn=AutoFacingGeometry.turn(horizontalReference,desired,false,degrees);
                 clear=AutoFacingGeometry.clearTurn(level,bodies,pivot,turn,radius);verticalBlocked=clear;
                 if(clear&&2*Math.acos(Math.min(1,Math.abs(turn.w)))<1e-5){states.put(module.id(),"vertical_blocked");continue;}
             }

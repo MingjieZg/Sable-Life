@@ -100,7 +100,9 @@ public final class LifeLifecycle extends SavedData {
     }
     public boolean scheduleNaturalRemoval(HeartBlockEntity heart) {
         if (!(heart.getLevel() instanceof ServerLevel level)) return false;
-        return scheduleNaturalRemoval(level, heart.creatureId(), SableBodyProbe.toWorld(level, heart.getBlockPos().getCenter()));
+        if (!scheduleNaturalRemoval(level, heart.creatureId(), SableBodyProbe.toWorld(level, heart.getBlockPos().getCenter()))) return false;
+        deaths.get(heart.creatureId()).walkerAttachments = dev.sablelife.compat.letitwalk.WalkerDeathCleanup.capture(heart);
+        return true;
     }
     boolean scheduleNaturalRemoval(ServerLevel level, UUID owner, Vec3 point) {
         if (recorded(owner)) return false;
@@ -136,6 +138,7 @@ public final class LifeLifecycle extends SavedData {
             death.weighted=heart.weighted(); death.rolls=heart.rolls();
         }
         deaths.put(heart.creatureId(), death);
+        death.walkerAttachments = dev.sablelife.compat.letitwalk.WalkerDeathCleanup.capture(heart);
         ArenaRespawns.death(heart);
         BlueprintSpawns.death(heart);
         death.forceLoading=heart.forceChunkLoading();
@@ -179,7 +182,7 @@ public final class LifeLifecycle extends SavedData {
         if(!jobs.isEmpty()){java.util.Collections.rotate(jobs,-Math.floorMod(cleanupTurn++,jobs.size()));}
         for (var entry : jobs) {
             var death = entry.getValue();
-            if (death.cleaned && death.rewarded) {complete(entry.getKey(),death);continue;}
+            if (death.cleaned && death.rewarded && death.walkerAttachments.isEmpty()) {complete(entry.getKey(),death);continue;}
             if (death.remaining > 0) { death.remaining--; setDirty(); continue; }
             if (server.overworld().getGameTime() < death.retryCleanupAt) continue;
             try {
@@ -214,7 +217,12 @@ public final class LifeLifecycle extends SavedData {
                     }
                     if (!pending) { death.cleaned = true; setDirty(); }
                 }
-                if (death.rewarded) {if(death.cleaned)complete(entry.getKey(),death);continue;}
+                if (death.cleaned && !death.walkerAttachments.isEmpty() && wholeSlots > 0) {
+                    wholeSlots--;
+                    var attachmentLevel = server.getLevel(ResourceKey.create(Registries.DIMENSION, death.dimension));
+                    if (attachmentLevel != null && dev.sablelife.compat.letitwalk.WalkerDeathCleanup.step(attachmentLevel, death.walkerAttachments)) setDirty();
+                }
+                if (death.rewarded) {if(death.cleaned && death.walkerAttachments.isEmpty())complete(entry.getKey(),death);continue;}
                 var level = server.getLevel(ResourceKey.create(Registries.DIMENSION, death.dimension));
                 if (level == null || !level.hasChunkAt(BlockPos.containing(death.point))) continue;
                 death.rewarded = true;
@@ -230,7 +238,7 @@ public final class LifeLifecycle extends SavedData {
                     level.addFreshEntity(item);
                 }
                 if(death.experience>0){if(death.experienceLevels)dev.sablelife.heart.LevelRewardOrb.award(level,death.point,dev.sablelife.heart.ExperienceUnits.levels(death.experience));else ExperienceOrb.award(level,death.point,death.experience);}
-                if(death.cleaned)complete(entry.getKey(),death);
+                if(death.cleaned && death.walkerAttachments.isEmpty())complete(entry.getKey(),death);
             } catch (RuntimeException | LinkageError failure) {
                 death.retryCleanupAt = server.overworld().getGameTime() + 100;
                 com.mojang.logging.LogUtils.getLogger().error("Death cleanup job {} failed. Retrying in 100 ticks.", entry.getKey(), failure);
@@ -246,6 +254,7 @@ public final class LifeLifecycle extends SavedData {
         boolean naturalRemoval;
         boolean cleaned;
         boolean wholeFallback;
+        ListTag walkerAttachments = new ListTag();
         transient long nextWholeAttempt;
         transient long retryCleanupAt;
         boolean forceLoading;
@@ -282,6 +291,7 @@ public final class LifeLifecycle extends SavedData {
                 death.wholeFallback=job.getBoolean("WholeFallback");death.cleaned = job.getBoolean("Cleaned");death.experienceLevels=job.getBoolean("ExperienceLevels");
                 death.forceLoading=job.getBoolean("ForceLoading");
                 death.naturalRemoval=job.getBoolean("NaturalRemoval");
+                death.walkerAttachments=job.getList("WalkerAttachments",10).copy();
                 death.presentation=job.getCompound("Presentation").copy();death.presentationPlayed=job.getBoolean("PresentationPlayed");
                 death.parent = job.hasUUID("Parent") ? job.getUUID("Parent") : null;
                 death.partName = job.getString("PartName");
@@ -297,7 +307,7 @@ public final class LifeLifecycle extends SavedData {
                     death.weighted = job.getBoolean("WeightedLoot");
                     death.rolls = job.contains("LootRolls") ? Math.clamp(job.getInt("LootRolls"), 1, 27) : 1;
                 }
-                if(death.cleaned&&death.rewarded)data.completed.put(job.getUUID("Id"),new Completion(death.parent,death.partName));else data.deaths.put(job.getUUID("Id"), death);
+                if(death.cleaned&&death.rewarded&&death.walkerAttachments.isEmpty())data.completed.put(job.getUUID("Id"),new Completion(death.parent,death.partName));else data.deaths.put(job.getUUID("Id"), death);
             }
         }
         for(var value:tag.getList("CompletedDeaths",10)){
@@ -322,6 +332,7 @@ public final class LifeLifecycle extends SavedData {
             job.putInt("Remaining", death.remaining); job.putInt("Experience", death.experience);job.putBoolean("ExperienceLevels",death.experienceLevels); job.putBoolean("Rewarded", death.rewarded);
             job.putBoolean("WholeFallback",death.wholeFallback);job.putBoolean("Cleaned", death.cleaned);job.putBoolean("ForceLoading",death.forceLoading);
             if(death.naturalRemoval)job.putBoolean("NaturalRemoval",true);
+            if(!death.walkerAttachments.isEmpty())job.put("WalkerAttachments",death.walkerAttachments.copy());
             job.put("Presentation",death.presentation.copy());job.putBoolean("PresentationPlayed",death.presentationPlayed);
             if (death.parent != null) { job.putUUID("Parent", death.parent); job.putString("PartName", death.partName); }
             if (death.templates != null) {

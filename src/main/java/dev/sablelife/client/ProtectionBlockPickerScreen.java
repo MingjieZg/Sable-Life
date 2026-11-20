@@ -14,14 +14,20 @@ import java.util.*;
 
 /** Local, non-consuming block samples. Confirmation sends only validated block IDs to the existing core menu. */
 public class ProtectionBlockPickerScreen extends Screen {
- private final Screen parent;private final HeartSettingsMenu menu;private final Inventory inventory;
+ private final Screen parent;private final HeartSettingsMenu menu;private final dev.sablelife.module.HeartDashboardMenu dashboard;private final UUID module;private final Inventory inventory;
  private final List<ItemStack> samples=new ArrayList<>(Collections.nCopies(27,ItemStack.EMPTY));
  private ItemStack carried=ItemStack.EMPTY;private int x,y,w,h,pitch,inventoryY;private Button confirm;
- public ProtectionBlockPickerScreen(Screen parent,HeartSettingsMenu menu,Inventory inventory){super(tr("crushProtected_inventory"));this.parent=parent;this.menu=menu;this.inventory=inventory;}
+ public ProtectionBlockPickerScreen(Screen parent,HeartSettingsMenu menu,Inventory inventory){super(tr("crushProtected_inventory"));this.parent=parent;this.menu=menu;this.dashboard=null;this.module=null;this.inventory=inventory;}
+ public ProtectionBlockPickerScreen(Screen parent,dev.sablelife.module.HeartDashboardMenu dashboard,UUID module,Inventory inventory){super(tr("crushProtected_inventory"));this.parent=parent;this.menu=null;this.dashboard=dashboard;this.module=module;this.inventory=inventory;}
  private static Component tr(String key){return Component.translatable("core.sablelife."+key);}
- private boolean editable(){var data=menu.snapshot();return data.getBoolean("Ready")&&data.getBoolean("LiveControls");}
+ private boolean editable(){if(dashboard!=null)return dashboard.snapshot().getBoolean("Editable")&&dashboard.snapshot().getList("Modules",10).stream().anyMatch(t->((net.minecraft.nbt.CompoundTag)t).hasUUID("Id")&&((net.minecraft.nbt.CompoundTag)t).getUUID("Id").equals(module));var data=menu.snapshot();return data.getBoolean("Ready")&&data.getBoolean("LiveControls");}
  private List<String> pending(){return samples.stream().filter(s->!s.isEmpty()&&s.getItem() instanceof BlockItem).map(s->BuiltInRegistries.BLOCK.getKey(((BlockItem)s.getItem()).getBlock()).toString()).distinct().toList();}
- protected void commit(List<String> ids){for(String id:ids)PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,0,new UUID(0,0),"core","crushProtectAdd",0,id));}
+ protected void commit(List<String> ids){
+  if(dashboard==null){for(String id:ids)PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,0,new UUID(0,0),"core","crushProtectAdd",0,id));return;}
+  // One revision-checked request; the server reads the actual inventory slots, never client item NBT.
+  var slots=new ArrayList<String>();for(String id:ids)for(int slot=0;slot<36;slot++){var item=inventory.getItem(slot);if(item.getItem() instanceof BlockItem b&&BuiltInRegistries.BLOCK.getKey(b.getBlock()).toString().equals(id)){slots.add(Integer.toString(slot));break;}}
+  if(!slots.isEmpty())PacketDistributor.sendToServer(new ModuleNetworking.Action(dashboard.containerId,dashboard.snapshot().getInt("Revision"),module,"melee_protect","crushInvAdd",0,String.join(",",slots)));
+ }
  @Override protected void init(){pitch=Math.clamp((height-110)/7,8,20);w=9*pitch+24;h=7*pitch+94;x=(width-w)/2;y=(height-h)/2;inventoryY=28+3*pitch+20;
   confirm=addRenderableWidget(LifeUiStyle.button(tr("crushProtected_confirm"),x+10,y+h-25,(w-26)/2,18,()->{if(editable()){commit(pending());onClose();}}));
   addRenderableWidget(LifeUiStyle.button(Component.translatable("dashboard.sablelife.back"),x+16+(w-26)/2,y+h-25,(w-26)/2,18,this::onClose));

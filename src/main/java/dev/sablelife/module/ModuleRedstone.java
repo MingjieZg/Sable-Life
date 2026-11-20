@@ -27,7 +27,7 @@ public final class ModuleRedstone {
         return firstFailure;
     }
     private HeartBlockEntity owner;
-    private static final class Clock {final SignalPulse signal=new SignalPulse();final SignalRamp ramp=new SignalRamp();boolean previous;int sampled;}
+    private static final class Clock {final SignalPulse signal=new SignalPulse();final SignalRamp ramp=new SignalRamp();SignalBuffer buffer;boolean previous;int sampled;}
     private final Map<UUID, Clock> clocks = new HashMap<>();
     public static boolean followsInput(VirtualModule module){return module.value("redstoneStrengthMode")==1&&module.value("trigger")>=1&&module.value("trigger")<=3;}
     public static int inputStrength(HeartBlockEntity heart,VirtualModule module){
@@ -84,6 +84,9 @@ public final class ModuleRedstone {
                 int active=high?(pulse?clock.sampled:strength):0;
                 power=follow?(module.value("redstoneInvert")==1?15-active:active):high!=(module.value("redstoneInvert")==1)?(int)module.value("redstonePower"):0;
                 }
+                int bufferTicks=(int)module.value("redstoneBufferTime");
+                if(bufferTicks>0){if(clock.buffer==null)clock.buffer=new SignalBuffer();power=clock.buffer.tick(heart.getLevel().getGameTime(),power,bufferTicks);}
+                else clock.buffer=null;
                 if(power>0&&ModuleHealthPhase.channelStatus(module,heart,"redstoneChannel").equals("ready")){internal.merge((int)module.value("redstoneChannel")-1,power,Math::max);ChannelDiagnostics.record(trace,module.id(),(int)module.value("redstoneChannel")-1,power);}
                 if(module.hasRedBlue()) external.put(module.id(),new dev.sablelife.heart.HeartWireless.ModuleOutput(module.redBlue(false,heart.getLevel().registryAccess()),module.redBlue(true,heart.getLevel().registryAccess()),power));
                 boolean selectedFace = module.value("redstoneFaces") == 1;

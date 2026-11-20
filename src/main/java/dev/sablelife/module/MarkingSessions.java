@@ -490,6 +490,7 @@ public final class MarkingSessions {
             else ModuleMotionDamping.preview(player,heart,module);
             return;
         }
+        if(module.type().equals("contact_sensor")){ContactSensorGeometry.preview(player,heart,module);return;}
         if(module.type().equals("entity_hitbox")){dev.sablelife.combat.EntityHitboxes.preview(player,heart,module);return;}
         if(module.type().equals("distortion_trail")){ModuleDistortionTrail.preview(player,heart,module);return;}
         if(module.type().equals("visual_shockwave")){

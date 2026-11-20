@@ -183,6 +183,21 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
                 && (!player.isCreative() || !player.canUseGameMasterBlocks())) return false;
         if (!heart.canEdit(player) || revision != heart.modules().revision()) { refresh(); sendAllDataToRemote(); return false; }
         var module = heart.modules().find(id); boolean result;
+        if(operation.equals("melee_protect")){
+            if(module!=null&&module.type().equals("melee")&&key.equals("crushInvAdd")){
+                if(!Double.isFinite(value)||value!=0||text.isEmpty()||text.length()>80)return false;
+                var slots=text.split(",",-1);if(slots.length>27)return false;
+                var chosen=new java.util.LinkedHashSet<Integer>();
+                for(String slot:slots){if(!slot.matches("[0-9]{1,2}"))return false;int index=Integer.parseInt(slot);if(index>=36||!chosen.add(index))return false;}
+                boolean changed=false;var protection=module.meleeProtection(heart);
+                for(int slot:chosen){var item=player.getInventory().getItem(slot);if(!item.isEmpty()&&item.getItem() instanceof net.minecraft.world.item.BlockItem block)
+                    changed|=protection.edit("crushProtectAdd",0,net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block.getBlock()).toString());}
+                if(changed){heart.modules().changed();heart.setChanged();}refresh();broadcastChanges();return changed;
+            }
+            if(module==null||!module.type().equals("melee")||!java.util.Set.of("crushProtectAdd","crushProtectRemove","crushProtectPreset").contains(key))return false;
+            boolean changed=module.meleeProtection(heart).edit(key,value,text);
+            if(changed){heart.modules().changed();heart.setChanged();}refresh();broadcastChanges();return changed;
+        }
         if (operation.equals("edit") && key.equals("facingSensor")) {
             if (module == null || !module.type().equals("auto_facing") || !Double.isFinite(value)
                     || value != Math.rint(value) || value < 0 || value > heart.modules().all().size() || !text.isEmpty()) return false;

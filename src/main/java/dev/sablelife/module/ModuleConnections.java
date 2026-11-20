@@ -19,7 +19,7 @@ public final class ModuleConnections {
  public static List<Endpoint> endpoints(List<VirtualModule> modules){
   var result=new ArrayList<Endpoint>();for(var m:modules){
    int trigger=(int)m.value("trigger");if(trigger==2||trigger==3)endpoint(result,m,(int)m.value("channel")+1,trigger==3,false,"trigger");
-   String key=switch(m.type()){case "wireless_redstone"->"redstoneChannel";case "sensor"->"sensorChannel";case "signal_logic"->"logicChannel";case "hit_counter"->"hitChannel";case "damage_accumulation"->"accumChannel";default->"";};
+   String key=switch(m.type()){case "wireless_redstone"->"redstoneChannel";case "sensor","contact_sensor"->"sensorChannel";case "signal_logic"->"logicChannel";case "hit_counter"->"hitChannel";case "damage_accumulation"->"accumChannel";default->"";};
    if(!key.isEmpty())endpoint(result,m,(int)m.value(key),false,true,key);
    if(m.type().equals("health_phase"))for(var r:m.healthPhaseRules().rows())endpoint(result,m,(int)r.value("phaseChannel"),false,true,"phase");
    if(m.type().equals("navigation"))for(String d:TargetNavigation.DIRECTIONS)endpoint(result,m,(int)m.value("navigation"+d+"Channel"),false,true,"navigation"+d+"Channel");

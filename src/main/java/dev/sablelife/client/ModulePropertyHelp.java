@@ -10,6 +10,8 @@ import java.util.List;
 /** A field's hover describes that field; full module mechanics remain in the manual. */
 final class ModulePropertyHelp {
     static Component label(VirtualModule m,String key){
+        if(m.type().equals("contact_sensor")&&key.equals("startDistance"))return Component.translatable("dashboard.sablelife.contactOffset");
+        if(m.type().equals("contact_sensor")&&key.equals("contactCooldown"))return Component.translatable("dashboard.sablelife.contactPulseCooldown");
         var datapack = dev.sablelife.module.DatapackModules.clientPresentation(m.type());
         if (datapack != null && key.startsWith("addon_")) {
             var label = datapack.optionLabel(key.substring(6));

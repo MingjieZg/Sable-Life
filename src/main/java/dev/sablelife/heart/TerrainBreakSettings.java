@@ -11,7 +11,9 @@ import java.util.*;
 /** Portable core configuration; contacts and delay clocks are deliberately excluded. */
 public final class TerrainBreakSettings {
  public static final int LIMIT=128;
- public static final List<String> SURFACE_PRESET=List.of("grass_block","dirt","coarse_dirt","rooted_dirt","podzol","mycelium","dirt_path","farmland","gravel","sand","red_sand","clay","stone","granite","diorite","andesite","deepslate","tuff","snow","snow_block").stream().map(id->"minecraft:"+id).toList();
+ public static final List<String> SURFACE_PRESET=List.of("grass_block","dirt","coarse_dirt","rooted_dirt","podzol","mycelium","dirt_path","farmland","gravel","sand","red_sand","clay","stone","granite","diorite","andesite","deepslate","tuff","snow","snow_block",
+         "#flowers","#saplings","#leaves","short_grass","tall_grass","fern","large_fern","dead_bush","brown_mushroom","red_mushroom","vine","lily_pad","seagrass","tall_seagrass","kelp","kelp_plant","moss_carpet","pink_petals","azalea","flowering_azalea","small_dripleaf","big_dripleaf","big_dripleaf_stem","hanging_roots","glow_lichen","spore_blossom","cave_vines","cave_vines_plant","sugar_cane","bamboo","bamboo_sapling","crimson_roots","warped_roots","nether_sprouts","weeping_vines","weeping_vines_plant","twisting_vines","twisting_vines_plant")
+         .stream().map(id->id.startsWith("#")?"#minecraft:"+id.substring(1):"minecraft:"+id).toList();
  private boolean enabled,floor=true,debris=true,drops;private int delay;
  private final List<String> entries=new ArrayList<>();private final Set<ResourceLocation> blocks=new HashSet<>();private final List<TagKey<Block>> tags=new ArrayList<>();
  public boolean enabled(){return enabled;}public boolean floor(){return floor;}public boolean debris(){return debris;}public boolean drops(){return drops;}public int delay(){return delay;}public List<String> entries(){return List.copyOf(entries);}

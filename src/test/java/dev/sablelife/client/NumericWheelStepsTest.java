@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class NumericWheelStepsTest {
     @Test void ExplicitUserStepsStayProtected(){
+        assertEquals(1,NumericWheelSteps.module("wireless_redstone","redstoneBufferTime",20,0));
+        assertEquals(.1,NumericWheelSteps.module("auto_facing","facingOffsetLeft",1,-64));
+        assertEquals(.1,NumericWheelSteps.module("auto_facing","facingOffsetUp",1,-64));
         assertEquals(5,NumericWheelSteps.core("health"));
         assertEquals(5,NumericWheelSteps.module("part_break","partBreakThreshold",1,1));
         assertEquals(5,NumericWheelSteps.core("regen"));

@@ -8,6 +8,24 @@ import java.util.*;
 
 /** Rotation about the core, keeping every connected limb's relative pose. */
 public final class AutoFacingGeometry {
+    /** Local aim-origin displacement, with positive values meaning left and up from the marked front. */
+    public static Vec3 aimOffset(Quaterniond orientation,Vec3 localFront,double left,double up){
+        if(left==0&&up==0)return Vec3.ZERO;
+        var localUp=Math.abs(localFront.y)>.9?new Vec3(0,0,-1):new Vec3(0,1,0);
+        var localLeft=localUp.cross(localFront).normalize();
+        localUp=localFront.cross(localLeft).normalize();
+        return ContactBox.rotate(orientation,localLeft.scale(left).add(localUp.scale(up)));
+    }
+    /** Reference vector whose rotation puts the displaced forward ray through the target. */
+    public static Vec3 aimReference(Vec3 front,Vec3 desired,Vec3 offset,boolean vertical){
+        if(!vertical){front=new Vec3(front.x,0,front.z);desired=new Vec3(desired.x,0,desired.z);offset=new Vec3(offset.x,0,offset.z);}
+        if(front.lengthSqr()<1e-10||desired.lengthSqr()<1e-10)return null;
+        front=front.normalize();double along=offset.dot(front),side=Math.max(0,offset.lengthSqr()-along*along);
+        double remaining=desired.lengthSqr()-side;
+        if(remaining<0)return null;
+        double distance=Math.sqrt(remaining)-along;
+        return distance<=1e-6?null:offset.add(front.scale(distance));
+    }
     public static Quaterniond turn(Vec3 front,Vec3 desired,boolean vertical,double maximumDegrees){
         if(!vertical){front=new Vec3(front.x,0,front.z);desired=new Vec3(desired.x,0,desired.z);}
         if(front.lengthSqr()<1e-10||desired.lengthSqr()<1e-10)return new Quaterniond();

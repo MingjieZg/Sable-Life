@@ -40,10 +40,12 @@ public final class ModuleCombat {
         final Map<UUID, Long> hits = new HashMap<>();
         final Map<UUID, Integer> meleeHitCounts = new HashMap<>();
         MeleeGeometry.Frame meleeFrame;
+        MeleeBlockBreaker.Cursor terrainCursor;
     }
     private final Map<UUID, State> states = new HashMap<>();
+    private final MeleeBlockBreaker terrain = new MeleeBlockBreaker();
     public boolean pulseTarget(UUID id) { var state = states.get(id); return state != null && state.pulseTarget; }
-    public void clear() { states.clear(); }
+    public void clear() { states.clear(); terrain.clear(); }
     public void tick(HeartBlockEntity heart) {
         if (!(heart.getLevel() instanceof ServerLevel level)) return;
         var world = level.getServer().getLevel(level.dimension()); if (world == null) return;
@@ -169,6 +171,11 @@ public final class ModuleCombat {
                 break;
             }
         }
+        if(module.value("meleeBreakBlocks")==1){
+            boolean starting=state.terrainCursor==null;
+            if(starting)state.terrainCursor=new MeleeBlockBreaker.Cursor();
+            terrain.sweep(world,heart,module,starting?frame:previous,frame,state.terrainCursor,cost);
+        }else state.terrainCursor=null;
         state.meleeFrame=frame;state.tick=now;
     }
     private void push(LivingEntity victim, Vec3 origin, double strength) {

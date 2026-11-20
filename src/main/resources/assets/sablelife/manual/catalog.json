@@ -1,5 +1,5 @@
 {
-  "revision": 241,
+  "revision": 253,
   "entries": [
     {
       "id": "getting_started",
@@ -191,7 +191,8 @@
           "manual.sablelife.server_limits.brief_usage"
         ],
         "example": [
-          "manual.sablelife.server_limits.example"
+          "manual.sablelife.server_limits.example",
+          "manual.sablelife.server_limits.commands"
         ],
         "troubleshooting": [
           "manual.sablelife.server_limits.troubleshooting"
@@ -309,6 +310,23 @@
         ]
       },
       "module": "sensor"
+    },
+    {
+      "id": "contact_sensor",
+      "title": "dashboard.sablelife.type_contact_sensor",
+      "module": "contact_sensor",
+      "sections": {
+        "usage": [
+          "manual.sablelife.contact_sensor.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.contact_sensor.settings",
+          "manual.sablelife.contact_sensor.example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.contact_sensor.troubleshooting"
+        ]
+      }
     },
     {
       "id": "navigation",

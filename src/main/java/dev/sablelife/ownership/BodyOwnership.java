@@ -46,6 +46,8 @@ public final class BodyOwnership extends SavedData {
     private static long chunkKey(BlockPos pos){return net.minecraft.world.level.ChunkPos.asLong(pos.getX()>>4,pos.getZ()>>4);}
     java.util.Set<Long> trackedChunks(){return byChunk.keySet();}
     java.util.Set<Long> chunkRecords(long chunk){return byChunk.getOrDefault(chunk,java.util.Set.of());}
+    /** Read-only snapshot for optional exact-plot cleanup adapters. */
+    public java.util.Set<Long> recordsInChunk(long chunk){return java.util.Set.copyOf(chunkRecords(chunk));}
     boolean matchesCleanup(BlockPos pos,UUID id,boolean part){return id.equals(part?parts.get(pos.asLong()):owners.get(pos.asLong()));}
     java.util.Set<Long> cleanupPositions(UUID id,boolean part){return (part?byPart:byOwner).getOrDefault(id,java.util.Set.of());}
     void finishCleanup(UUID id,boolean part){if(cleanupPositions(id,part).isEmpty())(part?partCursors:ownerCursors).remove(id);}

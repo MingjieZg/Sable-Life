@@ -4,11 +4,13 @@ Sable Life is a Minecraft 1.21.1 NeoForge mod built on top of **Create** and **S
 
 Downloads, screenshots and the full gameplay description are available on [CurseForge](https://www.curseforge.com/minecraft/mc-mods/sable-life). This repository focuses on source code, dependencies, compatibility and development.
 
-## Current Version
+## Current Source Version
 
-**0.1.440**
+**0.1.450**
 
-[中文更新清单](docs/releases/0.1.440.md) · [English changelog](docs/releases/0.1.440_EN.md) · [Stress-test results](docs/performance/STRESS_TESTS_EN.md)
+[中文更新清单](docs/releases/0.1.450.md) · [English changelog](docs/releases/0.1.450_EN.md) · [Stress-test results](docs/TEST_REPORTS.md)
+
+Latest published release: [0.1.440](https://github.com/MingjieZg/Sable-Life/releases/tag/v0.1.440). Version 0.1.450 is the current source and local test candidate.
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
@@ -70,7 +72,7 @@ The built-in client adapter recovers identified LittleTiles mesh-loss and upload
 
 Core Remote checks **AeroClaims 0.9.5** permissions through its supported API. Supported permission denials and failed checks continue to block access.
 
-Other detected claim integrations, including FTB Chunks and Open Parties and Claims, are not covered by that permission adapter. Core Remote and remote Inspection Tool access are blocked by default when such an integration is unavailable. Server owners can explicitly allow this access by setting `allowCoreRemoteWithUnsupportedClaims = true` in the current world's `serverconfig/sablelife-server.toml`. This enables remote use without a supported claim-permission check for those integrations. Core editing eligibility, binding reach, dimension, loading and world protection checks still apply; supported AeroClaims permissions remain enforced. This setting is not native FTB Chunks or Open Parties and Claims permission integration.
+Other detected claim integrations, including FTB Chunks and Open Parties and Claims, are not covered by that permission adapter. New world/server configurations default `allowCoreRemoteWithUnsupportedClaims` to `true`, allowing Core Remote and remote Inspection Tool access when a supported claim interface is unavailable. Existing saved values remain unchanged. Server owners can set it to `false` in the current world's `serverconfig/sablelife-server.toml` to reject access with unsupported integrations. Core editing eligibility, binding reach, dimension, loading and world protection checks still apply; supported AeroClaims permissions remain enforced. This setting is not native FTB Chunks or Open Parties and Claims permission integration.
 
 ### CBC addon coverage
 

@@ -22,7 +22,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 
-/** Optional combat lookup. Walker limbs retain their own assembly, persistence and removal rules. */
+/** Optional, version-checked lookup of live Walker attachment paths. */
 public final class WalkerLegDamage {
     private static final String MOD = "let_it_walk";
     private static final Map<ServerLevel, Snapshot> snapshots = new WeakHashMap<>();
@@ -123,6 +123,28 @@ public final class WalkerLegDamage {
         return ownership.part(hit) == null && (owner == null || heart.creatureId().equals(owner));
     }
 
+    /** Death-only snapshot; never extends marking, activation or ordinary block ownership. */
+    static Set<SubLevel> deathAttachments(HeartBlockEntity heart) {
+        var api = access();
+        if (api == null || !(heart.getLevel() instanceof ServerLevel level)) return Set.of();
+        try {
+            var container = SubLevelContainer.getContainer(level);
+            if (container == null) return Set.of();
+            var index = snapshot(level, api);
+            var result = new LinkedHashSet<SubLevel>();
+            for (var id : index.legs.keySet()) {
+                var body = container.getSubLevel(id);
+                // BuiltLeg retains its exact segment IDs after a hinge or a cored segment is destroyed.
+                // Death cleanup includes those remnants; combat still requires every live hinge below.
+                if (body != null && attachedOwner(level, body, index, api, false, false) == heart) result.add(body);
+            }
+            return result;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            disable(failure);
+            return Set.of();
+        }
+    }
+
     private static Snapshot snapshot(ServerLevel level, Access api) throws ReflectiveOperationException {
         long tick = level.getGameTime();
         var previous = snapshots.get(level);
@@ -185,6 +207,11 @@ public final class WalkerLegDamage {
 
     private static @Nullable HeartBlockEntity owner(ServerLevel level, SubLevel body, Snapshot index, Access api)
             throws ReflectiveOperationException {
+        return attachedOwner(level, body, index, api, true, true);
+    }
+
+    private static @Nullable HeartBlockEntity attachedOwner(ServerLevel level, SubLevel body, Snapshot index, Access api, boolean requireAlive, boolean checkJoints)
+            throws ReflectiveOperationException {
         if (body.isRemoved()) return null;
         var candidate = index.legs.get(body.getUniqueId());
         if (candidate == null) return null;
@@ -196,7 +223,7 @@ public final class WalkerLegDamage {
                 || !candidate.hull.equals(hull.getUniqueId()) || !((List<?>) api.legs.get(walker)).contains(runtime)) return null;
         var container = SubLevelContainer.getContainer(level);
         if (container == null) return null;
-        for (var joint : candidate.joints) {
+        if (checkJoints) for (var joint : candidate.joints) {
             var parent = container.getSubLevel(joint.parent);
             var child = container.getSubLevel(joint.child);
             if (parent == null || child == null || parent.isRemoved() || child.isRemoved()
@@ -207,7 +234,7 @@ public final class WalkerLegDamage {
         var hearts = SableBodyProbe.findConnectedHearts(level, candidate.walker);
         if (hearts.size() != 1) return null;
         var heart = hearts.getFirst();
-        return !heart.isControlCore() && heart.health().state() == HeartState.ALIVE
+        return !heart.isControlCore() && (!requireAlive || heart.health().state() == HeartState.ALIVE)
                 && heart.creatureId().equals(BodyOwnership.get(level).owner(heart.getBlockPos())) ? heart : null;
     }
 

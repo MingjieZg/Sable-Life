@@ -9,12 +9,12 @@ import java.util.ArrayList;
 
 /** Persistent authoring settings shared by the dashboard and validated server runtime. */
 public final class VirtualModule {
-    public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping");
+    public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping", "contact_sensor");
     /** New-module catalog grouped by sidebar color: signal, weapon, function. */
     public static final List<String> AVAILABLE_TYPES = List.of(
             "move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation",
             "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon",
-            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping");
+            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping", "contact_sensor");
     public record Emitter(net.minecraft.world.phys.Vec3 position,net.minecraft.world.phys.Vec3 direction,org.joml.Quaterniond rotation,UUID audioOwner){}
     private Emitter emitter;
     public Emitter emitter(){return emitter;}
@@ -31,6 +31,15 @@ public final class VirtualModule {
     public HealthPhaseRules healthPhaseRules(){return healthPhaseRules;}
     private final ArmorRules armorRules=new ArmorRules();
     public ArmorRules armorRules(){return armorRules;}
+    private MeleeBlockProtection meleeProtection;
+    private boolean legacyMeleeProtection, legacyMeleeDrops;
+    public MeleeBlockProtection meleeProtection(){if(meleeProtection==null)meleeProtection=new MeleeBlockProtection();return meleeProtection;}
+    /** One-time copy for 445 modules that previously read the core's list. New modules start empty. */
+    public MeleeBlockProtection meleeProtection(dev.sablelife.heart.HeartBlockEntity heart){
+        if(legacyMeleeDrops){settings.putDouble("meleeDrops",heart.terrainSettings().drops()?1:0);legacyMeleeDrops=false;heart.setChanged();}
+        if(legacyMeleeProtection){meleeProtection().load(heart.terrainSettings().save());legacyMeleeProtection=false;heart.setChanged();}
+        return meleeProtection();
+    }
     private final CommandProgram commands = new CommandProgram();
     public CommandProgram commands() { return commands; }
     private MessageProgram messages;
@@ -357,6 +366,7 @@ public final class VirtualModule {
         if(!type.equals("loot"))lootSamples=new CompoundTag();
         else {var samples=new CompoundTag();for(int i=0;i<27;i++)for(var prefix:List.of("Slot","Chance","Weight")){var key=prefix+i;if(lootSamples.contains(key))samples.put(key,lootSamples.get(key).copy());}lootSamples=samples;}
         impactField(null);summonAttack(null);facingSensor(null);
+        if(type.equals("contact_sensor"))settings.putDouble("sensorChannel",0);
         if(type.equals("hit_counter")){settings.putDouble("hitChannel",0);hitSource(null,0);}
         if(type.equals("wireless_redstone"))settings.putDouble("redstoneChannel",0);
         arenaBuffs.unbind();armorRules.unbind();healthPhaseRules.unbind();
@@ -384,7 +394,7 @@ public final class VirtualModule {
         if(type.equals("navigation"))for(String direction:TargetNavigation.DIRECTIONS){String key="navigation"+direction+"Channel";int output=(int)value(key);if(output>index){settings.putDouble(key,output==index+1?0:output-1);changed=true;}}
         if(type.equals("signal_turn"))for(String direction:ModuleSignalTurn.DIRECTIONS){int output=(int)value(direction+"Channel");if(output>index){settings.putDouble(direction+"Channel",output==index+1?0:output-1);changed=true;}}
         if(type.equals("wireless_redstone")){int output=(int)value("redstoneChannel");if(output>index){settings.putDouble("redstoneChannel",output==index+1?0:output-1);changed=true;}}
-        if(type.equals("sensor")){int output=(int)value("sensorChannel");if(output>index){settings.putDouble("sensorChannel",output==index+1?0:output-1);changed=true;}}
+        if(type.equals("sensor")||type.equals("contact_sensor")){int output=(int)value("sensorChannel");if(output>index){settings.putDouble("sensorChannel",output==index+1?0:output-1);changed=true;}}
         if (type.equals("damage_accumulation")) {
             int output=(int)value("accumChannel");
             if(output>index){settings.putDouble("accumChannel",output==index+1?0:output-1);changed=true;}
@@ -415,6 +425,8 @@ public final class VirtualModule {
     }; }
     public boolean edit(String key, double value, String text) {
         if (!known() || !Double.isFinite(value)) return false;
+        if(type.equals("melee")&&List.of("meleeBreakBlocks","meleeDebris","meleeDrops").contains(key)&&value!=0&&value!=1)return false;
+        if(type.equals("melee")&&key.equals("meleeDrops"))legacyMeleeDrops=false;
         if(type.equals("health_phase")&&HealthPhaseRules.FIELDS.contains(key)){if(healthPhaseRules.rows().isEmpty())healthPhaseRules.add();return healthPhaseRules.rows().getFirst().edit(key,value);}
         if(type.equals("wireless_redstone")&&key.equals("redstoneRampRange")){
             var pair=text.split("\\|",-1);if(pair.length!=2)return false;
@@ -489,6 +501,7 @@ public final class VirtualModule {
         if(type.equals("health_phase"))tag.put("HealthPhaseRules",healthPhaseRules.save());
         if(SignalRules.supported(type))tag.put("SignalRules",signalRules().save());
         if(type.equals("armor"))tag.put("ArmorRules",armorRules.save());
+        if(type.equals("melee")&&!legacyMeleeProtection)tag.put("MeleeProtection",meleeProtection().save());
         if(type.equals("arena"))tag.put("ArenaBuffGroups",arenaBuffs.save());
         if (arenaCenter != null) {
             var center = new CompoundTag(); center.putDouble("X", arenaCenter.x); center.putDouble("Y", arenaCenter.y); center.putDouble("Z", arenaCenter.z);
@@ -523,6 +536,7 @@ public final class VirtualModule {
             var areaMarks = new ListTag(); anchors.forEach(a -> areaMarks.add(a.save())); tag.put("ParticleAreaAnchors", areaMarks);
             var pointMarks = new ListTag(); particlePointAnchors.forEach(a -> pointMarks.add(a.save())); tag.put("ParticlePointAnchors", pointMarks);
         }
+        if(legacyMeleeDrops)tag.getCompound("Settings").remove("meleeDrops");
         return tag;
     }
     public static VirtualModule load(CompoundTag tag) {
@@ -544,6 +558,14 @@ public final class VirtualModule {
         }
         if(SignalRules.supported(module.type)&&tag.contains("SignalRules"))module.signalRules().load(tag.getList("SignalRules",10));
         var saved = tag.getCompound("Settings");
+        if(module.type.equals("melee")){
+            // Older melee used the core's drop preference and emitted no flying debris.
+            module.legacyMeleeDrops=!saved.contains("meleeDrops",99);
+            if(!saved.contains("meleeDebris",99))module.settings.putDouble("meleeDebris",0);
+        }
+        // New modules default Off; old modules lacking this field historically checked collisions.
+        if (module.type.equals("auto_facing") && !saved.contains("facingCollision", 99))
+            module.settings.putDouble("facingCollision", 1);
         // Older attack modules either had no sight check or defaulted to Off.
         if (ModuleFields.legacyAttackSightOff(module.type) && !saved.contains("lineOfSight", 99))
             module.settings.putDouble("lineOfSight", 0);
@@ -567,6 +589,10 @@ public final class VirtualModule {
             if (ArenaBattleTitle.isTemplate(field.key()) && !saved.contains(field.key(), Tag.TAG_STRING)) continue;
             if (field.choices().equals(List.of("library"))) module.settings.putString(field.key(), saved.getString(field.key()));
             else module.edit(field.key(), saved.getDouble(field.key()), ModuleFields.arenaText(field.key()) ? saved.getString(field.key()) : "");
+        }
+        if(module.type.equals("melee")){
+            if(tag.contains("MeleeProtection",Tag.TAG_COMPOUND))module.meleeProtection().load(tag.getCompound("MeleeProtection"));
+            else module.legacyMeleeProtection=module.value("meleeBreakBlocks")==1;
         }
         // Older Arena modules shared one countdown between lethal and nonlethal warnings.
         if (module.type.equals("arena") && !saved.contains("arenaPlayerDeathCountdown"))

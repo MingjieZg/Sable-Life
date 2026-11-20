@@ -37,7 +37,13 @@ public final class ModulePickerScreen extends Screen {
         for(int i=0;i<categories.length;i++){var key=categories[i];int start=categoryWidth*i/categories.length,end=categoryWidth*(i+1)/categories.length;var b=addRenderableWidget(LifeUiStyle.button(tr(key),x+16+searchWidth+start,y+34,end-start-(i+1<categories.length?3:0),18,()->{category=key;page=0;selected=null;deleteUntil=0;rebuildWidgets();}));b.active=!category.equals(key);if(List.of("signal","weapon","function").contains(key))LifeUiStyle.bookmark(b,ModuleCategory.valueOf(key.toUpperCase(Locale.ROOT)).color);}
         var choices=new ArrayList<Choice>();
         if(category.equals("preset")){for(var preset:ModulePresetLibrary.load())if(types.contains(preset.module().getString("Type")))choices.add(new Choice(preset.module().getString("Type"),preset.name(),preset));}
-        else for(String type:types)if(category.equals("all")||ModuleCategory.of(type).key.equals(category))choices.add(new Choice(type,"",null));
+        else {
+            for(String type:types)if(category.equals("all")||ModuleCategory.of(type).key.equals(category))choices.add(new Choice(type,"",null));
+            // Catalog placement is independent of the stable availability/protocol list.
+            choices.sort(Comparator.comparingInt((Choice c)->switch(ModuleCategory.of(c.type)){
+                case SIGNAL -> 0; case WEAPON -> 1; case FUNCTION -> 2;
+            }).thenComparingInt(c->catalogOrder(c.type)));
+        }
         String needle=query.strip().toLowerCase(Locale.ROOT);
         choices.removeIf(c->{
             var datapack = DatapackModules.clientPresentation(c.type);
@@ -70,6 +76,11 @@ public final class ModulePickerScreen extends Screen {
             var down=addRenderableWidget(LifeUiStyle.button(Component.literal("↓"),sortX+25,y+h-25,22,18,()->sortPreset(choices.get(selectedIndex+1).name)));down.active=index>=0&&index<choices.size()-1;down.setTooltip(Tooltip.create(tr("move_down")));
         }
 
+    }
+    private static int catalogOrder(String type){
+        // Keep contact detection beside target detection rather than after newer functions.
+        int index=VirtualModule.AVAILABLE_TYPES.indexOf(type.equals("contact_sensor")?"sensor":type);
+        return index<0?Integer.MAX_VALUE:index*2+(type.equals("contact_sensor")?1:0);
     }
     private void sortPreset(String neighbor){if(selected==null||selected.preset==null)return;try{ModulePresetLibrary.moveRelative(selected.name,neighbor);deleteUntil=0;lastClick=0;followSorted=true;rebuildWidgets();}catch(java.io.IOException e){error=tr("failed");}}
     private void loadSelected(){if(selected==null||!parent.canAddModule())return;if(selected.preset==null)parent.addType(selected.type);else parent.addPreset(selected.preset.module());onClose();}

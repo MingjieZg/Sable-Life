@@ -22,7 +22,7 @@ public final class AutoFacingGameTests {
     @GameTest(template="combat",batch="facing_collision_off",timeoutTicks=35)
     public static void CollisionOffForcesPitchEvenWhenGroundBlocksTurn(GameTestHelper h){
         var core=fixture(h);for(var pos:BlockPos.betweenClosed(h.absolutePos(new BlockPos(0,5,0)),h.absolutePos(new BlockPos(9,5,9))))h.getLevel().setBlockAndUpdate(pos,Blocks.STONE.defaultBlockState());
-        var m=core.modules().add("auto_facing");m.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));m.edit("target",1,"");m.edit("facingVertical",1,"");h.assertTrue(m.value("facingCollision")==1,"Old/new default no longer safe");m.edit("facingCollision",0,"");h.assertTrue(VirtualModule.load(m.save()).value("facingCollision")==0,"Collision toggle lost on save");
+        var m=core.modules().add("auto_facing");m.anchors(List.of(ModuleAnchor.create(core,core.getBlockPos(),Direction.NORTH)));m.edit("target",1,"");m.edit("facingVertical",1,"");h.assertTrue(m.value("facingCollision")==0,"New module did not default collision Off");h.assertTrue(VirtualModule.load(m.save()).value("facingCollision")==0,"Collision toggle lost on save");
         var pivot=SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter());var cow=EntityType.COW.create(h.getLevel());cow.setNoAi(true);cow.setNoGravity(true);cow.setPos(pivot.add(6,8,0));h.getLevel().addFreshEntity(cow);core.tryActivate(TestActors.creative(h.getLevel()));
         h.runAfterDelay(12,()->{var front=ContactBox.rotate(new Quaterniond(m.anchors().getFirst().body(core).logicalPose().orientation()),new Vec3(0,0,-1));h.assertTrue(front.y>.2,"Off retained pitch collision veto: "+front);cow.discard();h.succeed();});
     }
@@ -47,7 +47,7 @@ public final class AutoFacingGameTests {
     @GameTest(template="combat",timeoutTicks=45)
     public static void GroundBlockedPitchDoesNotStopHorizontalTracking(GameTestHelper h){
         var heart=fixture(h);for(var pos:BlockPos.betweenClosed(h.absolutePos(new BlockPos(0,5,0)),h.absolutePos(new BlockPos(9,5,9))))h.getLevel().setBlockAndUpdate(pos,Blocks.STONE.defaultBlockState());
-        var module=heart.modules().add("auto_facing");module.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos(),Direction.NORTH)));module.edit("target",1,"");module.edit("facingRange",10,"");module.edit("facingVertical",1,"");
+        var module=heart.modules().add("auto_facing");module.anchors(List.of(ModuleAnchor.create(heart,heart.getBlockPos(),Direction.NORTH)));module.edit("target",1,"");module.edit("facingRange",10,"");module.edit("facingVertical",1,"");module.edit("facingCollision",1,"");
         var pivot=SableBodyProbe.toWorld(h.getLevel(),heart.getBlockPos().getCenter());var desired=new Vec3(6,7.7,0);var bodies=LinearMovementGeometry.capture(heart);double radius=AutoFacingGeometry.radius(bodies,pivot);
         h.assertTrue(!AutoFacingGeometry.clearTurn(h.getLevel(),bodies,pivot,AutoFacingGeometry.turn(new Vec3(0,0,-1),desired,true,9),radius),"Fixture did not block combined pitch");
         h.assertTrue(AutoFacingGeometry.clearTurn(h.getLevel(),bodies,pivot,AutoFacingGeometry.turn(new Vec3(0,0,-1),desired,false,9),radius),"Fixture incorrectly blocked yaw");

@@ -20,7 +20,8 @@ public final class CoreCommandGameTests {
         h.assertTrue(cleanup!=null&&cleanup.getChild("scan").getChild("all")!=null&&cleanup.getChild("apply").getChild("radius")!=null,"Residue recovery command disappeared");
         h.assertTrue(dispatcher.getRoot().getChild("sablelife_respawn").getChild("cancel")!=null,"Orphan respawn recovery disappeared");
         var source=h.getLevel().getServer().createCommandSourceStack();
-        h.assertTrue(root.canUse(source.withPermission(2))&&!root.canUse(source.withPermission(0)),"Diagnostic root lost its operator restriction");
+        h.assertTrue(root.canUse(source.withPermission(0)),"Public help root became operator-only");
+        for(var key:List.of("inspect","damage","cleanup"))h.assertTrue(root.getChild(key).canUse(source.withPermission(2))&&!root.getChild(key).canUse(source.withPermission(0)),"Diagnostic action lost its operator restriction: "+key);
         h.succeed();
     }
 

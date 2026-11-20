@@ -203,6 +203,7 @@ public final class SableLife {
         NeoForge.EVENT_BUS.addListener(dev.sablelife.module.ModuleMessageDisplay::stopped);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.combat.EntityHitboxes::endTick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BlueprintSpawns::tick);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.CommandBlueprintSpawns::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.WildEncounters::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::beforeTick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::tick);

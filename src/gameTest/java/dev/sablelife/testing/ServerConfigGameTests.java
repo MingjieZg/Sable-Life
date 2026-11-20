@@ -50,19 +50,22 @@ public final class ServerConfigGameTests {
     }
 
     @GameTest(template="combat",batch="remote_claim_config_upgrade")
-    public static void OldConfigKeepsValuesAndDefaultsUnsupportedClaimsToOff(GameTestHelper h) {
+    public static void MissingClaimSettingDefaultsOnAndSavedChoicesSurviveReload(GameTestHelper h) {
         var config = new TomlParser().parse("maximumModulesPerCreature = 128\nallowEditHeartCoreUnderSurvivalMode = true\n");
         SableLifeServerConfig.LOADER_SPEC.correct(config);
-        h.assertTrue(Boolean.FALSE.equals(config.get("allowCoreRemoteWithUnsupportedClaims")), "Old config did not default to protected access");
+        h.assertTrue(Boolean.TRUE.equals(config.get("allowCoreRemoteWithUnsupportedClaims")), "Missing setting did not use the new true default");
         h.assertTrue(config.getInt("maximumModulesPerCreature") == 128
                 && Boolean.TRUE.equals(config.get("allowEditHeartCoreUnderSurvivalMode")), "Adding the switch changed existing settings");
-        config.set("allowCoreRemoteWithUnsupportedClaims", true);
         var writer = new com.electronwill.nightconfig.toml.TomlWriter();
-        var reloaded = new TomlParser().parse(writer.writeToString(config));
-        SableLifeServerConfig.LOADER_SPEC.correct(reloaded);
-        SableLifeServerConfig.LOADER_SPEC.correct(reloaded);
-        h.assertTrue(SableLifeServerConfig.LOADER_SPEC.isCorrect(reloaded)
-                && Boolean.TRUE.equals(reloaded.get("allowCoreRemoteWithUnsupportedClaims")), "Saving/reloading or repeated correction reset explicit opt-in");
+        for (boolean saved : new boolean[]{false, true}) {
+            config.set("allowCoreRemoteWithUnsupportedClaims", saved);
+            var reloaded = new TomlParser().parse(writer.writeToString(config));
+            SableLifeServerConfig.LOADER_SPEC.correct(reloaded);
+            SableLifeServerConfig.LOADER_SPEC.correct(reloaded);
+            h.assertTrue(SableLifeServerConfig.LOADER_SPEC.isCorrect(reloaded)
+                    && Boolean.valueOf(saved).equals(reloaded.get("allowCoreRemoteWithUnsupportedClaims")),
+                    "Saving/reloading or repeated correction reset saved " + saved);
+        }
         h.succeed();
     }
 

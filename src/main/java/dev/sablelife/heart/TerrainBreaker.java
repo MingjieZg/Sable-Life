@@ -37,10 +37,11 @@ public final class TerrainBreaker {
     long at=(cursor+i)%total;int x,y,z;if(axis==0){long layer=at/(ny*nz);x=positive?maxX-(int)layer:minX+(int)layer;y=minY+(int)(at%ny);z=minZ+(int)(at/ny%nz);}else{long layer=at/(nx*ny);z=positive?maxZ-(int)layer:minZ+(int)layer;x=minX+(int)(at%nx);y=minY+(int)(at/nx%ny);}
     if(!spend(level))break;var pos=new BlockPos(x,y,z);if(!level.hasChunkAt(pos)||!level.getWorldBorder().isWithinBounds(pos)||Sable.HELPER.getContaining(level,pos)!=null)continue;var state=level.getBlockState(pos);
     if(state.isAir()||state.getDestroySpeed(level,pos)<0||heart.terrainSettings().protects(state))continue;
-    var shapes=state.getCollisionShape(level,pos).toAabbs();if(shapes.isEmpty())continue;
+    var collision=state.getCollisionShape(level,pos);boolean solid=!collision.isEmpty();
+    var shapes=(solid?collision:TerrainBlockShapes.outline(level,pos,state)).toAabbs();if(shapes.isEmpty())continue;
     boolean hit=false,support=false;Vec3 point=pos.getCenter();
-    for(var shape:shapes){var box=shape.move(pos);var contact=contact(level,body,box,requested);if(contact!=null){hit=true;support|=contact.support;point=contact.point;}}
-    if(hit&&heart.terrainSettings().floor()&&!support)for(var other:supportBodies)if(other.body()!=body.body()&&other.box().inflate(.1).intersects(new AABB(pos))){for(var shape:shapes){var floorContact=contact(level,other,shape.move(pos),Vec3.ZERO);if(floorContact!=null&&floorContact.support)support=true;}}
+    for(var shape:shapes){var box=shape.move(pos);var contact=contact(level,body,box,requested);if(contact!=null){hit=true;support|=solid&&contact.support;point=contact.point;}}
+    if(hit&&solid&&heart.terrainSettings().floor()&&!support)for(var other:supportBodies)if(other.body()!=body.body()&&other.box().inflate(.1).intersects(new AABB(pos))){for(var shape:shapes){var floorContact=contact(level,other,shape.move(pos),Vec3.ZERO);if(floorContact!=null&&floorContact.support)support=true;}}
     if(!hit||work<=0||heart.terrainSettings().floor()&&support)continue;
     var old=pending.get(pos);if(old==null||old.state!=state||now-old.seen>10)old=new Pending(state,now,now);
     if(pending.size()<512||pending.containsKey(pos))pending.put(pos,new Pending(state,old.start,now));else continue;

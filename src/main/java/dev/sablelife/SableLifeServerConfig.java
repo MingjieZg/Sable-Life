@@ -78,12 +78,13 @@ public final class SableLifeServerConfig {
                 "Players can farm items and experience or destroy terrain. These effects can be difficult to control.")
                 .define("allowEditHeartCoreUnderSurvivalMode", false);
         UNSUPPORTED_REMOTE_CLAIMS = builder.comment(
-                "Allow Core Remote use when a detected claim mod has no supported permission integration. Default false.",
+                "Allow Core Remote use when a detected claim mod has no supported permission integration. Default true.",
+                "Set false to reject remote access when a claim integration is unavailable. Existing saved values are retained.",
                 "This also applies in singleplayer and to Core Remote-based inspection access.",
                 "Supported integrations still enforce claim permissions, including denied or failed checks.",
                 "Core editing permissions, binding reach, dimension, loading and world protection checks still apply.")
                 .translation("config.sablelife.allow_unsupported_remote_claims")
-                .define("allowCoreRemoteWithUnsupportedClaims", false);
+                .define("allowCoreRemoteWithUnsupportedClaims", true);
         WILD_ENCOUNTERS = builder.comment(
                 "Master switch for the Wild Encounter Tool and natural blueprint encounters.",
                 "Set false to disable automatic and test spawning and suspend encounter lifetime cleanup. Saved rules are retained.")

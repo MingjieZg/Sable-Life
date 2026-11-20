@@ -8,6 +8,9 @@ public final class NumericWheelSteps {
     private static final Set<String> WHOLE=Set.of("grabCount","slashCount","slashRed","slashGreen","slashBlue","damage","blastDamage","arrows","burn","rolls","density","beamHits","meleeHitLimit","strikeRays","strikeRandomCount","quakeWaves","homingCount","sensorChannel","sensorPower","accumChannel","accumPower","phaseChannel","phasePower","resetChannel","redstoneChannel","redstonePower","redstoneRampStart","redstoneRampEnd","dispatchWeight","hitThreshold","hitSource","hitChannel","hitPower","phaseUpper","phaseLower");
     private static final Set<String> BLOCKS=Set.of("moveTargetRange","castTargetRange","slashLength","slashSpeed","sphereDistance","range","radius","innerRadius","targetRange","facingRange","arenaRadius","warningRange","bgmRadius","quakeRange","quakeDetectRange","strikeRange","strikeHeight","strikeStep","beamLength","pullRadius","pullLength","dispatchNear","dispatchFar");
     public static double module(String type,String key,double scale,double minimum){
+        if(type.equals("auto_facing")&&(key.equals("facingOffsetLeft")||key.equals("facingOffsetUp")))return .1;
+        if(type.equals("wireless_redstone")&&key.equals("redstoneBufferTime"))return 1;
+        if(type.equals("contact_sensor")){if(key.equals("contactPulse")||key.equals("contactCooldown"))return .05;if(key.equals("sensorChannel")||key.equals("sensorPower"))return 1;}
         if(type.equals("propulsion")){if(key.equals("propStrength"))return 1;if(key.equals("propMaxSpeed"))return 1;if(key.equals("propDuration")||key.equals("interval"))return .1;}
         if(dev.sablelife.module.ModuleColors.parent(type,key)!=null)return 1;
         if(type.equals("damage_accumulation")&&(key.equals("accumRequired")||key.equals("accumThreshold")))return 5;

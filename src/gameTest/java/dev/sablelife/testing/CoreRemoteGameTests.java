@@ -274,9 +274,13 @@ public final class CoreRemoteGameTests {
         var player = new Editor(level, GameType.SURVIVAL);
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(SableLife.CORE_REMOTE.get()));
         if (unsupportedClaimsVersion()) {
-            test.assertTrue(!bind(player, core), "An unsupported claim version allowed a remote binding");
-            test.assertTrue(player.lastMessage.equals("message.sablelife.core_remote_unsupported_aeroclaims"),
-                    "Wrong diagnostic for unsupported AeroClaims: " + player.lastMessage);
+            var setting=unsupportedClaimOption();boolean previous=setting.get();
+            try{setting.set(false);
+                test.assertTrue(!bind(player, core), "An explicitly blocked claim version allowed binding");
+                test.assertTrue(player.lastMessage.equals("message.sablelife.core_remote_unsupported_aeroclaims"),
+                        "Wrong diagnostic for unsupported AeroClaims: " + player.lastMessage);
+                setting.set(true);test.assertTrue(bind(player,core)&&open(player),"Allowed unavailable integration still blocked access");
+            }finally{player.closeContainer();setting.set(previous);}
             test.succeed();
             return;
         }
@@ -365,6 +369,16 @@ public final class CoreRemoteGameTests {
             player.closeContainer();
             option.set(previous);
         }
+        test.succeed();
+    }
+
+    @GameTest(template="combat",batch="core_remote_new_default")
+    public static void newConfigurationAllowsEligiblePlayersWithoutOptIn(GameTestHelper test){
+        test.assertTrue(unsupportedClaimOption().get(),"Fresh world did not use new true default");
+        var level=test.getLevel();var ordinary=core(test,new BlockPos(3,8,3),false);var survival=core(test,new BlockPos(5,8,3),true);
+        var cp=test.absolutePos(new BlockPos(7,8,3));level.setBlockAndUpdate(cp,SableLife.REDSTONE_CORE.get().defaultBlockState());var control=(HeartBlockEntity)level.getBlockEntity(cp);
+        var player=new Editor(level,GameType.CREATIVE);player.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(SableLife.CORE_REMOTE.get()));
+        for(var target:List.of(ordinary,survival,control)){player.setGameMode(target==ordinary?GameType.CREATIVE:GameType.SURVIVAL);test.assertTrue(bind(player,target),"New default rejected eligible binding");player.setPos(target.getBlockPos().getCenter().add(0,0,24));test.assertTrue(open(player)&&player.containerMenu.stillValid(player),"New default rejected eligible remote menu");player.closeContainer();}
         test.succeed();
     }
 

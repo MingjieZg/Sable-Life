@@ -18,13 +18,15 @@ public final class HeartCommands {
     private static final SimpleCommandExceptionType NOT_HEART = new SimpleCommandExceptionType(Component.translatable("message.sablelife.not_heart"));
 
     public static void register(RegisterCommandsEvent event) {
-        event.getDispatcher().register(Commands.literal("sablelife").requires(source -> source.hasPermission(2))
-                .then(Commands.literal("inspect").then(Commands.argument("pos", BlockPosArgument.blockPos()).executes(context -> {
+        event.getDispatcher().register(Commands.literal("sablelife").executes(context -> HeartCommandHelp.show(context.getSource()))
+                .then(Commands.literal("help").executes(context -> HeartCommandHelp.show(context.getSource())))
+                .then(BlueprintCommands.branch())
+                .then(Commands.literal("inspect").requires(source -> source.hasPermission(2)).then(Commands.argument("pos", BlockPosArgument.blockPos()).executes(context -> {
                     var heart = heart(context);
                     context.getSource().sendSuccess(heart::status, false);
                     return 1;
                 })))
-                .then(Commands.literal("damage").then(Commands.argument("pos", BlockPosArgument.blockPos())
+                .then(Commands.literal("damage").requires(source -> source.hasPermission(2)).then(Commands.argument("pos", BlockPosArgument.blockPos())
                         .then(Commands.argument("amount", FloatArgumentType.floatArg(0.001F, HeartHealth.MAX_CONFIGURED_HEALTH)).executes(context -> {
                             var heart = heart(context);
                             boolean changed = heart.damage(FloatArgumentType.getFloat(context, "amount"));

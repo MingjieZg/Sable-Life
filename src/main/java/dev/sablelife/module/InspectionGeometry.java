@@ -83,6 +83,10 @@ final class InspectionGeometry {
                 out.add(make(BOX, mark, second.offset(), false, localOffset(heart, mark, frame.center()),
                         frame.half(), frame.angleRotation()));
             }
+            case "contact_sensor" -> {
+                var frame = ContactSensorGeometry.frame(heart,module);
+                out.add(atWorld(heart,mark,BOX,frame.center(),frame.half(),frame.rotation(),false));
+            }
             case "sensor" -> {
                 double radius = module.value("radius");
                 if (module.value("shape") == 0) {
