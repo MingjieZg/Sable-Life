@@ -84,3 +84,14 @@ for entry in catalog['entries']:
                 assert not value.startswith('\n') and not value.endswith('\n') and '\n\n\n' not in value, (lang,key,'Extra blank lines')
                 assert not re.search(r'(?<!\n)\n\d+\. ',value), (lang,key,'Numbered steps need spacing')
 print(f"Manual revision {catalog['revision']}: {len(ids)} chapters, {len(types)} modules, three tabs and both locales validated.")
+
+# Additional resource-only locales share the catalog without Chinese length rules.
+for locale in ("ru_ru",):
+    translated=json.loads((assets/f"lang/{locale}.json").read_text(encoding="utf-8"))
+    for entry in catalog["entries"]:
+        keys=[entry["title"]]+[key for values in entry["sections"].values() for key in values]
+        for key in keys:
+            assert isinstance(translated.get(key),str) and translated[key].strip(), (locale,entry["id"],key,"Missing manual text")
+            value=translated[key]
+            assert not value.startswith("\n") and not value.endswith("\n") and "\n\n\n" not in value, (locale,key,"Extra blank lines")
+    print(f"Manual references validated for {locale}.")

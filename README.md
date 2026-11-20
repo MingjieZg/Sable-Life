@@ -135,6 +135,11 @@ The compiled JAR is generated under `build/libs/`.
 
 Epic Fight and Iron's Spells are optional for players, but their JARs are required to compile the typed bridge source. Running the setup scripts does not enable these mods in the default development client. For optional compatibility tests, use the corresponding setup scripts and Gradle properties in `build.gradle`; downloaded dependencies are not bundled into the Sable Life release JAR.
 
+## Translations and Contributors
+
+- **Russian localization:** [Bill-Fasber](https://github.com/Bill-Fasber), contributed in [PR #5](https://github.com/MingjieZg/Sable-Life/pull/5). Maintainer terminology fixes and later-version translations are recorded separately.
+- The in-game language picker lists available Sable Life translations, adapts to the window height and paginates longer lists.
+
 ## License
 
 Sable Life is released under the [MIT License](LICENSE).

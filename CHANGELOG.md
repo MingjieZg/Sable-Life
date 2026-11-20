@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased · Russian localization
+
+- Russian translation contributed by [Bill-Fasber](https://github.com/Bill-Fasber) in [PR #5](https://github.com/MingjieZg/Sable-Life/pull/5), with maintainer terminology and input-example corrections.
+- Adaptive, paginated language selection with native names and a current-language indicator.
+- Russian resource and manual-reference validation.
+
 ## 0.1.440 · Since 0.1.403-fix1
 
 [English](docs/releases/0.1.440_EN.md) · [中文](docs/releases/0.1.440.md)

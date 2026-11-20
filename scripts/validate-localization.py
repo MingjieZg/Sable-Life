@@ -3,12 +3,13 @@
 import argparse
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
 
 RESOURCES = Path(__file__).resolve().parents[1] / "src/main/resources"
-LANGUAGES = ("en_us", "zh_cn")
+LANGUAGES = ("en_us", "zh_cn", "ru_ru")
 ASSETS = "assets/sablelife/"
 MOJIBAKE = re.compile(
     r"[\u0080-\u009f\ufeff\ufffd]|\u00c2[\u00a0-\u00bf]|\u00c3[\u00a0-\u00bf]"
@@ -30,6 +31,22 @@ def read_language(path):
     if not isinstance(entries, dict):
         raise ValueError("Expected an object of translation keys and strings")
     return entries
+
+
+def format_arguments(text):
+    arguments = Counter()
+    implicit = 0
+    for match in re.finditer(r"%%|%(?:(\d+)\$)?([sdf])", text):
+        if match.group() == "%%":
+            arguments[(0, "%")] += 1
+        else:
+            if match.group(1):
+                index = int(match.group(1))
+            else:
+                implicit += 1
+                index = implicit
+            arguments[(index, match.group(2))] += 1
+    return arguments
 
 
 def main():
@@ -56,11 +73,16 @@ def main():
                 errors.append(f"{lang}: {key}: possible mojibake {ascii(match.group())}")
 
     if len(locales) == len(LANGUAGES):
-        en, zh = (locales[lang] for lang in LANGUAGES)
-        for key in sorted(en.keys() - zh.keys()):
-            errors.append(f"zh_cn: missing {key}")
-        for key in sorted(zh.keys() - en.keys()):
-            errors.append(f"en_us: missing {key}")
+        en = locales["en_us"]
+        for lang in LANGUAGES[1:]:
+            translated = locales[lang]
+            for key in sorted(en.keys() - translated.keys()):
+                errors.append(f"{lang}: missing {key}")
+            for key in sorted(translated.keys() - en.keys()):
+                errors.append(f"{lang}: extra {key}")
+            for key in sorted(en.keys() & translated.keys()):
+                if isinstance(en[key], str) and isinstance(translated[key], str) and format_arguments(en[key]) != format_arguments(translated[key]):
+                    errors.append(f"{lang}: {key}: format arguments differ from English")
 
     if args.jar:
         try:
@@ -75,7 +97,7 @@ def main():
 
     if errors:
         parser.exit(1, "\n".join(errors) + "\n")
-    print(f"Localization validated: {len(locales['en_us'])} keys in both locales.")
+    print(f"Localization validated: {len(locales['en_us'])} keys in {', '.join(LANGUAGES)}.")
     if args.jar:
         print(f"{args.jar.name}: packaged localization and manual catalog match source.")
 
