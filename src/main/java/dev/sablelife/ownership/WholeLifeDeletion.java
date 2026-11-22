@@ -64,7 +64,7 @@ final class WholeLifeDeletion {
    for(var plan:plans){
     for(var pos:plan.airRecords)if(plan.ownership.matchesCleanup(pos,id,part)&&plan.level.hasChunkAt(pos)&&plan.level.getBlockState(pos).isAir())plan.ownership.forget(pos);
     var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(plan.level);
-    for(var body:plan.bodies)if(body.isRemoved()||container==null||container.getSubLevel(body.getUniqueId())==null)
+    for(var body:plan.bodies)if(StructureRemovalApi.permanentlyRemoved(container,body))
      for(var pos:plan.bodyRecords.getOrDefault(body.getUniqueId(),List.of()))if(plan.ownership.matchesCleanup(pos,id,part))plan.ownership.forget(pos);
     dev.sablelife.compat.sable.SableBodyProbe.invalidate(plan.level);LoadedCoreIndex.geometryChanged(plan.level);
     plan.ownership.finishCleanup(id,part);

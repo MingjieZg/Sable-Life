@@ -199,7 +199,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             if(changed){heart.modules().changed();heart.setChanged();}refresh();broadcastChanges();return changed;
         }
         if (operation.equals("edit") && key.equals("facingSensor")) {
-            if (module == null || !module.type().equals("auto_facing") || !Double.isFinite(value)
+            if (module == null || !SightMemory.sensorSource(module.type()) || !Double.isFinite(value)
                     || value != Math.rint(value) || value < 0 || value > heart.modules().all().size() || !text.isEmpty()) return false;
             var sensor = value == 0 ? null : heart.modules().all().get((int) value - 1);
             if (sensor != null && !sensor.type().equals("sensor")) return false;

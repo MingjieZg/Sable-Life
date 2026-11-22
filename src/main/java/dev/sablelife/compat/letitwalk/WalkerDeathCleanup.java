@@ -12,6 +12,7 @@ import dev.sablelife.ownership.LoadedCoreIndex;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 
 import java.util.*;
@@ -20,6 +21,7 @@ import java.util.*;
 public final class WalkerDeathCleanup {
     private static final int MAX_BODIES = 1024;
     private static final int BODIES_PER_STEP = 16;
+    private static final String PLOT_CENTER = "PlotCenter";
 
     public static ListTag capture(HeartBlockEntity heart) {
         try { return captureLoaded(heart); }
@@ -41,6 +43,7 @@ public final class WalkerDeathCleanup {
         for (var body : bodies) {
             var row = new CompoundTag();
             row.putUUID("Body", body.getUniqueId());
+            row.putLong(PLOT_CENTER, body.getPlot().getCenterBlock().asLong());
             var owners = new LinkedHashSet<UUID>();
             for (var holder : body.getPlot().getLoadedChunks())
                 for (var key : ownershipRecords(ownership, holder.getChunk().getPos().toLong())) {
@@ -60,19 +63,32 @@ public final class WalkerDeathCleanup {
         var container = SubLevelContainer.getContainer(level);
         if (container == null) return false;
         var ownership = BodyOwnership.get(level);
-        int work = 0;
         boolean changed = false;
-        int remaining = saved.size();
-        for (int i = 0; !saved.isEmpty() && remaining-- > 0 && work < BODIES_PER_STEP;) {
-            var row = saved.getCompound(i);
-            if (!row.hasUUID("Body")) { saved.remove(i); changed = true; continue; }
-            var found = container.getSubLevel(row.getUUID("Body"));
-            if (found == null && container.getHoldingChunkMap().getHoldingSubLevel(row.getUUID("Body")) != null) {
-                saved.remove(i); saved.add(row); changed = true; work++; continue;
+        int visits = Math.min(saved.size(), BODIES_PER_STEP);
+        for (int i = 0; i < visits; i++) {
+            var row = saved.getCompound(0);
+            if (!row.hasUUID("Body")) { saved.remove(0); changed = true; continue; }
+            var id = row.getUUID("Body");
+            if (!(container.getSubLevel(id) instanceof ServerSubLevel body) || body.isRemoved()) {
+                var center = row.contains(PLOT_CENTER, Tag.TAG_LONG) ? BlockPos.of(row.getLong(PLOT_CENTER)) : null;
+                if (StructureRemovalApi.permanentlyRemoved(container, id, center)) {
+                    saved.remove(0);
+                    changed = true;
+                } else {
+                    // An unregistered body can be stored on disk after its holding chunk unloads.
+                    saved.add(saved.remove(0));
+                }
+                continue;
             }
-            if (found == null || found.isRemoved()) { saved.remove(i); changed = true; continue; }
-            work++;
-            if (!(found instanceof ServerSubLevel body) || !loaded(level, body)) { saved.remove(i); saved.add(row); changed = true; continue; }
+            long center = body.getPlot().getCenterBlock().asLong();
+            if (!row.contains(PLOT_CENTER, Tag.TAG_LONG) || row.getLong(PLOT_CENTER) != center) {
+                row.putLong(PLOT_CENTER, center);
+                changed = true;
+            }
+            if (!loaded(level, body)) {
+                saved.add(saved.remove(0));
+                continue;
+            }
             var allowed = new HashSet<UUID>();
             for (var value : row.getList("Owners", 10)) if (((CompoundTag) value).hasUUID("Id")) allowed.add(((CompoundTag) value).getUUID("Id"));
             var records = new ArrayList<BlockPos>();
@@ -90,7 +106,7 @@ public final class WalkerDeathCleanup {
             }
             if (changedOwner) {
                 LogUtils.getLogger().warn("Leaving Let it Walk death attachment {} after its ownership changed", body.getUniqueId());
-                saved.remove(i); changed = true; continue;
+                saved.remove(0); changed = true; continue;
             }
             // An undefeated segment core is administrative removal, not a second boss kill/reward.
             // A segment already defeated independently keeps its existing death settlement.
@@ -99,12 +115,12 @@ public final class WalkerDeathCleanup {
             try { StructureRemovalApi.remove(level, body); }
             finally {
                 BodyProtection.CLEANING.set(BodyProtection.CLEANING.get() - 1);
-                if (body.isRemoved() || container.getSubLevel(body.getUniqueId()) == null)
+                if (StructureRemovalApi.permanentlyRemoved(container, body))
                     for (var pos : records) if (allowed.contains(ownership.owner(pos))) ownership.forget(pos);
                 dev.sablelife.compat.sable.SableBodyProbe.invalidate(level);
                 LoadedCoreIndex.geometryChanged(level);
             }
-            saved.remove(i); changed = true;
+            saved.remove(0); changed = true;
         }
         return changed;
     }

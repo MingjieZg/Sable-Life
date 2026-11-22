@@ -1,5 +1,6 @@
 package dev.sablelife.compat.littletiles.mixin;
 
+import dev.sablelife.compat.littletiles.LittleTilesMixinContract;
 import dev.sablelife.compat.littletiles.LittleTilesRenderRecovery;
 import net.minecraft.client.renderer.RenderType;
 import org.spongepowered.asm.mixin.*;
@@ -12,7 +13,7 @@ import java.util.function.Function;
 @Pseudo
 @Mixin(targets="team.creative.littletiles.client.render.cache.pipeline.LittleRenderPipelineType", remap=false)
 public abstract class PipelineRecoveryMixin {
-    @Inject(method="compile", at=@At("TAIL"))
+    @Inject(method=LittleTilesMixinContract.PIPELINE_COMPILE, at=@At("TAIL"))
     private static void sablelife$afterCompile(long section, BETiles be,
             Function<RenderType, ChunkBufferUploader> uploader, Function<RenderType, BufferCollection> collection, CallbackInfo ci) {
         LittleTilesRenderRecovery.afterCompile(be, section);

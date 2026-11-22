@@ -1,10 +1,10 @@
 package dev.sablelife.compat.littletiles;
 
+import dev.sablelife.compat.OptionalMod;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.loading.FMLLoader;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.*;
-import java.nio.file.Files;
 import java.util.*;
 
 public final class LittleTilesMixinPlugin implements IMixinConfigPlugin {
@@ -16,29 +16,23 @@ public final class LittleTilesMixinPlugin implements IMixinConfigPlugin {
     }
 
     private static boolean inspect() {
-        if (FMLLoader.getDist() != Dist.CLIENT || FMLLoader.getLoadingModList() == null) return false;
-        var mods = new HashMap<String, String>();
-        for (var mod : FMLLoader.getLoadingModList().getMods()) mods.put(mod.getModId(), mod.getVersion().toString());
-        if (!mods.containsKey("littletiles")) return false;
-        if (mods.containsKey("sablelife_lt_recovery")) {
+        if (FMLLoader.getDist() != Dist.CLIENT) return false;
+        var tiles = OptionalMod.version("littletiles");
+        if (tiles.isEmpty()) return false;
+        if (!OptionalMod.version("sablelife_lt_recovery").isEmpty()) {
             com.mojang.logging.LogUtils.getLogger().info("Sable Life skipped built-in LittleTiles mesh recovery because the standalone recovery addon is installed");
             return false;
         }
-        boolean result = LittleTilesMixinContract.supported(mods.getOrDefault("littletiles", ""),
-                mods.getOrDefault("creativecore", ""), mods.getOrDefault("sable", ""))
-                && LittleTilesMixinContract.inspect(LittleTilesMixinPlugin::bytes);
-        if (!result) com.mojang.logging.LogUtils.getLogger().warn("Sable Life skipped optional LittleTiles mesh recovery: dependency version or interface is unsupported");
+        var creativeCore = OptionalMod.version("creativecore");
+        var sable = OptionalMod.version("sable");
+        boolean result = LittleTilesMixinContract.supported(tiles, creativeCore, sable)
+                && LittleTilesMixinContract.inspect(name -> OptionalMod.classBytes("littletiles", name))
+                && LittleTilesMixinContract.inspectCreativeCore(OptionalMod.classBytes("creativecore", LittleTilesMixinContract.CHUNK_LAYER_MAP));
+        var logger = com.mojang.logging.LogUtils.getLogger();
+        if (result) logger.info("Sable Life enabled LittleTiles mesh recovery for LittleTiles {}, CreativeCore {}, Sable {}", tiles, creativeCore, sable);
+        else logger.warn("Sable Life skipped optional LittleTiles mesh recovery: unsupported dependency or interface (LittleTiles {}, CreativeCore {}, Sable {})",
+                tiles, creativeCore, sable);
         return result;
-    }
-
-    private static byte[] bytes(String name) {
-        for (var mod : FMLLoader.getLoadingModList().getMods()) {
-            try {
-                var path = mod.getOwningFile().getFile().findResource(name + ".class");
-                if (Files.isRegularFile(path)) return Files.readAllBytes(path);
-            } catch (java.io.IOException | RuntimeException ignored) {}
-        }
-        return null;
     }
 
     @Override public void onLoad(String mixinPackage) {}

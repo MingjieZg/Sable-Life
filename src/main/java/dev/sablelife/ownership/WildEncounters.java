@@ -498,16 +498,7 @@ public final class WildEncounters extends SavedData {
             rule.retryAfter=0;
             setDirty();
         } catch (RuntimeException failure) {
-            var container = SubLevelContainer.getContainer(level);
-            for (var id : build.bodies()) {
-                try {
-                    if (container != null && container.getSubLevel(id) instanceof ServerSubLevel body && !body.isRemoved()) StructureRemovalApi.remove(level, body);
-                } catch (RuntimeException rollback) { failure.addSuppressed(rollback); }
-            }
-            if (core != null) {
-                BodyOwnership.get(level).release(core.creatureId());
-                LifeLifecycle.get(level.getServer()).cancel(core.creatureId());
-            }
+            BlueprintCleanup.rollback(level, core == null ? null : core.creatureId(), build);
             cleared.forEach((pos,state)->{if(level.getBlockState(pos).isAir())level.setBlock(pos,state,flags);});
             LogUtils.getLogger().warn("Wild encounter placement failed", failure);
             return false;

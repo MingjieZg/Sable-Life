@@ -4,6 +4,7 @@ import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.*;
 import net.minecraft.world.inventory.*;
@@ -17,6 +18,7 @@ public final class SequenceMenu extends AbstractContainerMenu {
     private final Inventory inventory;
     private final SimpleContainer frequencies = new SimpleContainer(2);
     private int wirelessSelected;
+    private int editorRevision, seenModuleRevision, seenWirelessRevision, seenWirelessChannel;
     private final SimpleContainer data = new SimpleContainer(1);
     public SequenceMenu(int id, Inventory inventory) { this(id, inventory, null, null); }
     public SequenceMenu(int id, Inventory inventory, HeartBlockEntity heart, VirtualModule module) {
@@ -49,12 +51,27 @@ public final class SequenceMenu extends AbstractContainerMenu {
         }
     }
     public CompoundTag snapshot() { return data.getItem(0).getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag(); }
+
+    private int editorRevision() {
+        int moduleRevision = heart.modules().revision();
+        int wirelessRevision = heart.wireless().faceRevision();
+        if (editorRevision == 0 || moduleRevision != seenModuleRevision || wirelessRevision != seenWirelessRevision
+                || wirelessSelected != seenWirelessChannel) {
+            editorRevision = editorRevision == Integer.MAX_VALUE ? 1 : editorRevision + 1;
+            seenModuleRevision = moduleRevision;
+            seenWirelessRevision = wirelessRevision;
+            seenWirelessChannel = wirelessSelected;
+        }
+        return editorRevision;
+    }
+
     private void refresh() {
         if (heart == null) return;
         wirelessSelected = Math.clamp(wirelessSelected, 0, Math.max(0, heart.wireless().size() - 1));
         var wireless = heart.wireless().channel(wirelessSelected);
         frequencies.setItem(0, wireless.first()); frequencies.setItem(1, wireless.second());
         var tag = new CompoundTag();
+        tag.putInt("SequenceRevision", editorRevision());
         tag.putInt("WirelessSelected", wirelessSelected); tag.putInt("WirelessMode", wireless.value(6));
         tag.putBoolean("WirelessEnabled", wireless.value(0) == 1); tag.putBoolean("WirelessMaster", heart.wireless().master());
         tag.putInt("WirelessPower", heart.wireless().output(wirelessSelected)); tag.put("Module", module.save()); tag.put("Runtime", heart.modules().sequenceSnapshot(module.id()));
@@ -70,7 +87,12 @@ public final class SequenceMenu extends AbstractContainerMenu {
                 && heart.modules().find(module.id()) == module
                 && heart.editorInRange(p, 64);
     }
-    public boolean action(Player p, java.util.UUID id, String key, double value, String index) {
+    /** In-process callers operate on the current row. Network edits must supply the rendered revision. */
+    public boolean action(Player player, java.util.UUID id, String key, double value, String index) {
+        return heart != null && action(player, editorRevision(), id, key, value, index);
+    }
+
+    public boolean action(Player p, int revision, java.util.UUID id, String key, double value, String index) {
         if (heart == null || !stillValid(p) || !module.id().equals(id) || !Double.isFinite(value)) return false;
         if (key.equals("wire_select")) {
             int channel = (int) Math.round(value) - 1;
@@ -78,6 +100,14 @@ public final class SequenceMenu extends AbstractContainerMenu {
             wirelessSelected = channel; refresh(); sendAllDataToRemote(); return true;
         }
         if (!(heart.canEdit(p)&&ModuleAvailability.enabled(heart,module))) return false;
+        if (revision != editorRevision()) {
+            p.displayClientMessage(revision == 0
+                    ? Component.translatableWithFallback("sequence.sablelife.editor_update_required", "Update Sable Life on your client to edit this sequence.")
+                    : Component.translatableWithFallback("sequence.sablelife.editor_stale", "The sequence changed. Review it before editing again."), true);
+            refresh();
+            sendAllDataToRemote();
+            return false;
+        }
         if (key.startsWith("wire_")) {
             switch (key) {
                 case "wire_add" -> { int added = heart.wireless().add(); if (added < 0) return false; wirelessSelected = added; }

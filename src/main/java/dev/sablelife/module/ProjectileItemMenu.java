@@ -2,10 +2,12 @@ package dev.sablelife.module;
 
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.*;
 import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /** One ghost item sample; inventory items are copied, never consumed or extracted. */
 public final class ProjectileItemMenu extends AbstractContainerMenu {
@@ -30,7 +32,21 @@ public final class ProjectileItemMenu extends AbstractContainerMenu {
     }
     public boolean displayOnly(){return data.get(1)!=0;}
     public boolean editable() { return data.get(0) != 0; }
-    private void refresh() { if (heart != null) sample.setItem(0, module.projectileItem(heart.getLevel().registryAccess())); }
+    public static Component oversizedModelLabel() {
+        return Component.translatableWithFallback("display_item.sablelife.oversized_model", "Saved model is too large");
+    }
+
+    private void refresh() {
+        if (heart == null) return;
+        var registries = heart.getLevel().registryAccess();
+        if (module.omitDisplayModelInEditor(registries)) {
+            var placeholder = new ItemStack(Items.PAPER);
+            placeholder.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, oversizedModelLabel());
+            sample.setItem(0, placeholder);
+        } else {
+            sample.setItem(0, module.projectileItem(registries));
+        }
+    }
     @Override public void broadcastChanges() { refresh(); super.broadcastChanges(); }
     @Override public boolean stillValid(Player player) {
         return heart == null || heart.canAccessEditor(player) && !heart.isRemoved() && player.level() == heart.getLevel() && heart.modules().find(module.id()) == module

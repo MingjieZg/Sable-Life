@@ -20,6 +20,9 @@ public final class SequenceScreen extends AbstractContainerScreen<SequenceMenu> 
     private final List<Button> rows = new ArrayList<>(), apply = new ArrayList<>();
     private final List<EditBox> fields = new ArrayList<>();
     private List<PulseSequence.Step> steps = List.of();
+    private UUID moduleId;
+    private int editorRevision;
+    private boolean editable;
     private int selected, last = -1, page, slots, column, pendingAdd = -1;
     private int wireDeleteUntil, wireDeleteChannel = -1, wireDeleteCount;
     private Button previous, next, add, remove, up, down, mode, reset;
@@ -33,8 +36,9 @@ public final class SequenceScreen extends AbstractContainerScreen<SequenceMenu> 
         return addRenderableWidget(LifeUiStyle.button(label, leftPos + x, topPos + y, w, 18, action));
     }
     private void send(String key, double value) {
-        var tag = menu.snapshot().getCompound("Module"); if (!tag.hasUUID("Id")) return;
-        PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId, 0, tag.getUUID("Id"), "seq_edit", key, value, Integer.toString(selected)));
+        if (moduleId == null || !editable && !key.equals("wire_select")) return;
+        PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId, editorRevision, moduleId,
+                "seq_edit", key, value, Integer.toString(selected)));
     }
     @Override protected void init() {
         imageWidth = Math.max(400, Math.min(500, width - 16)); imageHeight = Math.max(260, Math.min(340, height - 16));
@@ -44,7 +48,9 @@ public final class SequenceScreen extends AbstractContainerScreen<SequenceMenu> 
         button(tr("back"), sequenceWidth - 65, 8, 55, () -> minecraft.gameMode.handleInventoryButtonClick(menu.containerId, 0));
         for (int i = 0; i < slots; i++) {
             final int row = i; rows.add(button(Component.empty(), 10, 34 + i * 20, column, () -> {
-                selected = page * slots + row; fields.forEach(f -> f.setFocused(false));
+                selected = page * slots + row;
+                clearDrafts();
+                sync();
             }));
         }
         int pager = imageHeight - 82;
@@ -103,11 +109,29 @@ public final class SequenceScreen extends AbstractContainerScreen<SequenceMenu> 
             fields.get(index).setFocused(false);
         } catch (NumberFormatException ignored) {}
     }
+    private void clearDrafts() {
+        if (fields.contains(getFocused()) || getFocused() == wirelessChannel || getFocused() == wireDelete) setFocused(null);
+        fields.forEach(field -> field.setFocused(false));
+        wirelessChannel.setFocused(false);
+        wireDeleteUntil = 0;
+    }
+
     private void sync() {
-        var data = menu.snapshot(); var module = VirtualModule.load(data.getCompound("Module")); steps = module.sequence();
+        var data = menu.snapshot();
+        var module = data.getCompound("Module");
+        var updatedId = module.hasUUID("Id") ? module.getUUID("Id") : null;
+        int updatedRevision = data.getInt("SequenceRevision");
+        boolean canEdit = updatedId != null && data.getBoolean("Editable");
+        var updatedSteps = updatedId == null ? List.<PulseSequence.Step>of() : VirtualModule.load(module).sequence();
+        if (!Objects.equals(updatedId, moduleId) || editorRevision != updatedRevision
+                || !steps.equals(updatedSteps) || editable && !canEdit) clearDrafts();
+        moduleId = updatedId;
+        editorRevision = updatedRevision;
+        editable = canEdit;
+        steps = updatedSteps;
         if (pendingAdd >= 0 && steps.size() > pendingAdd) { selected = steps.size() - 1; page = selected / slots; pendingAdd = -1; }
         selected = Math.clamp(selected, 0, Math.max(0, steps.size() - 1)); page = Math.clamp(page, 0, Math.max(0, (steps.size() - 1) / slots));
-        boolean editable = data.getBoolean("Editable"), exists = !steps.isEmpty();
+        boolean exists = !steps.isEmpty();
         for (int i = 0; i < rows.size(); i++) {
             int index = page * slots + i; var row = rows.get(i); row.visible = index < steps.size();
             if (!row.visible) continue;

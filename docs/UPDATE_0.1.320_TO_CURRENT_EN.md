@@ -1,5 +1,25 @@
 # Updates from 0.1.320 to the current build
+
+- The **0.1.452 review candidates** improve recovery and compatibility. `review.1` retains saved blueprint jobs when quotas decrease and releases ownership after confirming permanent removal. `review.2` fixes Move Set ordering and target inheritance, weapon previews, concurrent large Item Displays, editor drafts and Data Copier archive restore. `review.3` keeps pending cleanup for Let it Walk leg segments when their chunks unload. [Local candidate notes](releases/0.1.452_EN.md)
+
+- **0.1.452 stability pass**: Weapons check visibility at the muzzle, previews read existing state and inherited targets keep the original expiry. Compatible clients receive large Item Display snapshots in parts and original models stay in saves. The Data Copier verifies saved data, applies a 64 MiB account quota and supports operator status, archive and restore commands. Optional integration contracts and editor draft handling were tightened. [Local candidate notes](releases/0.1.452_EN.md)
+
+- Target Sensors check a player’s chest and shoulders from the marking. Tracking lasers aim at the upper chest and adjust for stance. Target Alignment and Move Set can use a linked Target Sensor. With Line of Sight enabled, sensors, alignment, move conditions, and independently aimed weapons can retain the last visible target for 0–60 seconds, defaulting to zero. A linked Target Sensor supplies its own timer.
+
+- When Photomancy places a blueprint, the Heart Core loads its modules and marks first and then restores each Item Display’s original model automatically. The tool and command both accept existing .nbt files.
+
+- Sable Life logs the exception type and full stack trace when the official Photomancy command fails to load a blueprint file.
+
+- Data Copiers can copy and paste core configurations with nested model items, including grouped models from Yuushya Modelling.
+
+- Data Copier clipboards live in `data/sablelife_clipboards` in the world save. Inventory sync carries references and usage. Identical clipboards from the same originating account share a file. The active world quota is 2 GiB. Existing disk references keep working, and legacy item-stored clipboards can be copied again.
+
+- The server setting `allowSurvivalHeartCoreTerrainBreaking` defaults to On. Off disables terrain damage from Survival Heart Core melee, lasers, and blasts while preserving attacks and module settings.
+
+- The Data Copier now accepts up to 2,000,000 bytes of compressed configuration, up from 1,000,000, to accommodate larger item data in modules such as Item Display. The item tooltip shows the stored size and the limit, starting at zero when empty. The size-limit message also shows the limit.
+
 - **0.1.450 Melee breaking controls**: Grouped at the end of properties; independent flying-debris and block-drop switches, plus inventory samples for the protected list. Existing drop preferences migrate compatibly.
+- Optional integrations check dependency versions and the interfaces they use. LittleTiles, weapon add-ons, Walker, claim protection and Toolgun accept compatible newer releases. Epic Fight and Iron’s Spells also verify native class bytecode. Iron’s Spells 3.16.4 is supported.
 
 - Auto Facing adds decimal local left/right and up/down aim-origin offsets in blocks, defaulting to 0, with positive values for left/up and a 0.1-block wheel step. Vertical offset follows Vertical tracking. Collision check defaults Off for new modules while saved values, marks and sensor bindings remain intact. Wireless Redstone Output buffer now scrolls by 1 second while retaining typed decimal precision. Manual253.
 
@@ -25,7 +45,7 @@
 - Added an independent administrator blueprint command: `/sablelife blueprint spawn <name> <true|false> [x y z]`, with name completion, default surface placement and optional exact coordinates. Its queue and failure cleanup are separate from module and Arena records.
 - Added `/sablelife help`; bare `/sablelife` also lists every command and its concise purpose. Both manuals document the command workflow. Manual revision 242.
 
-Current source version: `0.1.450`.
+Current source version: `0.1.452`.
 - Historical 0.1.440 release preparation includes MIT/template licenses and source dependency lockfiles. At that time, production classes and gameplay resources matched the original 440 test build. Public materials include performance reports; detailed functional evidence stays local.
 
 - Propulsion adds marked-face or fixed world direction selection. Choose North, South, East, West, Up or Down and apply angle offsets. Existing modules retain marked-face behavior. The force point follows the mark, and speed control and both previews use the same direction. Manual revision 240.
@@ -40,6 +60,7 @@ Categorized changes since 0.1.403-fix1: [0.1.403-fix1 → 0.1.440](releases/0.1.
 Included in 0.1.403-fix1: Gyroscope now uses cyan/orange arrows and a green tilt-boundary wireframe through the shared solid-line renderer. Focused native and vanilla/five-shader checks passed; this does not increment the independent feature count.
 
 ## Current source changes
+
 
 - Motion Damping uses a compact single-page editor for all six directions, with smaller number fields and one confirmation button per row. Three-decimal precision, wheel controls and server validation are retained.
 

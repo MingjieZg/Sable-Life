@@ -20,7 +20,11 @@ public final class ModuleGroundStrike {
     private record Strike(Vec3 point, long warning, long falling, long impact, double height, double radius, float damage, DustParticleOptions dust,
                           net.minecraft.world.item.ItemStack item, float size, float itemSize, int itemMode, org.joml.Vector3f itemRotation, List<ModuleParticles.Entry> particles, dev.sablelife.sound.SoundTimeline fallSound, dev.sablelife.sound.SoundTimeline impactSound,
                           dev.sablelife.attack.ModuleShot[] visual, ImpactVisual impactVisual, VirtualModule impactConfig) {}
-    private static final class State { long due; final List<Strike> pending = new ArrayList<>(); }
+    private static final class State {
+        long due;
+        ModuleTargets.AttackAim aim;
+        final List<Strike> pending = new ArrayList<>();
+    }
     private final Map<UUID, State> states = new HashMap<>();
     private ServerLevel currentLevel;
     private void cancel(UUID id, State state) {
@@ -61,7 +65,24 @@ public final class ModuleGroundStrike {
         }
         return null;
     }
+    static boolean targetInRange(ServerLevel level, VirtualModule module, Vec3 origin, LivingEntity target) {
+        if (!eligible(target, module)) return false;
+        double range = module.value("strikeRange");
+        if (!new AABB(origin, origin).inflate(range).intersects(target.getBoundingBox())) return false;
+        return withinStrikeRange(module, origin, SableBodyProbe.toWorld(level, target.position()));
+    }
+
+    private static boolean withinStrikeRange(VirtualModule module, Vec3 origin, Vec3 point) {
+        double distance = ModuleArena.horizontalDistance(point, origin);
+        return distance >= module.value("strikeStart") && distance <= module.value("strikeRange");
+    }
+
     public static List<Vec3> pattern(ServerLevel level, HeartBlockEntity heart, VirtualModule module) {
+        return pattern(level, heart, module, ModuleTargets.attackAim(heart, module), false);
+    }
+
+    private static List<Vec3> pattern(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
+                                      ModuleTargets.AttackAim aim, boolean remember) {
         var origin = ModuleCombat.baseOrigin(heart,module); var result = new ArrayList<Vec3>();
         if (module.value("strikeMode") == 3) {
             double start = module.value("strikeStart"), range = module.value("strikeRange");
@@ -70,33 +91,32 @@ public final class ModuleGroundStrike {
             // Limited retries allow sparse terrain without unbounded server work.
             var positions = new HashSet<net.minecraft.core.BlockPos>();
             int count = (int) module.value("strikeRandomCount");
+            var random = remember ? level.random : net.minecraft.util.RandomSource.create(module.id().getLeastSignificantBits());
             for (int attempt = 0; attempt < count * 8 && result.size() < count; attempt++) {
-                var candidate = randomPoint(origin, start, range, level.random.nextDouble(), level.random.nextDouble());
+                var candidate = randomPoint(origin, start, range, random.nextDouble(), random.nextDouble());
                 var point = floor(level, heart, candidate);
                 if (point != null && positions.add(net.minecraft.core.BlockPos.containing(point))) result.add(point);
             }
         } else if (module.value("strikeMode") == 2) {
-            double range = module.value("strikeRange"), near = module.value("strikeStart");
+            double range = module.value("strikeRange");
             boolean multiple = module.value("targetMultiple") == 1;
-            var inherited = ModuleTargets.attackTarget(heart, module);
+            int limit = multiple ? 64 : 1;
             var bounds = new AABB(origin, origin).inflate(range);
-            java.util.function.Predicate<LivingEntity> eligible = e -> {
-                if (!eligible(e, module)) return false;
-                double distance = ModuleArena.horizontalDistance(SableBodyProbe.toWorld(level, e.position()), origin);
-                return distance >= near && distance <= range;
-            };
-            var order = ModuleTargets.comparator(heart, e -> SableBodyProbe.toWorld(level, e.position()).distanceToSqr(origin));
-            if (inherited == null) {
-                for (var target : ModuleTargets.aimedTargets(level, heart, bounds, eligible, order,
-                        e -> ModuleTargets.attackVisible(level, heart, module, origin, e), multiple ? 64 : 1, null)) {
-                    var point = floor(level, heart, SableBodyProbe.toWorld(level, target.position()));
+            java.util.function.Function<LivingEntity, Vec3> feet = target -> ModuleTargets.attackFeet(level, heart, module, target, aim);
+            java.util.function.Predicate<LivingEntity> eligible = target -> eligible(target, module)
+                    && withinStrikeRange(module, origin, feet.apply(target));
+            java.util.function.Predicate<LivingEntity> visible = target -> ModuleTargets.attackVisible(level, heart, module, origin, target, aim);
+            var order = ModuleTargets.comparator(heart, target -> feet.apply(target).distanceToSqr(origin));
+            if (aim == null && SightMemory.ticks(module) == 0) {
+                // Keep the original projection order for strike patterns without a lock.
+                for (var target : ModuleTargets.aimedTargets(level, heart, bounds, eligible, order, visible, limit, null)) {
+                    var point = floor(level, heart, feet.apply(target));
                     if (point != null) result.add(point);
                 }
             } else {
-                ModuleTargets.aimedResults(level, heart, bounds, eligible, order,
-                        e -> ModuleTargets.attackVisible(level, heart, module, origin, e)
-                                ? floor(level, heart, SableBodyProbe.toWorld(level, e.position())) : null,
-                        inherited, multiple).limit(multiple ? 64 : 1).forEach(result::add);
+                ModuleTargets.attackResults(level, heart, module, bounds, eligible, order,
+                        target -> visible.test(target) ? floor(level, heart, feet.apply(target)) : null,
+                        aim, multiple, remember).limit(limit).forEach(result::add);
             }
         } else {
             var direction = ModuleCombat.direction(heart, module); direction = new Vec3(direction.x, 0, direction.z).normalize();
@@ -148,7 +168,8 @@ public final class ModuleGroundStrike {
             if (!module.type().equals("ground_strike") || !EmitterRuntime.active(module, heart)) continue;
             active.add(module.id()); var state = states.computeIfAbsent(module.id(), ignored -> new State());
             if (now >= state.due && state.pending.isEmpty() && EmitterRuntime.start(module,heart)) {
-                var points = pattern(level, heart, module);
+                state.aim = module.value("strikeMode") == 2 ? ModuleTargets.attackAim(heart, module) : null;
+                var points = pattern(level, heart, module, state.aim, true);
                 if(!points.isEmpty()&&!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,points.size())){
                     state.due=now+(long)module.value("interval");
                     continue;
@@ -166,6 +187,20 @@ public final class ModuleGroundStrike {
                             module.projectileItem(level.registryAccess()), (float) module.value("projectileHitbox"), (float)module.value("strikeItemSize"), (int)module.value("strikeItemMode"), new org.joml.Vector3f((float)module.value("strikeItemX"),(float)module.value("strikeItemY"),(float)module.value("strikeItemZ")), module.particleEntries(), module.soundTimeline("fallSound"), module.soundTimeline("impactSound"), new dev.sablelife.attack.ModuleShot[1],ImpactVisual.of(module,module.value("strikeRadius")),module.impactFieldId()==null?null:EmitterRuntime.copy(module)));
                 }
                 state.due = now + (long) module.value("interval");
+            }
+            if (state.aim != null && !state.pending.isEmpty() && now >= state.pending.getFirst().falling()) {
+                var aim = state.aim;
+                state.aim = null;
+                if (aim.followsMove()) {
+                    var target = ModuleTargets.resolve(level, aim.id(), heart.creatureId());
+                    var origin = ModuleCombat.baseOrigin(heart, module);
+                    if (target == null || !eligible(target, module) || !withinStrikeRange(module, origin,
+                            ModuleTargets.attackFeet(level, heart, module, target, aim))
+                            || !ModuleTargets.attackVisible(level, heart, module, origin, target, aim)) {
+                        cancel(module.id(), state);
+                        state.pending.clear();
+                    }
+                }
             }
             var iterator = state.pending.iterator();
             while (iterator.hasNext()) {

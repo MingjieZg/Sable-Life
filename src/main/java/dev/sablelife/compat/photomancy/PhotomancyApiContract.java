@@ -8,6 +8,8 @@ import java.util.function.Function;
 /** Inspect bytecode without loading or initializing the optional mod's classes. */
 public final class PhotomancyApiContract {
     static final String API = "dev/rew1nd/sableschematicapi/";
+    public static final String FILE_LOAD = "load(Lnet/minecraft/server/MinecraftServer;Lnet/minecraft/server/level/ServerLevel;"
+            + "Lnet/minecraft/world/phys/Vec3;Ljava/lang/String;)L" + API + "blueprint/tool/BlueprintToolResult;";
     private static final String BRIDGE = "dev/sablelife/compat/photomancy/";
     private static final List<String> CONSUMERS = List.of(BRIDGE+"HeartBlueprintMapper", BRIDGE+"HeartBlueprintMapper$1",
             BRIDGE+"SpawnTemplateBridge", BRIDGE+"PhotomancyRespawnBridge", BRIDGE+"PhotomancyRespawnBridge$Build", "dev/sablelife/mixin/RespawnBlueprintNbtMixin");
@@ -93,7 +95,7 @@ public final class PhotomancyApiContract {
             if(consumer==null||inspectConsumer(consumer,provider,new HashMap<>())!=null)return false;
             String owner=switch(simple){
                 case "RespawnBuildDiagnosticsMixin" -> API+"survival/SableBlueprintIncrementalPlacer";
-                case "BlueprintToolFailureDiagnosticsMixin" -> API+"blueprint/tool/BlueprintToolService";
+                case "BlueprintToolFailureDiagnosticsMixin", "BlueprintFileLoadDiagnosticsMixin" -> API+"blueprint/tool/BlueprintToolService";
                 case "BlueprintToolFailureMessageMixin" -> API+"network/BlueprintToolServerActions";
                 default -> "";
             };
@@ -101,6 +103,8 @@ public final class PhotomancyApiContract {
             for(var m:node.methods) {
                 if((m.access&Opcodes.ACC_STATIC)==0)continue;
                 if(simple.equals("BlueprintToolFailureDiagnosticsMixin")&&m.name.equals("loadBytes")&&m.desc.equals("(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;[BLjava/lang/String;)L"+API+"blueprint/tool/BlueprintToolResult;"))return true;
+                if(simple.equals("BlueprintFileLoadDiagnosticsMixin")&&(m.name+m.desc).equals(FILE_LOAD)
+                        &&calls(m,"java/lang/Exception","getMessage","()Ljava/lang/String;"))return true;
                 if(simple.equals("RespawnBuildDiagnosticsMixin")&&m.name.equals("step")&&m.desc.startsWith("(Lnet/minecraft/server/level/ServerLevel;L"+API+"blueprint/SableBlueprint;")&&calls(m,"java/lang/RuntimeException","getMessage","()Ljava/lang/String;"))return true;
                 if(simple.equals("BlueprintToolFailureMessageMixin")&&m.name.equals("handleLoadBlueprint")&&m.desc.equals("(Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/nbt/CompoundTag;)V")&&calls(m,API+"blueprint/tool/BlueprintToolResult","success","()Z")&&m.localVariables!=null&&m.localVariables.stream().filter(v->v.desc.equals("L"+API+"blueprint/tool/BlueprintToolResult;")).count()==1)return true;
             }

@@ -159,7 +159,7 @@ public final class ModuleNetworking {
             else if(ctx.player().containerMenu instanceof ArenaBuffMenu menu&&menu.containerId==p.container&&p.operation.equals("arena_buff_edit"))
                 menu.action(ctx.player(),p.revision,p.module,p.key,p.value);
             else if (ctx.player().containerMenu instanceof SequenceMenu menu && menu.containerId == p.container && p.operation.equals("seq_edit"))
-                menu.action(ctx.player(), p.module, p.key, p.value, p.text);
+                menu.action(ctx.player(), p.revision, p.module, p.key, p.value, p.text);
             else if (ctx.player().containerMenu instanceof dev.sablelife.sound.SoundTimelineMenu menu && menu.containerId == p.container && p.operation.equals("sound_timeline"))
                 menu.action(ctx.player(),p.revision,p.key,p.module,p.value,p.text);
             else if (ctx.player().containerMenu instanceof dev.sablelife.ownership.WildEncounterMenu menu && menu.containerId == p.container && p.operation.equals("wild_encounter"))
@@ -175,6 +175,8 @@ public final class ModuleNetworking {
         registrar.playToClient(PatternVisual.TYPE,PatternVisual.CODEC,(p,ctx)->dev.sablelife.client.PatternVisualClient.receive(p));
         registrar.playToClient(ShockwavePacket.TYPE,ShockwavePacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ItemDisplayPacket.TYPE,ItemDisplayPacket.CODEC,(p,ctx)->dev.sablelife.client.ModuleItemDisplayClient.receive(p));
+        registrar.optional().playToClient(ItemDisplayPacket.Part.TYPE, ItemDisplayPacket.Part.CODEC,
+                (p, ctx) -> dev.sablelife.client.ModuleItemDisplayClient.receive(p));
         registrar.playToClient(FlameJet.TYPE,FlameJet.CODEC,(p,ctx)->dev.sablelife.client.FlameJetParticle.receive(p));
         registrar.playToClient(ParticleVisual.TYPE, ParticleVisual.CODEC, (p, ctx) -> dev.sablelife.client.ParticleVisualClient.receive(p));
         registrar.playToClient(SlashVisualPacket.TYPE,SlashVisualPacket.CODEC,(p,ctx)->dev.sablelife.client.SlashVisualClient.receive(p));

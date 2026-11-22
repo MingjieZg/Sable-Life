@@ -62,7 +62,7 @@ public final class LifeResidueCleanup {
         var lifecycle = LifeLifecycle.get(server);
         for (var core : cores) {
             var owner = core.creatureId();
-            if (!core.isRemoved() || lifecycle.isDying(owner)) continue;
+            if (!core.isRemoved() || lifecycle.isDying(owner) || BlueprintCleanup.retainsOwnership(server, owner)) continue;
             BlueprintSpawns.release(core);
             ArenaRespawns.release(core);
             CoreChunkLoading.release(core);

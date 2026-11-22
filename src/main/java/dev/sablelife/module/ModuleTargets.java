@@ -62,20 +62,119 @@ public final class ModuleTargets {
         refresh(target);
         return dev.sablelife.sense.SensorGeometry.visible(level,owner,start,target.getBoundingBox().getCenter(),target instanceof LifeTarget ? target.getUUID() : null);
     }
-    static boolean attackVisible(ServerLevel level, HeartBlockEntity core, VirtualModule module, Vec3 origin, LivingEntity target) {
-        // Pull's existing On/Off field uses the opposite saved indices.
-        int on = module.type().equals("pull") ? 0 : 1;
-        return module.value("lineOfSight") != on || visible(level, core.creatureId(), origin, target);
+    /** Standing, crouching and swimming use their actual eye and collision-box heights. */
+    public static Vec3 upperChest(LivingEntity target) {
+        var box = target.getBoundingBox();
+        double height = box.getYsize();
+        double y = Math.clamp(target.getEyeY() - Math.min(.3, height / 6), box.getCenter().y, box.maxY);
+        return new Vec3(box.getCenter().x, y, box.getCenter().z);
     }
+
+    static boolean sensed(ServerLevel level, HeartBlockEntity heart, Vec3 center, org.joml.Quaterniond orientation,
+                          LivingEntity target, Set<UUID> ownBodies) {
+        var point = SableBodyProbe.toWorld(level, target instanceof Player ? upperChest(target) : target.getBoundingBox().getCenter());
+        if (senseRay(level, heart, center, orientation, target, point, ownBodies)) return true;
+        if (!(target instanceof Player)) return false;
+        var side = new Vec3(point.z - center.z, 0, center.x - point.x).normalize();
+        var shoulder = side.scale(target.getBbWidth() * .4).add(0, target.getBbHeight() * .06, 0);
+        return senseRay(level, heart, center, orientation, target, point.add(shoulder), ownBodies)
+                || senseRay(level, heart, center, orientation, target, point.add(-shoulder.x, shoulder.y, -shoulder.z), ownBodies);
+    }
+
+    private static boolean senseRay(ServerLevel level, HeartBlockEntity heart, Vec3 center, org.joml.Quaterniond orientation,
+                                    LivingEntity target, Vec3 point, Set<UUID> ownBodies) {
+        var start = dev.sablelife.sense.SensorGeometry.sightStart(center, point.subtract(center), orientation);
+        return dev.sablelife.sense.SensorGeometry.visible(level, heart.creatureId(), start, point,
+                target instanceof LifeTarget ? target.getUUID() : null, ownBodies);
+    }
+
+    /** A preferred target and, for memory-enabled moves, the action that owns the observation. */
+    public record AttackAim(UUID id, long moveActivation, ModuleMoveSet.ActionIdentity moveAction) {
+        public AttackAim(UUID id, long moveActivation) {
+            this(id, moveActivation, null);
+        }
+
+        public static AttackAim fixed(UUID id) {
+            return id == null ? null : new AttackAim(id, Long.MIN_VALUE);
+        }
+
+        public boolean followsMove() {
+            return moveActivation != Long.MIN_VALUE;
+        }
+
+        public SightMemory.Target observation(HeartBlockEntity core, VirtualModule module) {
+            if (!followsMove()) return null;
+            var active = core.modules().moveAction(module.id());
+            if (active == null || active.started() != moveActivation || moveAction != null && !moveAction.equals(active)) return null;
+            var observation = core.modules().moveAim(module.id());
+            return observation != null && id.equals(observation.id()) ? observation : null;
+        }
+
+        /** Older pending projectiles can adopt the full identity of their already matching action. */
+        public AttackAim bindMoveAction(HeartBlockEntity core, VirtualModule module) {
+            if (moveAction != null || observation(core, module) == null) return this;
+            return new AttackAim(id, moveActivation, core.modules().moveAction(module.id()));
+        }
+
+        public boolean available(HeartBlockEntity core, VirtualModule module) {
+            return !followsMove() || observation(core, module) != null;
+        }
+    }
+
+    public static boolean attackVisible(ServerLevel level, HeartBlockEntity core, VirtualModule module, Vec3 origin, LivingEntity target) {
+        return attackVisible(level, core, module, origin, target, attackAim(core, module));
+    }
+
+    public static boolean inheritedAimAvailable(HeartBlockEntity core, VirtualModule module, UUID target) {
+        var aim = attackAim(core, module);
+        return aim == null || !aim.id().equals(target) || aim.available(core, module);
+    }
+
     public static UUID inheritedTarget(HeartBlockEntity core, VirtualModule module) {
         return module.emitter() == null && module.value("trigger") == 4 ? core.modules().moveTarget(module.id()) : null;
     }
 
+    public static boolean attackVisible(ServerLevel level, HeartBlockEntity core, VirtualModule module, Vec3 origin,
+                                        LivingEntity target, AttackAim aim) {
+        if (aim != null && aim.id().equals(target.getUUID()) && !aim.available(core, module)) return false;
+        return !SightMemory.enabled(module) || visible(level, core.creatureId(), origin, target);
+    }
+
+    public static Vec3 attackPoint(ServerLevel level, HeartBlockEntity core, VirtualModule module, LivingEntity target, AttackAim aim) {
+        var remembered = rememberedPoint(core, module, target, aim);
+        return remembered != null ? remembered : SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter());
+    }
+
+    public static Vec3 attackFeet(ServerLevel level, HeartBlockEntity core, VirtualModule module, LivingEntity target, AttackAim aim) {
+        var remembered = rememberedPoint(core, module, target, aim);
+        // An unseen target's pose cannot refine the remembered position.
+        return remembered != null ? remembered : SableBodyProbe.toWorld(level, target.position());
+    }
+
+    private static Vec3 rememberedPoint(HeartBlockEntity core, VirtualModule module, LivingEntity target, AttackAim aim) {
+        return aim == null || !aim.id().equals(target.getUUID()) ? null : rememberedPoint(core, module, aim);
+    }
+
+    private static Vec3 rememberedPoint(HeartBlockEntity core, VirtualModule module, AttackAim aim) {
+        if (SightMemory.enabled(module)) return null;
+        var observation = aim.observation(core, module);
+        return observation != null && !observation.visible() ? observation.point() : null;
+    }
+
     /** A wand order supplies an aim preference for an attack that has already been triggered. */
-    public static UUID attackTarget(HeartBlockEntity core, VirtualModule module) {
+    public static AttackAim attackAim(HeartBlockEntity core, VirtualModule module) {
         if (module.emitter() != null || !(core.getLevel() instanceof ServerLevel level)) return null;
         var commanded = core.modules().commandTarget().weaponTarget(level);
-        return commanded != null ? commanded : inheritedTarget(core, module);
+        if (commanded != null) return AttackAim.fixed(commanded);
+        var inherited = inheritedTarget(core, module);
+        if (inherited == null) return null;
+        var action = core.modules().moveAction(module.id());
+        return action == null ? AttackAim.fixed(inherited) : new AttackAim(inherited, action.started(), action);
+    }
+
+    public static UUID attackTarget(HeartBlockEntity core, VirtualModule module) {
+        var aim = attackAim(core, module);
+        return aim == null ? null : aim.id();
     }
 
     public static List<LivingEntity> aimedTargets(ServerLevel level, HeartBlockEntity core, AABB bounds,
@@ -88,12 +187,30 @@ public final class ModuleTargets {
     public static <T> Stream<T> aimedResults(ServerLevel level, HeartBlockEntity core, AABB bounds,
             Predicate<LivingEntity> eligible, Comparator<LivingEntity> order, Function<LivingEntity, T> result,
             UUID inherited, boolean multiple) {
+        return aimedResults(level, core, bounds, eligible, order, result, inherited, multiple, null);
+    }
+
+    /** A remembered position supplies selection bounds for an attack with its own sight check off. */
+    public static <T> Stream<T> attackResults(ServerLevel level, HeartBlockEntity core, VirtualModule module, AABB bounds,
+            Predicate<LivingEntity> eligible, Comparator<LivingEntity> order, Function<LivingEntity, T> result,
+            AttackAim aim, boolean multiple, boolean remember) {
+        if (aim == null && remember)
+            return core.modules().weaponSight().results(level, core, module, bounds, eligible, order, result, null, multiple);
+        if (aim == null) return aimedResults(level, core, bounds, eligible, order, result, null, multiple);
+        if (!aim.available(core, module)) return Stream.empty();
+        return aimedResults(level, core, bounds, eligible, order, result, aim.id(), multiple, rememberedPoint(core, module, aim));
+    }
+
+    private static <T> Stream<T> aimedResults(ServerLevel level, HeartBlockEntity core, AABB bounds,
+            Predicate<LivingEntity> eligible, Comparator<LivingEntity> order, Function<LivingEntity, T> result,
+            UUID inherited, boolean multiple, Vec3 remembered) {
         var owner = core.creatureId();
         if (inherited == null) {
             return query(level, owner, bounds, eligible).stream().sorted(order).map(result).filter(Objects::nonNull);
         }
         var target = resolve(level, inherited, owner);
-        if (target == null || target.isRemoved() || !bounds.intersects(target.getBoundingBox()) || !eligible.test(target)) return Stream.empty();
+        if (target == null || target.isRemoved() || !eligible.test(target)) return Stream.empty();
+        if (remembered == null ? !bounds.intersects(target.getBoundingBox()) : !bounds.contains(remembered)) return Stream.empty();
         T first = result.apply(target);
         if (first == null) return Stream.empty();
         if (!multiple) return Stream.of(first);

@@ -29,6 +29,7 @@ public final class SableLifeServerConfig {
     private static final ModConfigSpec.ConfigValue<java.util.List<String>> DISABLED_ADDON_MODULES;
     private static final java.util.Map<Core, ModConfigSpec.ConfigValue<java.util.List<String>>> DISABLED_CORE_ADDONS = new java.util.EnumMap<>(Core.class);
     private static final ModConfigSpec.BooleanValue SURVIVAL_LIFE_CORE_EDITING, WILD_ENCOUNTERS, UNSUPPORTED_REMOTE_CLAIMS;
+    private static final ModConfigSpec.BooleanValue SURVIVAL_TERRAIN_BREAKING;
     private static final ModConfigSpec.IntValue CHANNELS, PARTICLES, CLEANUP, MODULES;
     private static final ModConfigSpec.IntValue FACTIONS_PER_PLAYER, REDSTONE_OUTPUT_FACES;
     private static final ModConfigSpec.IntValue PROJECTILES, CREATURE_PROJECTILES, ENTITY_HITBOXES, BLUEPRINT_PROJECTION;
@@ -70,13 +71,18 @@ public final class SableLifeServerConfig {
                 .defineInRange("arenaCaptureScanVoxels",dev.sablelife.ownership.ArenaRespawnLimits.SCAN_VOXELS,262144,16777216);
         ARENA_BLOCKS=builder.comment("Actual blocks permitted in one administrator Arena record. Also bounds the work of native one-call respawn placement; this is not a per-tick construction budget.").defineInRange("arenaCaptureBlocks",dev.sablelife.ownership.ArenaRespawnLimits.BLOCKS,1024,1048576);
         ARENA_BLOCK_ENTITIES=builder.comment("Block entities permitted in one administrator Arena record. Limits NBT restoration work during native one-call placement.").defineInRange("arenaCaptureBlockEntities",dev.sablelife.ownership.ArenaRespawnLimits.BLOCK_ENTITIES,256,131072);
-        ARENA_TEMPLATE_BYTES=builder.comment("Uncompressed estimated bytes permitted per Arena template at capture and saved-data admission. Required for native one-call respawn memory limits.").defineInRange("arenaTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.TEMPLATE_BYTES,1048576,134217728);
-        ARENA_WORLD_BYTES=builder.comment("Total uncompressed estimated bytes permitted across world Arena templates.").defineInRange("arenaWorldTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.WORLD_TEMPLATE_BYTES,1048576,536870912);
+        ARENA_TEMPLATE_BYTES=builder.comment("Uncompressed estimated bytes permitted when admitting a new Arena or structure blueprint template. Existing saved templates retain their data.").defineInRange("arenaTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.TEMPLATE_BYTES,1048576,dev.sablelife.ownership.ArenaRespawnLimits.MAX_TEMPLATE_BYTES);
+        ARENA_WORLD_BYTES=builder.comment("Total uncompressed estimated bytes when admitting a new template to a saved template store. Lowering this value preserves existing templates.").defineInRange("arenaWorldTemplateBytes",dev.sablelife.ownership.ArenaRespawnLimits.WORLD_TEMPLATE_BYTES,1048576,dev.sablelife.ownership.ArenaRespawnLimits.MAX_WORLD_TEMPLATE_BYTES);
         SURVIVAL_LIFE_CORE_EDITING = builder.comment(
                 "WARNING: Enable this only if you know what you are doing.",
                 "Survival players gain Heart Core editing, including loot and experience rewards and terrain destruction.",
                 "Players can farm items and experience or destroy terrain. These effects can be difficult to control.")
                 .define("allowEditHeartCoreUnderSurvivalMode", false);
+        SURVIVAL_TERRAIN_BREAKING = builder.comment(
+                "Allow Survival Heart Core modules to break terrain. Default true.",
+                "Set false to disable melee, laser and blast terrain damage while retaining attacks and module settings.")
+                .translation("config.sablelife.survival_terrain_breaking")
+                .define("allowSurvivalHeartCoreTerrainBreaking", true);
         UNSUPPORTED_REMOTE_CLAIMS = builder.comment(
                 "Allow Core Remote use when a detected claim mod has no supported permission integration. Default true.",
                 "Set false to reject remote access when a claim integration is unavailable. Existing saved values are retained.",
@@ -175,6 +181,9 @@ public final class SableLifeServerConfig {
     }
     public static boolean allowSurvivalLifeCoreEditing() {
         return SPEC.isLoaded() && SURVIVAL_LIFE_CORE_EDITING.get();
+    }
+    public static boolean allowSurvivalHeartCoreTerrainBreaking() {
+        return !SPEC.isLoaded() || SURVIVAL_TERRAIN_BREAKING.get();
     }
     public static int maximumModulesPerCreature(){return SPEC.isLoaded()?MODULES.get():DEFAULT_MODULES_PER_CREATURE;}
     public static boolean moduleEnabled(boolean redstoneCore,String type){

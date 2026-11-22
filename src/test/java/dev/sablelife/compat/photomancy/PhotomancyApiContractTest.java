@@ -61,4 +61,45 @@ class PhotomancyApiContractTest {
         assertTrue(check(api).compatible(),check(api).reason());
         assertFalse(PhotomancyApiContract.diagnosticHook("dev.sablelife.mixin.BlueprintToolFailureDiagnosticsMixin",api::get,PhotomancyApiContractTest::own));
     }
+
+    @Test void fileLoadDiagnosticRequiresTheNativeExceptionMessageCall() throws Exception {
+        var api = provider();
+        var mixin = "dev.sablelife.mixin.BlueprintFileLoadDiagnosticsMixin";
+        assertTrue(PhotomancyApiContract.diagnosticHook(mixin, api::get, PhotomancyApiContractTest::own));
+        change(api, PhotomancyApiContract.API + "blueprint/tool/BlueprintToolService", node -> {
+            for (var method : node.methods) if (method.name.equals("load")) {
+                for (var insn : method.instructions) {
+                    if (insn instanceof MethodInsnNode call && call.owner.equals("java/lang/Exception")
+                            && call.name.equals("getMessage")) call.owner = "java/lang/Throwable";
+                }
+            }
+        });
+        assertFalse(PhotomancyApiContract.diagnosticHook(mixin, api::get, PhotomancyApiContractTest::own));
+        assertTrue(check(api).compatible(), check(api).reason());
+    }
+
+    @Test void fileLoadDiagnosticTargetsOnlyTheVerifiedOverload() throws Exception {
+        var api = provider();
+        var mixin = "dev.sablelife.mixin.BlueprintFileLoadDiagnosticsMixin";
+        change(api, PhotomancyApiContract.API + "blueprint/tool/BlueprintToolService", node -> {
+            var overload = node.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "load",
+                    "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", null, null);
+            overload.visitTypeInsn(Opcodes.NEW, "java/lang/Exception");
+            overload.visitInsn(Opcodes.DUP);
+            overload.visitVarInsn(Opcodes.ALOAD, 0);
+            overload.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Exception", "<init>", "(Ljava/lang/String;)V", false);
+            overload.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Exception", "getMessage", "()Ljava/lang/String;", false);
+            overload.visitInsn(Opcodes.ARETURN);
+            overload.visitMaxs(3, 2);
+            overload.visitEnd();
+        });
+        assertTrue(PhotomancyApiContract.diagnosticHook(mixin, api::get, PhotomancyApiContractTest::own));
+        var classFile = new ClassNode();
+        new ClassReader(own(mixin.replace('.', '/'))).accept(classFile, 0);
+        var handler = classFile.methods.stream().filter(method -> method.name.equals("sablelife$logFileLoadFailure"))
+                .findFirst().orElseThrow();
+        var wrap = handler.visibleAnnotations.stream().filter(annotation -> annotation.desc.endsWith("/WrapOperation;"))
+                .findFirst().orElseThrow();
+        assertEquals(List.of(PhotomancyApiContract.FILE_LOAD), wrap.values.get(wrap.values.indexOf("method") + 1));
+    }
 }

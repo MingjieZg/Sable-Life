@@ -7,7 +7,6 @@ import dev.sablelife.sense.SensorGeometry;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaterniond;
@@ -18,6 +17,9 @@ public final class TargetNavigation {
     public static final List<String> DIRECTIONS=List.of("Left","Right","Up","Down","Forward","Backward");
     private static final class State {
         UUID target;
+        final SightMemory memory = new SightMemory();
+        final SightMemory.SourceLink sourceLink = new SightMemory.SourceLink();
+        int revision;
         long nextSearch;
         int lastTurn = 1;
         String name = "";
@@ -46,44 +48,128 @@ public final class TargetNavigation {
     public static Vec3 worldFront(HeartBlockEntity heart, VirtualModule module) {
         return ContactBox.rotate(new Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation()), Vec3.atLowerCornerOf(front(module).getNormal()));
     }
-    private boolean eligible(ServerLevel level, HeartBlockEntity heart, VirtualModule module, LivingEntity entity, Vec3 center) {
-        if (!entity.isAlive() || entity.isSpectator() || entity instanceof Player p && p.isCreative()&&module.value("target")!=4) return false;
-        if (!ModuleTargets.matches(entity,module)) return false;
-        Vec3 point = SableBodyProbe.toWorld(level, entity.getBoundingBox().getCenter());
-        if (point.distanceToSqr(center) > Math.pow(module.value("radius"), 2)) return false;
-        return module.value("lineOfSight") != 0 || ModuleTargets.visible(level, heart.creatureId(),
-                SensorGeometry.sightStart(center, point.subtract(center), new Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation())), entity);
+    private boolean eligible(VirtualModule module, LivingEntity entity) {
+        return entity != null && !entity.isRemoved() && ModuleTargets.matches(entity, module);
     }
+
+    private boolean sees(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center,
+                         Quaterniond orientation, LivingEntity target) {
+        return !SightMemory.enabled(module) || ModuleTargets.sensed(level, heart, center, orientation, target, Set.of());
+    }
+
     private CommandTarget.Aim aim(ServerLevel level, HeartBlockEntity heart, VirtualModule module, State state,
                                   Vec3 center, Quaterniond orientation) {
+        boolean sight = SightMemory.enabled(module);
+        if (!sight || state.revision != heart.modules().revision()) {
+            state.memory.clear();
+            state.sourceLink.clear();
+        }
+        state.revision = heart.modules().revision();
         var order = heart.modules().commandTarget().current(level, CommandTarget.TARGET_ALIGNMENT);
         if (order != null) {
             state.target = null;
+            state.memory.clear();
+            state.sourceLink.clear();
             state.nextSearch = 0;
             var aim = order.resolve(level, module.value("target") == 4);
-            if (aim == null || module.value("lineOfSight") != 0) return aim;
+            if (aim == null || !sight) return aim;
             var start = SensorGeometry.sightStart(center, aim.point().subtract(center), orientation);
             return SensorGeometry.commandVisible(level, heart, start, aim.point(), order.lifeId()) ? aim : null;
         }
-        LivingEntity target = ModuleTargets.resolveForModule(level,state.target,heart,module);
-        if (level.getGameTime() >= state.nextSearch || target != null && !target.isAlive()) {
-            state.nextSearch = level.getGameTime() + 5;
-            if (module.value("targetLock") != 0 || target == null || !eligible(level, heart, module, target, center)) {
-                target = ModuleTargets.queryForModule(level, heart, module, new AABB(center, center).inflate(module.value("radius") + 2),
-                        e -> eligible(level, heart, module, e, center)).stream()
-                        .min(ModuleTargets.comparator(heart,e -> SableBodyProbe.toWorld(level, e.getBoundingBox().getCenter()).distanceToSqr(center))
-                                .thenComparing(e -> e.getUUID().toString())).orElse(null);
+        double range = module.value("radius");
+        double rangeSquared = range * range;
+        if (module.value("facingSource") == 1) {
+            state.target = null;
+            state.memory.clear();
+            var source = heart.modules().events().sensorAim(heart, module.facingSensorId());
+            var sensor = heart.modules().find(module.facingSensorId());
+            var target = source == null || sensor == null ? null : ModuleTargets.resolveForModule(level, source.id(), heart, sensor);
+            if (target == null || !eligible(sensor, target)) {
+                state.sourceLink.clear();
+                return null;
             }
+            var point = state.sourceLink.follow(module.facingSensorId(), source, sight,
+                    candidate -> candidate.distanceToSqr(center) <= rangeSquared,
+                    ignored -> sees(level, heart, module, center, orientation, target));
+            return point == null ? null : new CommandTarget.Aim(point, target.getName().getString());
+        }
+        if (module.value("trigger") == 4 && heart.modules().moveTarget(module.id()) != null) {
+            state.target = null;
+            state.memory.clear();
+            var inherited = heart.modules().moveAim(module.id());
+            var target = inherited == null ? null : ModuleTargets.resolveForModule(level, inherited.id(), heart, module);
+            if (!eligible(module, target)) {
+                state.sourceLink.clear();
+                return null;
+            }
+            var action = heart.modules().moveAction(module.id());
+            if (action != null) {
+                var point = state.sourceLink.follow(action.table(), inherited, sight,
+                        candidate -> candidate.distanceToSqr(center) <= rangeSquared,
+                        ignored -> sees(level, heart, module, center, orientation, target));
+                return point == null ? null : new CommandTarget.Aim(point, target.getName().getString());
+            }
+            state.sourceLink.clear();
+            if (inherited.point().distanceToSqr(center) > rangeSquared || !sees(level, heart, module, center, orientation, target)) return null;
+            return new CommandTarget.Aim(inherited.point(), target.getName().getString());
+        }
+        state.sourceLink.clear();
+        long now = level.getGameTime();
+        int ticks = SightMemory.ticks(module);
+        var last = state.memory.aimAt(now);
+        var target = ModuleTargets.resolveForModule(level, state.target, heart, module);
+        Vec3 targetPoint = null;
+        if (eligible(module, target) && !(state.memory.obscured() && last == null)) {
+            var point = SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter());
+            boolean withinCurrent = point.distanceToSqr(center) <= rangeSquared;
+            boolean withinLast = last != null && last.point().distanceToSqr(center) <= rangeSquared;
+            if (withinCurrent || withinLast) {
+                if (SightMemory.canRecheck(center, point) && sees(level, heart, module, center, orientation, target)) {
+                    if (withinCurrent) targetPoint = point;
+                } else if (withinLast) {
+                    var recalled = state.memory.remember(now, ticks);
+                    if (recalled != null) return new CommandTarget.Aim(recalled.point(), target.getName().getString());
+                }
+            }
+        }
+        if (targetPoint == null) {
+            state.target = null;
+            state.memory.clear();
+            target = null;
+        }
+        if (now >= state.nextSearch && (state.target == null || module.value("targetLock") != 0)) {
+            state.nextSearch = now + 5;
+            var selected = select(level, heart, module, center, orientation, range);
+            target = selected == null ? null : selected.entity();
+            targetPoint = selected == null ? null : selected.point();
             state.target = target == null ? null : target.getUUID();
         }
         if (target == null) return null;
-        var point = SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter());
-        double range = module.value("radius");
-        if (point.distanceToSqr(center) > range * range) {
-            state.target = null;
-            return null;
+        if (ticks > 0) state.memory.see(target.getUUID(), targetPoint);
+        return new CommandTarget.Aim(targetPoint, target.getName().getString());
+    }
+
+    private record Candidate(LivingEntity entity, Vec3 point) {}
+
+    private Candidate select(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center,
+                             Quaterniond orientation, double range) {
+        var bounds = new AABB(center, center).inflate(range + 2);
+        Candidate best = null;
+        int bestRank = Integer.MAX_VALUE;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (var entity : ModuleTargets.queryForModule(level, heart, module, bounds, e -> eligible(module, e))) {
+            var point = SableBodyProbe.toWorld(level, entity.getBoundingBox().getCenter());
+            double distance = point.distanceToSqr(center);
+            if (distance > range * range) continue;
+            int rank = ModuleTargets.rank(heart, entity);
+            if (best != null && (rank > bestRank || rank == bestRank && (distance > bestDistance
+                    || distance == bestDistance && entity.getUUID().compareTo(best.entity().getUUID()) >= 0))) continue;
+            if (!sees(level, heart, module, center, orientation, entity)) continue;
+            best = new Candidate(entity, point);
+            bestRank = rank;
+            bestDistance = distance;
         }
-        return new CommandTarget.Aim(point, target.getName().getString());
+        return best;
     }
     public void tick(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Map<ModuleSignals.Face, Integer> signals) {
         var state = states.computeIfAbsent(module.id(), ignored -> new State());

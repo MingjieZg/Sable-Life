@@ -15,6 +15,11 @@ public final class HeartCommandHelp {
         line(source, "/sablelife cleanup apply all", "cleanup");
         line(source, "/sablelife cleanup apply radius <blocks>", "cleanup_radius");
         line(source, "/sablelife_respawn cancel", "respawn");
+        if (source.hasPermission(2)) {
+            line(source, "/sablelife clipboard status [owner UUID|legacy]", "clipboard_status");
+            line(source, "/sablelife clipboard archive <owner UUID|legacy> <digest>", "clipboard_archive");
+            line(source, "/sablelife clipboard restore <owner UUID|legacy> <digest>", "clipboard_restore");
+        }
         return 1;
     }
     private static void line(CommandSourceStack source, String syntax, String key) {

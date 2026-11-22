@@ -229,6 +229,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private final List<VirtualModule> modules = new ArrayList<>();
     private final List<String> statuses = new ArrayList<>();
     private List<ModuleFields.Field> parameters = List.of();
+    private boolean parameterEditorsEnabled;
     private EditBox rampEnd;
     private int rampRow=-1;
     private int rampHalf(){return (applyX-inputX-20)/2;}
@@ -249,7 +250,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     void addPreset(CompoundTag tag){sync();trackAdd(tag.getString("Type"));action("add_preset",tag.getString("Type"),0,ModulePreset.portable(tag).toString());}
     private void reorderModule(int direction){sync();if(selected()!=null){reorderDestination=modules.indexOf(selected())+direction;reorderExpires=tickCount+100;action("reorder","",direction,"");}}
     private void trackAdd(String type){beforeAdd=new HashSet<>(modules.stream().map(VirtualModule::id).toList());addingType=type;addExpires=tickCount+100;}
-    boolean savePreset(String name){sync();var module=selected();if(module==null)return false;try{ModulePresetLibrary.save(name,module.save());return true;}catch(java.io.IOException e){return false;}}
+    boolean savePreset(String name){sync();var module=selected();if(module==null||displayModelOmitted(module))return false;try{ModulePresetLibrary.save(name,module.save());return true;}catch(java.io.IOException e){return false;}}
     public List<String> availableTypes() {
         var data = menu.snapshot();
         return data.getList("AvailableTypes", 8).stream().map(value -> value.getAsString())
@@ -270,6 +271,10 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
 
 
     private VirtualModule selected() { return modules.stream().filter(m -> m.id().equals(selected)).findFirst().orElse(null); }
+    private boolean displayModelOmitted(VirtualModule module) {
+        return module != null && module.type().equals("item_display")
+                && snapshot.getList("Modules", 10).getCompound(modules.indexOf(module)).getBoolean(VirtualModule.DISPLAY_MODEL_OMITTED);
+    }
     private int frequencySlotsX() { return inputX-2*(Math.min(16,rowPitch-2)+5)-8; }
     private int frequencyButtonX() { return inputX; }
     private int frequencyButtonWidth() { return Math.max(45,Math.min(65,Math.round(detailWidth*.2f))); }
@@ -408,6 +413,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         var field = parameters.get(parameterPage * parameterSlots + index);
         if(field.key().equals("arenaRespawnRecord")){action("arena_clear","",0,"");return;}
         var box = fields.get(index);
+        if (!box.visible || !box.active || field.choice()) return;
         if (ModuleFields.arenaText(field.key())) {
             action("edit", field.key(), 0, box.getValue());
             box.setFocused(false);
@@ -431,10 +437,19 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             start.setFocused(false);rampEnd.setFocused(false);start.setTextColor(0xE0E0E0);rampEnd.setTextColor(0xE0E0E0);
         }catch(NumberFormatException invalid){start.setTextColor(0xFF7777);rampEnd.setTextColor(0xFF7777);}
     }
-    private void changeParameterPage(int delta) {
+    private void clearParameterFocus() {
+        var focused = getFocused();
+        if (focused == rampEnd || fields.contains(focused) || choices.contains(focused)
+                || applyButtons.contains(focused) || rgbButtons.contains(focused) || noneButtons.contains(focused)
+                || soundFolders.contains(focused) || vanillaFolders.contains(focused)
+                || outputPreviews.contains(focused) || outputRemovals.contains(focused)) setFocused(null);
         rampEnd.setFocused(false);
-        fields.forEach(b -> b.setFocused(false));
+        fields.forEach(box -> box.setFocused(false));
+    }
+    private void changeParameterPage(int delta) {
+        clearParameterFocus();
         parameterPage = Math.clamp(parameterPage + delta, 0, Math.max(0, (parameters.size() - 1) / parameterSlots));
+        sync();
     }
     private static int nextControlTrigger(VirtualModule m,int direction){return Math.floorMod((int)m.value("trigger")+direction,dev.sablelife.heart.RedstoneCorePolicy.maxTrigger(m.type())+1);}
     private static int nextTrigger(VirtualModule m,int direction) { int next=Math.floorMod((int)m.value("trigger")+direction,6); return next==4&&!MoveSet.supportsModule(m.type()) ? Math.floorMod(next+direction,6) : next; }
@@ -453,8 +468,10 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if(field.key().equals("summonAttack")){minecraft.setScreen(new SurfaceFieldPickerScreen(this,modules,m.summonAttackId(),indexValue->action("edit","summonAttack",indexValue,""),ModuleSummonedWeapon.ATTACKS,"summonAttack"));return;}
         if(field.key().equals("impactArea")){minecraft.setScreen(new SurfaceFieldPickerScreen(this,modules,m.impactFieldId(),indexValue->action("edit","impactArea",indexValue,"")));return;}
         if (field.key().equals("facingSensor")) {
+            int revision = snapshot.getInt("Revision");
             minecraft.setScreen(new SurfaceFieldPickerScreen(this, modules, m.facingSensorId(),
-                    sensorIndex -> action("edit", "facingSensor", sensorIndex, ""), Set.of("sensor"), "facingSensor"));
+                    sensorIndex -> PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,
+                            revision, m.id(), "edit", "facingSensor", sensorIndex, "")), Set.of("sensor"), "facingSensor"));
             return;
         }
         if(field.key().equals("dampDirections")){minecraft.setScreen(new MotionDampingScreen(this,menu,m.id()));return;}
@@ -576,6 +593,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private int datapackRevision = -1;
     @Override protected void containerTick() { super.containerTick(); tickCount++; sync();if(pendingJump!=null&&snapshot.hasUUID("Selected")&&snapshot.getUUID("Selected").equals(pendingJump)){var target=selected();if(pendingMove>=0&&target!=null&&target.type().equals("move_set")&&!target.moveSet().moves().isEmpty()){int move=pendingMove;pendingJump=null;pendingMove=-1;minecraft.setScreen(new MoveSetScreen(menu,minecraft.player.getInventory(),title,target.id(),move));}else{pendingJump=null;pendingMove=-1;}} }
     private void sync() {
+        int previousRevision = snapshot.getInt("Revision");
         var data = menu.getSlot(0).getItem().getOrDefault(net.minecraft.core.component.DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.EMPTY);
         int currentDatapackRevision = dev.sablelife.module.DatapackModules.clientRevision();
         if (data != decodedData || datapackRevision != currentDatapackRevision) {
@@ -617,7 +635,16 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             tokenHelp.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("survival_tokens.sablelife.formula_"+tokenRow.getString("TokenFormula"),tokenRow.getInt("TokenRate"))));
         }
         boolean selectionChanged = !last.equals(selected);
-        if (selectionChanged) { rampEnd.setFocused(false); parameterPage = 0; fields.forEach(b -> b.setFocused(false)); name.setFocused(false); channel.setFocused(false); }
+        boolean editableParameters = editable && usable;
+        if (selectionChanged) parameterPage = 0;
+        if (selectionChanged || previousRevision != snapshot.getInt("Revision")
+                || parameterEditorsEnabled && !editableParameters) {
+            clearParameterFocus();
+            if (getFocused() == name || getFocused() == channel) setFocused(null);
+            name.setFocused(false);
+            channel.setFocused(false);
+        }
+        parameterEditorsEnabled = editableParameters;
         var nextFields = m == null ? List.<ModuleFields.Field>of() : ModuleFields.forType(m.type());
         if (m != null && m.type().equals("message_display"))
             nextFields = nextFields.stream().filter(field -> field.key().equals("messageEditor")).toList();
@@ -635,10 +662,13 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             nextFields=nextFields.stream().filter(f->dev.sablelife.heart.SurvivalLifeCorePolicy.visibleField(m,f.key())).toList();
         if(m!=null)nextFields=ModuleColors.display(m,nextFields,parameterSlots);
         if(m!=null&&m.type().equals("health_bar")&&m.value("healthBarName")==0)nextFields=nextFields.stream().filter(f->!List.of("healthBarNameSize","healthBarNameGap").contains(f.key())).toList();
-        if (m != null && m.type().equals("auto_facing")) {
+        if (m != null) {
             boolean sensor = m.value("facingSource") == 1;
-            nextFields = nextFields.stream().filter(f -> sensor ? !List.of("target", "facingRange").contains(f.key())
-                    : !f.key().equals("facingSensor")).toList();
+            nextFields = nextFields.stream().filter(f -> !f.key().equals(SightMemory.FIELD) || SightMemory.configurable(m))
+                    .filter(f -> !Set.of("facingSource", "facingSensor").contains(f.key()) || !ModuleMoveSet.ignoresConditions(m, snapshot.getBoolean("ControlCore")))
+                    .filter(f -> !f.key().equals("facingSensor") || sensor)
+                    .filter(f -> !sensor || !m.type().equals("auto_facing") || !List.of("target", "facingRange").contains(f.key()))
+                    .filter(f -> !sensor || !m.type().equals("navigation") || !List.of("target", "targetLock").contains(f.key())).toList();
         }
         if(m!=null&&m.type().equals("health_bar")&&m.value("healthBarVisibility")==0)nextFields=nextFields.stream().filter(f->!f.key().equals("healthBarHideDelay")).toList();
         if(m!=null&&m.type().equals("armor")&&m.value("armorProjectileOnly")==0)
@@ -685,7 +715,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 wirelessFields.add(new ModuleFields.Field(ADD_OUTPUT_ROW, 0, 0, 0, 1, List.of("mark")));
             nextFields = List.copyOf(wirelessFields);
         }
-        if(!nextFields.equals(parameters)){fields.forEach(box -> box.setFocused(false));rampEnd.setFocused(false);}
+        if (!nextFields.equals(parameters)) clearParameterFocus();
         parameters = nextFields;
         if(selectionChanged&&m!=null){var position=DashboardPageMemory.get(m.id());if(position!=null)parameterPage=position.restore(parameters.stream().map(ModuleFields.Field::key).toList(),parameterSlots);}
         if(!pendingRgb.isEmpty()&&m!=null&&m.value(pendingRgb+"Rgb")==pendingRgbMode){for(int i=0;i<parameters.size();i++)if(parameters.get(i).key().equals(pendingRgb))parameterPage=i/parameterSlots;pendingRgb="";}
@@ -739,7 +769,11 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if(reorderDestination>=0){if(selectedIndex==reorderDestination){page=Math.max(0,sidebarIndex(m.id()))/sidebarSlots;reorderDestination=-1;}else if(tickCount>reorderExpires)reorderDestination=-1;}
         int categoryColor = m == null ? 0 : ModuleCategory.of(m.type()).color;
         for (Button b : edits) { b.active = editable && usable; LifeUiStyle.bookmark(b, b.getWidth() >= 60 ? categoryColor : 0); }
-        savePreset.active=usable;LifeUiStyle.bookmark(savePreset,categoryColor);
+        boolean omittedDisplay = displayModelOmitted(m);
+        savePreset.active = usable && !omittedDisplay;
+        savePreset.setTooltip(net.minecraft.client.gui.components.Tooltip.create(omittedDisplay ? ProjectileItemMenu.oversizedModelLabel()
+                : Component.translatable("module_picker.sablelife.portable")));
+        LifeUiStyle.bookmark(savePreset,categoryColor);
         LifeUiStyle.bookmark(preview, categoryColor);
         boolean loot = usable && m.type().equals("loot"), wireless = usable && !loot && ((int) m.value("trigger") == 2 || (int) m.value("trigger") == 3);
         name.visible = m != null; name.setEditable(editable && usable); channel.setEditable(editable && wireless);
@@ -864,6 +898,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                                 : field.choices().equals(List.of("item")) ? (minecraft.level==null||m.save().getCompound("ProjectileItem").isEmpty() ? tr(m.type().equals("item_display")?"display_empty":m.type().equals("arrow") ? "projectile_default_arrow" : m.type().equals("homing") ? "projectile_default_homing" : "projectile_default") : m.projectileItem(minecraft.level.registryAccess()).getHoverName())
                                 : field.choices().equals(List.of("library")) ? Component.translatable("sound_timeline.sablelife.count",m.soundTimeline(field.key()).rows().size())
                                 : tr("choice_" + field.choices().get(Math.clamp((int) m.value(field.key()), 0, field.choices().size() - 1)));
+                        if (omittedDisplay && field.key().equals("displayItem")) label = ProjectileItemMenu.oversizedModelLabel();
                         if(m.type().equals("visual_shockwave")&&(field.key().equals("contactDirection")&&m.value("shockContact")==0||field.key().equals("shockMode")&&m.value("shockContact")==1))choices.get(i).active=false;
                         if(colorField&&m.value(field.key()+"Rgb")==1){var rgb=ModuleColors.vector(m,field.key());label=Component.literal(String.format(Locale.ROOT,"#%02X%02X%02X",Math.round(rgb.x*255),Math.round(rgb.y*255),Math.round(rgb.z*255)));}
                         if(field.key().equals("summonAttack")){var ref=modules.stream().filter(x->x.id().equals(m.summonAttackId())).findFirst().orElse(null);label=ref==null?tr(m.summonAttackId()==null?"field_none":"field_missing"):Component.literal((ref.name().isEmpty()?tr("type_"+ref.type()).getString():ref.name())+" #"+(modules.indexOf(ref)+1));}
@@ -960,10 +995,13 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             return true;
         }
         if (key == 257 || key == 335) {
-            if (name.isFocused()) { action("edit", "name", 0, name.getValue()); name.setFocused(false); return true; }
-            if (channel.isFocused()) { applyChannel(); return true; }
-            if(rampEnd.isFocused()){applyRampRange(rampRow);return true;}
-            for (int i = 0; i < fields.size(); i++) if (fields.get(i).isFocused()) { apply(i); return true; }
+            if (name.visible && name.active && name.isFocused()) { action("edit", "name", 0, name.getValue()); name.setFocused(false); return true; }
+            if (channel.visible && channel.active && channel.isFocused()) { applyChannel(); return true; }
+            if (rampEnd.visible && rampEnd.active && rampEnd.isFocused()) { applyRampRange(rampRow); return true; }
+            for (int i = 0; i < fields.size(); i++) {
+                var field = fields.get(i);
+                if (field.visible && field.active && field.isFocused()) { apply(i); return true; }
+            }
         }
         // AbstractContainerScreen handles the inventory binding before dispatching to EditBox.
         // Keep all non-Escape keys in the focused editor; charTyped then inserts letters normally.
@@ -1135,7 +1173,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if(m.type().equals("summoned_weapon")){var summon=snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("SummonRuntime");runtime=m.save().getCompound("ProjectileItem").isEmpty()?"summon_no_item":m.summonAttackId()==null||modules.stream().noneMatch(x->x.id().equals(m.summonAttackId())&&ModuleSummonedWeapon.ATTACKS.contains(x.type()))?"summon_no_attack":summon.getBoolean("Finished")?"summon_finished":summon.getBoolean("Active")?"summon_active":summon.getBoolean("Pending")?"summon_deploying":"summon_waiting";}
         if(m.type().equals("surface_field"))runtime="runtime_field_template";
         if(m.type().equals("part_break")&&m.listensToPart())runtime="runtime_part_break_damage";
-        Component runtimeLabel = tr(runtime);
+        Component runtimeLabel = displayModelOmitted(m) ? ProjectileItemMenu.oversizedModelLabel() : tr(runtime);
         if(m.type().equals("contact_sensor")) {
             var data=snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("ContactRuntime");
             var channelState=data.getString("ChannelStatus");

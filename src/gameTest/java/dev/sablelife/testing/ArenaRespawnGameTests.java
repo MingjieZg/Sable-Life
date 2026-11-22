@@ -11,8 +11,9 @@ public final class ArenaRespawnGameTests {
  @GameTest(template="combat",batch="respawn_unloaded",timeoutTicks=100) public static void CountdownPausesWithoutLoadingDistantChunks(GameTestHelper h){ArenaRespawnScenarios.unloaded(h);}
  @GameTest(template="combat",batch="respawn_repeat",timeoutTicks=360) public static void TwoGenerationsKeepAutoRespawnWithoutDuplicatingLife(GameTestHelper h){ArenaRespawnScenarios.repeats(h);}
  @GameTest(template="combat",batch="respawn_cancel",timeoutTicks=360) public static void OperatorCanCancelPartialPlacementSafely(GameTestHelper h){ArenaRespawnScenarios.cancelPartial(h);}
+ @GameTest(template="combat",batch="respawn_cancel_unloaded",timeoutTicks=360) public static void OperatorCanCancelUnloadedPartialPlacement(GameTestHelper h){ArenaRespawnScenarios.cancelUnloadedPartial(h);}
  @GameTest(template="combat",batch="respawn_sparse",timeoutTicks=300) public static void SparseStructureAndLargeBlockDataRecordAndReload(GameTestHelper h){ArenaRespawnScenarios.sparseCapture(h);}
- @GameTest(template="combat",batch="respawn_saved_budget") public static void SavedTemplatesKeepPerRecordAndWorldByteLimits(GameTestHelper h){ArenaRespawnScenarios.savedBudget(h);}
+ @GameTest(template="combat",batch="respawn_saved_budget") public static void SavedTemplatesAndCleanupSurviveLowerAdmissionLimits(GameTestHelper h) throws java.io.IOException{ArenaRespawnScenarios.savedBudget(h);}
 
  @GameTest(template="combat",batch="respawn_parts_death",timeoutTicks=360) public static void RebuiltPartsWithoutReadyConnectionsAllCleanOnSecondDeath(GameTestHelper h){ArenaRespawnScenarios.multiplePartsSecondDeath(h);}
 

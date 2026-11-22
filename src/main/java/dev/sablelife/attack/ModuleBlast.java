@@ -1,8 +1,11 @@
 package dev.sablelife.attack;
 
+import dev.sablelife.SableLifeServerConfig;
 import dev.sablelife.module.VirtualModule;
+import dev.sablelife.ownership.LoadedCoreIndex;
 import dev.sablelife.compat.sable.SableBodyProbe;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -10,6 +13,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.*;
 import net.minecraft.world.phys.*;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
+
+import java.util.UUID;
 
 /** Snapshot shot settings so edits cannot change projectiles already in flight. */
 public final class ModuleBlast {
@@ -76,14 +81,15 @@ public final class ModuleBlast {
             @Override public boolean shouldDamageEntity(Explosion explosion, Entity entity) { return false; }
             @Override public float getKnockbackMultiplier(Entity entity) { return 0; }
         };
-        var interaction=tag.getBoolean("Blocks") ? Level.ExplosionInteraction.TNT : Level.ExplosionInteraction.NONE;
+        var interaction = tag.getBoolean("Blocks") && allowsTerrainBreaking(world, source, owner)
+                ? Level.ExplosionInteraction.TNT : Level.ExplosionInteraction.NONE;
         if(visual.custom()){
             // Keep the native server explosion/protection hooks, suppress its client explosion packet.
             world.explode(source,null,calculator,point.x,point.y,point.z,radius/2,false,interaction,false,net.minecraft.core.particles.ParticleTypes.EXPLOSION,net.minecraft.core.particles.ParticleTypes.EXPLOSION_EMITTER,net.minecraft.sounds.SoundEvents.GENERIC_EXPLODE);
             if(!tag.contains("Sound"))world.playSound(null,point.x,point.y,point.z,net.minecraft.sounds.SoundEvents.GENERIC_EXPLODE.value(),net.minecraft.sounds.SoundSource.BLOCKS,4,(1+(world.random.nextFloat()-world.random.nextFloat())*.2F)*.7F);
             visual.emit(world,point);
         }else world.explode(source,null,calculator,point.x,point.y,point.z,radius/2,false,
-                tag.getBoolean("Blocks") ? Level.ExplosionInteraction.TNT : Level.ExplosionInteraction.NONE,
+                interaction,
                 net.minecraft.core.particles.ParticleTypes.EXPLOSION, net.minecraft.core.particles.ParticleTypes.EXPLOSION_EMITTER,
                 tag.contains("Sound") ? net.minecraft.core.Holder.direct(net.minecraft.sounds.SoundEvents.EMPTY) : net.minecraft.sounds.SoundEvents.GENERIC_EXPLODE);
         if(tag.contains("SoundTimeline")){
@@ -96,6 +102,14 @@ public final class ModuleBlast {
         waves.add(new Wave(world, point, radius, world.getGameTime()));
         dev.sablelife.module.ModuleParticles.send(world, net.minecraft.core.particles.ParticleTypes.EXPLOSION, point.x, point.y + .2, point.z,
                 Math.clamp((int) (radius * 4), 4, 64), radius * .4, .4, radius * .4, 0);
+    }
+    private static boolean allowsTerrainBreaking(ServerLevel world, Entity source, UUID owner) {
+        if (SableLifeServerConfig.allowSurvivalHeartCoreTerrainBreaking() || owner == null) return true;
+        var data = source.getPersistentData();
+        if (data.contains(AttackHitCredit.SURVIVAL_CORE, Tag.TAG_BYTE)) return !data.getBoolean(AttackHitCredit.SURVIVAL_CORE);
+        // Older projectiles have no core type. Only known ordinary sources may break terrain under the restriction.
+        var core = LoadedCoreIndex.find(world, owner);
+        return core != null && !core.isSurvivalCore();
     }
     public static void tick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
         var iterator = waves.iterator();

@@ -84,6 +84,61 @@ public final class AuditSafetyGameTests {
         BodyOwnership.get(h.getLevel()).release(other.creatureId());h.assertTrue(ModuleTargets.resolve(h.getLevel(),other.creatureId(),core.creatureId())==null,"Released owner stayed addressable");BodyOwnership.get(h.getLevel()).release(unrelated);h.succeed();
     }
     @GameTest(template="combat",batch="audit_blueprint_native")
+    public static void DisplayItemsAreRestoredAfterEachPlacedHeartLoads(GameTestHelper h) {
+        var first = fixture(h, 3);
+        var second = fixture(h, 8);
+        var display = first.modules().add("item_display");
+        first.modules().add("arrow");
+        first.modules().add("item_display");
+        var original = first.saveWithoutMetadata(h.getLevel().registryAccess());
+        var rows = original.getCompound("VirtualModules").getList("Modules", 10);
+        var model = new CompoundTag();
+        model.putString("id", "optional_mod:modeled_item");
+        var components = new CompoundTag();
+        components.putIntArray("optional_mod:mesh", new int[]{41, 7, 31});
+        model.put("components", components);
+        rows.getCompound(0).put("ProjectileItem", model);
+        rows.getCompound(1).put("ProjectileItem", model.copy());
+        rows.getCompound(2).putInt("Version", 2);
+        rows.getCompound(2).put("ProjectileItem", model.copy());
+        var duplicate = rows.getCompound(0).copy();
+        duplicate.getCompound("ProjectileItem").putString("id", "minecraft:dirt");
+        rows.add(duplicate);
+
+        var session = new dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession(h.getLevel(), new org.joml.Vector3d(), new CompoundTag());
+        var mapper = new dev.sablelife.compat.photomancy.HeartBlueprintMapper();
+        var contexts = new ArrayList<dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockPlaceContext>();
+        var tags = new ArrayList<CompoundTag>();
+        var hearts = List.of(first, second);
+        for (int i = 0; i < hearts.size(); i++) {
+            var core = hearts.get(i);
+            var body = (dev.ryanhcode.sable.sublevel.ServerSubLevel)dev.ryanhcode.sable.Sable.HELPER.getContaining(h.getLevel(), core.getBlockPos());
+            session.mapSubLevel(i, body.getUniqueId(), body, core.getBlockPos());
+            var context = new dev.rew1nd.sableschematicapi.api.blueprint.BlueprintBlockPlaceContext(session, body, i, body.getUniqueId(), BlockPos.ZERO, core.getBlockPos(), core.getBlockState());
+            contexts.add(context);
+            var tag = original.copy();
+            tags.add(tag);
+            var placedRows = tag.getCompound("VirtualModules").getList("Modules", 10);
+            placedRows.getCompound(0).getCompound("ProjectileItem").putInt("variant", i);
+            mapper.beforeLoadBlockEntity(context, tag);
+            h.assertTrue(!placedRows.getCompound(0).contains("ProjectileItem"), "Native load still sees the model");
+            h.assertTrue(placedRows.getCompound(1).getCompound("ProjectileItem").equals(model)
+                    && placedRows.getCompound(2).getCompound("ProjectileItem").equals(model), "Changed a weapon or a future module schema");
+            core.loadWithComponents(tag, h.getLevel().registryAccess());
+        }
+        for (int i = hearts.size() - 1; i >= 0; i--) {
+            var core = hearts.get(i);
+            mapper.afterLoadBlockEntity(contexts.get(i), core, tags.get(i));
+            var restored = core.modules().find(contexts.get(i).allocateMappedUuid(display.id()));
+            var expected = model.copy();
+            expected.putInt("variant", i);
+            h.assertTrue(restored.save().getCompound("ProjectileItem").equals(expected), "Display was assigned another core's model");
+        }
+        h.assertTrue(session.globalExtraData().isEmpty(), "Placement retained model copies after restoration");
+        session.runAfterBlockEntityTasks();
+        h.succeed();
+    }
+    @GameTest(template="combat",batch="audit_blueprint_native")
     public static void NativeBlueprintSessionRemapsActionsBothMarkSetsAndLocksCommands(GameTestHelper h) {
         var core=fixture(h,3);var particles=core.modules().add("particles");var table=core.modules().add("move_set");var command=core.modules().add("command");
         table.moveSet().edit("add",0,"",core.modules());table.moveSet().edit("action_add",0,"0|"+particles.id(),core.modules());

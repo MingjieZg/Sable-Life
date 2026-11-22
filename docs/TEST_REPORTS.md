@@ -4,6 +4,7 @@
 
 | 测试 / Test | 中文 | English |
 |---|---|---|
+| 视线、蓝图与 Walker / Line of sight, blueprints and Walker | [中文](performance/SIGHT_AND_WALKER_0.1.452-review.3.md) | [English](performance/SIGHT_AND_WALKER_0.1.452-review.3_EN.md) |
 | 近战碎块与掉落 / Melee options | [中文](performance/MELEE_OPTIONS_0.1.450.md) | [English](performance/MELEE_OPTIONS_0.1.450_EN.md) |
 | 自动朝向偏移 / Aim offsets | [中文](performance/AUTO_FACING_0.1.450.md) | [English](performance/AUTO_FACING_0.1.450_EN.md) |
 | 无线红石缓冲 / Signal buffer | [中文](performance/SIGNAL_BUFFER_0.1.447.md) | [English](performance/SIGNAL_BUFFER_0.1.447_EN.md) |

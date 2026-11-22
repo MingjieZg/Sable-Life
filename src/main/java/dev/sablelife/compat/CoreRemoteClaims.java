@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.fml.ModList;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.List;
 
 /** Optional claim checks for an editor opened without a physical block interaction. */
@@ -27,8 +28,7 @@ public final class CoreRemoteClaims {
         private static final Access ACCESS = resolve();
 
         private static Access resolve() {
-            var mod = ModList.get().getModContainerById(AERO_CLAIMS);
-            if (mod.isEmpty() || !mod.get().getModInfo().getVersion().toString().equals("0.9.5")) return null;
+            if (!ModVersion.atLeast(aeroClaimsVersion(), "0.9.5")) return null;
             try {
                 var loader = CoreRemoteClaims.class.getClassLoader();
                 var manager = Class.forName("com.mapter.aeroclaims.claim.ClaimManager", false, loader);
@@ -38,7 +38,11 @@ public final class CoreRemoteClaims {
                 var getResolver = manager.getMethod("getPermissionResolver");
                 var canAccess = resolver.getMethod("canAccess", ServerPlayer.class, claim);
                 if (findClaim.getReturnType() != claim || getResolver.getReturnType() != resolver
-                        || canAccess.getReturnType() != boolean.class) return null;
+                        || canAccess.getReturnType() != boolean.class
+                        || !Modifier.isStatic(findClaim.getModifiers()) || !findClaim.canAccess(null)
+                        || !Modifier.isStatic(getResolver.getModifiers()) || !getResolver.canAccess(null)
+                        || Modifier.isStatic(canAccess.getModifiers())
+                        || !Modifier.isPublic(canAccess.getDeclaringClass().getModifiers())) return null;
                 return new Access(findClaim, getResolver, canAccess);
             } catch (ReflectiveOperationException | LinkageError | RuntimeException error) {
                 LogUtils.getLogger().warn("Could not connect the Core Remote to AeroClaims protection", error);

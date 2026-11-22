@@ -8,7 +8,10 @@ import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
@@ -19,14 +22,47 @@ import java.util.*;
 @EventBusSubscriber(modid=SableLife.MOD_ID,value=Dist.CLIENT)
 public final class ModuleItemDisplayClient {
     private record Display(UUID id,ModuleAnchor anchor,ItemStack item,float size,Vec3 offset,org.joml.Quaternionf rotation){}
-    private record Core(UUID creature,List<Display> displays,long expires){}
+    private record Core(UUID creature, long revision, List<Display> displays, int bytes, ItemDisplaySync.Lease lease) {}
     private record Preview(net.minecraft.world.entity.Display.ItemDisplay entity,Vec3 muzzle,long expires){}
     private static final Map<UUID,List<Preview>> previews=new LinkedHashMap<>();
-    private static final Map<BlockPos,Core> cores=new LinkedHashMap<>();
-    private static net.minecraft.client.multiplayer.ClientLevel previous;
-    @SubscribeEvent public static void tick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event){if(Minecraft.getInstance().level==null){cores.clear();previews.clear();previous=null;}}
+    private static final int MAX_CACHED_BYTES = 4 * ItemDisplaySync.MAX_SNAPSHOT_BYTES;
+    private static final Map<BlockPos, Core> cores = new LinkedHashMap<>();
+    private static final ItemDisplaySync.Assembly assembly = new ItemDisplaySync.Assembly();
+    private static ClientLevel previous;
+    private static int cachedBytes;
+
+    private static ClientLevel currentLevel() {
+        var level = Minecraft.getInstance().level;
+        if (level != previous) {
+            cores.clear();
+            previews.clear();
+            assembly.clear();
+            cachedBytes = 0;
+            previous = level;
+        }
+        return level;
+    }
+
+    @SubscribeEvent
+    public static void tick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
+        var level = currentLevel();
+        if (level == null) return;
+        long now = level.getGameTime();
+        assembly.expire(now);
+        var iterator = cores.values().iterator();
+        while (iterator.hasNext()) {
+            var core = iterator.next();
+            if (core.lease.expired(now)) {
+                cachedBytes -= core.bytes;
+                iterator.remove();
+            }
+        }
+        previews.entrySet().removeIf(entry -> entry.getValue().isEmpty() || entry.getValue().getFirst().expires < now);
+    }
+
     public static void receive(ItemDisplayPacket packet){
-        var level=Minecraft.getInstance().level;if(level==null)return;if(level!=previous){cores.clear();previews.clear();previous=level;}
+        var level = currentLevel();
+        if (level == null) return;
         if(packet.displays()==null)return;
         if(packet.displays().contains("HealthBars")){WorldHealthBarClient.receive(packet);return;}
         if(packet.displays().contains("SummonPreview")){
@@ -44,24 +80,92 @@ public final class ModuleItemDisplayClient {
             }
             previews.put(packet.creature(),List.copyOf(rows));while(previews.size()>16)previews.remove(previews.keySet().iterator().next());return;
         }
-        var list=new ArrayList<Display>();
-        for(var value:packet.displays().getList("Displays",10)){
-            if(list.size()>=64)break;var row=(net.minecraft.nbt.CompoundTag)value;var anchor=ModuleAnchor.load(row.getCompound("Anchor"));var item=ItemStack.parseOptional(level.registryAccess(),row.getCompound("Item"));if(anchor==null||item.isEmpty()||!row.hasUUID("Id"))continue;
-            var rotation=new org.joml.Quaternionf().rotationXYZ((float)Math.toRadians(row.getFloat("displayRotX")),(float)Math.toRadians(row.getFloat("displayRotY")),(float)Math.toRadians(row.getFloat("displayRotZ")));
-            list.add(new Display(row.getUUID("Id"),anchor,item,row.getFloat("displaySize"),new Vec3(row.getFloat("displayX"),row.getFloat("displayY"),row.getFloat("displayZ")),rotation));
+        var data = packet.displays();
+        long revision = data.getLong(ItemDisplaySync.REVISION);
+        var existing = cores.get(packet.core());
+        if (existing != null && revision != 0 && revision < existing.revision) return;
+        if (existing != null && revision != 0 && revision == existing.revision && existing.creature.equals(packet.creature())) {
+            renew(packet.core(), existing, level.getGameTime());
+            return;
         }
-        if(list.isEmpty())cores.remove(packet.core());else cores.put(packet.core(),new Core(packet.creature(),List.copyOf(list),level.getGameTime()+40));
-        while(cores.size()>256)cores.remove(cores.keySet().iterator().next());
+        assembly.forget(packet.core());
+        replace(level, packet.core(), packet.creature(), revision, data.getList("Displays", Tag.TAG_COMPOUND), data.sizeInBytes());
     }
+
+    public static void receive(ItemDisplayPacket.Part packet) {
+        var level = currentLevel();
+        if (level == null) return;
+        var existing = cores.get(packet.core());
+        long now = level.getGameTime();
+        if (packet.total() == 0) {
+            if (existing != null && existing.revision == packet.revision() && existing.creature.equals(packet.creature())) {
+                renew(packet.core(), existing, now);
+            }
+            return;
+        }
+        if (existing != null && packet.revision() < existing.revision) return;
+        if (existing != null && packet.revision() == existing.revision && existing.creature.equals(packet.creature())) {
+            renew(packet.core(), existing, now);
+            return;
+        }
+        var complete = assembly.accept(packet, now);
+        if (complete != null) replace(level, packet.core(), packet.creature(), packet.revision(), complete.rows(), complete.bytes());
+    }
+
+    private static void renew(BlockPos pos, Core existing, long now) {
+        cores.put(pos, new Core(existing.creature, existing.revision, existing.displays, existing.bytes, ItemDisplaySync.Lease.refreshed(now)));
+    }
+
+    private static void discard(BlockPos pos) {
+        var removed = cores.remove(pos);
+        if (removed != null) cachedBytes -= removed.bytes;
+    }
+
+    private static void replace(ClientLevel level, BlockPos pos, UUID creature, long revision, ListTag rows, int bytes) {
+        discard(pos);
+        if (rows.isEmpty() || bytes < 1 || bytes > ItemDisplaySync.MAX_SNAPSHOT_BYTES) return;
+
+        var displays = new ArrayList<Display>();
+        int checked = 0;
+        for (var value : rows) {
+            if (++checked > ItemDisplaySync.MAX_ROWS) break;
+            var row = (net.minecraft.nbt.CompoundTag) value;
+            var anchor = ModuleAnchor.load(row.getCompound("Anchor"));
+            if (anchor == null || !row.hasUUID("Id")) continue;
+            ItemStack item;
+            try {
+                item = ItemStack.parseOptional(level.registryAccess(), row.getCompound("Item"));
+            } catch (RuntimeException invalidComponent) {
+                continue;
+            }
+            if (item.isEmpty()) continue;
+            var rotation = new org.joml.Quaternionf().rotationXYZ((float) Math.toRadians(row.getFloat("displayRotX")),
+                    (float) Math.toRadians(row.getFloat("displayRotY")), (float) Math.toRadians(row.getFloat("displayRotZ")));
+            displays.add(new Display(row.getUUID("Id"), anchor, item, row.getFloat("displaySize"),
+                    new Vec3(row.getFloat("displayX"), row.getFloat("displayY"), row.getFloat("displayZ")), rotation));
+        }
+        if (displays.isEmpty()) return;
+        long now = level.getGameTime();
+        while (cores.size() >= 256 || cachedBytes + bytes > MAX_CACHED_BYTES) discard(evictionCandidate(now));
+        cores.put(pos, new Core(creature, revision, List.copyOf(displays), bytes, ItemDisplaySync.Lease.refreshed(now)));
+        cachedBytes += bytes;
+    }
+
+    private static BlockPos evictionCandidate(long now) {
+        for (var entry : cores.entrySet()) if (!entry.getValue().lease.visible(now)) return entry.getKey();
+        return cores.keySet().iterator().next();
+    }
+
     @SubscribeEvent public static void render(RenderLevelStageEvent event){
         if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_PARTICLES){renderMuzzles(event);return;}
-        if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_ENTITIES)return;var mc=Minecraft.getInstance();var level=mc.level;
-        if(level==null||level!=previous){cores.clear();previews.clear();previous=level;return;}cores.entrySet().removeIf(e->e.getValue().expires<level.getGameTime());
-        previews.entrySet().removeIf(e->e.getValue().isEmpty()||e.getValue().getFirst().expires<level.getGameTime());
+        if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_ENTITIES)return;var mc=Minecraft.getInstance();var level=currentLevel();
+        if(level==null)return;
         var pose=event.getPoseStack();var camera=event.getCamera().getPosition();var buffers=mc.renderBuffers().bufferSource();int count=0;
         // Use the actual ItemDisplay renderer, including its extra Y half-turn and model pivot.
         for(var group:previews.values())for(var preview:group){var entity=preview.entity;var world=entity.position();if(world.distanceToSqr(camera)>256*256)continue;mc.getEntityRenderDispatcher().render(entity,world.x-camera.x,world.y-camera.y,world.z-camera.z,0,1,pose,buffers,15728880);}
+        long now = level.getGameTime();
         for(var entry:cores.entrySet()){
+            if (!entry.getValue().lease.visible(now)) continue;
             if(!(level.getBlockEntity(entry.getKey()) instanceof HeartBlockEntity core)||!core.creatureId().equals(entry.getValue().creature))continue;
             for(var display:entry.getValue().displays){
                 var body=SubLevelContainer.getContainer(level).getSubLevel(display.anchor.bodyId());if(!(body instanceof ClientSubLevel client)||body.isRemoved()||level.getBlockState(display.anchor.position(body)).isAir())continue;

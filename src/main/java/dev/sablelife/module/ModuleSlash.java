@@ -60,7 +60,7 @@ public final class ModuleSlash {
      boolean accepted;
      if(b.cast.value("damage")==0){
       if(source instanceof BodyMeleeSource body)body.owner(heart.creatureId()).module(b.cast.id());
-      accepted=!(source instanceof BodyMeleeSource body)||(!victim.isDamageSourceBlocked(source)&&!(net.neoforged.fml.ModList.get().isLoaded("epicfight")&&dev.sablelife.compat.epicfight.EpicFightBodyGuard.blockEffectOnly(victim,body)));
+      accepted=!(source instanceof BodyMeleeSource body)||(!victim.isDamageSourceBlocked(source)&&!dev.sablelife.compat.epicfight.EpicFightCompatibility.blockEffectOnly(victim,body));
       if(!accepted&&source instanceof BodyMeleeSource body){if(!body.wasBlocked())body.blocked(1);dev.sablelife.attack.CombatEventHooks.blocked(victim,body);}
      }else accepted=ModuleDamage.hurt(victim,source,(float)b.cast.value("damage"),heart,b.cast);
      if(accepted){
@@ -98,6 +98,6 @@ public final class ModuleSlash {
  }
  public static void preview(ServerPlayer player,HeartBlockEntity heart,VirtualModule m){
   MarkingSessions.previewLaunch(player,heart,m);var level=(ServerLevel)heart.getLevel();var mark=ModuleCombat.nozzle(heart,m);var dust=new DustParticleOptions(new Vector3f(1,1,1),1);
-  for(var base:ProjectileAim.directions(heart,m,mark))for(var f:frames(base,m)){var start=mark;var end=SensorGeometry.beamEnd(level,heart.creatureId(),start,start.add(f.direction.scale(m.value("range"))));int count=Math.clamp((int)Math.ceil(start.distanceTo(end)*2),1,256);for(int i=0;i<=count;i++){var p=start.lerp(end,i/(double)count);level.sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);}net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet(new Blade(end,f,m),end,end));}
+  for(var base:ProjectileAim.previewDirections(heart,m,mark))for(var f:frames(base,m)){var start=mark;var end=SensorGeometry.beamEnd(level,heart.creatureId(),start,start.add(f.direction.scale(m.value("range"))));int count=Math.clamp((int)Math.ceil(start.distanceTo(end)*2),1,256);for(int i=0;i<=count;i++){var p=start.lerp(end,i/(double)count);level.sendParticles(player,dust,true,p.x,p.y,p.z,1,0,0,0,0);}net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,packet(new Blade(end,f,m),end,end));}
  }
 }

@@ -6,6 +6,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.heart.HeartHealth;
+import dev.sablelife.item.DataCopierCommands;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
@@ -21,6 +22,7 @@ public final class HeartCommands {
         event.getDispatcher().register(Commands.literal("sablelife").executes(context -> HeartCommandHelp.show(context.getSource()))
                 .then(Commands.literal("help").executes(context -> HeartCommandHelp.show(context.getSource())))
                 .then(BlueprintCommands.branch())
+                .then(DataCopierCommands.branch())
                 .then(Commands.literal("inspect").requires(source -> source.hasPermission(2)).then(Commands.argument("pos", BlockPosArgument.blockPos()).executes(context -> {
                     var heart = heart(context);
                     context.getSource().sendSuccess(heart::status, false);

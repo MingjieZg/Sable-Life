@@ -4,17 +4,56 @@ import dev.sablelife.compat.StructureRemovalApi;
 import dev.sablelife.compat.photomancy.PhotomancyRespawnBridge;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
+import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
+import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
+import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.*;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.*;
 import java.util.*;
 @GameTestHolder("sablelife_plot_cache_tests") @PrefixGameTestTemplate(false)
 public final class PlotChunkCacheGameTests {
+ @GameTest(template="combat",batch="structure_removal_completion")
+ public static void StructureRemovalRequiresCompletedDeletion(GameTestHelper h) throws ReflectiveOperationException {
+  var level = h.getLevel();
+  var pos = h.absolutePos(new BlockPos(5, 40, 5));
+  level.setBlockAndUpdate(pos, Blocks.IRON_BLOCK.defaultBlockState());
+  var body = SubLevelAssemblyHelper.assembleBlocks(level, pos, List.of(pos),
+          new BoundingBox3i(pos.getX(), pos.getY(), pos.getZ(), pos.getX(), pos.getY(), pos.getZ()));
+  var container = SubLevelContainer.getContainer(level);
+  var operation = StructureRemovalApi.class.getDeclaredMethod("removePrepared", ServerLevel.class,
+          ServerSubLevelContainer.class, List.class, java.lang.reflect.Method.class);
+  operation.setAccessible(true);
+  var deferred = PlotChunkCacheGameTests.class.getMethod("deferredRemoval", ServerLevel.class,
+          ServerSubLevelContainer.class, Collection.class);
+  try {
+   operation.invoke(null, level, container, List.of(body), deferred);
+   h.fail("An incomplete optional removal reported success");
+  } catch (java.lang.reflect.InvocationTargetException result) {
+   h.assertTrue(result.getCause() instanceof IllegalStateException
+           && result.getCause().getMessage().contains("did not permanently remove"), "Unexpected removal failure: " + result.getCause());
+  }
+  h.assertTrue(container.getSubLevel(body.getUniqueId()) == body, "Incomplete optional removal fell back during the same attempt");
+  String expectedToolgun = System.getProperty("sablelife.testToolgunCoordinator");
+  if (expectedToolgun != null) {
+   var toolgun = Class.forName(StructureRemovalApi.class.getName() + "$Toolgun");
+   var field = toolgun.getDeclaredField("coordinator");
+   field.setAccessible(true);
+   h.assertTrue((field.get(null) != null) == Boolean.parseBoolean(expectedToolgun), "Unexpected Toolgun adapter selection");
+  }
+  StructureRemovalApi.remove(level, body);
+  h.assertTrue(StructureRemovalApi.permanentlyRemoved(container, body), "Successful removal did not release the original plot");
+  h.succeed();
+ }
+
+ public static void deferredRemoval(ServerLevel level, ServerSubLevelContainer container, Collection<ServerSubLevel> bodies) {}
+
  @GameTest(template="combat",batch="blueprint_reused_protected_plot",timeoutTicks=100)
  public static void OrdinaryBlueprintIgnoresRetiredLifeProtectionOnReusedPlot(GameTestHelper h){
   var level=h.getLevel();var pos=h.absolutePos(new BlockPos(5,40,5));

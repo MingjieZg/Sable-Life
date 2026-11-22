@@ -9,6 +9,7 @@ import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.ownership.ArenaRespawns;
 import dev.sablelife.ownership.ArenaRespawnLimits;
+import dev.sablelife.ownership.BlueprintCleanup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.*;
@@ -47,9 +48,19 @@ public final class PhotomancyRespawnBridge {
  private static final class Build implements ArenaRespawns.Build {
   final UUID tickGroup=UUID.randomUUID();
   final SableBlueprint blueprint;final BlueprintBuildProgress progress;final BlueprintPlacementPlan plan;
+  final CompoundTag rollbackPlots;
   final boolean legacyIncremental,spawnGeometry;boolean directDone;dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession session;
   Build(CompoundTag template,CompoundTag saved,Vec3 center){this(template,saved,center,null,false);}
-  Build(CompoundTag template,CompoundTag saved,Vec3 center,org.joml.Quaterniond rotation,boolean spawn){blueprint=SableBlueprint.load(template);progress=saved.isEmpty()?new BlueprintBuildProgress():BlueprintBuildProgress.load(saved);plan=spawn?SpawnTemplateBridge.plan(blueprint,center,rotation):BlueprintPlacementPlan.legacy(blueprint,center);spawnGeometry=spawn;directDone=saved.getBoolean("SableLifeDirectDone");legacyIncremental=!saved.isEmpty()&&!saved.getBoolean("SableLifeDirect");}
+  Build(CompoundTag template,CompoundTag saved,Vec3 center,org.joml.Quaterniond rotation,boolean spawn){
+   blueprint=SableBlueprint.load(template);
+   progress=saved.isEmpty()?new BlueprintBuildProgress():BlueprintBuildProgress.load(saved);
+   plan=spawn?SpawnTemplateBridge.plan(blueprint,center,rotation):BlueprintPlacementPlan.legacy(blueprint,center);
+   rollbackPlots=saved.getCompound(BlueprintCleanup.PLOT_CENTERS).copy();
+   spawnGeometry=spawn;directDone=saved.getBoolean("SableLifeDirectDone");legacyIncremental=!saved.isEmpty()&&!saved.getBoolean("SableLifeDirect");
+  }
+  private void recordRollbackPlot(dev.ryanhcode.sable.sublevel.ServerSubLevel body){
+   rollbackPlots.putLong(body.getUniqueId().toString(),body.getPlot().getCenterBlock().asLong());
+  }
   @Override public AABB bounds(){if(spawnGeometry)return SpawnTemplateBridge.bounds(blueprint,plan);var b=blueprint.hasCanonicalBounds()?blueprint.canonicalBounds():blueprint.rootBounds();return new AABB(b.minX(),b.minY(),b.minZ(),b.maxX(),b.maxY(),b.maxZ()).move(plan.originVec3());}
   @Override public String step(ServerLevel level){
    if(!legacyIncremental)return placeDirect(level);
@@ -72,7 +83,13 @@ public final class PhotomancyRespawnBridge {
     }
     directDone=true;return "DONE";
    }finally{
-    if(session!=null){for(var part:blueprint.subLevels()){var body=session.placedSubLevel(part.id());var origin=session.placedBlockOrigin(part.id());if(body!=null&&origin!=null)progress.recordPlacedSubLevel(part,body.getUniqueId(),origin);}session.allocatedUuidMap().forEach(progress::recordAllocatedUuid);}
+    if(session!=null){
+     for(var part:blueprint.subLevels()){
+      var body=session.placedSubLevel(part.id());var origin=session.placedBlockOrigin(part.id());
+      if(body!=null&&origin!=null){recordRollbackPlot(body);progress.recordPlacedSubLevel(part,body.getUniqueId(),origin);}
+     }
+     session.allocatedUuidMap().forEach(progress::recordAllocatedUuid);
+    }
     if(previous==null)TRUSTED.remove();else TRUSTED.set(previous);
     if(previousBuild==null)DIRECT_BUILD.remove();else DIRECT_BUILD.set(previousBuild);
    }
@@ -84,7 +101,13 @@ public final class PhotomancyRespawnBridge {
     dev.sablelife.ownership.ArenaBuildTicks.hold(level,tickGroup,bodies());
     if(result.status()==BlueprintBuildStatus.FAILED)throw new IllegalStateException("Photomancy build failed: "+result.message().getString());
     stabilize(level);if(result.status()==BlueprintBuildStatus.DONE)dev.sablelife.ownership.ArenaBuildTicks.release(level,bodies());return result.status().name();}
-   finally{if(previous==null)TRUSTED.remove();else TRUSTED.set(previous);}
+   finally{
+    var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
+    if(container!=null)for(var placed:progress.placedSubLevels().values()){
+     if(container.getSubLevel(placed.placedUuid()) instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel body)recordRollbackPlot(body);
+    }
+    if(previous==null)TRUSTED.remove();else TRUSTED.set(previous);
+   }
   }
   private void stabilize(ServerLevel level){
    var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);var physics=dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem.get(level);if(container==null||physics==null)return;
@@ -126,7 +149,12 @@ public final class PhotomancyRespawnBridge {
     }
    }
   }
-  @Override public CompoundTag save(){var tag=progress.save();if(!legacyIncremental){tag.putBoolean("SableLifeDirect",true);tag.putBoolean("SableLifeDirectDone",directDone);}return tag;}
+  @Override public CompoundTag save(){
+   var tag=progress.save();
+   if(!rollbackPlots.isEmpty())tag.put(BlueprintCleanup.PLOT_CENTERS,rollbackPlots.copy());
+   if(!legacyIncremental){tag.putBoolean("SableLifeDirect",true);tag.putBoolean("SableLifeDirectDone",directDone);}
+   return tag;
+  }
   @Override public float fraction(){if(!legacyIncremental)return directDone?1:0;int done=0;for(int i=0;i<Math.min(progress.currentSubLevelIndex(),blueprint.subLevels().size());i++)done+=blueprint.subLevels().get(i).blocks().size();done+=progress.currentBlockIndex();return Math.min(.99F,done/(float)Math.max(1,blueprint.blockCount()));}
   @Override public HeartBlockEntity heart(ServerLevel level){
    for(var part:blueprint.subLevels()){

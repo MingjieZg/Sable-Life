@@ -18,6 +18,7 @@ public final class ModulePull {
  private UUID emitterAudio;private UUID audio(UUID id){return emitterAudio==null?id:emitterAudio;}
     private static final int MAX_TARGETS = 64;
     private static final class State {
+        ModuleTargets.AttackAim aim;
         final PullCycle clock = new PullCycle();
         final Map<UUID,Integer> victims = new HashMap<>();
         List<Vec3> centers=List.of();
@@ -109,7 +110,11 @@ public final class ModulePull {
             if (!EmitterRuntime.active(module, heart)) continue;
             active.add(module.id()); var state = states.computeIfAbsent(module.id(), ignored -> new State());
             var before=state.clock.phase();
-            var points=before==PullCycle.Phase.WAITING?(TargetCastOrigin.targeted(module)?TargetCastOrigin.points(heart,module):List.of(destination(heart,module))):state.centers;
+            if (before == PullCycle.Phase.WAITING && (!state.clock.ready(now) || now < state.nextScan)) continue;
+            if (before == PullCycle.Phase.WAITING)
+                state.aim = TargetCastOrigin.targeted(module) ? ModuleTargets.attackAim(heart, module) : null;
+            var points = before != PullCycle.Phase.WAITING ? state.centers : TargetCastOrigin.targeted(module)
+                    ? TargetCastOrigin.castPoints(heart, module, state.aim) : List.of(destination(heart, module));
             if(points.isEmpty())continue;
             boolean canStart=false;
             if(state.clock.ready(now)&&now>=state.nextScan){
@@ -121,6 +126,11 @@ public final class ModulePull {
             var destinations=TargetCastOrigin.targeted(module)?state.centers:List.of(destination(heart,module));
             if(phase==PullCycle.Phase.PULLING&&before!=phase){
                 stop(module.id());
+                if (!TargetCastOrigin.releaseAllowed(level, heart, module, state.aim)) {
+                    state.clock.cancel(now, (int) module.value("interval"));
+                    EmitterRuntime.completed(module, heart);
+                    continue;
+                }
                 for(int i=0;i<state.centers.size();i++){
                     var center=state.centers.get(i);var point=destinations.get(i);ModuleAudio.play(level,module,"pullSound",point);
                     for(var victim:targets(level,heart,module,center,point,state.geometry.isEmpty()?null:state.geometry.get(i))){

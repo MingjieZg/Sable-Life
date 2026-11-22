@@ -27,15 +27,38 @@ public final class ModuleHoming {
         return DeploymentFormation.points(center,forward,new org.joml.Quaterniond(m.anchors().getFirst().body(heart).logicalPose().orientation()),(int)m.value("homingPlane"),(int)m.value("homingCount"),m.value("homingOffset"),m.value("homingFan"),Double.NaN,m.value("homingRotation"),m.value("homingVerticalRotation"));
     }
     public static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule m, Vec3 center) {
-        return targets(level, heart, m, center, null);
+        return targets(level, heart, m, center, center, null, false);
     }
-    public static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule m, Vec3 center, UUID inherited) {
-        double range=m.value("targetRange");
-        return ModuleTargets.aimedTargets(level, heart, new AABB(center,center).inflate(range),
-                target -> eligible(target,m) && target.getBoundingBox().getCenter().distanceToSqr(center) <= range * range,
-                ModuleTargets.comparator(heart,target -> target.getBoundingBox().getCenter().distanceToSqr(center)),
-                target -> ModuleTargets.attackVisible(level, heart, m, center, target),
-                m.value("targetMultiple") == 1 ? 64 : 1, inherited);
+
+    public static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center, UUID inherited) {
+        var current = ModuleTargets.attackAim(heart, module);
+        var preferred = current != null && current.id().equals(inherited) ? current : ModuleTargets.AttackAim.fixed(inherited);
+        return targets(level, heart, module, center, center, preferred, false);
+    }
+
+    public static List<LivingEntity> launchTargets(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
+                                                    Vec3 center, Vec3 shooter, ModuleTargets.AttackAim aim) {
+        return targets(level, heart, module, center, shooter, aim, false);
+    }
+
+    private static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
+                                              Vec3 center, Vec3 shooter, ModuleTargets.AttackAim aim, boolean remember) {
+        double range = module.value("targetRange");
+        var bounds = new AABB(center, center).inflate(range);
+        java.util.function.ToDoubleFunction<LivingEntity> distance = target ->
+                ModuleTargets.attackPoint(level, heart, module, target, aim).distanceToSqr(center);
+        java.util.function.Predicate<LivingEntity> eligible = target -> eligible(target, module) && distance.applyAsDouble(target) <= range * range;
+        var order = ModuleTargets.comparator(heart, distance);
+        boolean multiple = module.value("targetMultiple") == 1;
+        return ModuleTargets.attackResults(level, heart, module, bounds, eligible, order,
+                target -> ModuleTargets.attackVisible(level, heart, module, shooter, target, aim) ? target : null,
+                aim, multiple, remember).limit(multiple ? 64 : 1).toList();
+    }
+
+    public static boolean targetInRange(ServerLevel level, VirtualModule module, Vec3 center, LivingEntity target) {
+        double range = module.value("targetRange");
+        return !target.isRemoved() && eligible(target, module)
+                && dev.sablelife.compat.sable.SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter()).distanceToSqr(center) <= range * range;
     }
     public static boolean eligible(LivingEntity e,VirtualModule m) {
         return ModuleTargets.matches(e,m);
@@ -54,12 +77,12 @@ public final class ModuleHoming {
             if(s.shots.isEmpty()) heart.modules().hurtTriggers.completed(m);
             if(!s.shots.isEmpty() || now<s.due || !HeartModules.triggered(m,heart)) continue;
             var center=ModuleCombat.origin(heart,m,true);
-            UUID inherited = ModuleTargets.attackTarget(heart,m);
-            if(targets(level,heart,m,center,inherited).isEmpty()) { s.due=now+10; continue; }
+            var inherited = ModuleTargets.attackAim(heart, m);
+            if(targets(level, heart, m, center, center, inherited, true).isEmpty()) { s.due=now+10; continue; }
             if(!heart.modules().hurtTriggers.start(m)||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,1)) continue;
             int index=0;
             for(var point:formation(heart,m)) {
-                var shot=ModuleShot.homing(level,point,center,m,heart,index++,inherited);
+                var shot=ModuleShot.homingWithAim(level, point, center, m, heart, index++, inherited);
                 if(level.addFreshEntity(shot)) s.shots.add(shot);
             }
             ModuleAudio.play(level,m,"chargeSound",center);

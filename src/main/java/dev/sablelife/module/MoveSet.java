@@ -96,7 +96,7 @@ public final class MoveSet {
                     }
                 }
                 default -> {
-                    if (!Set.of("dispatchWeight", "dispatchCooldown", "dispatchRest", "dispatchBusy", "target", "dispatchNear", "dispatchFar", "phaseLower", "phaseUpper", "dispatchCone", "dispatchFront", "lineOfSight", "inheritMoveTarget", "dispatchRepeat").contains(key)) return false;
+                    if (!Set.of("dispatchWeight", "dispatchCooldown", "dispatchRest", "dispatchBusy", "target", "dispatchNear", "dispatchFar", "phaseLower", "phaseUpper", "dispatchCone", "dispatchFront", "lineOfSight", SightMemory.FIELD, "inheritMoveTarget", "dispatchRepeat").contains(key)) return false;
                     return move.config.edit(key, value, "");
                 }
             }

@@ -15,9 +15,9 @@
 - LittleTiles 网格恢复纳入本体时仍作为可选客户端兼容修复，不新增功能编号；保留配置开关、版本与接口检查及外置包优先处理。 / Integrating the optional client recovery adapter is a compatibility fix, with configuration and dependency guards, not a new feature count.
 - 箭矢碰撞查询的世界／结构坐标统一属于修复，不新增功能编号或改变存档格式。 / Normalizing arrow collision query coordinates is a fix and does not change the feature count or save format.
 
-## 已登记的 127 个功能点
+## 已登记的功能点
 
-推进与运动阻尼登记为第117、118项；推进世界方向为第119项，观察工具的生存合成获取为第120项。后续新增项继续登记至第127项，当前源码版本为0.1.450；纯修复不重复计入功能数量。 / Entries now run through127, with source version0.1.450. Follow-up fixes do not count as additional features.
+推进与运动阻尼登记为第117、118项；推进世界方向为第119项，观察工具的生存合成获取为第120项。后续新增项登记至第129项，当前源码版本为 0.1.452。第128、129项同时纳入本地候选版。 / Entries now run through 129. The local 0.1.452 candidate includes entries 128 and 129. Follow-up fixes do not add feature numbers.
 
 1. 核心玩家名字白名单，支持离线名字、忽略大小写及 All 目标。
 2. 每核心目标优先级排序。
@@ -224,3 +224,7 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 127. 0.1.450：自动朝向的自身局部左右、上下小数瞄准偏移，默认0、滚轮0.1格；新模块碰撞检查默认关闭，旧设置与传感器绑定保留。无线红石缓冲滚轮调整属于配套修复，不另计功能编号。手册253。 / Decimal local left/up Auto Facing aim-origin offsets, default0 with a 0.1-block wheel step. New modules default collision Off while old settings and sensor bindings remain intact. Buffer scrolling is an accompanying fix, not a new feature entry. Manual253.
 
 0.1.450 配套调整：近战破坏设置置于属性末尾，提供独立碎块／掉落开关与背包保护名单样本；扩展现有近战地形功能，不重复计入新增功能数。 / Melee breaking controls move to the end, with independent debris/drop switches and inventory protection samples; these extend existing terrain breaking without a separate feature count.
+
+128. 0.1.452：生存生命核心的模块地形破坏可由服主统一关闭，涵盖近战、激光与爆破。 / Server owners can disable terrain damage from Survival Heart Core melee, lasers, and blasts.
+
+129. 0.1.452：可设置失去视线后的目标保留时间，Target Alignment 和 Move Set 可以共用目标传感器的目标记录。 / Configurable target retention after losing sight, with shared Target Sensor records for Target Alignment and Move Set.

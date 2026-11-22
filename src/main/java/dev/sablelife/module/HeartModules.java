@@ -51,7 +51,12 @@ public final class HeartModules {
     private final ModuleHealthAdjustment healthAdjustment=new ModuleHealthAdjustment();
     public void movementTurned(HeartBlockEntity heart,net.minecraft.world.phys.Vec3 pivot,org.joml.Quaterniond turn){linearMovement.turned(heart,pivot,turn);}
     public long moveActivation(UUID id){return moveSets.activation(id);}
+    public boolean moveAimLimited(UUID id){return moveSets.aimLimited(id);}
+    public ModuleMoveSet.ActionIdentity moveAction(UUID id){return moveSets.action(id);}
     public UUID moveTarget(UUID moduleId) { return moveSets.target(moduleId); }
+    private final WeaponSight weaponSight = new WeaponSight();
+    public WeaponSight weaponSight() { return weaponSight; }
+    public SightMemory.Target moveAim(UUID moduleId) { return moveSets.aim(moduleId); }
     public final ModuleContactSensor contactSensor=new ModuleContactSensor();
     private List<VirtualModule> contactModules;
     private void tickContactSensors(HeartBlockEntity heart) {
@@ -101,7 +106,7 @@ public final class HeartModules {
         }
         if (heart.isControlCore()) {
             audioLifecycle(heart); moveSets.tick(heart); signalLogic.tick(heart); sequence.tick(heart);
-            tickMotion(heart); tickContactSensors(heart); events.tick(heart); combat.tick(heart); itemDisplays.tick(heart);
+            tickMotion(heart); tickContactSensors(heart); events.tick(heart); weaponSight.tick(heart); combat.tick(heart); itemDisplays.tick(heart);
             shockwave.tick(heart); distortionTrail.tick(heart);
         } else {
             audioLifecycle(heart); damageBoxes.tick(heart); dev.sablelife.ownership.BlueprintSpawns.tickCore(heart);
@@ -110,7 +115,7 @@ public final class HeartModules {
             healthAdjustment.tick(heart); commands.tick(heart); tickMotion(heart); ModuleLoot.tick(heart);
             if (messageModules == null) messageModules = modules.stream().filter(m -> m.type().equals("message_display")).toList();
             messageDisplay.tick(heart, messageModules);
-            tickContactSensors(heart); events.tick(heart); combat.tick(heart); summonedWeapons.tick(heart); surfaceFields.tick(heart);
+            tickContactSensors(heart); events.tick(heart); weaponSight.tick(heart); combat.tick(heart); summonedWeapons.tick(heart); surfaceFields.tick(heart);
             arena.tick(heart); groundStrike.tick(heart); sphereBlast.tick(heart); slash.tick(heart);
             laser.tick(heart); pull.tick(heart); freeze.tick(heart); grab.tick(heart); quake.tick(heart);
             homing.tick(heart); itemDisplays.tick(heart); healthBars.tick(heart); shockwave.tick(heart); distortionTrail.tick(heart);
@@ -134,7 +139,7 @@ public final class HeartModules {
         propulsion.tick(heart);
         motionDamping.tick(heart);
     }
-    public void clearRuntime() { contactSensor.clear(); propulsion.clear(); motionDamping.clear(); if (addonModules != null) addonModules.clear(); armorBilling.clear(); blockInteraction.clear(); damageBoxes.clear(); summonedWeapons.clear(); signalLogic.clear();combatEvents.clear(); surfaceFields.clear(); distortionTrail.clear(); shockwave.clear(); hitCounter.clear();healthAdjustment.clear(); hoverAnchor.clear(); if(audioLevel!=null)audioModules.forEach(id->ModuleAudio.stop(audioLevel,id));audioModules.clear();audioLevel=null; commandTarget.clear(); linearMovement.clear(); gyroscope.clear(); signalTurn.clear(); autoFacing.clear(); commands.clear(); messageDisplay.clear(); hurtTriggers.clear(); combat.clear(); events.clear(); arena.clear(); groundStrike.clear(); sphereBlast.clear(); slash.clear(); laser.clear(); pull.clear();freeze.clear();grab.clear(); quake.clear(); homing.clear(); moveSets.clear(); sequence.clear(); healthPhase.clear(); damageAccumulation.clear(); partBreak.clear(); }
+    public void clearRuntime() { weaponSight.clear(); contactSensor.clear(); propulsion.clear(); motionDamping.clear(); if (addonModules != null) addonModules.clear(); armorBilling.clear(); blockInteraction.clear(); damageBoxes.clear(); summonedWeapons.clear(); signalLogic.clear();combatEvents.clear(); surfaceFields.clear(); distortionTrail.clear(); shockwave.clear(); hitCounter.clear();healthAdjustment.clear(); hoverAnchor.clear(); if(audioLevel!=null)audioModules.forEach(id->ModuleAudio.stop(audioLevel,id));audioModules.clear();audioLevel=null; commandTarget.clear(); linearMovement.clear(); gyroscope.clear(); signalTurn.clear(); autoFacing.clear(); commands.clear(); messageDisplay.clear(); hurtTriggers.clear(); combat.clear(); events.clear(); arena.clear(); groundStrike.clear(); sphereBlast.clear(); slash.clear(); laser.clear(); pull.clear();freeze.clear();grab.clear(); quake.clear(); homing.clear(); moveSets.clear(); sequence.clear(); healthPhase.clear(); damageAccumulation.clear(); partBreak.clear(); }
     public List<VirtualModule> all() { return List.copyOf(modules); }
     public VirtualModule find(UUID id) { return modules.stream().filter(m -> m.id().equals(id)).findFirst().orElse(null); }
     public int revision() { return revision; }
@@ -224,7 +229,7 @@ public final class HeartModules {
             var module = modules.get(i);
             if(module.type().equals("melee"))module.meleeProtection(heart);
             boolean detailed = !compact || module.id().equals(selected);
-            var row = detailed ? module.save() : module.dashboardHeader();
+            var row = detailed ? module.dashboardDetails(heart.getLevel().registryAccess()) : module.dashboardHeader();
             row.putString("Status", status(module, heart));
             list.add(row);
             if (!detailed) continue;
@@ -245,7 +250,8 @@ public final class HeartModules {
             }
             if(module.type().equals("damage_accumulation"))list.getCompound(i).put("AccumulationRuntime",damageAccumulation.snapshot(module,heart));
             if(module.type().equals("summoned_weapon"))list.getCompound(i).put("SummonRuntime",summonedWeapons.snapshot(module.id(),heart));
-            if(module.type().equals("item_display"))list.getCompound(i).putBoolean("ItemDisplayVisible",ModuleItemDisplay.showing(heart,module));
+            if (module.type().equals("item_display")) row.putBoolean("ItemDisplayVisible",
+                    !row.getBoolean(VirtualModule.DISPLAY_MODEL_OMITTED) && ModuleItemDisplay.showing(heart, module));
             if (module.type().equals("move_set")) list.getCompound(i).put("MoveSetRuntime", moveSets.snapshot(module, heart));
             if (module.type().equals("command")) list.getCompound(i).put("CommandRuntime", commands.snapshot(module.id()));
             if(module.type().equals("gyroscope")) { var data=list.getCompound(i); data.putBoolean("GyroCalibrated",module.gyroDown()!=null); data.putString("GyroState",gyroscope.state(module.id())); double tilt=ModuleGyroscope.tilt(ModuleGyroscope.down(heart,module)); if(Double.isFinite(tilt)) data.putDouble("GyroTilt",tilt); }

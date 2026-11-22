@@ -131,6 +131,57 @@ public final class ArenaRespawnScenarios {
   for(var id:result.subLevelUuidMap().values())if(container.getSubLevel(id) instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel body)dev.sablelife.compat.StructureRemovalApi.remove(h.getLevel(),body);
   h.succeed();
  }
+ public static void cancelUnloadedPartial(GameTestHelper h) {
+  var s = setup(h, true);
+  var level = h.getLevel();
+  var server = level.getServer();
+  h.assertTrue(ArenaRespawns.record(s.actor, s.core, s.arena), "Capture failed");
+  s.core.tryActivate(s.actor);
+  s.core.forceDeath();
+  var saved = ArenaRespawns.get(server).save(new CompoundTag(), level.registryAccess());
+  var row = saved.getList("Entries", 10).stream().map(v -> (CompoundTag) v)
+          .filter(v -> v.getUUID("Creature").equals(s.core.creatureId())).findFirst().orElseThrow();
+  seedLegacyPartial(h, row);
+  row.putString("Phase", "failed");
+
+  var container = dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
+  var id = row.getList("NewBodies", 10).getCompound(0).getUUID("Id");
+  var body = (dev.ryanhcode.sable.sublevel.ServerSubLevel) container.getSubLevel(id);
+  var plot = body.getPlot().plotPos;
+  int index = container.getIndex(plot.x - container.getOrigin().x, plot.z - container.getOrigin().y);
+  var holding = container.getHoldingChunkMap();
+  var worldChunk = new net.minecraft.world.level.ChunkPos(BlockPos.containing(
+          dev.sablelife.compat.sable.SableBodyProbe.toWorld(level, body.getPlot().getCenterBlock().getCenter())));
+  boolean forced = level.setChunkForced(worldChunk.x, worldChunk.z, true);
+  level.getChunk(worldChunk.x, worldChunk.z);
+  holding.moveToUnloaded(body, worldChunk);
+  var diskBody = holding.getHoldingSubLevel(id);
+  h.assertTrue(diskBody != null && container.getSubLevel(id) == null && container.getOccupancy().get(index),
+          "Native unload did not retain the occupied plot");
+
+  var data = server.overworld().getDataStorage();
+  data.set("sablelife_arena_respawns", ArenaRespawns.load(saved, level.registryAccess()));
+  s.actor.setPos(s.arena.arenaCenter());
+  lCancel(h, s);
+  h.assertTrue(ArenaRespawns.get(server).save(new CompoundTag(), level.registryAccess()).getList("Entries", 10)
+          .stream().noneMatch(v -> ((CompoundTag) v).getUUID("Id").equals(row.getUUID("Id"))),
+          "Canceled arena was not retired");
+  var cleanup = BlueprintCleanup.get(server).save(new CompoundTag(), level.registryAccess());
+  h.assertTrue(cleanup.getList("Jobs", 10).stream().map(v -> (CompoundTag) v)
+          .flatMap(v -> v.getList("Bodies", 10).stream()).map(v -> (CompoundTag) v)
+          .anyMatch(v -> v.getUUID("Body").equals(id) && !v.contains("Origin", 4)),
+          "Canceled arena lost the legacy rollback UUID or inferred its plot from an unverified address");
+  data.set("sablelife_blueprint_cleanup", BlueprintCleanup.load(cleanup, level.registryAccess()));
+  holding.updateChunkStatus(worldChunk, true);
+  holding.processChanges();
+  h.assertTrue(container.getSubLevel(id) != null && holding.getHoldingSubLevel(id) == null,
+          "Sable did not reload the held arena body");
+  h.succeedWhen(() -> {
+   h.assertTrue(container.getSubLevel(id) == null && !container.getOccupancy().get(index),
+           "Canceled arena body survived the cleanup callback");
+   if (forced) level.setChunkForced(worldChunk.x, worldChunk.z, false);
+  });
+ }
  public static void directPlacement(GameTestHelper h){
   var s=setup(h,true);h.getLevel().setBlockAndUpdate(s.core.getBlockPos().east(2),com.simibubi.create.AllBlocks.COPYCAT_PANEL.getDefaultState());
   var originalCopycat=(com.simibubi.create.content.decoration.copycat.CopycatBlockEntity)h.getLevel().getBlockEntity(s.core.getBlockPos().east(2));originalCopycat.setMaterial(Blocks.DIAMOND_BLOCK.defaultBlockState());originalCopycat.setConsumedItem(new ItemStack(Items.DIAMOND_BLOCK));
@@ -174,15 +225,103 @@ public final class ArenaRespawnScenarios {
   var row=restored.getList("Entries",10).stream().map(v->(CompoundTag)v).filter(v->v.getUUID("Creature").equals(s.core.creatureId())).findFirst().orElseThrow();
   h.assertTrue(row.getCompound("Template").sizeInBytes()==template.sizeInBytes(),"Large recorded template disappeared after save/load");ArenaRespawns.clear(s.actor,s.core,s.arena);h.succeed();
  }
- public static void savedBudget(GameTestHelper h){
-  var source=new CompoundTag();var entries=new net.minecraft.nbt.ListTag();
-  for(int i=0;i<5;i++){
-   var row=new CompoundTag();row.putUUID("Id",UUID.randomUUID());row.putUUID("Creature",UUID.randomUUID());row.putUUID("Module",UUID.randomUUID());row.putUUID("TemplateModule",UUID.randomUUID());row.putString("Dimension",h.getLevel().dimension().location().toString());row.putString("Phase","ready");row.putInt("Delay",20);
-   var template=new CompoundTag();template.putByteArray("Fixture",new byte[31*1024*1024]);row.put("Template",template);entries.add(row);
+ public static void savedBudget(GameTestHelper h) throws java.io.IOException {
+  var level = h.getLevel();
+  var registries = level.registryAccess();
+  var server = level.getServer();
+  var config = dev.sablelife.SableLifeServerConfig.SPEC.getValues();
+  var recordLimit = (net.neoforged.neoforge.common.ModConfigSpec.IntValue) config.get("arenaTemplateBytes");
+  var worldLimit = (net.neoforged.neoforge.common.ModConfigSpec.IntValue) config.get("arenaWorldTemplateBytes");
+  int previousRecordLimit = recordLimit.get();
+  int previousWorldLimit = worldLimit.get();
+  var setup = setup(h, false);
+  try {
+   recordLimit.set(ArenaRespawnLimits.TEMPLATE_BYTES);
+   worldLimit.set(ArenaRespawnLimits.WORLD_TEMPLATE_BYTES);
+   var chest = (ChestBlockEntity) level.getBlockEntity(setup.core.getBlockPos().east());
+   chest.getPersistentData().putByteArray("LargeSavedTemplate", new byte[2 * 1024 * 1024]);
+   h.assertTrue(ArenaRespawns.record(setup.actor, setup.core, setup.arena), "Normal Arena capture failed");
+   var arenaEntries = ArenaRespawns.get(server).save(new CompoundTag(), registries).getList("Entries", 10);
+   var arenaRow = arenaEntries.stream().map(CompoundTag.class::cast)
+           .filter(row -> row.getUUID("Creature").equals(setup.core.creatureId())).findFirst().orElseThrow().copy();
+   var template = arenaRow.getCompound("Template");
+
+   // Simulate interruption using the fields written by the previously released format.
+   var interrupted = new dev.rew1nd.sableschematicapi.survival.BlueprintBuildProgress();
+   var part = dev.rew1nd.sableschematicapi.blueprint.SableBlueprint.load(template).subLevels().getFirst();
+   interrupted.recordPlacedSubLevel(part, setup.body, setup.core.getBlockPos());
+   var progress = interrupted.save();
+   arenaRow.putString("Phase", "building");
+   arenaRow.put("Progress", progress);
+   var arenaBody = new CompoundTag();
+   arenaBody.putUUID("Id", setup.body);
+   var newBodies = new net.minecraft.nbt.ListTag();
+   newBodies.add(arenaBody);
+   arenaRow.put("NewBodies", newBodies);
+
+   var moduleRow = new CompoundTag();
+   moduleRow.putUUID("Module", UUID.randomUUID());
+   moduleRow.putUUID("Owner", setup.core.creatureId());
+   moduleRow.putString("Name", "existing template");
+   moduleRow.putString("Phase", "building");
+   moduleRow.putString("Dimension", level.dimension().location().toString());
+   moduleRow.put("Template", template);
+   moduleRow.put("Progress", progress);
+
+   var commandRow = new CompoundTag();
+   commandRow.putUUID("Id", UUID.randomUUID());
+   commandRow.putUUID("Creature", setup.core.creatureId());
+   commandRow.putString("Name", "existing job");
+   commandRow.putString("Dimension", level.dimension().location().toString());
+   commandRow.put("Template", template);
+   var commandBodies = new net.minecraft.nbt.ListTag();
+   commandBodies.add(net.minecraft.nbt.NbtUtils.createUUID(setup.body));
+   commandRow.put("Bodies", commandBodies);
+   var bounds = new net.minecraft.nbt.ListTag();
+   for (double coordinate : new double[]{0, 0, 0, 1, 1, 1}) bounds.add(net.minecraft.nbt.DoubleTag.valueOf(coordinate));
+   commandRow.put("Bounds", bounds);
+
+   var source = new CompoundTag();
+   source.put("Arena", savedRows("Entries", arenaRow));
+   source.put("Module", savedRows("Entries", moduleRow));
+   source.put("Command", savedRows("Jobs", commandRow));
+   var file = new java.io.ByteArrayOutputStream();
+   net.minecraft.nbt.NbtIo.writeCompressed(source, file);
+   recordLimit.set(1024 * 1024);
+   worldLimit.set(1024 * 1024);
+   h.assertTrue(template.sizeInBytes() > dev.sablelife.SableLifeServerConfig.arenaTemplateBytes()
+           && template.sizeInBytes() > dev.sablelife.SableLifeServerConfig.arenaWorldTemplateBytes(), "Fixture did not exceed both lowered limits");
+   h.assertTrue(!ArenaRespawns.record(setup.actor, setup.core, setup.arena), "Lowered capture limit stopped applying to new admissions");
+
+   var saved = net.minecraft.nbt.NbtIo.readCompressed(new java.io.ByteArrayInputStream(file.toByteArray()),
+           net.minecraft.nbt.NbtAccounter.create(ArenaRespawnLimits.TEMPLATE_BYTES));
+   var arena = ArenaRespawns.load(saved.getCompound("Arena"), registries).save(new CompoundTag(), registries).getList("Entries", 10);
+   var modules = BlueprintSpawns.load(saved.getCompound("Module"), registries).save(new CompoundTag(), registries).getList("Entries", 10);
+   var commands = CommandBlueprintSpawns.load(saved.getCompound("Command"), registries).save(new CompoundTag(), registries).getList("Jobs", 10);
+   for (var rows : List.of(arena, modules, commands)) {
+    h.assertTrue(rows.size() == 1 && rows.getCompound(0).getCompound("Template").equals(template),
+            "Lowering admission limits discarded an existing saved template");
+   }
+   h.assertTrue(arena.getCompound(0).getCompound("Progress").equals(progress)
+           && arena.getCompound(0).getList("NewBodies", 10).equals(newBodies), "Arena cleanup tracking was lost");
+   h.assertTrue(modules.getCompound(0).getCompound("Progress").equals(progress), "Module cleanup tracking was lost");
+   h.assertTrue(commands.getCompound(0).getBoolean("Cleanup")
+           && commands.getCompound(0).getUUID("Creature").equals(setup.core.creatureId())
+           && commands.getCompound(0).getList("Bodies", 11).equals(commandBodies), "Command cleanup tracking was lost");
+  } finally {
+   recordLimit.set(previousRecordLimit);
+   worldLimit.set(previousWorldLimit);
+   ArenaRespawns.clear(setup.actor, setup.core, setup.arena);
   }
-  source.put("Entries",entries);h.assertTrue(ArenaRespawns.load(source,h.getLevel().registryAccess()).count()==4,"World template budget did not reject the fifth 31 MiB template");
-  var oversized=((CompoundTag)entries.get(0)).copy();var template=new CompoundTag();template.putByteArray("Fixture",new byte[ArenaRespawnLimits.TEMPLATE_BYTES]);oversized.put("Template",template);var only=new net.minecraft.nbt.ListTag();only.add(oversized);source.put("Entries",only);
-  h.assertTrue(ArenaRespawns.load(source,h.getLevel().registryAccess()).count()==0,"Per-template byte limit was not enforced during world load");h.succeed();
+  h.succeed();
+ }
+
+ private static CompoundTag savedRows(String key, CompoundTag row) {
+  var tag = new CompoundTag();
+  var rows = new net.minecraft.nbt.ListTag();
+  rows.add(row);
+  tag.put(key, rows);
+  return tag;
  }
 
  public static void multiplePartsSecondDeath(GameTestHelper h){

@@ -48,7 +48,7 @@ side="BOTH"
 [[dependencies.${mod_id}]]
 modId="sable_schematic_api"
 type="optional"
-versionRange="[1.0.1,)"
+# Keep dependency versions in the runtime bridge check so older installations can still start Sable Life.
 ordering="AFTER"
 side="BOTH"
 

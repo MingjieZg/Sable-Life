@@ -8,6 +8,8 @@ import java.util.ArrayDeque;
 public final class AuthoringLimits {
     public static final int MAX_DEPTH = 64, MAX_NODES = 8192, MAX_PRESET_BYTES = 65536;
     public static final int MAX_CONFIGURATION_BYTES = 8 * 1024 * 1024;
+    // ItemStack components in copied cores can contain nested models, such as Yuushya groups.
+    private static final int MAX_CONFIGURATION_DEPTH = 128;
     private record Node(Tag tag, int depth) {}
 
     public static boolean presetText(String text) {
@@ -29,6 +31,14 @@ public final class AuthoringLimits {
     }
 
     public static boolean compound(CompoundTag tag, long maximumBytes) {
+        return compound(tag, maximumBytes, MAX_DEPTH);
+    }
+
+    public static boolean configuration(CompoundTag tag) {
+        return compound(tag, MAX_CONFIGURATION_BYTES, MAX_CONFIGURATION_DEPTH);
+    }
+
+    private static boolean compound(CompoundTag tag, long maximumBytes, int maximumDepth) {
         var pending = new ArrayDeque<Node>();
         pending.push(new Node(tag, 0));
         int nodes = 0;
@@ -36,7 +46,7 @@ public final class AuthoringLimits {
         long bytes = 0;
         while (!pending.isEmpty()) {
             var node = pending.pop();
-            if (++nodes > maximumNodes || node.depth > MAX_DEPTH) return false;
+            if (++nodes > maximumNodes || node.depth > maximumDepth) return false;
             bytes += 16;
             if (node.tag instanceof CompoundTag compound) {
                 if (compound.size() > maximumNodes - nodes) return false;

@@ -2,6 +2,7 @@ package dev.sablelife.module;
 
 import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.heart.SurvivalLifeCorePolicy;
 import dev.sablelife.ownership.*;
 import dev.sablelife.sense.SensorGeometry;
 import dev.ryanhcode.sable.Sable;
@@ -34,7 +35,12 @@ public final class LaserBlockCut {
         }return cursor;
     }
     public static Vec3 cut(ServerLevel level,HeartBlockEntity core,VirtualModule m,Vec3 start,Vec3 desired,Front front,long now){
-        var end=loadedEnd(level,start,desired);var ray=end.subtract(start);double length=ray.length();if(length<.00001)return end;ray=ray.scale(1/length);
+        var end=loadedEnd(level,start,desired);
+        if (!SurvivalLifeCorePolicy.allowsTerrainBreaking(core)) {
+            front.started = false;
+            return SensorGeometry.beamEnd(level, core.creatureId(), start, end);
+        }
+        var ray=end.subtract(start);double length=ray.length();if(length<.00001)return end;ray=ray.scale(1/length);
         var ownBodies=new HashSet<>(SableBodyProbe.inspect(level,core.getBlockPos()).connectedBodies());
         if(m.value("laserBreakMode")==1){
             if(!front.started){var first=firstObstacle(level,core,ownBodies,start,end);if(first.distanceTo(end)<.001)return end;front.started=true;front.distance=Math.max(0,first.subtract(start).dot(ray))+.0001;front.previous=now;}

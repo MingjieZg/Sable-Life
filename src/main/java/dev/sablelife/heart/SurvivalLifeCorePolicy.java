@@ -1,5 +1,6 @@
 package dev.sablelife.heart;
 
+import dev.sablelife.SableLifeServerConfig;
 import dev.sablelife.module.VirtualModule;
 import java.util.List;
 import java.util.Set;
@@ -14,6 +15,10 @@ public final class SurvivalLifeCorePolicy {
         return !FIXED_SETTINGS.contains(key)
                 &&!key.startsWith("voidDeath")&&!key.startsWith("limbCleanup")&&!key.startsWith("vanish")
                 &&!key.startsWith("crush")&&!key.startsWith("defense");
+    }
+
+    public static boolean allowsTerrainBreaking(HeartBlockEntity core) {
+        return !core.isSurvivalCore() || SableLifeServerConfig.allowSurvivalHeartCoreTerrainBreaking();
     }
 
     public static boolean allowsCast(VirtualModule module){

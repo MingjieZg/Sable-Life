@@ -28,17 +28,21 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
     private final List<Button> moveButtons=new ArrayList<>(), actionButtons=new ArrayList<>(), deletes=new ArrayList<>(), actionUps=new ArrayList<>(), actionDowns=new ArrayList<>(), pickerButtons=new ArrayList<>();
     private final List<EditBox> starts=new ArrayList<>(), durations=new ArrayList<>(), ruleInputs=new ArrayList<>();
     private final List<Button> ruleChoices=new ArrayList<>(), applyButtons=new ArrayList<>();
-    private final List<ModuleFields.Field> ruleFields;
-    private static List<ModuleFields.Field> rulesFor(HeartDashboardMenu menu){
-        var rules=ModuleFields.moveRules();
-        if(!menu.snapshot().getBoolean("ControlCore"))return rules;
+    private List<ModuleFields.Field> ruleFields = List.of();
+    private static List<ModuleFields.Field> rulesFor(boolean controlCore, MoveSet.Move move, VirtualModule table){
+        var rules=ModuleFields.moveRules().stream()
+                .filter(field -> !field.key().equals(SightMemory.FIELD)
+                        || move != null && move.config().value("lineOfSight") == 1
+                            && (table == null || table.value("facingSource") == 0))
+                .toList();
+        if(!controlCore)return rules;
         var fields=new ArrayList<>(rules);
         fields.removeIf(f->Set.of("phaseLower","phaseUpper").contains(f.key()));
         var keys=fields.stream().map(ModuleFields.Field::key).toList();
         Collections.swap(fields,keys.indexOf("target"),keys.indexOf("dispatchRepeat"));
         return List.copyOf(fields);
     }
-    public MoveSetScreen(HeartDashboardMenu menu,Inventory inventory,Component title,UUID tableId){super(menu,inventory,title);this.tableId=tableId;this.ruleFields=rulesFor(menu);}
+    public MoveSetScreen(HeartDashboardMenu menu,Inventory inventory,Component title,UUID tableId){super(menu,inventory,title);this.tableId=tableId;}
     public MoveSetScreen(HeartDashboardMenu menu,Inventory inventory,Component title,UUID tableId,int move){this(menu,inventory,title,tableId);initialMove=move;}
     private Component tr(String key){return Component.translatable("moveset.sablelife."+key);}
     private Component moduleName(VirtualModule m){return m.name().isBlank()?ModuleText.name(m.type()):Component.literal(m.name());}
@@ -57,7 +61,12 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
     private Button button(Component label,int x,int y,int w,int h,Runnable run){return addRenderableWidget(LifeUiStyle.button(label,leftPos+x,topPos+y,w,h,run));}
     private EditBox input(int x,int y,int w,int max,Component label){var b=addRenderableWidget(new EditBox(font,leftPos+x,topPos+y,w,16,label));b.setMaxLength(max);return b;}
     private void send(String key,double value,String extra){
-        String text=key.equals("add")?"":Integer.toString(moves.indexOf(current()))+(extra.isEmpty()?"":"|"+extra);
+        if (table == null || !snapshot.getBoolean("Editable")) return;
+        boolean adding = key.equals("add");
+        var move = current();
+        int index = move == null ? -1 : moves.indexOf(move);
+        if (!adding && index < 0) return;
+        String text = adding ? "" : index + (extra.isEmpty() ? "" : "|" + extra);
         PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,snapshot.getInt("Revision"),tableId,"move_set",key,value,text));
     }
     private void select(MoveSet.Move m){selected=m.config().id();actionPage=0;deleteUntil=0;actionDelete=-1;rebuildWidgets();}
@@ -80,7 +89,7 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         down=button(Component.literal("↓"),leftWidth-24,52,23,13,()->send("down",0,""));
         name=input(rightX,33,rightWidth-64,40,tr("name"));
         moveEnabled=button(Component.empty(),imageWidth-68,32,29,18,()->{var m=current();if(m!=null)send("enabled",m.config().enabled()?0:1,"");});
-        applyButtons.add(button(Component.literal("✓"),imageWidth-35,32,25,18,()->{send("name",0,name.getValue());name.setFocused(false);}));
+        applyButtons.add(button(Component.literal("✓"),imageWidth-35,32,25,18,this::applyName));
         tabActions=button(tr("actions"),rightX,54,rightWidth/2-2,18,()->{rules=false;picking=false;rebuildWidgets();});
         tabRules=button(tr("rules"),rightX+rightWidth/2+2,54,rightWidth/2-2,18,()->{rules=true;picking=false;rebuildWidgets();});
         statusHelp=button(Component.literal("?"),imageWidth-23,imageHeight-18,13,13,()->{});
@@ -118,14 +127,76 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         button(Component.literal("‹"),rightX,imageHeight-45,25,18,()->{rulePage=Math.max(0,rulePage-1);rebuildWidgets();});
         button(Component.literal("›"),imageWidth-35,imageHeight-45,25,18,()->{rulePage=Math.min((ruleFields.size()-1)/ruleSlots,rulePage+1);rebuildWidgets();});
     }
-    private void applyAction(int n,boolean duration){var box=duration?durations.get(n):starts.get(n);try{double v=Double.parseDouble(box.getValue());if(!Double.isFinite(v)||v<(duration?.05:0)||v>(duration?600:599.95))throw new NumberFormatException();send(duration?"action_duration":"action_start",v,Integer.toString(actionPage*actionSlots+n));box.setFocused(false);box.setTextColor(0xFFFFFF);}catch(NumberFormatException e){box.setTextColor(0xFF7777);}}
-    private void applyRule(int n){int at=rulePage*ruleSlots+n;if(at>=ruleFields.size())return;var f=ruleFields.get(at);if(current()==null||ModuleMoveSet.ruleLocked(table,f.key(),snapshot.getBoolean("ControlCore"))||f.key().equals("dispatchWeight")&&current().priority())return;var box=ruleInputs.get(n);try{double v=Double.parseDouble(box.getValue())*f.scale();if(!Double.isFinite(v)||v<f.min()||v>f.max())throw new NumberFormatException();send(f.key(),v,"");box.setFocused(false);box.setTextColor(0xFFFFFF);}catch(NumberFormatException e){box.setTextColor(0xFF7777);}}
+    private void discardDraft(EditBox input) {
+        if (getFocused() == input) setFocused(null);
+        input.setFocused(false);
+        input.setTextColor(0xFFFFFF);
+    }
+
+    private static boolean editable(EditBox input) {
+        return input.visible && input.active;
+    }
+
+    private void applyName() {
+        if (!editable(name)) return;
+        send("name", 0, name.getValue());
+        discardDraft(name);
+    }
+
+    private void applyAction(int row, boolean duration) {
+        var input = duration ? durations.get(row) : starts.get(row);
+        if (!editable(input)) return;
+        try {
+            double seconds = Double.parseDouble(input.getValue());
+            if (!Double.isFinite(seconds) || seconds < (duration ? .05 : 0) || seconds > (duration ? 600 : 599.95))
+                throw new NumberFormatException();
+            send(duration ? "action_duration" : "action_start", seconds, Integer.toString(actionPage * actionSlots + row));
+            discardDraft(input);
+        } catch (NumberFormatException invalid) {
+            input.setTextColor(0xFF7777);
+        }
+    }
+
+    private ModuleFields.Field ruleAt(int row) {
+        int index = rulePage * ruleSlots + row;
+        return index < ruleFields.size() ? ruleFields.get(index) : null;
+    }
+
+    private void applyRule(int row) {
+        var input = ruleInputs.get(row);
+        var field = ruleAt(row);
+        if (!editable(input) || field == null || field.choice()) return;
+        try {
+            double value = Double.parseDouble(input.getValue()) * field.scale();
+            if (!Double.isFinite(value) || value < field.min() || value > field.max())
+                throw new NumberFormatException();
+            send(field.key(), value, "");
+            discardDraft(input);
+        } catch (NumberFormatException invalid) {
+            input.setTextColor(0xFF7777);
+        }
+    }
+
     @Override protected void containerTick(){super.containerTick();ticks++;sync();}
     private void sync(){
+        int previousRevision = snapshot.getInt("Revision");
+        boolean previouslyEditable = snapshot.getBoolean("Editable") && table != null;
+        UUID previousSelection = selected;
         snapshot=menu.snapshot();var list=snapshot.getList("Modules",10);var loaded=new ArrayList<VirtualModule>();table=null;
         for(int i=0;i<list.size();i++){var tag=list.getCompound(i);var m=VirtualModule.load(tag);loaded.add(m);if(m.id().equals(tableId)){table=m;runtime=tag.getCompound("MoveSetRuntime");}}
         modules=List.copyOf(loaded);moves=table==null?List.of():table.moveSet().moves();if(initialMove>=0&&!moves.isEmpty()){var move=moves.get(Math.min(initialMove,moves.size()-1));selected=move.config().id();movePage=Math.min(initialMove,moves.size()-1)/Math.max(1,moveSlots);initialMove=-1;}if(current()==null)selected=moves.isEmpty()?null:moves.getFirst().config().id();
         boolean editable=snapshot.getBoolean("Editable")&&table!=null;var current=current();
+        if (previousRevision != snapshot.getInt("Revision") || !Objects.equals(previousSelection, selected)
+                || previouslyEditable && !editable) {
+            // Action indices and visible rule rows can refer to a different field after a sync.
+            if (getFocused() != search && getFocused() != pickerSearch) setFocused(null);
+            discardDraft(name);
+            starts.forEach(this::discardDraft);
+            durations.forEach(this::discardDraft);
+            ruleInputs.forEach(this::discardDraft);
+            deleteUntil = 0;
+            actionDelete = -1;
+        }
         var details=current==null?null:problemDetails(current);
         statusHelp.visible=!picking&&details!=null;statusHelp.active=statusHelp.visible;
         if(details!=null){statusHelp.setTooltip(Tooltip.create(details));var label=moveStatus(current);float scale=Math.min(.8f,Math.max(.3f,(rightWidth-18)/(float)Math.max(1,font.width(label))));statusHelp.setX(leftPos+rightX+Math.min(rightWidth-13,(int)Math.ceil(font.width(label)*scale)+4));}
@@ -137,19 +208,54 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
         for(int i=0;i<moveButtons.size();i++){var b=moveButtons.get(i);int n=movePage*moveSlots+i;b.visible=n<rows.size();if(b.visible){var m=rows.get(n);b.setMessage(Component.literal(m.config().id().equals(selected)?"▶ ":"").append(moveName(m)).append(" · ").append(m.priority()?tr("priority_short"):Component.literal("W"+(int)m.config().value("dispatchWeight"))).append(" / "+seconds(m.config().value("dispatchCooldown"))+"s"));b.setTooltip(Tooltip.create(moveStatus(m)));}}
         tabActions.active=tabRules.active=current!=null;
         if(picking){var choices=candidates();for(int i=0;i<pickerButtons.size();i++){var b=pickerButtons.get(i);int n=pickerPage*pickerButtons.size()+i;b.visible=n<choices.size();b.active=editable&&current!=null;if(b.visible){var m=choices.get(n);b.setMessage(moduleName(m).copy().append(" #"+(modules.indexOf(m)+1)));LifeUiStyle.bookmark(b,ModuleCategory.of(m.type()).color);b.setTooltip(Tooltip.create(tr("bind_help")));}}return;}
-        if(rules){for(int i=0;i<ruleSlots;i++){int n=rulePage*ruleSlots+i;var box=ruleInputs.get(i);var b=ruleChoices.get(i);boolean show=current!=null&&n<ruleFields.size();var f=show?ruleFields.get(n):null;box.visible=show&&!f.choice();b.visible=show&&(f.choice()||f.key().equals("dispatchWeight"));box.active=b.active=editable&&show&&!ModuleMoveSet.ruleLocked(table,f.key(),snapshot.getBoolean("ControlCore"));applyButtons.get(i+1).visible=box.visible;applyButtons.get(i+1).active=box.active;box.setEditable(box.active);if(!box.active)box.setFocused(false);
-            if(show){
-                var help=Tooltip.create(Component.translatable("moveset.sablelife.rule_help_"+f.key()));box.setTooltip(help);b.setTooltip(help);
-                boolean probability=f.key().equals("dispatchWeight");
-                b.setWidth(probability?62:f.key().equals("lineOfSight")?36:rightWidth/2);
-                box.setX(leftPos+rightX+rightWidth/2+(probability?65:0));box.setWidth(rightWidth/2-30-(probability?65:0));
-                if(probability){b.setMessage(tr(current.priority()?"priority":"weighted"));box.active=editable&&!current.priority();applyButtons.get(i+1).active=box.active;var modeHelp=Tooltip.create(tr("probability_help"));b.setTooltip(modeHelp);box.setTooltip(modeHelp);if(!box.active)box.setFocused(false);}
-                if(f.choice())b.setMessage(Component.translatable("dashboard.sablelife.choice_"+f.choices().get((int)current.config().value(f.key()))));else if(!box.isFocused())box.setValue(String.format(Locale.ROOT,"%.2f",current.config().value(f.key())/f.scale()));}}return;}
+        if (rules) {
+            syncRules(current, editable);
+            return;
+        }
         var actions=current==null?List.<MoveSet.Action>of():current.actions();actionPage=Math.clamp(actionPage,0,Math.max(0,(actions.size()-1)/actionSlots));actionAdd.active=editable&&current!=null&&actions.size()<MoveSet.ACTION_LIMIT;actionPrev.active=actionPage>0;actionNext.active=(actionPage+1)*actionSlots<actions.size();
         for(int i=0;i<actionSlots;i++){int n=actionPage*actionSlots+i;boolean show=n<actions.size();var b=actionButtons.get(i);b.visible=starts.get(i).visible=durations.get(i).visible=deletes.get(i).visible=actionUps.get(i).visible=actionDowns.get(i).visible=show;starts.get(i).active=durations.get(i).active=deletes.get(i).active=actionUps.get(i).active=actionDowns.get(i).active=editable&&show;actionUps.get(i).active=editable&&show&&n>0;actionDowns.get(i).active=editable&&show&&n+1<actions.size();applyButtons.get(1+i*2).visible=applyButtons.get(2+i*2).visible=show;deletes.get(i).setMessage(Component.literal(actionDelete==n?"?":"×"));
             if(show){var a=actions.get(n);var t=target(a.module());b.setMessage(t==null?tr("missing"):moduleName(t));LifeUiStyle.bookmark(b,t==null?0:ModuleCategory.of(t.type()).color);b.setTooltip(Tooltip.create(t==null?tr("missing"):moduleName(t).copy().append(" #"+(modules.indexOf(t)+1)).append(" — ").append(Component.translatable("dashboard.sablelife.trigger_"+(int)t.value("trigger")))));if(!starts.get(i).isFocused())starts.get(i).setValue(seconds(a.start()));if(!durations.get(i).isFocused())durations.get(i).setValue(seconds(a.duration()));}
         }
     }
+    private void syncRules(MoveSet.Move move, boolean editable) {
+        boolean controlCore = snapshot.getBoolean("ControlCore");
+        var updatedFields = rulesFor(controlCore, move, table);
+        if (!ruleFields.equals(updatedFields)) {
+            if (ruleChoices.contains(getFocused()) || applyButtons.contains(getFocused())) setFocused(null);
+            ruleInputs.forEach(this::discardDraft);
+        }
+        ruleFields = updatedFields;
+        rulePage = Math.clamp(rulePage, 0, Math.max(0, (ruleFields.size() - 1) / ruleSlots));
+        for (int row = 0; row < ruleSlots; row++) {
+            var field = move == null ? null : ruleAt(row);
+            var input = ruleInputs.get(row);
+            var choice = ruleChoices.get(row);
+            var apply = applyButtons.get(row + 1);
+            boolean weight = field != null && field.key().equals("dispatchWeight");
+            boolean canEdit = editable && field != null && !ModuleMoveSet.ruleLocked(table, field.key(), controlCore);
+            input.visible = field != null && !field.choice();
+            input.active = input.visible && canEdit && (!weight || !move.priority());
+            input.setEditable(input.active);
+            if (!input.active) discardDraft(input);
+            apply.visible = input.visible;
+            apply.active = input.active;
+            choice.visible = field != null && (field.choice() || weight);
+            choice.active = choice.visible && canEdit;
+            if (field == null) continue;
+
+            var help = Tooltip.create(weight ? tr("probability_help") : tr("rule_help_" + field.key()));
+            choice.setTooltip(help);
+            input.setTooltip(help);
+            choice.setWidth(weight ? 62 : field.key().equals("lineOfSight") ? 36 : rightWidth / 2);
+            input.setX(leftPos + rightX + rightWidth / 2 + (weight ? 65 : 0));
+            input.setWidth(rightWidth / 2 - 30 - (weight ? 65 : 0));
+            if (weight) choice.setMessage(tr(move.priority() ? "priority" : "weighted"));
+            double value = move.config().value(field.key());
+            if (field.choice()) choice.setMessage(Component.translatable("dashboard.sablelife.choice_" + field.choices().get((int) value)));
+            else if (!input.isFocused()) input.setValue(String.format(Locale.ROOT, "%.2f", value / field.scale()));
+        }
+    }
+
     private String seconds(double ticks){return String.format(Locale.ROOT,"%.2f",ticks/20.);}
     private Component problemDetails(MoveSet.Move move){
         var details=Component.empty();boolean any=false;
@@ -196,8 +302,19 @@ public final class MoveSetScreen extends AbstractContainerScreen<HeartDashboardM
     @Override protected void renderLabels(GuiGraphics g,int x,int y){}
     @Override public void render(GuiGraphics g,int x,int y,float partial){super.render(g,x,y,partial);renderTooltip(g,x,y);}
     @Override public boolean keyPressed(int key,int scan,int modifiers){
-        if(key==257||key==335){if(name.isFocused()){send("name",0,name.getValue());name.setFocused(false);return true;}for(int i=0;i<starts.size();i++){if(starts.get(i).isFocused()){applyAction(i,false);return true;}if(durations.get(i).isFocused()){applyAction(i,true);return true;}}for(int i=0;i<ruleInputs.size();i++)if(ruleInputs.get(i).isFocused()){applyRule(i);return true;}}
-        if(getFocused() instanceof EditBox box&&box.isFocused()&&key!=256)return box.keyPressed(key,scan,modifiers);return super.keyPressed(key,scan,modifiers);
+        if (getFocused() instanceof EditBox input && editable(input) && input.isFocused() && key != 256) {
+            if (key == 257 || key == 335) {
+                if (input == name) { applyName(); return true; }
+                int row = starts.indexOf(input);
+                if (row >= 0) { applyAction(row, false); return true; }
+                row = durations.indexOf(input);
+                if (row >= 0) { applyAction(row, true); return true; }
+                row = ruleInputs.indexOf(input);
+                if (row >= 0) { applyRule(row); return true; }
+            }
+            return input.keyPressed(key, scan, modifiers);
+        }
+        return super.keyPressed(key, scan, modifiers);
     }
     @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){
         if(vertical==0)return super.mouseScrolled(x,y,horizontal,vertical);

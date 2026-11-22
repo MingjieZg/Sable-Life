@@ -8,10 +8,13 @@ import dev.sablelife.ownership.*;
 import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
+import dev.ryanhcode.sable.sublevel.ServerSubLevel;
+import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.*;
 import net.minecraft.gametest.framework.*;
 import net.minecraft.nbt.*;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.*;
@@ -174,6 +177,116 @@ public final class BlueprintCommandGameTests {
             h.assertTrue(body.isRemoved()||SubLevelContainer.getContainer(h.getLevel()).getSubLevel(body.getUniqueId())==null,"Interrupted body remained");
             h.assertTrue(interrupted.save(new CompoundTag(),h.getLevel().registryAccess()).getList("Jobs",10).isEmpty(),"Interrupted job would replay");
         } finally { java.nio.file.Files.deleteIfExists(f.path); }
+        h.succeed();
+    }
+
+
+    @GameTest(template = "combat", batch = "command_unloaded_rollback", timeoutTicks = 100)
+    public static void InterruptedCommandPreservesUnloadedBodyAndOwnershipAcrossReload(GameTestHelper h) throws Exception {
+        var f = fixture(h, 1, "structure blueprint unload");
+        var level = h.getLevel();
+        var container = SubLevelContainer.getContainer(level);
+        var storage = level.getServer().overworld().getDataStorage();
+        var sourceBody = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, f.core.getBlockPos());
+        var sourcePlot = sourceBody.getPlot().plotPos;
+        int sourceIndex = container.getIndex(sourcePlot.x - container.getOrigin().x, sourcePlot.z - container.getOrigin().y);
+        try {
+            h.assertTrue(execute(source(h), command(f, false) + " ~ ~8 ~") == 1, "Structure blueprint command failed");
+            var queued = CommandBlueprintSpawns.get(level.getServer()).save(new CompoundTag(), level.registryAccess());
+            drain(h);
+            var core = spawned(h, f);
+            h.assertTrue(core != null, "Structure blueprint never placed");
+            var body = (ServerSubLevel) dev.ryanhcode.sable.Sable.HELPER.getContaining(level, core.getBlockPos());
+            var id = body.getUniqueId();
+            var owner = core.creatureId();
+            var plot = body.getPlot().plotPos;
+            int index = container.getIndex(plot.x - container.getOrigin().x, plot.z - container.getOrigin().y);
+            BodyOwnership.get(level).bind(core.getBlockPos(), owner);
+
+            var holding = container.getHoldingChunkMap();
+            var worldChunk = new ChunkPos(BlockPos.containing(SableBodyProbe.toWorld(level, core.getBlockPos().getCenter())));
+            // The fixture's manually serialized body must remain resident until the actual next server tick.
+            boolean forced = level.setChunkForced(worldChunk.x, worldChunk.z, true);
+            level.getChunk(worldChunk.x, worldChunk.z);
+            holding.moveToUnloaded(body, worldChunk);
+            var diskBody = holding.getHoldingSubLevel(id);
+            h.assertTrue(diskBody != null && container.getSubLevel(id) == null && container.getOccupancy().get(index),
+                    "Native unload did not leave an occupied, reloadable plot");
+            var row = queued.getList("Jobs", Tag.TAG_COMPOUND).getCompound(0);
+            row.putBoolean("Cleanup", true);
+            row.putUUID("Creature", owner);
+            var bodies = new ListTag();
+            bodies.add(NbtUtils.createUUID(id));
+            row.put("Bodies", bodies);
+            // Retain the released format with only a UUID, before the new optional placement hint.
+            row.remove("Placement");
+            storage.set("sablelife_command_blueprints", CommandBlueprintSpawns.load(queued, level.registryAccess()));
+            drain(h);
+            h.assertTrue(BlueprintCleanup.retainsOwnership(level.getServer(), owner) && BodyOwnership.get(level).hasOwned(owner),
+                    "An unloaded plot discarded rollback or released its ownership");
+
+            var pending = BlueprintCleanup.get(level.getServer()).save(new CompoundTag(), level.registryAccess());
+            storage.set("sablelife_blueprint_cleanup", BlueprintCleanup.load(pending, level.registryAccess()));
+            h.assertTrue(BlueprintCleanup.retainsOwnership(level.getServer(), owner), "Rollback did not survive reload");
+            // Drive Sable's ordinary holding-chunk load, including removal of its cached disk entry.
+            holding.updateChunkStatus(worldChunk, true);
+            holding.processChanges();
+            h.assertTrue(container.getSubLevel(id) != null && holding.getHoldingSubLevel(id) == null,
+                    "Sable did not reload the held body");
+            h.succeedWhen(() -> {
+                h.assertTrue(!container.getOccupancy().get(index) && container.getSubLevel(id) == null,
+                        "Reloaded rollback target still exists (resident=" + (container.getSubLevel(id) != null)
+                                + ", holding=" + (holding.getHoldingSubLevel(id) != null) + ")");
+                h.assertTrue(!BlueprintCleanup.retainsOwnership(level.getServer(), owner) && !BodyOwnership.get(level).hasOwned(owner),
+                        "Completed native removal did not retire ownership");
+                h.assertTrue(container.getOccupancy().get(sourceIndex), "Rollback permanently removed the source structure");
+                if (forced) level.setChunkForced(worldChunk.x, worldChunk.z, false);
+            });
+        } finally {
+            java.nio.file.Files.deleteIfExists(f.path);
+        }
+    }
+
+    @GameTest(template = "combat", batch = "command_reused_plot_rollback", timeoutTicks = 100)
+    public static void InterruptedCommandNeverRemovesAnotherBodyInReusedPlot(GameTestHelper h) throws Exception {
+        var f = fixture(h, 1, "structure blueprint plot reuse");
+        var level = h.getLevel();
+        var container = SubLevelContainer.getContainer(level);
+        try {
+            h.assertTrue(execute(source(h), command(f, false) + " ~ ~8 ~") == 1, "Structure blueprint command failed");
+            var queued = CommandBlueprintSpawns.get(level.getServer()).save(new CompoundTag(), level.registryAccess());
+            drain(h);
+            var core = spawned(h, f);
+            h.assertTrue(core != null, "Structure blueprint never placed");
+            var body = (ServerSubLevel) dev.ryanhcode.sable.Sable.HELPER.getContaining(level, core.getBlockPos());
+            var id = body.getUniqueId();
+            var origin = body.getPlot().getCenterBlock();
+            var plot = body.getPlot().plotPos;
+            var owner = core.creatureId();
+            container.removeSubLevel(body, SubLevelRemovalReason.REMOVED);
+            var replacementId = UUID.randomUUID();
+            var replacement = container.allocateSubLevel(replacementId,
+                    plot.x - container.getOrigin().x, plot.z - container.getOrigin().y, body.logicalPose());
+
+            var row = queued.getList("Jobs", Tag.TAG_COMPOUND).getCompound(0);
+            row.putBoolean("Cleanup", true);
+            row.putUUID("Creature", owner);
+            var bodies = new ListTag();
+            bodies.add(NbtUtils.createUUID(id));
+            row.put("Bodies", bodies);
+            var placement = new CompoundTag();
+            var plots = new CompoundTag();
+            plots.putLong(id.toString(), origin.asLong());
+            placement.put(BlueprintCleanup.PLOT_CENTERS, plots);
+            row.put("Placement", placement);
+            CommandBlueprintSpawns.load(queued, level.registryAccess()).advance(level.getServer());
+            h.assertTrue(container.getSubLevel(replacementId) == replacement && !replacement.isRemoved(),
+                    "Rollback removed the replacement occupying the original plot");
+            h.assertTrue(!BlueprintCleanup.retainsOwnership(level.getServer(), owner), "Proven old body deletion did not retire safely");
+            container.removeSubLevel(replacement, SubLevelRemovalReason.REMOVED);
+        } finally {
+            java.nio.file.Files.deleteIfExists(f.path);
+        }
         h.succeed();
     }
 }

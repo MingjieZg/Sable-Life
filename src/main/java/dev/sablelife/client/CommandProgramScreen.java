@@ -27,12 +27,20 @@ public final class CommandProgramScreen extends AbstractContainerScreen<HeartDas
     private Component tr(String key){return Component.translatable("commands.sablelife."+key);}
     private CommandProgram.Row current(){return rows.stream().filter(r->r.id().equals(selected)).findFirst().orElse(null);}
     private Button button(Component label,int x,int y,int w,Runnable action){return addRenderableWidget(LifeUiStyle.button(label,leftPos+x,topPos+y,w,18,action));}
-    private void send(String key,double value,String text){int index=current()==null?-1:rows.indexOf(current());PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,snapshot.getInt("Revision"),moduleId,"commands",key,value,index+"|"+text));}
+    private boolean editable() { return snapshot.getBoolean("Editable") && snapshot.getBoolean("CommandEditable"); }
+    private void send(String key, double value, String text) {
+        if (!editable()) return;
+        var row = current();
+        if (row == null && !key.equals("add")) return;
+        int index = row == null ? -1 : rows.indexOf(row);
+        PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId, snapshot.getInt("Revision"),
+                moduleId, "commands", key, value, index + "|" + text));
+    }
     @Override protected void init(){
         imageWidth=Math.min(540,width-12);imageHeight=Math.min(300,height-12);leftWidth=imageWidth*29/100;rightX=leftWidth+18;rightWidth=imageWidth-rightX-10;slots=Math.max(3,(imageHeight-107)/17);super.init();entries.clear();
         button(tr("back"),imageWidth-65,8,55,this::onClose);
         up=button(Component.literal("↑"),leftWidth-41,34,20,()->send("up",0,""));down=button(Component.literal("↓"),leftWidth-18,34,20,()->send("down",0,""));
-        for(int i=0;i<slots;i++){final int n=i;var b=button(Component.empty(),9,58+i*17,leftWidth-8,()->{int index=page*slots+n;if(index<rows.size()){selected=rows.get(index).id();command.setFocused(false);interval.setFocused(false);deleteUntil=0;sync();}});b.setHeight(15);entries.add(b);}
+        for(int i=0;i<slots;i++){final int n=i;var b=button(Component.empty(),9,58+i*17,leftWidth-8,()->{int index=page*slots+n;if(index<rows.size()){selected=rows.get(index).id();clearDrafts();sync();}});b.setHeight(15);entries.add(b);}
         prev=button(Component.literal("‹"),9,imageHeight-45,22,()->page=Math.max(0,page-1));next=button(Component.literal("›"),leftWidth-21,imageHeight-45,22,()->page++);
         int third=(leftWidth-12)/3;add=button(tr("add"),9,imageHeight-23,third,()->send("add",0,""));copy=button(tr("copy"),11+third,imageHeight-23,third,()->send("copy",0,""));delete=button(tr("delete"),13+third*2,imageHeight-23,third,()->{if(deleteUntil>ticks){send("delete",0,"");deleteUntil=0;}else deleteUntil=ticks+60;});
         rowEnabled=button(Component.empty(),rightX,35,rightWidth,()->{var r=current();if(r!=null)send("enabled",r.enabled()?0:1,"");});
@@ -47,11 +55,27 @@ public final class CommandProgramScreen extends AbstractContainerScreen<HeartDas
         save=button(tr("save"),rightX,190,rightWidth,()->{send("command",0,command.getValue());command.setFocused(false);});save.setTooltip(Tooltip.create(tr("origin_help")));sync();
     }
     private void cycle(int direction){var r=current();if(r!=null)send("mode",Math.floorMod(r.mode()+direction,3),"");}
-    private void applyInterval(){try{double seconds=Double.parseDouble(interval.getValue());if(seconds<.05||seconds>600)throw new NumberFormatException();send("interval",seconds,"");interval.setTextColor(0xFFFFFF);interval.setFocused(false);}catch(NumberFormatException e){interval.setTextColor(0xFF7777);}}
+    private void applyInterval(){if(!interval.active)return;try{double seconds=Double.parseDouble(interval.getValue());if(!Double.isFinite(seconds)||seconds<.05||seconds>600)throw new NumberFormatException();send("interval",seconds,"");interval.setTextColor(0xFFFFFF);interval.setFocused(false);}catch(NumberFormatException e){interval.setTextColor(0xFF7777);}}
+    private void clearDrafts() {
+        if (getFocused() == command || getFocused() == interval || getFocused() == delete) setFocused(null);
+        command.setFocused(false);
+        interval.setFocused(false);
+        interval.setTextColor(0xFFFFFF);
+        suggestions.setAllowSuggestions(false);
+        deleteUntil = 0;
+    }
     private void sync(){
+        UUID previousRow = selected;
+        int previousRevision = snapshot.getInt("Revision");
+        boolean previouslyEditable = editable();
         snapshot=menu.snapshot();rows=List.of();runtime=new CompoundTag();var modules=snapshot.getList("Modules",10);
         for(int i=0;i<modules.size();i++){var tag=modules.getCompound(i);if(tag.hasUUID("Id")&&tag.getUUID("Id").equals(moduleId)){rows=VirtualModule.load(tag).commands().rows();runtime=tag.getCompound("CommandRuntime");break;}}
-        if(current()==null)selected=rows.isEmpty()?null:rows.getFirst().id();var r=current();boolean edit=snapshot.getBoolean("Editable")&&snapshot.getBoolean("CommandEditable"),has=edit&&r!=null;
+        if(current()==null)selected=rows.isEmpty()?null:rows.getFirst().id();
+        boolean edit = editable();
+        if (!java.util.Objects.equals(previousRow, selected) || previousRevision != snapshot.getInt("Revision")
+                || previouslyEditable && !edit) clearDrafts();
+        var r = current();
+        boolean has = edit && r != null;
         add.active=edit&&rows.size()<CommandProgram.LIMIT;copy.active=has&&rows.size()<CommandProgram.LIMIT;delete.active=has;delete.setMessage(tr(deleteUntil>ticks?"confirm":"delete"));up.active=has&&rows.indexOf(r)>0;down.active=has&&rows.indexOf(r)+1<rows.size();
         rowEnabled.active=mode.active=conditional.active=save.active=command.active=has;interval.active=intervalSave.active=has&&r.mode()==1;
         rowEnabled.setMessage(tr(r!=null&&r.enabled()?"enabled":"disabled"));mode.setMessage(tr("mode_"+(r==null?0:r.mode())));mode.setTooltip(Tooltip.create(tr("mode_help_"+(r==null?0:r.mode()))));conditional.setMessage(tr(r!=null&&r.conditional()?"conditional":"unconditional"));conditional.setTooltip(Tooltip.create(tr(r!=null&&r.conditional()?"conditional_help":"unconditional_help")));
@@ -86,8 +110,15 @@ public final class CommandProgramScreen extends AbstractContainerScreen<HeartDas
         return handled;
     }
     @Override public void resize(net.minecraft.client.Minecraft mc,int w,int h){
-        String draft=command.getValue();boolean focused=completing();super.resize(mc,w,h);
-        if(focused){setFocused(command);command.setFocused(true);command.setValue(draft);}
+        String draft = command.getValue();
+        boolean focused = completing();
+        UUID draftRow = selected;
+        int draftRevision = snapshot.getInt("Revision");
+        super.resize(mc,w,h);
+        if (focused && command.active && java.util.Objects.equals(draftRow, selected) && draftRevision == snapshot.getInt("Revision")) {
+            setFocused(command);
+            command.setValue(draft);
+        }
     }
     @Override public void onClose(){minecraft.setScreen(new HeartDashboardScreen(menu,minecraft.player.getInventory(),title));}
 }

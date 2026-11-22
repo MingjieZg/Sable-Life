@@ -1,13 +1,11 @@
 package dev.sablelife.ownership;
 
 import dev.sablelife.SableLifeServerConfig;
-import dev.sablelife.compat.StructureRemovalApi;
 import dev.sablelife.compat.photomancy.PhotomancyCompatibility;
 import dev.sablelife.compat.photomancy.PhotomancyRespawnBridge;
 import dev.sablelife.compat.photomancy.SpawnTemplateBridge;
 import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
-import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -33,6 +31,7 @@ public final class CommandBlueprintSpawns extends SavedData {
         String name;
         ResourceLocation dimension;
         CompoundTag template = new CompoundTag();
+        CompoundTag placement = new CompoundTag();
         Vec3 origin;
         AABB bounds;
         boolean activate, cleanup, waiting;
@@ -164,7 +163,11 @@ public final class CommandBlueprintSpawns extends SavedData {
                 build = PhotomancyRespawnBridge.createSpawn(job.template, new CompoundTag(), job.origin, null);
                 try {
                     if (!build.step(level).equals("DONE")) throw new Rejected("failed");
-                } finally { job.bodies.addAll(build.bodies()); setDirty(); }
+                } finally {
+                    job.bodies.addAll(build.bodies());
+                    job.placement = BlueprintCleanup.placement(build.save());
+                    setDirty();
+                }
                 SableBodyProbe.invalidate(level);
                 if (job.activate) {
                     var core = build.heart(level);
@@ -198,29 +201,13 @@ public final class CommandBlueprintSpawns extends SavedData {
         return job.source == null ? server.createCommandSourceStack().withLevel(level) : job.source;
     }
     private static boolean cleanup(ServerLevel level, Job job) {
-        try { return cleanupBodies(level, job); }
-        catch (RuntimeException failure) {
-            if (level.getGameTime() % 100 == 0) com.mojang.logging.LogUtils.getLogger().error("Blueprint command cleanup will retry", failure);
+        try {
+            BlueprintCleanup.request(level.getServer(), job.id, job.dimension, job.creature, job.bodies, job.placement);
+            return true;
+        } catch (RuntimeException failure) {
+            if (level.getGameTime() % 100 == 0) com.mojang.logging.LogUtils.getLogger().error("Blueprint command cleanup handover will retry", failure);
             return false;
         }
-    }
-    private static boolean cleanupBodies(ServerLevel level, Job job) {
-        ArenaBuildTicks.release(level, job.bodies);
-        var container = SubLevelContainer.getContainer(level);
-        if (container == null) return job.bodies.isEmpty();
-        boolean finished = true;
-        for (UUID id : job.bodies) {
-            if (container.getSubLevel(id) instanceof ServerSubLevel body && !body.isRemoved()) {
-                try { StructureRemovalApi.remove(level, body); }
-                catch (RuntimeException failure) { finished = false; }
-                if (container.getSubLevel(id) != null && !body.isRemoved()) finished = false;
-            }
-        }
-        if (job.creature != null) {
-            BodyOwnership.get(level).release(job.creature);
-            LifeLifecycle.get(level.getServer()).cancel(job.creature);
-        }
-        return finished;
     }
     @Override public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         var list = new ListTag();
@@ -231,32 +218,54 @@ public final class CommandBlueprintSpawns extends SavedData {
             row.putBoolean("Activate", job.activate); row.putBoolean("Cleanup", job.cleanup || job.waiting);
             if (job.creature != null) row.putUUID("Creature", job.creature);
             var bodies = new ListTag(); for (UUID id : job.bodies) bodies.add(NbtUtils.createUUID(id)); row.put("Bodies", bodies);
+            if (!job.placement.isEmpty()) row.put("Placement", job.placement);
             var bounds = new ListTag(); for (double v : new double[]{job.bounds.minX, job.bounds.minY, job.bounds.minZ, job.bounds.maxX, job.bounds.maxY, job.bounds.maxZ}) bounds.add(DoubleTag.valueOf(v));
             row.put("Bounds", bounds); list.add(row);
         }
         tag.put("Jobs", list); return tag;
     }
     public static CommandBlueprintSpawns load(CompoundTag tag, HolderLookup.Provider registries) {
-        var data = new CommandBlueprintSpawns(); long bytes = 0;
+        var data = new CommandBlueprintSpawns();
+        long bytes = 0;
+        int rejectedTemplates = 0;
         for (var item : tag.getList("Jobs", Tag.TAG_COMPOUND)) {
             if (data.jobs.size() >= LIMIT) break;
-            var row = (CompoundTag)item; var box = row.getList("Bounds", Tag.TAG_DOUBLE);
+            var row = (CompoundTag) item;
+            var box = row.getList("Bounds", Tag.TAG_DOUBLE);
             if (!row.hasUUID("Id") || box.size() != 6) continue;
+            var id = row.getUUID("Id");
+            if (data.jobs.containsKey(id)) continue;
             var dimension = ResourceLocation.tryParse(row.getString("Dimension"));
             if (dimension == null) continue;
-            var job = new Job(); job.id = row.getUUID("Id"); job.name = row.getString("Name"); job.dimension = dimension;
-            job.template = row.getCompound("Template").copy(); bytes += job.template.sizeInBytes();
-            if (bytes > SableLifeServerConfig.arenaWorldTemplateBytes()) break;
+            var template = row.getCompound("Template");
+
+            var job = new Job();
+            job.id = id;
+            job.name = row.getString("Name");
+            job.dimension = dimension;
             job.origin = new Vec3(row.getDouble("X"), row.getDouble("Y"), row.getDouble("Z"));
             job.bounds = new AABB(box.getDouble(0), box.getDouble(1), box.getDouble(2), box.getDouble(3), box.getDouble(4), box.getDouble(5));
             if (!Double.isFinite(job.origin.lengthSqr()) || !Double.isFinite(job.bounds.getSize())) continue;
-            job.activate = row.getBoolean("Activate"); job.cleanup = row.getBoolean("Cleanup");
+            job.activate = row.getBoolean("Activate");
+            job.cleanup = row.getBoolean("Cleanup");
             if (row.hasUUID("Creature")) job.creature = row.getUUID("Creature");
-            for (var body : row.getList("Bodies", Tag.TAG_INT_ARRAY)) if (job.bodies.size() < ArenaRespawnLimits.PARTS)
-                try { job.bodies.add(NbtUtils.loadUUID(body)); } catch (IllegalArgumentException ignored) {}
+            for (var body : row.getList("Bodies", Tag.TAG_INT_ARRAY)) {
+                if (job.bodies.size() >= ArenaRespawnLimits.PARTS) break;
+                if (((IntArrayTag) body).size() == 4) job.bodies.add(NbtUtils.loadUUID(body));
+            }
+            job.placement = BlueprintCleanup.placement(row.getCompound("Placement"));
             if (!job.bodies.isEmpty()) job.cleanup = true;
-            data.jobs.putIfAbsent(job.id, job);
+            if (template.isEmpty() && !job.cleanup) continue;
+            int templateBytes = template.sizeInBytes();
+            if (!ArenaRespawnLimits.fitsSavedTemplates(bytes, templateBytes)) {
+                rejectedTemplates++;
+                continue;
+            }
+            job.template = template.copy();
+            data.jobs.put(id, job);
+            bytes += templateBytes;
         }
+        ArenaRespawnLimits.warnSkippedTemplates("sablelife_command_blueprints", rejectedTemplates);
         return data;
     }
 }

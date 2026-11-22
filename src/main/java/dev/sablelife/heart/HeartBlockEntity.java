@@ -386,7 +386,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             if(registry.contains(id)&&!registry.canAssign(sp,id))return false;
         }
         boolean allowLocalMessages = isSurvivalCore() && dev.sablelife.SableLifeServerConfig.survivalModuleEnabled("message_display");
-        if (!dev.sablelife.module.AuthoringLimits.compound(data, dev.sablelife.module.AuthoringLimits.MAX_CONFIGURATION_BYTES)
+        if (!dev.sablelife.module.AuthoringLimits.configuration(data)
                 || !player.canUseGameMasterBlocks() && dev.sablelife.module.AuthoringLimits.containsOperatorModules(data, allowLocalMessages)) return false;
         float maximum = data.getFloat("MaxHealth");
         if (!Float.isFinite(maximum) || maximum < 1 || maximum > HeartHealth.MAX_CONFIGURED_HEALTH) return false;

@@ -2,6 +2,7 @@ package dev.sablelife.module;
 
 import dev.sablelife.attack.ModuleDamage;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.sense.SensorGeometry;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.server.level.ServerLevel;
@@ -20,10 +21,13 @@ public final class ModuleLaser {
         final LaserBlockCut.Front cut=new LaserBlockCut.Front();
         int hits;
         boolean casting, firing;
-        UUID moveTarget;
+        ModuleTargets.AttackAim preferred;
         LivingEntity target;
         List<State> beams = List.of();
-        Vec3 trackedDirection, aimPoint;
+        Vec3 trackedDirection, aimPoint, visiblePoint;
+        final SightMemory memory = new SightMemory();
+        boolean fired;
+        int revision;
         long nextWarning;
         boolean warningUpdated;
         long trackedAt = Long.MIN_VALUE;
@@ -59,18 +63,38 @@ public final class ModuleLaser {
         return ModuleTargets.matches(e,m);
     }
     public static List<LivingEntity> acquireTargets(ServerLevel level, HeartBlockEntity heart, VirtualModule m, Vec3 start) {
-        return acquireTargets(level, heart, m, start, ModuleTargets.attackTarget(heart, m));
+        return acquireTargets(level, heart, m, start, ModuleTargets.attackAim(heart, m), false);
     }
 
     private static List<LivingEntity> acquireTargets(ServerLevel level, HeartBlockEntity heart, VirtualModule m, Vec3 start,
-                                                     UUID preferredTarget) {
+                                                     ModuleTargets.AttackAim aim, boolean remember) {
         double range = m.value("beamLength");
-        return ModuleTargets.aimedTargets(level, heart, new AABB(start, start).inflate(range),
-                e -> eligible(e, m) && e.getBoundingBox().getCenter().distanceToSqr(start) <= range * range,
-                ModuleTargets.comparator(heart, e -> e.getBoundingBox().getCenter().distanceToSqr(start)),
-                e -> ModuleTargets.attackVisible(level, heart, m, start, e),
-                m.value("targetMultiple") == 1 ? 64 : 1, preferredTarget);
+        var bounds = new AABB(start, start).inflate(range);
+        java.util.function.ToDoubleFunction<LivingEntity> distance = target ->
+                ModuleTargets.attackPoint(level, heart, m, target, aim).distanceToSqr(start);
+        java.util.function.Predicate<LivingEntity> eligible = target -> eligible(target, m) && distance.applyAsDouble(target) <= range * range;
+        var order = ModuleTargets.comparator(heart, distance);
+        boolean multiple = m.value("targetMultiple") == 1;
+        return ModuleTargets.attackResults(level, heart, m, bounds, eligible, order,
+                target -> canSee(level, heart, m, start, target) ? target : null, aim, multiple, remember)
+                .limit(multiple ? 64 : 1).toList();
     }
+
+    static Vec3 trackingPoint(ServerLevel level, LivingEntity target) {
+        return SableBodyProbe.toWorld(level, target instanceof net.minecraft.world.entity.player.Player
+                ? ModuleTargets.upperChest(target) : target.getBoundingBox().getCenter());
+    }
+
+    static boolean canSee(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 origin, LivingEntity target) {
+        return !SightMemory.enabled(module) || SensorGeometry.visible(level, heart.creatureId(), origin, trackingPoint(level, target),
+                target instanceof ModuleTargets.LifeTarget ? target.getUUID() : null);
+    }
+
+    private static Vec3 aimPoint(ServerLevel level, HeartBlockEntity heart, VirtualModule m, LivingEntity target, ModuleTargets.AttackAim aim) {
+        var observation = aim == null || !aim.id().equals(target.getUUID()) ? null : aim.observation(heart, m);
+        return !SightMemory.enabled(m) && observation != null && !observation.visible() ? observation.point() : trackingPoint(level, target);
+    }
+
     private static Vec3 direction(HeartBlockEntity heart, VirtualModule m, State state) {
         if(m.emitter()!=null)return m.emitter().direction();
         if (m.value("laserAim") == 1) {
@@ -78,14 +102,14 @@ public final class ModuleLaser {
             var origin = ModuleCombat.nozzle(heart,m);
             long now = heart.getLevel().getGameTime();
             state.warningUpdated = false;
-            if (state.aimPoint == null) state.aimPoint = state.target.getBoundingBox().getCenter();
+            if (state.aimPoint == null) state.aimPoint = state.visiblePoint;
             if (state.trackedAt != now) {
                 if (!state.firing && now >= state.nextWarning) {
-                    state.aimPoint = state.target.getBoundingBox().getCenter();
+                    state.aimPoint = state.visiblePoint;
                     state.nextWarning = now + Math.max(1, Math.round(1 / m.value("laserTracking")));
                     state.warningUpdated = true;
                 } else if (state.firing && now > state.fireAt) {
-                    state.aimPoint = pursue(state.aimPoint, state.target.getBoundingBox().getCenter(), m.value("laserFollow"));
+                    state.aimPoint = pursue(state.aimPoint, state.visiblePoint, m.value("laserFollow"));
                 }
                 state.trackedDirection = state.aimPoint.subtract(origin).normalize();
                 state.trackedAt = now;
@@ -144,11 +168,37 @@ public final class ModuleLaser {
     }
 
     private static boolean canTrack(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
-                                    LivingEntity target, Vec3 origin, double range) {
+                                    LivingEntity target, Vec3 origin, double range, ModuleTargets.AttackAim aim) {
+        return validTarget(level, heart, module, target)
+                && ModuleTargets.attackPoint(level, heart, module, target, aim).distanceToSqr(origin) <= range * range;
+    }
+
+    private static boolean validTarget(ServerLevel level, HeartBlockEntity heart, VirtualModule module, LivingEntity target) {
         return target != null && target.level() == level && eligible(target, module)
-                && dev.sablelife.heart.CoreRelations.targetAllowed(level, heart.creatureId(), target)
-                && target.getBoundingBox().getCenter().distanceToSqr(origin) <= range * range
-                && ModuleTargets.attackVisible(level, heart, module, origin, target);
+                && dev.sablelife.heart.CoreRelations.targetAllowed(level, heart.creatureId(), target);
+    }
+
+    private SightMemory.Target observeBeam(HeartBlockEntity heart, VirtualModule module, State beam, Vec3 origin, double range, long now) {
+        var target = beam.target;
+        if (!validTarget(level, heart, module, target)) return null;
+        var point = trackingPoint(level, target);
+        var last = beam.memory.lastSeen();
+        double squaredRange = range * range;
+        boolean liveInRange = ModuleTargets.attackPoint(level, heart, module, target, null).distanceToSqr(origin) <= squaredRange;
+        boolean lastInRange = last != null && last.point().distanceToSqr(origin) <= squaredRange;
+        if (!liveInRange && !lastInRange) return null;
+        if (SightMemory.canRecheck(origin, point) && canSee(level, heart, module, origin, target))
+            return liveInRange ? beam.memory.see(target.getUUID(), point) : null;
+        return lastInRange ? beam.memory.remember(now, SightMemory.ticks(module)) : null;
+    }
+
+    private void drawLastAim(HeartBlockEntity heart, VirtualModule module, State beam, Vec3 origin, double range, Vec3 point) {
+        beam.visiblePoint = point;
+        beam.firing = false;
+        var rememberedDirection = direction(heart, module, beam);
+        if (beam.warningUpdated)
+            draw(level, null, module, origin,
+                    SensorGeometry.beamEnd(level, heart.creatureId(), origin, origin.add(rememberedDirection.scale(range))), true);
     }
     public static DustParticleOptions color(VirtualModule m) {
         return new DustParticleOptions(ModuleColors.vector(m,"beamColor"),(float)Math.clamp(m.value("beamWidth")*2,.2,4));
@@ -180,6 +230,7 @@ public final class ModuleLaser {
         if (m.value("laserAim") == 1) {
             for (var target : acquireTargets(level, heart, m, origin)) {
                 var preview = new State(); preview.target = target;
+                preview.visiblePoint = trackingPoint(level, target);
                 var dir = direction(heart, m, preview); var start = origin;
                 draw(level, player, m, start, SensorGeometry.beamEnd(level, heart.creatureId(), start, start.add(dir.scale(m.value("beamLength")))), false);
             }
@@ -210,14 +261,14 @@ public final class ModuleLaser {
             double range = m.value("beamLength");
             if (!s.casting) {
                 if (now < s.ready || !external&&!heart.modules().hurtTriggers.start(m)) continue;
-                s.moveTarget = tracking ? ModuleTargets.attackTarget(heart, m) : null;
+                s.preferred = tracking ? ModuleTargets.attackAim(heart, m) : null;
                 if (tracking) {
-                    var targets = acquireTargets(level, heart, m, origin, s.moveTarget);
+                    var targets = acquireTargets(level, heart, m, origin, s.preferred, true);
                     if (targets.isEmpty()) continue;
                     s.beams = targets.stream().map(target -> { var beam = new State(); beam.target = target; return beam; }).toList();
                 } else s.beams = List.of(new State());
                 if(!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,s.beams.size())){s.beams=List.of();s.ready=now+5;continue;}
-                s.casting = true; s.firing = false; s.hits = 0;
+                s.casting = true; s.firing = false; s.hits = 0; s.revision = heart.modules().revision(); s.fired = false;
                 s.fireAt = now + (long) m.value("chargeTime");
                 s.finishAt = s.fireAt + (long) m.value("beamHits") * (long) m.value("hitInterval");
                 s.nextHit = s.fireAt;
@@ -227,17 +278,23 @@ public final class ModuleLaser {
             if (now >= s.finishAt) {
                 stop(m.id()); if(!external)heart.modules().hurtTriggers.completed(m); s.casting = false; s.beams = List.of(); s.ready = now + (long) m.value("interval"); continue;
             }
-            if (now >= s.fireAt && !s.firing) {
-                stop(m.id());
-                if (s.moveTarget != null && !canTrack(level, heart, m,
-                        ModuleTargets.resolve(level, s.moveTarget, heart.creatureId()), origin, range)) {
-                    if (!external) heart.modules().hurtTriggers.completed(m);
-                    s.casting = false;
-                    s.beams = List.of();
-                    s.ready = now + (long) m.value("interval");
-                    continue;
+            if (now >= s.fireAt) {
+                if (s.preferred != null && (!s.fired || s.preferred.followsMove())) {
+                    var primary = ModuleTargets.resolve(level, s.preferred.id(), heart.creatureId());
+                    if (!s.preferred.available(heart, m) || !canTrack(level, heart, m, primary, origin, range, s.preferred)
+                            || !canSee(level, heart, m, origin, primary)) {
+                        stop(m.id());
+                        if (!external) heart.modules().hurtTriggers.completed(m);
+                        s.casting = false;
+                        s.beams = List.of();
+                        s.ready = now + (long) m.value("interval");
+                        continue;
+                    }
                 }
-                s.firing = true; ModuleAudio.play(level,m,"fireSound",origin);
+                if (!s.firing) {
+                    stop(m.id());
+                    s.firing = true;
+                }
             }
             boolean hit = s.firing && now >= s.nextHit && s.hits < m.value("beamHits");
             if (hit) { s.nextHit = now + (long) m.value("hitInterval"); s.hits++; }
@@ -245,12 +302,44 @@ public final class ModuleLaser {
             var visualEnds=new ArrayList<LaserVisual.End>();
             var body=!external&&s.firing&&continuousVisual(m)?m.anchors().getFirst().body(heart):null;
             for (var beam : s.beams) {
-                if (tracking && !canTrack(level, heart, m, beam.target, origin, range)) {
-                    // An emitted beam keeps its last heading for the rest of this burst.
-                    if (!beam.firing || beam.trackedDirection == null) continue;
-                    beam.target = null;
+                if (tracking) {
+                    var target = beam.target;
+                    int memoryTicks = SightMemory.ticks(m);
+                    if (s.preferred == null && memoryTicks > 0 && s.revision == heart.modules().revision()) {
+                        var observation = observeBeam(heart, m, beam, origin, range, now);
+                        if (observation == null) {
+                            beam.memory.clear();
+                            beam.target = null;
+                            continue;
+                        }
+                        if (!observation.visible()) {
+                            drawLastAim(heart, m, beam, origin, range, observation.point());
+                            continue;
+                        }
+                        beam.visiblePoint = observation.point();
+                    } else if (!canTrack(level, heart, m, target, origin, range, s.preferred)) {
+                        beam.memory.clear();
+                        if (!beam.firing || beam.trackedDirection == null) continue;
+                        beam.target = null;
+                    } else if (canSee(level, heart, m, origin, target)) {
+                        beam.visiblePoint = aimPoint(level, heart, m, target, s.preferred);
+                        beam.memory.clear();
+                    } else if (memoryTicks == 0 && beam.firing && beam.trackedDirection != null
+                            && (s.preferred == null || !s.preferred.followsMove())) {
+                        // An emitted legacy burst keeps its last heading; terrain still clips the beam.
+                        beam.target = null;
+                    } else {
+                        var observed = s.preferred == null ? null : s.preferred.observation(heart, m);
+                        if (observed != null && observed.id().equals(target.getUUID()) && !observed.visible())
+                            drawLastAim(heart, m, beam, origin, range, observed.point());
+                        continue;
+                    }
                 }
                 beam.firing = s.firing;
+                if (s.firing && !s.fired) {
+                    s.fired = true;
+                    ModuleAudio.play(level, m, "fireSound", origin);
+                }
                 var dir = direction(heart, m, beam); var start = origin;
                 var endpoint=start.add(dir.scale(range));
                 var end=s.firing&&m.value("laserBreakBlocks")==1?LaserBlockCut.cut(level,heart,m,start,endpoint,beam.cut,now):SensorGeometry.beamEnd(level,heart.creatureId(),start,endpoint);
@@ -269,9 +358,12 @@ public final class ModuleLaser {
                 for (var victim : ModuleTargets.damageQuery(level, heart.creatureId(), new AABB(start, end).inflate(radius), e -> eligible(e, m))) {
                     var box = victim.getBoundingBox().inflate(radius);
                     if (!box.contains(start) && box.clip(start, end).isEmpty()) continue;
-                    if (!ModuleTargets.visible(level, heart.creatureId(), start, victim)) continue;
+                    var contact = dev.sablelife.combat.SegmentBoxContact.closest(start, end, victim.getBoundingBox(), new Vec3(1, 1, 1)).point();
+                    boolean clear = tracking && victim instanceof net.minecraft.world.entity.player.Player
+                            ? SensorGeometry.visible(level, heart.creatureId(), start, contact)
+                            : ModuleTargets.visible(level, heart.creatureId(), start, victim);
+                    if (!clear) continue;
                     if (damaged.add(victim.getUUID())) {
-                        var contact=dev.sablelife.combat.SegmentBoxContact.closest(start,end,victim.getBoundingBox(),new Vec3(1,1,1)).point();
                         SurfaceFieldImpact.entity(heart,m,contact,dir,victim.getUUID());
                         ModuleDamage.hurt(victim, ModuleDamage.named(ModuleDamage.physical(level),heart), (float) m.value("damage"),heart,m);
                     }

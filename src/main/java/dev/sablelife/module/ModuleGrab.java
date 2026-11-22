@@ -6,7 +6,7 @@ import java.util.*;
 
 /** One marked mouth/hand, a moving capture telegraph, then body-local player/mob attachments. */
 public final class ModuleGrab {
-    private static final class State {UUID audio,inherited;long fire,next;VirtualModule cast;}
+    private static final class State {UUID audio;ModuleTargets.AttackAim inherited;long fire,next;VirtualModule cast;}
     private final Map<UUID,State> states=new HashMap<>();private ServerLevel level;private UUID owner;
     public void clear(){if(level!=null&&owner!=null)for(var id:states.keySet()){release(level,new PlayerFreeze.Source(owner,states.get(id).audio));ModuleAudio.stop(level,states.get(id).audio);}states.clear();level=null;owner=null;}
     /** The held player's center follows this point. The player stays upright and retains their view. */
@@ -29,30 +29,28 @@ public final class ModuleGrab {
     }
     private static void release(ServerLevel level,PlayerFreeze.Source source){PlayerFreeze.release(level.getServer(),source);MobGrab.release(level.getServer(),source);}
     public static int capture(ServerLevel level,HeartBlockEntity heart,VirtualModule m){
-        return capture(level, heart, m, ModuleTargets.attackTarget(heart, m));
+        return capture(level, heart, m, ModuleTargets.attackAim(heart, m));
     }
-    private static net.minecraft.world.entity.LivingEntity inheritedTarget(ServerLevel level, HeartBlockEntity heart, VirtualModule m, Vec3 point, UUID inherited) {
-        var target = ModuleTargets.resolve(level, inherited, heart.creatureId());
+    private static net.minecraft.world.entity.LivingEntity inheritedTarget(ServerLevel level, HeartBlockEntity heart, VirtualModule m, Vec3 point, ModuleTargets.AttackAim inherited) {
+        var target = ModuleTargets.resolve(level, inherited.id(), heart.creatureId());
         double radius = m.value("grabRadius");
         return target != null && !target.isRemoved() && matches(target, m)
                 && target.getBoundingBox().getCenter().distanceToSqr(point) <= radius * radius
-                && ModuleTargets.attackVisible(level, heart, m, point, target) ? target : null;
+                && ModuleTargets.attackVisible(level, heart, m, point, target, inherited) ? target : null;
     }
-    private static int capture(ServerLevel level, HeartBlockEntity heart, VirtualModule m, UUID inherited){
+    private static int capture(ServerLevel level, HeartBlockEntity heart, VirtualModule m, ModuleTargets.AttackAim inherited){
         var point=holdPoint(heart,m);if(point==null)return 0;double radius=m.value("grabRadius");
         var source=new PlayerFreeze.Source(heart.creatureId(),m.audioId());
         if (inherited != null) {
             var target = inheritedTarget(level, heart, m, point, inherited);
             return target != null && grab(heart, m, source, target) ? 1 : 0;
         }
-        var candidates=new ArrayList<net.minecraft.world.entity.LivingEntity>();candidates.addAll(level.players());
-        if(m.value("grabTarget")!=0)candidates.addAll(level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class,new net.minecraft.world.phys.AABB(point,point).inflate(radius),MobGrab::eligible));
-        var sorted=candidates.stream().filter(p->dev.sablelife.heart.CoreRelations.targetAllowed(level,heart.creatureId(),p)&&matches(p,m)&&p.getBoundingBox().getCenter().distanceToSqr(point)<=radius*radius).sorted(ModuleTargets.comparator(heart,p->p.getBoundingBox().getCenter().distanceToSqr(point))).toList();
-        for(var target:sorted){
-            if (!ModuleTargets.attackVisible(level, heart, m, point, target)) continue;
-            if(grab(heart,m,source,target))return 1;
-        }
-        return 0;
+        var bounds = new net.minecraft.world.phys.AABB(point, point).inflate(radius);
+        return heart.modules().weaponSight().results(level, heart, m, bounds,
+                target -> matches(target, m) && target.getBoundingBox().getCenter().distanceToSqr(point) <= radius * radius,
+                ModuleTargets.comparator(heart, target -> target.getBoundingBox().getCenter().distanceToSqr(point)),
+                target -> ModuleTargets.attackVisible(level, heart, m, point, target, null) ? target : null,
+                null, false).anyMatch(target -> grab(heart, m, source, target)) ? 1 : 0;
     }
     private static boolean grab(HeartBlockEntity heart, VirtualModule m, PlayerFreeze.Source source, net.minecraft.world.entity.LivingEntity target) {
         int duration = (int)m.value("grabDuration");
@@ -79,7 +77,7 @@ public final class ModuleGrab {
             if(s.cast==null){
                 if (now < s.next) continue;
                 var point = holdPoint(heart, m);
-                s.inherited = ModuleTargets.attackTarget(heart, m);
+                s.inherited = ModuleTargets.attackAim(heart, m);
                 if (s.inherited != null && (point == null || inheritedTarget(level, heart, m, point, s.inherited) == null)) continue;
                 if (heart.isSurvivalCore() && point == null || !EmitterRuntime.start(m,heart) || !dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,1)) continue;
                 s.cast=EmitterRuntime.copy(m);s.fire=now+(long)m.value("grabWarning");s.next=s.fire+(long)m.value("grabDuration")+(long)m.value("interval");

@@ -217,10 +217,16 @@ public final class LifeLifecycle extends SavedData {
                     }
                     if (!pending) { death.cleaned = true; setDirty(); }
                 }
-                if (death.cleaned && !death.walkerAttachments.isEmpty() && wholeSlots > 0) {
-                    wholeSlots--;
+                if (death.cleaned && !death.walkerAttachments.isEmpty() && wholeSlots > 0
+                        && server.overworld().getGameTime() >= death.nextWalkerAttempt) {
                     var attachmentLevel = server.getLevel(ResourceKey.create(Registries.DIMENSION, death.dimension));
-                    if (attachmentLevel != null && dev.sablelife.compat.letitwalk.WalkerDeathCleanup.step(attachmentLevel, death.walkerAttachments)) setDirty();
+                    boolean progressed = false;
+                    if (attachmentLevel != null) {
+                        wholeSlots--;
+                        progressed = dev.sablelife.compat.letitwalk.WalkerDeathCleanup.step(attachmentLevel, death.walkerAttachments);
+                    }
+                    if (progressed) setDirty();
+                    else death.nextWalkerAttempt = server.overworld().getGameTime() + 20;
                 }
                 if (death.rewarded) {if(death.cleaned && death.walkerAttachments.isEmpty())complete(entry.getKey(),death);continue;}
                 var level = server.getLevel(ResourceKey.create(Registries.DIMENSION, death.dimension));
@@ -241,6 +247,8 @@ public final class LifeLifecycle extends SavedData {
                 if(death.cleaned && death.walkerAttachments.isEmpty())complete(entry.getKey(),death);
             } catch (RuntimeException | LinkageError failure) {
                 death.retryCleanupAt = server.overworld().getGameTime() + 100;
+                // A failed attachment removal may follow a newly recorded plot or already completed rows.
+                if (!death.walkerAttachments.isEmpty()) setDirty();
                 com.mojang.logging.LogUtils.getLogger().error("Death cleanup job {} failed. Retrying in 100 ticks.", entry.getKey(), failure);
             }
         }
@@ -256,6 +264,7 @@ public final class LifeLifecycle extends SavedData {
         boolean wholeFallback;
         ListTag walkerAttachments = new ListTag();
         transient long nextWholeAttempt;
+        transient long nextWalkerAttempt;
         transient long retryCleanupAt;
         boolean forceLoading;
         boolean experienceLevels;

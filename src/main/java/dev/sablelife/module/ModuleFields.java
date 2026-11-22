@@ -39,7 +39,7 @@ public final class ModuleFields {
         return List.copyOf(result);
     }
     /** Conditions and rhythm belong to Move set, not to a module or wireless channel. */
-    public static List<Field> moveRules(){return CACHE.computeIfAbsent("move_rules",ignored -> List.of(n("dispatchWeight",1,1000,10),t("dispatchCooldown",0,12000,100),t("dispatchBusy",1,12000,20),t("dispatchRest",1,12000,20),n("phaseUpper",0,100,100),n("phaseLower",0,100,0),target(2),n("dispatchNear",0,128,0),n("dispatchFar",.5,128,32),n("dispatchCone",0,360,360),c("dispatchFront","north","south","west","east"),c("lineOfSight","off","on"),new Field("inheritMoveTarget",0,1,1,1,List.of("off","on")),c("dispatchRepeat","avoid_repeat","allow_repeat")));}
+    public static List<Field> moveRules(){return CACHE.computeIfAbsent("move_rules",ignored -> List.of(n("dispatchWeight",1,1000,10),t("dispatchCooldown",0,12000,100),t("dispatchBusy",1,12000,20),t("dispatchRest",1,12000,20),n("phaseUpper",0,100,100),n("phaseLower",0,100,0),target(2),n("dispatchNear",0,128,0),n("dispatchFar",.5,128,32),n("dispatchCone",0,360,360),c("dispatchFront","north","south","west","east"),c("lineOfSight","off","on"),t(SightMemory.FIELD,0,1200,0),new Field("inheritMoveTarget",0,1,1,1,List.of("off","on")),c("dispatchRepeat","avoid_repeat","allow_repeat")));}
     /** Presentation order only: settings remain stored and addressed by their stable keys. */
     public static List<Field> forType(String type) {
         if (DatapackModules.isDatapackType(type)) {
@@ -126,7 +126,7 @@ public final class ModuleFields {
             case "sound" -> List.of("approach", "hurt", "radius", "volume", "pitch", "cooldown", "ambient", "ambientMin", "ambientMax");
             case "trigger_sound" -> List.of("triggerSound", "soundMode", "volume", "pitch", "cooldown", "interval", "contactMode", "contactSound", "contactDirection", "contactDistance", "contactCooldown");
             case "bgm" -> List.of("bgm", "bgmStart", "bgmRadius", "bgmVolume", "bgmFade");
-            case "navigation" -> List.of("target", "radius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert", "navigationLeftChannel", "navigationRightChannel", "navigationUpChannel", "navigationDownChannel", "navigationForwardChannel", "navigationBackwardChannel");
+            case "navigation" -> List.of("facingSource","facingSensor","target", "radius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert", "navigationLeftChannel", "navigationRightChannel", "navigationUpChannel", "navigationDownChannel", "navigationForwardChannel", "navigationBackwardChannel");
             case "loot" -> List.of("weighted", "rolls");
             default -> List.of();
         };
@@ -168,6 +168,14 @@ public final class ModuleFields {
                     List.of("strike_red", "strike_orange", "strike_blue", "strike_purple", "strike_green", "strike_white", "strike_yellow")));
             fields.add(n("projectileTrailLength", .25, 16, 3));
             fields.add(n("projectileTrailWidth", .02, .5, .08));
+        }
+        if (sightAfter != null || List.of("sensor", "navigation", "auto_facing", "pull").contains(type)) {
+            fields.add(t(SightMemory.FIELD, 0, 1200, 0));
+            if (!order.isEmpty()) {
+                var withMemory = new java.util.ArrayList<>(order);
+                withMemory.add(withMemory.indexOf("lineOfSight") + 1, SightMemory.FIELD);
+                order = withMemory;
+            }
         }
         final var presentationOrder = order;
         if (List.of("arrow", "gun", "mortar").contains(type)) fields.add(c("particles", "particles"));
@@ -223,7 +231,7 @@ public final class ModuleFields {
                 c("redstoneFrequency", "frequency"));
         case "entity_hitbox" -> List.of(new Field("hitboxDamageMode",0,1,1,1,List.of("hitbox_entity_only","hitbox_hybrid")),c("hitboxProvokeMobs","off","on"),c("hitboxRetaliateAgainstWhitelisted","off","on"),n("hitboxWidth",.25,16,1),n("hitboxHeight",.25,16,1),n("hitboxDepth",.25,16,1),n("hitboxOffsetX",-16,16,0),n("hitboxOffsetY",-16,16,0),n("hitboxOffsetZ",-16,16,0));
         case "blueprint_spawn" -> List.of(c("blueprintEditor","blueprint_editor"),c("spawnArenaRole","spawn_independent","spawn_next_stage","spawn_arena_summon"),c("spawnPosition","spawn_fixed","spawn_follow"),c("spawnAnchor","spawn_base","spawn_center"),direction(),n("startDistance",0,128,0),n("spawnOffsetX",-128,128,0),n("spawnOffsetY",-128,128,0),n("spawnOffsetZ",-128,128,0),n("spawnYaw",-180,180,0),n("spawnPitch",-180,180,0),n("spawnRoll",-180,180,0),c("spawnEvent","spawn_signal","spawn_death"),new Field("spawnActivate",0,1,1,1,List.of("off","on")),t("spawnDelay",0,72000,20),t("spawnCooldown",1,72000,100),n("spawnLimit",1,64,1));
-        case "move_set" -> List.of(c("moveSetEditor", "move_set_editor"),c("ignoreConditions","off","on"));
+        case "move_set" -> List.of(c("moveSetEditor", "move_set_editor"),c("ignoreConditions","off","on"),c("facingSource","facing_self","facing_sensor"),c("facingSensor","select_sensor"));
         case "command" -> List.of(c("commandEditor", "command_editor"));
         case "message_display" -> List.of(c("messageEditor", "message_editor"), t("messageInterval", 1, 1200, 20),
                 n("messageRadius", 1, 256, 64), c("messageGlobal", "off", "on"));
@@ -293,7 +301,7 @@ public final class ModuleFields {
                 n("volume", 0, 4, 1), n("pitch", .5, 2, 1), t("cooldown", 0, 12000, 20), t("interval", 1, 12000, 60), c("contactMode", "off", "on"), c("contactSound", "library"),
                 c("contactDirection", "down", "up", "north", "south", "west", "east"), n("contactDistance", .05, 4, .25), t("contactCooldown", 1, 200, 6));
         case "bgm" -> List.of(c("bgm", "library"), c("bgmStart", "after_hit", "on_approach"), n("bgmRadius", 1, 256, 64), t("bgmFade", 0, 400, 60), n("bgmVolume", 0, 1, 1));
-        case "navigation" -> List.of(ownerTarget(0), n("radius", 1, 256, 32), c("lineOfSight", "on", "off"),
+        case "navigation" -> List.of(c("facingSource","facing_self","facing_sensor"),c("facingSensor","select_sensor"),ownerTarget(0), n("radius", 1, 256, 32), c("lineOfSight", "on", "off"),
                 new Field("verticalTracking", 0, 1, 1, 1, List.of("off", "on")), c("targetLock", "locked", "nearest"), n("deadZone", 0, 45, 3), n("pitchDeadZone", 0, 45, 3),
                 c("navigationFront", "marked", "north", "south", "west", "east"), c("navigationInvert", "off", "on"), n("navigationLeftChannel",0,65535,0), n("navigationRightChannel",0,65535,0), n("navigationUpChannel",0,65535,0), n("navigationDownChannel",0,65535,0), n("navigationForwardChannel",0,65535,0), n("navigationBackwardChannel",0,65535,0));
         case "loot" -> List.of(c("weighted", "chance", "weighted"), n("rolls", 1, 27, 1));

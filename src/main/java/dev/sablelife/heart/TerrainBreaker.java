@@ -24,7 +24,7 @@ public final class TerrainBreaker {
  public void clear(){pending.clear();cursors.clear();supportBodies=List.of();tick=Long.MIN_VALUE;}
  private boolean spend(ServerLevel level){var budget=budgets.computeIfAbsent(level,l->new WorldBudget());if(budget.tick!=level.getGameTime()){budget.tick=level.getGameTime();budget.remaining=131072;}if(work<=0||budget.remaining<=0)return false;work--;budget.remaining--;return true;}
  public void tick(HeartBlockEntity heart){if(!ready(heart)){clear();return;}var bodies=LinearMovementGeometry.capture(heart);for(var body:bodies){var velocity=body.body().latestLinearVelocity;var step=new Vec3(velocity.x,velocity.y,velocity.z).scale(.05);if(step.length()>2)step=step.normalize().scale(2);advance(heart,List.of(body),step);}}
- private boolean ready(HeartBlockEntity heart){return heart.getLevel() instanceof ServerLevel&&!heart.isControlCore()&&heart.operational()&&heart.terrainSettings().enabled();}
+ private boolean ready(HeartBlockEntity heart){return heart.getLevel() instanceof ServerLevel&&!heart.isControlCore()&&!heart.isSurvivalCore()&&heart.operational()&&heart.terrainSettings().enabled();}
  /** True means a known breakable contact is waiting: Travel should not climb that obstacle yet. */
  public boolean advance(HeartBlockEntity heart,List<LinearMovementGeometry.Body> bodies,Vec3 requested){
   if(!ready(heart))return false;var level=(ServerLevel)heart.getLevel();long now=level.getGameTime();

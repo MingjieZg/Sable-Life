@@ -15,6 +15,7 @@ import dev.sablelife.module.ModuleCombat;
 import dev.sablelife.module.ModuleLaser;
 import dev.sablelife.module.ModuleMoveSet;
 import dev.sablelife.module.ModuleNetworking;
+import dev.sablelife.module.ModuleTargets;
 import dev.sablelife.module.ProjectileAim;
 import dev.sablelife.module.VirtualModule;
 import io.netty.buffer.Unpooled;
@@ -117,7 +118,8 @@ public final class MoveSetTargetGameTests {
         var target = cow(h, origin.add(0, 0, 6));
         var level = h.getLevel();
         var obstacle = BlockPos.containing(origin.add(0, 0, 3));
-        level.setBlockAndUpdate(obstacle, Blocks.STONE.defaultBlockState());
+        var wall = BlockPos.betweenClosed(obstacle.offset(-2, -5, 0), obstacle.offset(2, 4, 0));
+        for (var block : wall) level.setBlockAndUpdate(block, Blocks.STONE.defaultBlockState());
         var command = setup.heart().modules().commandTarget();
         command.entity(target, level.getGameTime() + 10, CommandTarget.WEAPON_TARGETING);
         activate(h, setup);
@@ -127,9 +129,16 @@ public final class MoveSetTargetGameTests {
                 "The wand bypassed the Gun's enabled line of sight");
 
         h.runAfterDelay(7, () -> {
-            h.assertTrue(HeartModules.triggered(setup.gun(), setup.heart()) && shots(h, setup).isEmpty(),
-                    "A blocked wand target caused a shot at a replacement target");
-            level.removeBlock(obstacle, false);
+            var muzzle = ModuleCombat.nozzle(setup.heart(), setup.gun());
+            h.assertTrue(HeartModules.triggered(setup.gun(), setup.heart()), "Delayed Gun action never became active");
+            h.assertTrue(target.getUUID().equals(command.weaponTarget(level)), "Wand order ended before the Gun action");
+            h.assertTrue(!ModuleTargets.visible(level, setup.heart().creatureId(), muzzle, target),
+                    "The wall stopped blocking the Gun's current muzzle");
+            h.assertTrue(shots(h, setup).isEmpty() && target.getHealth() == target.getMaxHealth()
+                            && setup.moveTarget().getHealth() == setup.moveTarget().getMaxHealth()
+                            && setup.nearerTarget().getHealth() == setup.nearerTarget().getMaxHealth(),
+                    "A blocked wand target caused a shot");
+            for (var block : wall) level.removeBlock(block, false);
             setup.gun().edit("targetRange", 4, "");
             h.assertTrue(ProjectileAim.directions(setup.heart(), setup.gun(), origin).isEmpty(),
                     "The wand bypassed the Gun's range");
@@ -309,6 +318,43 @@ public final class MoveSetTargetGameTests {
         h.assertTrue(dashboardEdit(h, setup, 1), "Could not set On through the Move Set packet");
         h.assertTrue(inheritance(VirtualModule.load(setup.table().save())) == 1, "Explicit On was lost");
         finish(h, setup);
+    }
+
+    @GameTest(template = "combat", batch = "moveset_sight_memory", timeoutTicks = 45)
+    public static void FollowingMoveUsesRememberedAimWithoutFiringThroughCover(GameTestHelper h) {
+        var setup = setup(h);
+        setup.gun().edit("lineOfSight", 1, "");
+        setup.gun().edit("interval", 1, "");
+        edit(h, setup, "lineOfSight", 1, "0");
+        edit(h, setup, "sightMemory", 12, "0");
+        edit(h, setup, "dispatchCooldown", 0, "0");
+        edit(h, setup, "dispatchBusy", 2, "0");
+        edit(h, setup, "dispatchRest", 1, "0");
+        edit(h, setup, "dispatchRepeat", 1, "0");
+        edit(h, setup, "action_duration", .1, "0|0");
+        activate(h, setup);
+        var origin = ModuleCombat.nozzle(setup.heart(), setup.gun());
+        var initial = setup.heart().modules().moveAim(setup.gun().id());
+        h.assertTrue(initial != null && initial.visible(), "Move did not inherit a visible aim");
+        long first = setup.heart().modules().moveActivation(setup.gun().id());
+        shots(h, setup).forEach(Entity::discard);
+        var wall = BlockPos.containing(origin).east(4);
+        h.runAfterDelay(1, () -> {
+            for (var pos : BlockPos.betweenClosed(wall.offset(0, -2, -4), wall.offset(0, 2, 4)))
+                h.getLevel().setBlockAndUpdate(pos, Blocks.STONE.defaultBlockState());
+            setup.moveTarget().setPos(setup.moveTarget().position().add(0, 0, 1));
+        });
+        h.runAfterDelay(9, () -> {
+            var next = setup.heart().modules().moveAim(setup.gun().id());
+            h.assertTrue(setup.heart().modules().moveActivation(setup.gun().id()) > first, "The next move did not run");
+            h.assertTrue(next != null && !next.visible() && next.point().equals(initial.point()),
+                    "The next move did not inherit the last visible point");
+            h.assertTrue(shots(h, setup).isEmpty(), "The Gun fired at the remembered target through cover");
+        });
+        h.runAfterDelay(17, () -> {
+            h.assertTrue(setup.heart().modules().moveAim(setup.gun().id()) == null, "A following move extended the timer");
+            finish(h, setup);
+        });
     }
 
     private static Setup setup(GameTestHelper h) {

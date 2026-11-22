@@ -83,11 +83,15 @@ public final class CommandTarget {
     }
 
     public Order current(ServerLevel level) {
-        if (order != null && (order.expires() <= level.getGameTime()
-                || order.entity() != null && (order.entity().level() != level
-                || order.entity().isDeadOrDying() || order.entity().isRemoved())
-                || order.lifeId() != null && activeLife(level, order.lifeId()) == null)) clear();
+        if (order != null && !valid(level, order)) clear();
         return order;
+    }
+
+    private static boolean valid(ServerLevel level, Order order) {
+        return order.expires() > level.getGameTime()
+                && (order.entity() == null || order.entity().level() == level
+                    && !order.entity().isDeadOrDying() && !order.entity().isRemoved())
+                && (order.lifeId() == null || activeLife(level, order.lifeId()) != null);
     }
 
     public Order current(ServerLevel level, int moduleMask) {
@@ -96,11 +100,9 @@ public final class CommandTarget {
     }
 
     public UUID weaponTarget(ServerLevel level) {
-        if (order == null || (order.enabledModulesMask() & WEAPON_TARGETING) == 0) return null;
-        var current = current(level);
-        if (current == null) return null;
-        if (current.entity() != null) return current.entity().getUUID();
-        return current.lifeId();
+        var current = order;
+        if (current == null || (current.enabledModulesMask() & WEAPON_TARGETING) == 0 || !valid(level, current)) return null;
+        return current.entity() == null ? current.lifeId() : current.entity().getUUID();
     }
 
     public void clear() {

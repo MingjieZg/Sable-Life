@@ -658,7 +658,7 @@ public final class MarkingSessions {
                 particle(level, player, center.add(switch (plane) { case 0 -> new Vec3(a, b, 0); case 1 -> new Vec3(a, 0, b); default -> new Vec3(0, a, b); }));
             }
         } else if (module.type().equals("mortar")) {
-            var velocities = dev.sablelife.attack.ShotTrajectory.firingVelocities(level, heart, module);
+            var velocities = dev.sablelife.attack.ShotTrajectory.previewVelocities(level, heart, module);
             if (velocities.isEmpty()) { player.displayClientMessage(Component.translatable("dashboard.sablelife.no_mortar_target"), true); return; }
             for (var velocity : velocities) {
                 var flight = dev.sablelife.attack.ShotTrajectory.trace(level, ModuleCombat.nozzle(heart, module), velocity);
@@ -668,7 +668,7 @@ public final class MarkingSessions {
         } else if (module.type().equals("flame") || module.type().equals("arrow") || module.type().equals("gun")) {
             previewLaunch(player,heart,module);
             var start = ModuleCombat.nozzle(heart, module);
-            var directions=module.type().equals("flame")?List.of(ModuleCombat.direction(heart,module)):ProjectileAim.directions(heart,module,start);
+            var directions=module.type().equals("flame")?List.of(ModuleCombat.direction(heart,module)):ProjectileAim.previewDirections(heart,module,start);
             for(var direction:directions) {
             double range = module.type().equals("flame") ? module.value("range") : module.type().equals("gun") ? module.value("range") : 8;
             double width = module.type().equals("flame") ? module.value("width") : module.value("endRadius") * range / 8;

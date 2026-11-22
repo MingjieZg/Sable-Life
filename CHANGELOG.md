@@ -1,3 +1,12 @@
+## 0.1.452 — Survival terrain policy and target sight memory
+
+- Add a server-wide terrain damage switch for Survival Heart Core modules and configurable target memory with same-core Target Sensor bindings.
+- Preserve targeting expiry across moves, check weapon visibility at the muzzle and make targeting previews read-only.
+- Restore Item Display models from existing Photomancy blueprints and split large live display snapshots for clients that support the channel.
+- Verify Data Copier round trips before storing them. Add per-account quotas and reversible clipboard archiving.
+- Tighten optional mod interface checks and guard editor drafts across move and target source changes.
+- [English release notes](docs/releases/0.1.452_EN.md) / [中文更新说明](docs/releases/0.1.452.md).
+
 ## 0.1.450 — Auto Facing aim offsets
 
 - Auto Facing gains decimal local left/right and up/down aim-origin offsets. Collision check defaults Off for new modules; saved settings remain intact.
@@ -33,6 +42,8 @@
 - Includes world-direction Propulsion, the authored Inspection Tool texture, and its shapeless spyglass + redstone recipe, alongside the module, arena, core, compatibility and bug-fix updates since 0.1.403-fix1.
 
 ## Unreleased
+
+- Optional mod integrations validate the interfaces they use on newer releases. Iron’s Spells 3.16.4 uses the verified combat hooks, and LittleTiles/CreativeCore updates can keep mesh recovery when the required rendering interfaces match.
 
 - Right-click a group to edit its members in the sidebar. Check modules to add them, uncheck members to remove them, then click Confirm. Ctrl-click and Shift-click also support batch grouping and ungrouping.
 - Newly placed Heart Cores enable detached limb cleanup with a 3-second delay. Existing cores keep their saved setting.

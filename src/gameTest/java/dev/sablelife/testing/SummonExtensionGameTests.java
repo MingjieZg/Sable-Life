@@ -26,7 +26,67 @@ public final class SummonExtensionGameTests {
  @GameTest(template="combat",batch="summon_windup",timeoutTicks=30) public static void DisplayExistsDuringWindupBeforeAttackStarts(GameTestHelper h){var s=setup(h,"gun");s.summon.edit("summonWindup",10,"");s.core.tryActivate(TestActors.creative(h.getLevel()));s.core.modules().tick(s.core);h.assertTrue(s.core.modules().summonedWeapons.frames(s.summon.id()).size()==1&&shots(h,s)==0,"Windup hid item or fired immediately");h.runAfterDelay(7,()->h.assertTrue(shots(h,s)==0,"Attack fired before windup"));h.runAfterDelay(13,()->{h.assertTrue(shots(h,s)==1,"Attack did not start after windup");s.core.forceDeath();h.succeed();});}
  @GameTest(template="combat",batch="summon_stacking",timeoutTicks=40) public static void RepeatedActivationsAppendWorldGroupsAndTriggerLossDoesNotCancel(GameTestHelper h){var s=setup(h,"gun");s.summon.edit("summonPosition",1,"");s.summon.edit("summonDuration",20,"");s.core.tryActivate(TestActors.creative(h.getLevel()));s.core.modules().tick(s.core);var first=s.core.modules().summonedWeapons.frame(s.summon.id()).item();h.runAfterDelay(2,()->s.summon.edit("enabled",0,""));h.runAfterDelay(4,()->{h.assertTrue(s.core.modules().summonedWeapons.frames(s.summon.id()).size()==1,"Trigger loss erased existing weapon");s.summon.edit("displayZ",5,"");s.summon.edit("enabled",1,"");});h.runAfterDelay(7,()->{var frames=s.core.modules().summonedWeapons.frames(s.summon.id());h.assertTrue(frames.size()==2&&frames.getFirst().item().equals(first)&&frames.getLast().item().distanceToSqr(first)>24,"Reactivation replaced group or moved old world weapon");});h.runAfterDelay(22,()->h.assertTrue(s.core.modules().summonedWeapons.frames(s.summon.id()).size()==1,"Groups did not expire independently"));h.runAfterDelay(29,()->{h.assertTrue(s.core.modules().summonedWeapons.frames(s.summon.id()).isEmpty(),"Held power respawned expired group");s.core.forceDeath();h.succeed();});}
  @GameTest(template="combat",batch="summon_freeze_owner_isolation",timeoutTicks=30) public static void ExpiringOneWeaponDoesNotReleaseAnotherWeaponsFreeze(GameTestHelper h){var s=setup(h,"freeze");s.attack.edit("freezeWarning",0,"");s.attack.edit("freezeTarget",1,"");s.attack.edit("freezeRadius",3,"");s.summon.edit("summonDuration",4,"");var other=s.core.modules().copy(s.summon.id());other.edit("summonDuration",20,"");var cow=EntityType.COW.create(h.getLevel());cow.setNoAi(true);cow.setNoGravity(true);cow.setPos(s.point.subtract(0,cow.getBbHeight()/2,0));h.getLevel().addFreshEntity(cow);s.core.tryActivate(TestActors.creative(h.getLevel()));s.core.modules().tick(s.core);h.assertTrue(MobGrab.frozen(cow),"Initial freeze missing");h.runAfterDelay(7,()->h.assertTrue(MobGrab.frozen(cow),"First weapon expiry cleared second freeze owner"));h.runAfterDelay(12,()->{s.core.forceDeath();h.assertTrue(!MobGrab.frozen(cow),"Death retained second freeze owner");cow.discard();h.succeed();});}
- @GameTest(template="combat",batch="summon_grab_follow",timeoutTicks=30) public static void GrabFollowsWeaponEvenAfterInputEnds(GameTestHelper h){var s=setup(h,"grab");s.attack.edit("grabWarning",0,"");s.attack.edit("grabTarget",1,"");var cow=EntityType.COW.create(h.getLevel());cow.setNoAi(true);cow.setNoGravity(true);cow.setPos(s.point.subtract(0,cow.getBbHeight()/2,0));h.getLevel().addFreshEntity(cow);s.core.tryActivate(TestActors.creative(h.getLevel()));s.core.modules().tick(s.core);h.assertTrue(MobGrab.held(cow),"Initial grab missing");h.runAfterDelay(2,()->{s.summon.edit("enabled",0,"");s.summon.edit("displayZ",.5,"");});h.runAfterDelay(7,()->{var frame=s.core.modules().summonedWeapons.frame(s.summon.id());h.assertTrue(frame!=null&&MobGrab.held(cow)&&cow.getBoundingBox().getCenter().distanceToSqr(frame.muzzle())<1e-8,"Grab did not follow latched weapon");s.core.forceDeath();h.assertTrue(!MobGrab.held(cow),"Death retained grab");cow.discard();h.succeed();});}
+ @GameTest(template = "combat", batch = "summon_grab_follow", timeoutTicks = 30)
+ public static void GrabFollowsWeaponEvenAfterInputEnds(GameTestHelper h) {
+  var setup = setup(h, "grab");
+  setup.attack.edit("grabWarning", 0, "");
+  setup.attack.edit("grabTarget", 1, "");
+  // Keep the captured mob in the fixture's ticking chunk regardless of where the runner places the test.
+  setup.summon.anchors(List.of(ModuleAnchor.create(setup.core, setup.core.getBlockPos(), Direction.UP)));
+  setup.summon.edit("startDistance", 3, "");
+  var origin = ModuleSummonedWeapon.position(setup.core, setup.summon);
+  var firstMuzzle = ModuleSummonedWeapon.frame(setup.summon, origin, ModuleCombat.direction(setup.core, setup.summon)).muzzle();
+  var level = h.getLevel();
+  var cow = EntityType.COW.create(level);
+  cow.setNoAi(true);
+  cow.setNoGravity(true);
+  cow.setPos(firstMuzzle.subtract(0, cow.getBbHeight() / 2, 0));
+  level.addFreshEntity(cow);
+  int startTick = cow.tickCount;
+
+  try {
+   setup.core.tryActivate(TestActors.creative(h.getLevel()));
+   setup.core.modules().tick(setup.core);
+   h.assertTrue(MobGrab.held(cow), "Initial grab missing");
+  } catch (RuntimeException | Error failure) {
+   setup.core.forceDeath();
+   cow.discard();
+   throw failure;
+  }
+
+  h.runAfterDelay(2, () -> {
+   setup.summon.edit("enabled", 0, "");
+   setup.summon.edit("displayY", .5, "");
+  });
+  var previousMuzzle = new Vec3[1];
+  h.runAfterDelay(6, () -> {
+   var frame = setup.core.modules().summonedWeapons.frame(setup.summon.id());
+   if (frame != null) previousMuzzle[0] = frame.muzzle();
+  });
+  h.runAfterDelay(7, () -> {
+   try {
+    var frame = setup.core.modules().summonedWeapons.frame(setup.summon.id());
+    h.assertTrue(level.isPositionEntityTicking(cow.blockPosition()) && cow.tickCount > startTick,
+      "Grab fixture's cow did not tick in its chunk: " + cow.blockPosition() + ", ticks=" + cow.tickCount);
+    h.assertTrue(frame != null && MobGrab.held(cow), "Grab ended when the summon lost its input");
+    var center = cow.getBoundingBox().getCenter();
+    // The mob and core may tick in either order, so the hold can use the previous server pose.
+    h.assertTrue(atMovedMuzzle(center, firstMuzzle, frame.muzzle()) || atMovedMuzzle(center, firstMuzzle, previousMuzzle[0]),
+      "Grab did not follow the moved muzzle: center=" + center + ", muzzle=" + frame.muzzle() + ", previous=" + previousMuzzle[0]);
+    setup.core.forceDeath();
+    h.assertTrue(!MobGrab.held(cow), "Death retained grab");
+    h.succeed();
+   } finally {
+    setup.core.forceDeath();
+    cow.discard();
+   }
+  });
+ }
+
+ private static boolean atMovedMuzzle(Vec3 center, Vec3 original, Vec3 muzzle) {
+  return muzzle != null && muzzle.distanceToSqr(original) > .16 && center.distanceToSqr(muzzle) < 1e-6;
+ }
+
  private static void route(GameTestHelper h,String type){var s=setup(h,type);var a=s.attack;
   a.edit("slashSpeed",40,"");a.edit("range",8,"");a.edit("warningTime",0,"");a.edit("strikeStart",1,"");a.edit("strikeRange",1,"");a.edit("strikeStep",1,"");a.edit("strikeRadius",3,"");a.edit("strikeHeight",1,"");a.edit("strikeSpeed",32,"");a.edit("waveDelay",0,"");a.edit("quakeRange",4,"");a.edit("quakeWidth",3,"");a.edit("quakeSpeed",1,"");a.edit("quakeGrounded",1,"");a.edit("quakeReach",2,"");a.edit("pullWarning",5,"");a.edit("pullRadius",4,"");a.edit("freezeTarget",1,"");a.edit("freezeWarning",0,"");a.edit("freezeRadius",3,"");a.edit("grabTarget",1,"");a.edit("grabWarning",0,"");a.edit("grabRadius",3,"");a.edit("pulseStart",0,"");a.edit("radius",3,"");
   var point=s.point.add(1,0,0);var floor=BlockPos.containing(point.add(0,-2,0));for(int x=-5;x<=5;x++)for(int z=-5;z<=5;z++)h.getLevel().setBlockAndUpdate(floor.offset(x,0,z),net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());

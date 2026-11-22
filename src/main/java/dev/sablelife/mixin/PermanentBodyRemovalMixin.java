@@ -43,8 +43,11 @@ public abstract class PermanentBodyRemovalMixin {
                                             @Share("sablelifeDeletedCores") LocalRef<List<HeartBlockEntity>> captured,
                                             @Share("sablelifeDeletedBody") LocalRef<UUID> deletedBody) {
         var container = (ServerSubLevelContainer) (Object) this;
-        if(deletedBody.get()!=null)dev.sablelife.ownership.WildEncounters.get(container.getLevel().getServer())
-                .permanentlyRemoved(container.getLevel(),deletedBody.get());
+        if (deletedBody.get() != null) {
+            var level = container.getLevel();
+            dev.sablelife.ownership.BlueprintCleanup.permanentlyRemoved(level, deletedBody.get());
+            dev.sablelife.ownership.WildEncounters.get(level.getServer()).permanentlyRemoved(level, deletedBody.get());
+        }
         var cores = captured.get();
         if (cores == null) return;
         LifeResidueCleanup.permanentlyRemoved(container.getLevel(), x + container.getOrigin().x,

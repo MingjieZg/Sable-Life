@@ -2,6 +2,7 @@ package dev.sablelife.module;
 
 import dev.sablelife.attack.ModuleDamage;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.heart.SurvivalLifeCorePolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.server.level.*;
@@ -13,7 +14,7 @@ import java.util.*;
 /** A frozen spherical telegraph, followed by one hit per eligible target. No projectile or travel damage. */
 public final class ModuleSphereBlast {
     public static final double BURST_SPEED=12;
-    private static final class State {long due,fire,lastCharge=Long.MIN_VALUE;List<Vec3> points=List.of();VirtualModule cast;}
+    private static final class State {long due,fire,lastCharge=Long.MIN_VALUE;List<Vec3> points=List.of();VirtualModule cast;ModuleTargets.AttackAim aim;}
     private final Map<UUID,State> states=new HashMap<>();
     private ServerLevel level;
     public void clear(){if(level!=null)states.keySet().forEach(id->ModuleAudio.stop(level,id));states.clear();level=null;}
@@ -42,12 +43,18 @@ public final class ModuleSphereBlast {
             if(!m.type().equals("sphere_blast")||!HeartModules.triggered(m,heart))continue;
             keep.add(m.id());var s=states.computeIfAbsent(m.id(),id->new State());
             if(s.cast==null){
-                var points=TargetCastOrigin.targeted(m)?TargetCastOrigin.points(heart,m):List.of(center(heart,m));if(points.isEmpty()||now<s.due||points.stream().noneMatch(p->server.hasChunkAt(BlockPos.containing(p)))||!heart.modules().hurtTriggers.start(m))continue;
+                if (now < s.due) continue;
+                s.aim = TargetCastOrigin.targeted(m) ? ModuleTargets.attackAim(heart, m) : null;
+                var points = TargetCastOrigin.targeted(m) ? TargetCastOrigin.castPoints(heart, m, s.aim) : List.of(center(heart, m));
+                if (points.isEmpty() || points.stream().noneMatch(p -> server.hasChunkAt(BlockPos.containing(p)))
+                        || !heart.modules().hurtTriggers.start(m)) continue;
                 s.points=points.stream().filter(p->server.hasChunkAt(BlockPos.containing(p))).toList();if(!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,s.points.size()))continue;s.cast=VirtualModule.load(m.save());s.fire=now+(long)m.value("chargeTime");s.due=now+(long)m.value("interval");for(var point:s.points){ModuleAudio.play(server,s.cast,"chargeSound",point);charge(server,s.cast,point,s.fire-now,null);}s.lastCharge=now;
             }
             if(now<s.fire){if(now%5==0&&s.lastCharge!=now){for(var point:s.points)charge(server,s.cast,point,s.fire-now,null);s.lastCharge=now;}continue;}
             // Never generate or load remote terrain merely to execute an attack.
-            for(var point:s.points)if(server.hasChunkAt(BlockPos.containing(point)))detonate(server,heart,s.cast,point);
+            if (TargetCastOrigin.releaseAllowed(server, heart, s.cast, s.aim)) {
+                for (var point : s.points) if (server.hasChunkAt(BlockPos.containing(point))) detonate(server, heart, s.cast, point);
+            } else ModuleAudio.stop(server, m.id());
             s.cast=null;heart.modules().hurtTriggers.completed(m);
         }
         for(var id:List.copyOf(states.keySet()))if(!keep.contains(id)){if(states.get(id).cast!=null)ModuleAudio.stop(server,id);states.remove(id);}
@@ -61,7 +68,7 @@ public final class ModuleSphereBlast {
         }
         // Block destruction uses the same vanilla TNT rules as existing explosive projectiles.
         // Entity damage is handled above once; vanilla damage/knockback is disabled.
-        if(m.value("blastBlocks")==1)level.explode(null,null,new ModuleTerrainExplosion(heart.creatureId()),point.x,point.y,point.z,(float)radius/2,false,Level.ExplosionInteraction.TNT,
+        if (m.value("blastBlocks") == 1 && SurvivalLifeCorePolicy.allowsTerrainBreaking(heart)) level.explode(null,null,new ModuleTerrainExplosion(heart.creatureId()),point.x,point.y,point.z,(float)radius/2,false,Level.ExplosionInteraction.TNT,
           net.minecraft.core.particles.ParticleTypes.POOF,net.minecraft.core.particles.ParticleTypes.POOF,net.minecraft.core.Holder.direct(net.minecraft.sounds.SoundEvents.EMPTY));
         sendTravel(level,burstParticles(m,point),point,null);
         ModuleAudio.play(level,m,"blastSound",point);

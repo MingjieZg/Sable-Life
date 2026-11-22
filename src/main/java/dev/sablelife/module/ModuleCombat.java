@@ -3,6 +3,7 @@ package dev.sablelife.module;
 import dev.sablelife.attack.*;
 import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.heart.SurvivalLifeCorePolicy;
 import dev.sablelife.heart.SurvivalTokens;
 import dev.sablelife.SableLifeServerConfig;
 import net.minecraft.core.Direction;
@@ -62,7 +63,7 @@ public final class ModuleCombat {
                 case "mortar" -> { if (ready(world, heart, module, state)) shots(world, heart, module, List.of()); }
                 case "gun", "arrow" -> { if(world.getGameTime()>=state.due){var directions=ProjectileAim.directions(heart,module,nozzle(heart,module));if(!directions.isEmpty()&&ready(world,heart,module,state)){if(module.type().equals("gun"))shots(world,heart,module,directions);else arrows(world,heart,module,directions);}} }
                 case "pulse" -> {
-                    var centers=TargetCastOrigin.targeted(module)?TargetCastOrigin.points(heart,module):List.of(origin(heart,module,false));
+                    var centers=TargetCastOrigin.targeted(module)?TargetCastOrigin.castPoints(heart,module,ModuleTargets.attackAim(heart,module)):List.of(origin(heart,module,false));
                     var groups=centers.stream().map(center->pulseTargets(world,heart,module,center)).toList();state.pulseTarget=groups.stream().anyMatch(group->group.stream().anyMatch(e->dev.sablelife.heart.CoreRelations.targetAllowed(world,heart.creatureId(),e)));
                     // A whole batch shares one cooldown; no target means no target-position cast.
                     if(!centers.isEmpty()&&(module.value("pulseStart")==0||state.pulseTarget)&&ready(world,heart,module,state)&&dev.sablelife.heart.SurvivalTokens.chargeCast(heart,module,centers.size()))
@@ -171,7 +172,7 @@ public final class ModuleCombat {
                 break;
             }
         }
-        if(module.value("meleeBreakBlocks")==1){
+        if (module.value("meleeBreakBlocks") == 1 && SurvivalLifeCorePolicy.allowsTerrainBreaking(heart)) {
             boolean starting=state.terrainCursor==null;
             if(starting)state.terrainCursor=new MeleeBlockBreaker.Cursor();
             terrain.sweep(world,heart,module,starting?frame:previous,frame,state.terrainCursor,cost);

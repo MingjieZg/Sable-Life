@@ -8,9 +8,14 @@ public final class PullCycle {
     public Phase phase() { return phase; }
     public long fireAt() { return fireAt; }
     public boolean ready(long now) { return phase == Phase.WAITING && now >= readyAt; }
+    public void cancel(long now, int cooldown) {
+        phase = Phase.WAITING;
+        readyAt = now + Math.max(1, cooldown);
+    }
     public Phase tick(long now, int warning, int duration, int cooldown, boolean canStart) {
         if (phase != Phase.WAITING && now >= finishAt) {
-            phase = Phase.WAITING; readyAt = now + Math.max(1, cooldown); return phase;
+            cancel(now, cooldown);
+            return phase;
         }
         if (phase == Phase.WAITING && canStart && now >= readyAt) {
             phase = Phase.WARNING;

@@ -6,11 +6,11 @@ Downloads, screenshots and the full gameplay description are available on [Curse
 
 ## Current Source Version
 
-**0.1.450**
+**0.1.452**
 
-[中文更新清单](docs/releases/0.1.450.md) · [English changelog](docs/releases/0.1.450_EN.md) · [Stress-test results](docs/TEST_REPORTS.md)
+[中文更新清单](docs/releases/0.1.452.md) · [English changelog](docs/releases/0.1.452_EN.md) · [Stress-test results](docs/TEST_REPORTS.md)
 
-Latest published release: [0.1.440](https://github.com/MingjieZg/Sable-Life/releases/tag/v0.1.440). Version 0.1.450 is the current source and local test candidate.
+GitHub stable release [0.1.440](https://github.com/MingjieZg/Sable-Life/releases/tag/v0.1.440) and pre-release [0.1.452-review.3](https://github.com/MingjieZg/Sable-Life/releases/tag/v0.1.452-review.3).
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 
@@ -53,16 +53,16 @@ Combat integration versions:
 
 | Integration | Version / scope |
 | --- | --- |
-| Epic Fight | **21.17.3.1**; its bridge is enabled only for this exact version. |
-| Iron's Spells 'n Spellbooks | **1.21.1-3.16.3**; its bridge is enabled only for this exact version. |
+| Epic Fight | **21.17.3.1** baseline. Newer builds can use the bridge when the relevant native classes match verified bytecode. |
+| Iron's Spells 'n Spellbooks | **1.21.1-3.16.3 / 3.16.4** verified. Newer builds use the same native bytecode check. |
 | TaCZ | Pinned test artifact: **NeoForge 1.1.8-hotfix-r7**, an unofficial Minecraft 1.21.1 port. |
 | Create Big Cannons (CBC) | Pinned test version: **5.11.7**, with Ritchie's Projectile Library **2.1.2**. |
 | Create: Gunsmithing | Tested damage integration with **1.4.9** and **NTGL 3.2.0**. |
 | TaCZ Tactical Breaching | Tested with **1.0.5 / 1.0.7** and TaCZ **1.1.8-hotfix-r7 / 1.2.0**. Restores canceled structure-hit damage while retaining Breaching's penetration and destruction handling. |
-| Let it Walk! | Optional **0.1.5** attached-part damage integration for attached legs and arms, with per-core projectile/explosion deduplication. Child parts serve as damage receivers; this does not make them independent module-marking targets. |
-| LittleTiles | Optional client mesh recovery for **1.6.0-pre235 / pre239**, CreativeCore **2.13.54**, and Sable **2.0.5 / 2.0.6**. Covers identified mesh-loss paths; version/interface mismatches skip the adapter. |
+| Let it Walk! | Optional damage integration for attached Walker legs and arms from **0.1.5**, with per-core projectile and explosion deduplication. Newer builds must retain the Walker attachment fields. |
+| LittleTiles | Optional client mesh recovery from LittleTiles **1.6.0-pre235**, CreativeCore **2.13.54**, and Sable **2.0.5**. Newer builds must retain the required rendering interfaces. |
 
-The exact-version gates above apply to Epic Fight and Iron's Spells. The TaCZ/CBC entries describe the pinned test environment, not an assertion that every other version works.
+Each optional mixin checks its required method, field or injection point before loading. Epic Fight and Iron’s Spells also verify the bytecode of classes used by the bridge. The game log identifies the hook or class that failed verification.
 
 ### LittleTiles rendering
 
@@ -70,9 +70,13 @@ The built-in client adapter recovers identified LittleTiles mesh-loss and upload
 
 ### Claim permissions and Core Remote
 
-Core Remote checks **AeroClaims 0.9.5** permissions through its supported API. Supported permission denials and failed checks continue to block access.
+Core Remote checks **AeroClaims 0.9.5 and newer** permissions when the required permission API is compatible. Supported permission denials and failed checks continue to block access.
 
 Other detected claim integrations, including FTB Chunks and Open Parties and Claims, are not covered by that permission adapter. New world/server configurations default `allowCoreRemoteWithUnsupportedClaims` to `true`, allowing Core Remote and remote Inspection Tool access when a supported claim interface is unavailable. Existing saved values remain unchanged. Server owners can set it to `false` in the current world's `serverconfig/sablelife-server.toml` to reject access with unsupported integrations. Core editing eligibility, binding reach, dimension, loading and world protection checks still apply; supported AeroClaims permissions remain enforced. This setting is not native FTB Chunks or Open Parties and Claims permission integration.
+
+### Structure removal
+
+Toolgun structure removal supports **0.3.6 and newer** when its removal API matches. Sable handles removal when the optional coordinator is unavailable.
 
 ### CBC addon coverage
 

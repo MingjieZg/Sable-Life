@@ -9,6 +9,7 @@ import java.util.ArrayList;
 
 /** Persistent authoring settings shared by the dashboard and validated server runtime. */
 public final class VirtualModule {
+    public static final String DISPLAY_MODEL_OMITTED = "DisplayModelOmitted";
     public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping", "contact_sensor");
     /** New-module catalog grouped by sidebar color: signal, weapon, function. */
     public static final List<String> AVAILABLE_TYPES = List.of(
@@ -178,6 +179,26 @@ public final class VirtualModule {
         importData.remove("LegacyEffect"); return true;
     }
     private CompoundTag projectileItem = new CompoundTag();
+    private ModuleItemDisplay.Model displayModel;
+    private net.minecraft.core.HolderLookup.Provider displayModelRegistries;
+
+    ModuleItemDisplay.Model displayModel(net.minecraft.core.HolderLookup.Provider registries) {
+        if (displayModel == null || displayModel.item != projectileItem || displayModelRegistries != registries) {
+            displayModel = new ModuleItemDisplay.Model(projectileItem);
+            displayModelRegistries = registries;
+        }
+        return displayModel;
+    }
+    boolean omitDisplayModelInEditor(net.minecraft.core.HolderLookup.Provider registries) {
+        return unknown == null && type.equals("item_display") && !projectileItem.isEmpty() && displayModel(registries).bytes() < 0;
+    }
+
+    /** Restore saved components verbatim, including items supplied by optional mods. */
+    public void restoreBlueprintDisplayItem(CompoundTag item) {
+        if (type.equals("item_display") && unknown == null && projectileItem.isEmpty()) {
+            projectileItem = item.copy();
+        }
+    }
     public net.minecraft.world.item.ItemStack projectileItem(net.minecraft.core.HolderLookup.Provider registries) { return net.minecraft.world.item.ItemStack.parseOptional(registries, projectileItem); }
     public void projectileItem(net.minecraft.world.item.ItemStack sample, net.minecraft.core.HolderLookup.Provider registries) { projectileItem = sample.isEmpty() ? new CompoundTag() : (CompoundTag) sample.copyWithCount(1).save(registries); }
     private CompoundTag importData = new CompoundTag();
@@ -488,7 +509,16 @@ public final class VirtualModule {
         return tag;
     }
 
-    public CompoundTag save() {
+    CompoundTag dashboardDetails(net.minecraft.core.HolderLookup.Provider registries) {
+        boolean omitted = omitDisplayModelInEditor(registries);
+        var tag = save(!omitted);
+        if (omitted) tag.putBoolean(DISPLAY_MODEL_OMITTED, true);
+        return tag;
+    }
+
+    public CompoundTag save() { return save(true); }
+
+    private CompoundTag save(boolean includeItem) {
         if (unknown != null) return unknown.copy();
         var tag = dashboardHeader();
         tag.putInt("ColorControlsVersion", 1);
@@ -517,7 +547,9 @@ public final class VirtualModule {
         tag.put("SoundTimelines",soundTimelines.copy());
         tag.put("RedBlue",redBlue.copy());
         if(type.equals("flame"))tag.putInt("FlameParticleSelectionVersion",1);
-        tag.put("ParticleProperties", ModuleParticles.saveEntries(particleEntries())); tag.put("Particles", ModuleParticles.save(particles)); tag.put("Effects", ModuleEffects.save(effects)); tag.put("ProjectileItem", projectileItem.copy()); tag.put("Settings", settings.copy()); tag.put("LootSamples", lootSamples.copy());
+        tag.put("ParticleProperties", ModuleParticles.saveEntries(particleEntries())); tag.put("Particles", ModuleParticles.save(particles)); tag.put("Effects", ModuleEffects.save(effects));
+        if (includeItem) tag.put("ProjectileItem", projectileItem.copy());
+        tag.put("Settings", settings.copy()); tag.put("LootSamples", lootSamples.copy());
         var steps = new ListTag();
         for (var step : sequence) { var row = new CompoundTag(); row.putBoolean("Wait", step.waiting()); row.putInt("Channel", step.channel()); row.putInt("Power", step.power()); row.putInt("Ticks", step.ticks()); steps.add(row); }
         if (!steps.isEmpty()) tag.put("Sequence", steps);
@@ -572,7 +604,7 @@ public final class VirtualModule {
         if(ModuleSurfaceField.impactAttack(module)&&saved.hasUUID("ImpactFieldId"))module.impactField(saved.getUUID("ImpactFieldId"));
         if(module.type.equals("summoned_weapon")&&saved.hasUUID("SummonAttackId"))module.summonAttack(saved.getUUID("SummonAttackId"));
         if(module.type.equals("hit_counter")&&saved.hasUUID("HitSourceId"))module.settings.putUUID("HitSourceId",saved.getUUID("HitSourceId"));
-        if (module.type.equals("auto_facing") && saved.hasUUID("FacingSensorId")) module.facingSensor(saved.getUUID("FacingSensorId"));
+        if (SightMemory.sensorSource(module.type) && saved.hasUUID("FacingSensorId")) module.facingSensor(saved.getUUID("FacingSensorId"));
         if(module.type.equals("health_phase")){
             if(tag.contains("HealthPhaseRules",9))module.healthPhaseRules.load(tag.getList("HealthPhaseRules",10));
             else for(var key:HealthPhaseRules.FIELDS)if(saved.contains(key))module.edit(key,saved.getDouble(key),"");

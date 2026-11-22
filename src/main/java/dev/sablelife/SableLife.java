@@ -201,10 +201,13 @@ public final class SableLife {
         NeoForge.EVENT_BUS.addListener(dev.sablelife.heart.DeathSignals::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.module.ModuleMessageDisplay::tickDeathPlaybacks);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.module.ModuleMessageDisplay::stopped);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.module.ModuleItemDisplay::flush);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.module.ModuleItemDisplay::stopped);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.combat.EntityHitboxes::endTick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BlueprintSpawns::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.CommandBlueprintSpawns::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.WildEncounters::tick);
+        NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.BlueprintCleanup::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::beforeTick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::tick);
         NeoForge.EVENT_BUS.addListener(dev.sablelife.ownership.ArenaRespawns::commands);

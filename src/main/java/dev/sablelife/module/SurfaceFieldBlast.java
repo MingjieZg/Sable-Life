@@ -1,6 +1,7 @@
 package dev.sablelife.module;
 
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.heart.SurvivalLifeCorePolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -21,7 +22,7 @@ final class SurfaceFieldBlast {
             ModuleParticles.send(level, particle, center.x, center.y, center.z, 1, 0, 0, 0, 0);
         }
         ModuleAudio.play(level, config, "blastSound", center);
-        if (config.value("blastBlocks") == 1) destroyTerrain(level, heart, frame);
+        if (config.value("blastBlocks") == 1 && SurvivalLifeCorePolicy.allowsTerrainBreaking(heart)) destroyTerrain(level, heart, frame);
     }
 
     private static void destroyTerrain(ServerLevel level, HeartBlockEntity heart, SurfaceFieldGeometry.Frame frame) {

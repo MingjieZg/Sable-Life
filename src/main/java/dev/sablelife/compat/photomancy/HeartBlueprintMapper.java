@@ -4,12 +4,14 @@ import dev.rew1nd.sableschematicapi.api.blueprint.*;
 import dev.sablelife.SableLife;
 import dev.sablelife.heart.HeartBlock;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.module.HeartModules;
 import dev.sablelife.module.ModuleAnchor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
+import java.util.HashSet;
 import java.util.UUID;
 
 /** Plot offsets alone are not portable: serialize blueprint-local references instead. */
@@ -148,6 +150,35 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
             // Arena migration is finalized after all body poses and block entities are placed.
             module.remove("ArenaCenter");
         }
+        stageDisplayItems(context, tag);
+    }
+
+    // The placement session owns these tags until this specific heart loads successfully.
+    // Photomancy passes copies to the mapper, so the original blueprint remains reusable.
+    private static String displayItemsKey(UUID placedHeart) {
+        return "sablelife:pending_display_items/" + placedHeart;
+    }
+
+    private static void stageDisplayItems(BlueprintBlockPlaceContext context, CompoundTag tag) {
+        var modules = tag.getCompound("VirtualModules").getList("Modules", 10);
+        var items = new CompoundTag();
+        var seen = new HashSet<UUID>();
+        for (int i = 0; i < Math.min(modules.size(), HeartModules.LIMIT); i++) {
+            var row = modules.getCompound(i);
+            if (row.getString("Type").equals("dispatch")) continue;
+            var id = row.getUUID("Id");
+            // HeartModules.load keeps the first row for a duplicate UUID.
+            if (!seen.add(id) || !row.getString("Type").equals("item_display") || row.getInt("Version") > 1) continue;
+            var item = row.getCompound("ProjectileItem");
+            if (!item.isEmpty()) {
+                items.put(id.toString(), item);
+                row.remove("ProjectileItem");
+            }
+        }
+        var sessionData = context.session().globalExtraData();
+        var key = displayItemsKey(tag.getUUID("CreatureId"));
+        if (items.isEmpty()) sessionData.remove(key);
+        else sessionData.put(key, items);
     }
 
     private static CompoundTag placeMark(BlueprintBlockPlaceContext context, CompoundTag original) {
@@ -163,6 +194,17 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
 
     @Override public void afterLoadBlockEntity(BlueprintBlockPlaceContext context, BlockEntity entity, CompoundTag loadedTag) {
         if (!(entity instanceof HeartBlockEntity heart)) return;
+        var sessionData = context.session().globalExtraData();
+        var key = displayItemsKey(heart.creatureId());
+        if (sessionData.contains(key, 10)) {
+            var items = sessionData.getCompound(key);
+            for (var module : heart.modules().all()) {
+                var item = items.get(module.id().toString());
+                if (item instanceof CompoundTag model) module.restoreBlueprintDisplayItem(model);
+            }
+            sessionData.remove(key);
+            heart.setChanged();
+        }
         // Synaxis can publish its connections several ticks after Photomancy places the bodies.
         heart.blueprintPlaced();
         for (int id : loadedTag.getIntArray(CONNECTED_PARTS)) {

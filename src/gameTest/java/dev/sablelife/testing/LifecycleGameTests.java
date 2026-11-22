@@ -50,22 +50,31 @@ public final class LifecycleGameTests {
         var level = helper.getLevel();
         var broken = helper.absolutePos(new BlockPos(2, 5, 2));
         var healthy = helper.absolutePos(new BlockPos(4, 5, 2));
+        var brokenAnchor = broken.south(2);
+        var healthyAnchor = healthy.south(2);
         level.setBlockAndUpdate(broken, CLEANUP_TEST_BLOCK.get().defaultBlockState());
         level.setBlockAndUpdate(healthy, Blocks.IRON_BLOCK.defaultBlockState());
+        level.setBlockAndUpdate(brokenAnchor, Blocks.IRON_BLOCK.defaultBlockState());
+        level.setBlockAndUpdate(healthyAnchor, Blocks.IRON_BLOCK.defaultBlockState());
         var data = LifeLifecycle.get(level.getServer());
         var ownership = BodyOwnership.get(level);
+        UUID brokenParent = UUID.randomUUID(), healthyParent = UUID.randomUUID();
         UUID brokenId = UUID.randomUUID(), healthyId = UUID.randomUUID();
-        bindCleanupPart(ownership, broken, brokenId);
-        bindCleanupPart(ownership, healthy, healthyId);
+        // Each parent still owns a block, so normal completion retirement cannot erase the test's evidence.
+        ownership.bind(brokenAnchor, brokenParent);
+        ownership.bind(healthyAnchor, healthyParent);
+        bindCleanupPart(ownership, broken, brokenParent, brokenId);
+        bindCleanupPart(ownership, healthy, healthyParent, healthyId);
         var loot = ResourceLocation.withDefaultNamespace("empty");
-        helper.assertTrue(data.schedulePart(level, brokenId, UUID.randomUUID(), "broken", broken.getCenter(), 0, loot, 0),
+        helper.assertTrue(data.schedulePart(level, brokenId, brokenParent, "broken", broken.getCenter(), 0, loot, 0),
                 "Failed to schedule faulty block cleanup");
-        helper.assertTrue(data.schedulePart(level, healthyId, UUID.randomUUID(), "healthy", healthy.getCenter(), 0, loot, 0),
+        helper.assertTrue(data.schedulePart(level, healthyId, healthyParent, "healthy", healthy.getCenter(), 0, loot, 0),
                 "Failed to schedule independent cleanup");
         failRemovalAt = broken;
         helper.runAfterDelay(5, () -> {
             helper.assertTrue(failRemovalAt == null, "The block removal hook did not run");
-            helper.assertTrue(level.getBlockState(healthy).isAir() && data.finished(healthyId), "One failure stopped the other cleanup");
+            helper.assertTrue(level.getBlockState(healthy).isAir() && !ownership.hasPart(healthyId) && data.finished(healthyId),
+                    "One failure stopped the other cleanup");
             helper.assertTrue(!data.finished(brokenId), "The failed job was incorrectly marked complete");
             var saved = data.save(new CompoundTag(), level.registryAccess());
             var reloaded = LifeLifecycle.load(saved, level.registryAccess());
@@ -74,11 +83,17 @@ public final class LifecycleGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(data.finished(brokenId), "Waiting for failed cleanup to retry");
             helper.assertTrue(level.getBlockState(broken).isAir() && !ownership.hasPart(brokenId), "Retry retained the failed part");
+            helper.assertTrue(level.getBlockState(brokenAnchor).is(Blocks.IRON_BLOCK)
+                    && level.getBlockState(healthyAnchor).is(Blocks.IRON_BLOCK), "Part cleanup removed a parent block");
+            ownership.release(brokenParent);
+            ownership.release(healthyParent);
+            data.cancel(brokenParent);
+            data.cancel(healthyParent);
         });
     }
 
-    private static void bindCleanupPart(BodyOwnership ownership, BlockPos pos, UUID part) {
-        ownership.bind(pos, UUID.randomUUID());
+    private static void bindCleanupPart(BodyOwnership ownership, BlockPos pos, UUID parent, UUID part) {
+        ownership.bind(pos, parent);
         ownership.bindPart(pos, part);
     }
 

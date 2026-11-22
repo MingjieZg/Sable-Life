@@ -52,16 +52,59 @@ final class LittleTilesMixinContractTest {
         assertFalse(LittleTilesMixinContract.inspect(data::get));
     }
 
+    @Test void addedOverloadsLeaveTheMixinBoundToTheVerifiedSignatures() throws Exception {
+        var data = classes("pre239");
+        edit(data, LittleTilesMixinContract.CACHE, n -> {
+            var method = n.visitMethod(Opcodes.ACC_PUBLIC, "getUploaded",
+                    "(Ljava/lang/String;)Lteam/creative/littletiles/client/render/cache/buffer/BufferCache;", null, null);
+            method.visitInsn(Opcodes.ACONST_NULL);
+            method.visitInsn(Opcodes.ARETURN);
+            method.visitMaxs(1, 2);
+            method.visitEnd();
+        });
+        assertTrue(LittleTilesMixinContract.inspect(data::get));
+        String resource = "/dev/sablelife/compat/littletiles/mixin/BufferLossMixin.class";
+        try (var input = getClass().getResourceAsStream(resource)) {
+            var mixin = new ClassNode();
+            new ClassReader(input).accept(mixin, 0);
+            var handler = mixin.methods.stream().filter(m -> m.name.equals("sablelife$beforeDiscard")).findFirst().orElseThrow();
+            var inject = handler.visibleAnnotations.stream()
+                    .filter(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/injection/Inject;")).findFirst().orElseThrow();
+            assertEquals(List.of(LittleTilesMixinContract.CACHE_GET_UPLOADED), inject.values.get(inject.values.indexOf("method") + 1));
+        }
+    }
+
+    @Test void duplicateNativeUploadInvocationIsSkipped() throws Exception {
+        var data = classes("pre239");
+        edit(data, LittleTilesMixinContract.CACHE, n -> {
+            var upload = n.methods.stream().filter(m -> (m.name + m.desc).equals(LittleTilesMixinContract.CACHE_UPLOAD))
+                    .findFirst().orElseThrow();
+            for (var instruction : upload.instructions.toArray()) {
+                if (instruction instanceof MethodInsnNode call && call.owner.equals(LittleTilesMixinContract.PIPELINE) && call.name.equals("upload")) {
+                    var duplicate = new InsnList();
+                    for (int i = 0; i < 3; i++) duplicate.add(new InsnNode(Opcodes.ACONST_NULL));
+                    duplicate.add(new MethodInsnNode(call.getOpcode(), call.owner, call.name, call.desc, call.itf));
+                    duplicate.add(new InsnNode(Opcodes.POP));
+                    upload.instructions.insertBefore(call, duplicate);
+                    break;
+                }
+            }
+        });
+        assertFalse(LittleTilesMixinContract.inspect(data::get));
+    }
+
     @Test void changedNativeRebuildQueueIsSkipped() throws Exception {
         var data = classes("pre239");
         edit(data, "team/creative/littletiles/client/render/block/BERenderManager", n -> n.methods.removeIf(m -> m.name.equals("queue")));
         assertFalse(LittleTilesMixinContract.inspect(data::get));
     }
 
-    @Test void unsupportedDependencyVersionsAreSkipped() {
-        assertTrue(LittleTilesMixinContract.supported("1.6.0-pre239", "2.13.54", "2.0.6"));
-        assertFalse(LittleTilesMixinContract.supported("1.6.0-pre999", "2.13.54", "2.0.6"));
-        assertFalse(LittleTilesMixinContract.supported("1.6.0-pre239", "2.13.55", "2.0.6"));
-        assertFalse(LittleTilesMixinContract.supported("1.6.0-pre239", "2.13.54", "2.0.7"));
+    @Test void acceptsNewerVersionsAndRetainsMinimums() {
+        assertTrue(LittleTilesMixinContract.supported("1.6.0-pre235", "2.13.54", "2.0.5"));
+        assertTrue(LittleTilesMixinContract.supported("1.6.0-pre240", "2.13.55", "2.0.7"));
+        assertTrue(LittleTilesMixinContract.supported("1.6.0", "2.13.55", "2.0.7"));
+        assertFalse(LittleTilesMixinContract.supported("1.6.0-pre234", "2.13.55", "2.0.7"));
+        assertFalse(LittleTilesMixinContract.supported("1.6.0-pre240", "2.13.53", "2.0.7"));
+        assertFalse(LittleTilesMixinContract.supported("1.6.0-pre240", "2.13.55", ""));
     }
 }

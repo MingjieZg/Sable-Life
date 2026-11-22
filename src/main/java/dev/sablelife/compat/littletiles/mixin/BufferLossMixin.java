@@ -15,24 +15,25 @@ public abstract class BufferLossMixin implements LostMesh {
     @Shadow private ChunkLayerMap<BufferCache> uploaded;
     @Unique private final MeshRecoveryState sablelife$recovery = new MeshRecoveryState();
 
-    @Inject(method="getUploaded", at=@At("HEAD"))
+    @Inject(method=LittleTilesMixinContract.CACHE_GET_UPLOADED, at=@At("HEAD"))
     private void sablelife$beforeDiscard(RenderType layer, CallbackInfoReturnable<BufferCache> ci) {
         var holder = uploaded.get(layer);
         // CPU-buffer release after upload is normal; only explicit invalidation records a loss.
         if (holder != null && holder.isInvalid() && !holder.isEmpty()) sablelife$lostMesh();
     }
 
-    @Redirect(method="upload", at=@At(value="INVOKE", target="Lteam/creative/littletiles/client/render/cache/pipeline/LittleRenderPipelineType;upload(Lteam/creative/littletiles/client/render/cache/buffer/ChunkBufferUploader;Lteam/creative/littletiles/client/render/cache/buffer/BufferCollection;Lteam/creative/littletiles/client/render/cache/buffer/BufferCache;)Lteam/creative/littletiles/client/render/cache/buffer/BufferCache;"))
+    @Redirect(method=LittleTilesMixinContract.CACHE_UPLOAD,
+            at=@At(value="INVOKE", target=LittleTilesMixinContract.PIPELINE_UPLOAD_INVOCATION))
     private BufferCache sablelife$rememberFailedUpload(ChunkBufferUploader uploader, BufferCollection collection, BufferCache cache) {
         var result = LittleRenderPipelineType.upload(uploader, collection, cache);
         if (result == null && cache != null && !cache.isEmpty()) sablelife$lostMesh();
         return result;
     }
 
-    @Inject(method="setEmpty", at=@At("TAIL"))
+    @Inject(method=LittleTilesMixinContract.CACHE_SET_EMPTY, at=@At("TAIL"))
     private void sablelife$normalUnload(CallbackInfo ci) { sablelife$builtMesh(); }
 
-    @Inject(method="setBuffers", at=@At("TAIL"))
+    @Inject(method=LittleTilesMixinContract.CACHE_SET_BUFFERS, at=@At("TAIL"))
     private void sablelife$newBuild(ChunkLayerMap<BufferCache> buffers, CallbackInfo ci) { sablelife$builtMesh(); }
 
     @Override public void sablelife$lostMesh() { sablelife$recovery.lost(); }

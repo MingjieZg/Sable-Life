@@ -14,7 +14,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.fml.ModList;
+import dev.sablelife.compat.ModVersion;
+import dev.sablelife.compat.OptionalMod;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.ref.WeakReference;
@@ -22,7 +23,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 
-/** Optional, version-checked lookup of live Walker attachment paths. */
+/** Optional adapter that validates the Walker attachment fields before traversing them. */
 public final class WalkerLegDamage {
     private static final String MOD = "let_it_walk";
     private static final Map<ServerLevel, Snapshot> snapshots = new WeakHashMap<>();
@@ -46,6 +47,9 @@ public final class WalkerLegDamage {
             var hingeChild = hinge.getMethod("child");
             if (tracked.getType() != Map.class || !java.lang.reflect.Modifier.isStatic(tracked.getModifiers())
                     || !tracked.trySetAccessible() || hingeChild.getReturnType() != UUID.class
+                    || java.lang.reflect.Modifier.isStatic(hingeChild.getModifiers())
+                    || java.lang.reflect.Modifier.isStatic(built.getModifiers())
+                    || !built.getType().getName().equals("dev.letitwalk.walker.BuiltLeg")
                     || !BlockEntity.class.isAssignableFrom(walker) || !BlockEntity.class.isAssignableFrom(hinge)) {
                 throw new NoSuchFieldException("Let it Walk tracker or hinge");
             }
@@ -57,7 +61,8 @@ public final class WalkerLegDamage {
 
         private static Field field(Class<?> owner, String name, Class<?> type) throws NoSuchFieldException {
             var field = owner.getField(name);
-            if (field.getType() != type) throw new NoSuchFieldException(owner.getName() + "." + name);
+            if (field.getType() != type || java.lang.reflect.Modifier.isStatic(field.getModifiers()))
+                throw new NoSuchFieldException(owner.getName() + "." + name);
             return field;
         }
     }
@@ -65,8 +70,7 @@ public final class WalkerLegDamage {
     private static Access access() {
         if (!initialized) {
             initialized = true;
-            if (ModList.get().getModContainerById(MOD)
-                    .map(mod -> mod.getModInfo().getVersion().toString().equals("0.1.5")).orElse(false)) {
+            if (ModVersion.atLeast(OptionalMod.version(MOD), "0.1.5")) {
                 try {
                     access = Access.open();
                 } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {

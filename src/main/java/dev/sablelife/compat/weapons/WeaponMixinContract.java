@@ -9,6 +9,10 @@ import org.objectweb.asm.tree.*;
 public final class WeaponMixinContract {
     private static final String TACZ_BULLET = "com/tacz/guns/entity/EntityKineticBullet";
     private static final String TACZ_BLOCK_HIT = "com/tacz/guns/api/event/server/AmmoHitBlockEvent";
+    private static final String NTGL_MELEE_PRE = "com/nukateam/ntgl/common/event/MeleeAttackEvent$Pre";
+    private static final String NTGL_ARRAY_LIST = "java/util/ArrayList";
+    public static final String NTGL_MELEE_ATTACK = "tryMeleeAttack(Lcom/nukateam/ntgl/common/data/WeaponData;)V";
+    public static final String NTGL_MELEE_TARGET_CHECK = "Ljava/util/ArrayList;isEmpty()Z";
 
     public record Result(boolean compatible,String reason){}
     public static Result inspect(String mixin,String target,Function<String,byte[]> provider){
@@ -25,11 +29,11 @@ public final class WeaponMixinContract {
                 case "CgsBlazeProjectileMixin" -> node.methods.stream().anyMatch(m->method(m,"onHitEntity",
                         "(Lcom/nukateam/ntgl/common/util/util/math/ExtendedEntityRayTraceResult;)V",false)
                         &&hasCall(m,"com/nukateam/ntgl/common/foundation/entity/ProjectileEntity","onHitEntity",m.desc)
-                        &&hasCall(m,"net/minecraft/world/entity/Entity","hurt","(Lnet/minecraft/world/damagesource/DamageSource;F)Z")
+                        &&hasBlazeBonus(m)
                         &&hasCall(m,"net/minecraft/world/entity/Entity","igniteForSeconds","(F)V"));
                 case "NtglExplosionMixin" -> ntglExplosion(node,provider);
-                case "NtglMeleeMixin" -> node.methods.stream().anyMatch(m->method(m,"tryMeleeAttack","(Lcom/nukateam/ntgl/common/data/WeaponData;)V",false)
-                        &&hasCall(m,"java/util/ArrayList","isEmpty","()Z"))
+                case "NtglMeleeMixin" -> node.methods.stream().anyMatch(m->(m.name+m.desc).equals(NTGL_MELEE_ATTACK)
+                        &&concrete(m,false)&&ntglMeleeTargets(m))
                         &&field(node,"attackDistance","D",provider,new HashSet<>())
                         &&field(node,"meleeDamage","F",provider,new HashSet<>())
                         &&field(node,"maxTargets","I",provider,new HashSet<>());
@@ -47,6 +51,16 @@ public final class WeaponMixinContract {
             return new Result(valid,valid?"Injection contract matched":"Required method, field or invocation changed");
         }catch(RuntimeException failure){return new Result(false,"Cannot inspect target: "+failure.getClass().getSimpleName());}
     }
+    private static boolean hasBlazeBonus(MethodNode method) {
+        for (var instruction : method.instructions) {
+            if (!(instruction instanceof MethodInsnNode call) || !call.owner.equals("net/minecraft/world/entity/Entity")
+                    || !call.name.equals("hurt") || !call.desc.equals("(Lnet/minecraft/world/damagesource/DamageSource;F)Z")) continue;
+            var amount = previousInstruction(call);
+            return amount instanceof LdcInsnNode constant && Float.valueOf(5).equals(constant.cst);
+        }
+        return false;
+    }
+
     private static boolean taczBreaching(ClassNode handler, Function<String, byte[]> provider) {
         var event = read(TACZ_BLOCK_HIT, provider);
         var bullet = read(TACZ_BULLET, provider);
@@ -69,6 +83,57 @@ public final class WeaponMixinContract {
                 &&node.methods.stream().anyMatch(m->method(m,"damageEntity","(Lcom/nukateam/ntgl/common/util/util/math/ExtendedEntityRayTraceResult;)V",false)
                     &&hasCall(m,"net/minecraft/world/entity/Entity","hurt","(Lnet/minecraft/world/damagesource/DamageSource;F)Z"));
     }
+    private static boolean ntglMeleeTargets(MethodNode method) {
+        if (method.localVariables == null) return false;
+        MethodInsnNode anchor = null;
+        for (var instruction : method.instructions) {
+            if (!isVirtualCall(instruction, NTGL_ARRAY_LIST, "isEmpty", "()Z")) continue;
+            if (anchor != null) return false;
+            anchor = (MethodInsnNode) instruction;
+        }
+        if (anchor == null) return false;
+
+        // Cancellation and an empty target list skip the same attack loop.
+        var receiver = previousInstruction(anchor);
+        var cancelBranch = previousInstruction(receiver);
+        var emptyBranch = nextInstruction(anchor);
+        if (!(receiver instanceof VarInsnNode targets) || targets.getOpcode() != Opcodes.ALOAD
+                || !(cancelBranch instanceof JumpInsnNode canceled) || canceled.getOpcode() != Opcodes.IFNE
+                || !isVirtualCall(previousInstruction(canceled), NTGL_MELEE_PRE, "isCanceled", "()Z")
+                || !(emptyBranch instanceof JumpInsnNode empty) || empty.getOpcode() != Opcodes.IFNE
+                || nextInstruction(canceled.label) != nextInstruction(empty.label)) return false;
+        var loopReceiver = nextInstruction(empty);
+        if (!(loopReceiver instanceof VarInsnNode loopTargets) || loopTargets.getOpcode() != Opcodes.ALOAD
+                || loopTargets.var != targets.var
+                || !isVirtualCall(nextInstruction(loopTargets), NTGL_ARRAY_LIST, "iterator", "()Ljava/util/Iterator;")) return false;
+
+        int index = method.instructions.indexOf(anchor);
+        int wielders = 0;
+        for (var local : method.localVariables) {
+            if (index < method.instructions.indexOf(local.start) || index >= method.instructions.indexOf(local.end)) continue;
+            if (local.desc.equals("Lnet/minecraft/world/entity/LivingEntity;")) wielders++;
+        }
+        return wielders == 1;
+    }
+
+    private static boolean isVirtualCall(AbstractInsnNode instruction, String owner, String name, String descriptor) {
+        return instruction instanceof MethodInsnNode call && call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && call.owner.equals(owner) && call.name.equals(name) && call.desc.equals(descriptor);
+    }
+
+    private static AbstractInsnNode previousInstruction(AbstractInsnNode instruction) {
+        if (instruction == null) return null;
+        var previous = instruction.getPrevious();
+        while (previous != null && previous.getOpcode() < 0) previous = previous.getPrevious();
+        return previous;
+    }
+
+    private static AbstractInsnNode nextInstruction(AbstractInsnNode instruction) {
+        var next = instruction.getNext();
+        while (next != null && next.getOpcode() < 0) next = next.getNext();
+        return next;
+    }
+
     private static boolean ntglExplosion(ClassNode node,Function<String,byte[]> provider){
         return "net/minecraft/world/level/Explosion".equals(node.superName)
                 &&node.methods.stream().anyMatch(m->method(m,"explode","()V",false))
@@ -81,7 +146,7 @@ public final class WeaponMixinContract {
     }
     private static ClassNode read(String name,Function<String,byte[]> provider){
         byte[] bytes=provider.apply(name);if(bytes==null)return null;
-        var node=new ClassNode();new ClassReader(bytes).accept(node,ClassReader.SKIP_DEBUG|ClassReader.SKIP_FRAMES);return node;
+        var node=new ClassNode();new ClassReader(bytes).accept(node,ClassReader.SKIP_FRAMES);return node;
     }
     private static boolean concrete(MethodNode m,boolean isStatic){
         return (m.access&(Opcodes.ACC_ABSTRACT|Opcodes.ACC_NATIVE))==0&&((m.access&Opcodes.ACC_STATIC)!=0)==isStatic;

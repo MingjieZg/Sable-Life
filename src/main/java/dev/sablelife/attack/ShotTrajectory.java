@@ -20,17 +20,32 @@ public final class ShotTrajectory {
     }
     /** One shell per eligible, reachable target; single mode retains nearest feasible targeting. */
     public static List<Vec3> firingVelocities(ServerLevel world, HeartBlockEntity heart, VirtualModule module) {
+        return firingVelocities(world, heart, module, true);
+    }
+
+    public static List<Vec3> previewVelocities(ServerLevel world, HeartBlockEntity heart, VirtualModule module) {
+        return firingVelocities(world, heart, module, false);
+    }
+
+    private static List<Vec3> firingVelocities(ServerLevel world, HeartBlockEntity heart, VirtualModule module, boolean remember) {
         if (module.value("aimMode") == 0) return List.of(velocity(heart, module));
         var start = ModuleCombat.nozzle(heart, module);
         double range = module.value("targetRange"), speed = module.value("speed");
-        boolean requireSight = module.value("lineOfSight") == 1;
         boolean multiple = module.value("targetMultiple") == 1;
-        return ModuleTargets.aimedResults(world, heart, new AABB(start, start).inflate(range),
-                e -> ModuleTargets.matches(e, module) && SableBodyProbe.toWorld(world, e.position()).distanceToSqr(start) <= range * range,
-                ModuleTargets.comparator(heart, e -> SableBodyProbe.toWorld(world, e.position()).distanceToSqr(start)),
-                e -> requireSight && !ModuleTargets.visible(world, heart.creatureId(), start, e) ? null
-                        : ballisticVelocity(SableBodyProbe.toWorld(world, e.position()).add(0, .05, 0).subtract(start), speed),
-                ModuleTargets.attackTarget(heart, module), multiple).limit(multiple ? 64 : 1).toList();
+        var bounds = new AABB(start, start).inflate(range);
+        var aim = ModuleTargets.attackAim(heart, module);
+        java.util.function.ToDoubleFunction<net.minecraft.world.entity.LivingEntity> distance = target ->
+                ModuleTargets.attackFeet(world, heart, module, target, aim).distanceToSqr(start);
+        java.util.function.Predicate<net.minecraft.world.entity.LivingEntity> eligible =
+                e -> ModuleTargets.matches(e, module) && distance.applyAsDouble(e) <= range * range;
+        var order = ModuleTargets.comparator(heart, distance);
+        java.util.function.Function<net.minecraft.world.entity.LivingEntity, Vec3> velocity = target -> {
+            if (!ModuleTargets.attackVisible(world, heart, module, start, target, aim)) return null;
+            var delta = ModuleTargets.attackFeet(world, heart, module, target, aim).subtract(start);
+            return delta.lengthSqr() <= range * range ? ballisticVelocity(delta.add(0, .05, 0), speed) : null;
+        };
+        var results = ModuleTargets.attackResults(world, heart, module, bounds, eligible, order, velocity, aim, multiple, remember);
+        return results.limit(multiple ? 64 : 1).toList();
     }
     private static Vec3 ballisticVelocity(Vec3 delta, double speed) {
         Vec3 solution = null;

@@ -195,6 +195,101 @@ public final class SensorFacingGameTests {
         } finally { cow.discard(); }
     }
 
+    @GameTest(template = "combat", batch = "sight_memory", timeoutTicks = 45)
+    public static void SensorAndAlignmentRememberOnlyTheLastVisiblePoint(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var sensor = sensor(heart, Direction.NORTH);
+        sensor.edit("radius", 12, "");
+        sensor.edit("lineOfSight", 0, "");
+        sensor.edit(SightMemory.FIELD, 6, "");
+        var alignment = heart.modules().add("navigation");
+        alignment.anchors(sensor.anchors());
+        alignment.edit("trigger", 0, "");
+        alignment.edit("target", 1, "");
+        alignment.edit("lineOfSight", 0, "");
+        alignment.edit("facingSource", 1, "");
+        alignment.facingSensor(sensor.id());
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        var pivot = SableBodyProbe.toWorld(h.getLevel(), heart.getBlockPos().getCenter());
+        var cow = EntityType.COW.create(h.getLevel());
+        cow.setNoAi(true); cow.setNoGravity(true);
+        cow.setPos(pivot.add(0, -cow.getBbHeight() / 2, -8)); h.getLevel().addFreshEntity(cow);
+        var wall = BlockPos.containing(pivot).north(4);
+        var initial = heart.modules().events().sensorAim(heart, sensor.id());
+        h.assertTrue(initial != null && initial.visible(), "Initial visible target missing");
+        // GameTest callbacks can install the wall before the first block-entity tick following assembly.
+        heart.modules().events().tick(heart);
+        h.assertTrue(!heart.modules().events().navigation().name(alignment.id()).isEmpty(),
+                "Alignment did not observe the target before the wall was placed");
+        h.runAfterDelay(1, () -> {
+            for (var pos : BlockPos.betweenClosed(wall.offset(-3, -1, 0), wall.offset(3, 2, 0)))
+                h.getLevel().setBlockAndUpdate(pos, Blocks.STONE.defaultBlockState());
+            cow.setPos(cow.position().add(1, 0, -2));
+        });
+        h.runAfterDelay(3, () -> {
+            var memory = heart.modules().events().sensorAim(heart, sensor.id());
+            h.assertTrue(memory != null && !memory.visible() && memory.point().equals(initial.point()),
+                    "Sensor followed live movement behind the wall");
+            h.assertTrue(heart.modules().events().sensorDetected(sensor.id()), "Sensor lost its signal during the grace period");
+            h.assertTrue(!heart.modules().events().navigation().name(alignment.id()).isEmpty(),
+                    "Alignment did not use the sensor's memory when its own delay was zero");
+        });
+        h.runAfterDelay(10, () -> {
+            h.assertTrue(heart.modules().events().sensorAim(heart, sensor.id()) == null, "Sensor memory failed to expire");
+            h.assertTrue(heart.modules().events().navigation().name(alignment.id()).isEmpty(), "Alignment extended its source's timer");
+            sensor.edit("lineOfSight", 1, ""); heart.modules().changed();
+            var throughWall = heart.modules().events().sensorAim(heart, sensor.id());
+            h.assertTrue(throughWall != null && throughWall.visible(), "LOS Off did not allow current detection");
+            sensor.edit("lineOfSight", 0, ""); heart.modules().changed();
+            h.assertTrue(sensor.value(SightMemory.FIELD) == 6 && heart.modules().events().sensorAim(heart, sensor.id()) == null,
+                    "Re-enabling sight reused a lock acquired with it Off");
+            cow.discard();
+            h.succeed();
+        });
+    }
+
+    @GameTest(template = "combat", batch = "sensor_player_height")
+    public static void SensorSeesOverCoverAtPlayerChestHeight(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var sensor = sensor(heart, Direction.NORTH);
+        sensor.edit("shape", 0, "");
+        sensor.edit("target", 0, "");
+        sensor.edit("lineOfSight", 0, "");
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        var center = SableBodyProbe.toWorld(h.getLevel(), heart.getBlockPos().getCenter());
+        var player = new SlashGuardGameTests.Defender(h.getLevel());
+        player.setNoGravity(true);
+        player.setPos(center.x, Math.floor(center.y) - .02, center.z - 12);
+        h.getLevel().addNewPlayer(player);
+        var halfHeightCover = BlockPos.containing(center).north(10);
+        try {
+            for (int x = -1; x <= 1; x++)
+                h.getLevel().setBlockAndUpdate(halfHeightCover.offset(x, 0, 0), Blocks.STONE.defaultBlockState());
+            h.assertTrue(!ModuleTargets.visible(h.getLevel(), heart.creatureId(), center.add(0, 0, -.8), player),
+                    "The test cover did not block the old center ray");
+            var selected = heart.modules().events().sensorAim(heart, sensor.id());
+            h.assertTrue(selected != null && selected.id().equals(player.getUUID()), "Sensor missed the player's exposed chest");
+            var laser = heart.modules().add("laser");
+            laser.anchors(sensor.anchors());
+            laser.edit("laserAim", 1, "");
+            laser.edit("target", 0, "");
+            laser.edit("lineOfSight", 1, "");
+            laser.edit("chargeTime", 0, "");
+            var runtime = new ModuleLaser();
+            runtime.tick(heart);
+            h.assertTrue(runtime.aimPoint(laser.id()).distanceTo(ModuleTargets.upperChest(player)) < .0001,
+                    "Tracking laser did not aim at the player's upper chest");
+            h.assertTrue(player.getHealth() < player.getMaxHealth(), "The exposed chest was not hit");
+            runtime.clear();
+            laser.edit("enabled", 0, "");
+            for (int x = -1; x <= 1; x++)
+                h.getLevel().setBlockAndUpdate(halfHeightCover.offset(x, 1, 0), Blocks.STONE.defaultBlockState());
+            heart.modules().changed();
+            h.assertTrue(heart.modules().events().sensorAim(heart, sensor.id()) == null, "Sensor saw a fully covered player");
+            h.succeed();
+        } finally { player.discard(); }
+    }
+
     private static HeartBlockEntity fixture(GameTestHelper h, Block block) {
         var level = h.getLevel();
         var origin = h.absolutePos(new BlockPos(3, 40, 3));

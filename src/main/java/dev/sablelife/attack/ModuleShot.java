@@ -2,6 +2,10 @@ package dev.sablelife.attack;
 
 import dev.sablelife.SableLife;
 import dev.sablelife.module.ProjectileTracer;
+import dev.sablelife.module.ModuleHoming;
+import dev.sablelife.module.ModuleMoveSet;
+import dev.sablelife.module.ModuleTargets;
+import dev.sablelife.module.SightMemory;
 import dev.sablelife.module.VirtualModule;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.compat.sable.SableBodyProbe;
@@ -47,7 +51,9 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     private UUID owner;
     private VirtualModule homingConfig;
     private UUID homingTarget;
-    private UUID homingMoveTarget;
+    private ModuleTargets.AttackAim homingAim;
+    private int homingRevision;
+    private final SightMemory homingSight = new SightMemory();
     private Vec3 homingCenter=Vec3.ZERO, homingHover=Vec3.ZERO;
     public boolean defaultHomingAppearance() { return homingProjectile() && entityData.get(ITEM).isEmpty(); }
     private int homingIndex, homingFlightAge, homingLegTicks;
@@ -60,13 +66,17 @@ public final class ModuleShot extends Entity implements ItemSupplier {
     public UUID homingTarget() { return homingTarget; }
     public boolean hovering() { return homingProjectile() && !homingLaunched; }
     public static ModuleShot homing(ServerLevel level,Vec3 point,Vec3 center,VirtualModule module,HeartBlockEntity heart,int index) {
-        return homing(level,point,center,module,heart,index,null);
+        return homingWithAim(level, point, center, module, heart, index, null);
     }
     public static ModuleShot homing(ServerLevel level,Vec3 point,Vec3 center,VirtualModule module,HeartBlockEntity heart,int index,UUID moveTarget) {
+        return homingWithAim(level, point, center, module, heart, index, ModuleTargets.AttackAim.fixed(moveTarget));
+    }
+    public static ModuleShot homingWithAim(ServerLevel level, Vec3 point, Vec3 center, VirtualModule module,
+                                           HeartBlockEntity heart, int index, ModuleTargets.AttackAim aim) {
         var shot=new ModuleShot(level,module.value("homingDeploy") > 0 ? center : point,Vec3.ZERO,module,heart);
         shot.entityData.set(KIND,3); shot.entityData.set(HITBOX,(float)module.value("projectileHitbox")); shot.refreshDimensions();
         shot.homingConfig=VirtualModule.load(module.save()); shot.homingCenter=center; shot.homingHover=point; shot.homingIndex=index; shot.homingHeart=heart;
-        shot.homingMoveTarget=moveTarget;
+        shot.homingAim = aim;
         var direction=point.subtract(center);
         shot.setYRot((float)Math.toDegrees(Math.atan2(direction.x,direction.z)));
         shot.setXRot((float)Math.toDegrees(Math.atan2(direction.y,Math.hypot(direction.x,direction.z))));
@@ -82,7 +92,13 @@ public final class ModuleShot extends Entity implements ItemSupplier {
                 || !owner.equals(homingHeart.creatureId())) { discard(); return false; }
         var current=homingHeart.modules().find(homingConfig.id());
         if(current==null || !dev.sablelife.module.HeartModules.status(current,homingHeart).equals("valid")) { discard(); return false; }
+        if (homingRevision != homingHeart.modules().revision()) {
+            homingSight.clear();
+            homingRevision = homingHeart.modules().revision();
+        }
+        Vec3 releasePoint = null;
         if(!homingLaunched) {
+            if (homingAim != null) homingAim = homingAim.bindMoveAction(homingHeart, current);
             setDeltaMovement(Vec3.ZERO);
             int deploy=(int)homingConfig.value("homingDeploy");
             if(age < deploy) {
@@ -94,10 +110,18 @@ public final class ModuleShot extends Entity implements ItemSupplier {
                 if(tracer == null && age%4==0) drawHomingTrail(world,position(),position());
                 return false;
             }
-            var targets=dev.sablelife.module.ModuleHoming.targets(world,homingHeart,homingConfig,homingCenter,homingMoveTarget);
-            if(targets.isEmpty()) { discard(); return false; }
-            homingTarget=targets.get(homingIndex%targets.size()).getUUID(); homingLaunched=true;
-            homingMoveTarget=null;
+            var preferred = homingAim != null ? homingAim
+                    : ModuleTargets.AttackAim.fixed(homingHeart.modules().weaponSight().target(homingHeart, current));
+            var targets = ModuleHoming.launchTargets(world, homingHeart, homingConfig, homingCenter, position(), preferred);
+            if (targets.isEmpty()) { discard(); return false; }
+            var selected = targets.get(homingIndex % targets.size());
+            homingTarget = selected.getUUID();
+            if (homingAim != null && homingTarget.equals(homingAim.id()) && !SightMemory.enabled(current)) {
+                var observed = homingAim.observation(homingHeart, current);
+                if (observed != null && !observed.visible()) releasePoint = observed.point();
+            }
+            homingLaunched = true;
+            homingAim = null;
             if(homingIndex==0) {
                 for(var player:world.players()) net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
                         new dev.sablelife.module.ModuleNetworking.ModuleSound(homingConfig.id(),"",true,Vec3.ZERO,0,1));
@@ -106,16 +130,46 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         }
         if(++homingFlightAge > (int)homingConfig.value("homingLife")) { discard(); return false; }
         if(homingTarget==null) { discard(); return false; }
-        var entity=dev.sablelife.module.ModuleTargets.resolve(world,homingTarget,owner);
-        if(!(entity instanceof LivingEntity target) || !dev.sablelife.module.ModuleHoming.eligible(target,homingConfig)
-                || target.getBoundingBox().getCenter().distanceToSqr(homingCenter)>Math.pow(homingConfig.value("targetRange"),2)
-                || homingConfig.value("lineOfSight") == 1 && !dev.sablelife.module.ModuleTargets.visible(world, owner, homingCenter, target)) { discard(); return false; }
-        var delta=target.getBoundingBox().getCenter().subtract(position());
+        var target = ModuleTargets.resolve(world, homingTarget, owner);
+        if (target == null || target.isRemoved() || !ModuleHoming.eligible(target, homingConfig)) {
+            discard();
+            return false;
+        }
+        var point = releasePoint != null ? releasePoint : SableBodyProbe.toWorld(world, target.getBoundingBox().getCenter());
+        double targetRange = homingConfig.value("targetRange");
+        double squaredRange = targetRange * targetRange;
+        boolean liveInRange = point.distanceToSqr(homingCenter) <= squaredRange;
+        boolean requireSight = SightMemory.enabled(current);
+        int memoryTicks = SightMemory.ticks(current);
+        var last = homingSight.lastSeen();
+        boolean lastInRange = memoryTicks > 0 && last != null && last.point().distanceToSqr(homingCenter) <= squaredRange;
+        if (!liveInRange && !lastInRange) {
+            discard();
+            return false;
+        }
+        if (requireSight && (!(liveInRange || SightMemory.canRecheck(position(), point))
+                || !ModuleTargets.visible(world, owner, position(), target))) {
+            // A missile pauses while its lock is remembered; it cannot steer through terrain.
+            if (!lastInRange || homingSight.remember(world.getGameTime(), memoryTicks) == null) {
+                discard();
+                return false;
+            }
+            setDeltaMovement(Vec3.ZERO);
+            return true;
+        }
+        if (!liveInRange) {
+            discard();
+            return false;
+        }
+        if (memoryTicks > 0) homingSight.see(target.getUUID(), point);
+        else homingSight.clear();
+        boolean usingRememberedPoint = releasePoint != null;
+        var delta=point.subtract(position());
         // Direct pursuit predicts a short lead, then approaches the actual center near impact.
         // Strength controls steering, not a random chance to apply damage.
         if(homingConfig.value("homingMode")==0) {
             double speed=homingConfig.value("speed"), distance=delta.length();
-            var lead=target.getDeltaMovement().scale(distance<=2 ? 0 : Math.min(6,distance/speed));
+            var lead = target.getDeltaMovement().scale(usingRememberedPoint || distance <= 2 ? 0 : Math.min(6, distance / speed));
             var aim=delta.add(lead);
             var desired=aim.normalize().scale(Math.min(speed,distance));
             setDeltaMovement(getDeltaMovement().lerp(desired,homingConfig.value("homingTracking")*.2));
@@ -261,7 +315,16 @@ public final class ModuleShot extends Entity implements ItemSupplier {
             tag.putDouble("HoverX",homingHover.x); tag.putDouble("HoverY",homingHover.y); tag.putDouble("HoverZ",homingHover.z);
             tag.putDouble("HomingX",homingCenter.x); tag.putDouble("HomingY",homingCenter.y); tag.putDouble("HomingZ",homingCenter.z);
             if(homingTarget!=null) tag.putUUID("HomingTarget",homingTarget);
-            if(homingMoveTarget!=null) tag.putUUID("HomingMoveTarget",homingMoveTarget);
+            if (homingAim != null) {
+                tag.putUUID("HomingMoveTarget", homingAim.id());
+                if (homingAim.followsMove()) tag.putLong("HomingMoveActivation", homingAim.moveActivation());
+                var action = homingAim.moveAction();
+                if (action != null) {
+                    tag.putUUID("HomingMoveTable", action.table());
+                    tag.putUUID("HomingMoveRule", action.move());
+                    tag.putInt("HomingMoveAction", action.actionIndex());
+                }
+            }
             if(homingDirection!=null) tag.putString("HomingDirection",homingDirection.getName());
         }
     }
@@ -279,7 +342,7 @@ public final class ModuleShot extends Entity implements ItemSupplier {
         impactConfig=tag.contains("ImpactConfig")?VirtualModule.load(tag.getCompound("ImpactConfig")):null;
         owner = tag.hasUUID("Owner") ? tag.getUUID("Owner") : null;
         if (owner != null) getPersistentData().putUUID("SableLifeAttackOwner", owner);
-        homingMoveTarget=null;
+        homingAim = null;
         if(homingProjectile() && tag.contains("HomingConfig")) {
             homingConfig=VirtualModule.load(tag.getCompound("HomingConfig")); homingIndex=Math.clamp(tag.getInt("HomingIndex"),0,31);
             homingLaunched=tag.getBoolean("HomingLaunched"); homingFlightAge=Math.clamp(tag.getInt("HomingFlightAge"),0,1200);
@@ -287,7 +350,17 @@ public final class ModuleShot extends Entity implements ItemSupplier {
             homingCenter=new Vec3(tag.getDouble("HomingX"),tag.getDouble("HomingY"),tag.getDouble("HomingZ"));
             homingHover=tag.contains("HoverX") ? new Vec3(tag.getDouble("HoverX"),tag.getDouble("HoverY"),tag.getDouble("HoverZ")) : position();
             homingTarget=tag.hasUUID("HomingTarget") ? tag.getUUID("HomingTarget") : null;
-            if (!homingLaunched && tag.hasUUID("HomingMoveTarget")) homingMoveTarget=tag.getUUID("HomingMoveTarget");
+            if (!homingLaunched && tag.hasUUID("HomingMoveTarget")) {
+                var preferred = tag.getUUID("HomingMoveTarget");
+                if (tag.contains("HomingMoveActivation", net.minecraft.nbt.Tag.TAG_LONG)) {
+                    long started = tag.getLong("HomingMoveActivation");
+                    var action = tag.hasUUID("HomingMoveTable") && tag.hasUUID("HomingMoveRule")
+                            && tag.contains("HomingMoveAction", net.minecraft.nbt.Tag.TAG_INT)
+                            ? new ModuleMoveSet.ActionIdentity(tag.getUUID("HomingMoveTable"), tag.getUUID("HomingMoveRule"),
+                                    tag.getInt("HomingMoveAction"), started) : null;
+                    homingAim = new ModuleTargets.AttackAim(preferred, started, action);
+                } else homingAim = ModuleTargets.AttackAim.fixed(preferred);
+            }
         }
     }
 }
