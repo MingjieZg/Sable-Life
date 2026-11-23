@@ -2,6 +2,8 @@ package dev.sablelife.module;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Comparator;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class PatternGeometryTest {
@@ -14,6 +16,11 @@ class PatternGeometryTest {
         for (int i = 0; i < outline.size(); i++) {
             assertEquals(outline.get(i).b(), outline.get((i + 1) % outline.size()).a());
         }
+        // Positive local Y points down on an upright marked face.
+        var tip = outline.stream().map(PatternGeometry.Stroke::a)
+                .max(Comparator.comparingDouble(point -> point.y)).orElseThrow();
+        assertTrue(tip.y > 0 && Math.abs(tip.x) < .02);
+        assertTrue(outline.stream().anyMatch(edge -> edge.a().y < 0 && Math.abs(edge.a().x) > 1.5));
 
         var earlyCracks = PatternGeometry.strokes(SHIELD_FRACTURE, 6, 100, 1, 2);
         var lateCracks = PatternGeometry.strokes(SHIELD_FRACTURE, 19, 100, 1, 2);
@@ -46,6 +53,8 @@ class PatternGeometryTest {
         var firstDrift = later.getFirst().a().subtract(fast.getFirst().a());
         var secondDrift = later.get(3).a().subtract(fast.get(3).a());
         assertTrue(firstDrift.distanceTo(secondDrift) > .01);
+        assertTrue(later.stream().mapToDouble(edge -> edge.a().y).average().orElseThrow()
+                > fast.stream().mapToDouble(edge -> edge.a().y).average().orElseThrow());
     }
 
     @Test

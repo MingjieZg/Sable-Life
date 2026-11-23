@@ -8,7 +8,7 @@ import java.util.*;
 /** Deterministic local strokes; no particles, entities, terrain visits or per-frame network traffic. */
 public final class PatternGeometry {
     public record Stroke(Vec3 a,Vec3 b,float width,float alpha){}
-    // Unit coordinates in the marked face's right/up/forward frame.
+    // Draw the shield upright, then map it to the marked face's reference frame.
     private static final Vec3 SHIELD_IMPACT = shieldPoint(-.19, .13);
     private static final List<Vec3> SHIELD_RIM = List.of(
             shieldPoint(0, .97), shieldPoint(.64, .93), shieldPoint(.98, .69),
@@ -96,7 +96,8 @@ public final class PatternGeometry {
     }
 
     private static Vec3 shieldPoint(double x, double y) {
-        return new Vec3(x, y, .065 + .24 * Math.max(0, 1 - .56 * x * x - .65 * y * y));
+        // The visual frame points down on an upright wall, so positive local Y is the lower edge.
+        return new Vec3(x, -y, .065 + .24 * Math.max(0, 1 - .56 * x * x - .65 * y * y));
     }
 
     private static Vec3 shieldRim(int index) {
@@ -124,7 +125,7 @@ public final class PatternGeometry {
         Vec3 drift = outward.scale(push).add(0, 0, .26 + .09 * (index % 5));
         int tilt = index % 2 == 0 ? 1 : -1;
         shards.add(new ShieldShard(center, a.subtract(center), b.subtract(center), c.subtract(center),
-                drift, -tilt * (.7 + .18 * (index % 4)), outward.x * 1.3 + tilt * .22));
+                drift, tilt * (.7 + .18 * (index % 4)), outward.x * 1.3 + tilt * .22));
     }
 
     private static void shieldFracture(List<Stroke> out, double progress, double speed,
@@ -157,7 +158,7 @@ public final class PatternGeometry {
             var rotation = new Quaterniond();
             var rotated = new Vector3d();
             for (var shard : SHIELD_SHARDS) {
-                Vec3 center = shard.center().add(shard.drift().scale(travel)).add(0, -.72 * travel * flight, 0);
+                Vec3 center = shard.center().add(shard.drift().scale(travel)).add(0, .72 * travel * flight, 0);
                 rotation.rotationYXZ(shard.yaw() * travel, shard.pitch() * travel, 0);
                 Vec3 a = shieldVertex(shard.a(), center, size, rotation, rotated);
                 Vec3 b = shieldVertex(shard.b(), center, size, rotation, rotated);
