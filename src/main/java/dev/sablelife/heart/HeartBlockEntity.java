@@ -365,6 +365,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         result.putInt("Version", 1);
         for (String key : java.util.List.of("Relations", "MaxHealth", "DeathDelay", "RegenPerSecond", "RegenPercentPerSecond", "RegenDelay", "AdaptiveDefense", "KnockbackResistance", "VoidDeathHeight", "ForceChunkLoading", "AllowBreaking", "MiningMode", "MiningDrops", "AllowExplosion", "AllowLifeAttacks", "AllowSurvivalInteraction", "KillHeal", "TerrainBreaking", "DeathChances", "DeathWeights", "DeathWeighted", "DeathRolls", "ShowBossBar", "BossBarColor", "CreatureName", "DeathLoot", "DeathExperience", "DeathExperienceLevels", "DeathTemplateMode", "DeathTemplates", "Wireless"))
             if (saved.contains(key)) result.put(key, saved.get(key).copy());
+        result.getCompound("Relations").remove(BlueprintFaction.TAG);
         result.put("DetachedLimbCleanup", limbCleanup.saveSettings());
         result.getCompound("Wireless").putLong("Elapsed", 0);
         result.put("DeathPresentation", deathPresentation.save());
@@ -420,7 +421,9 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         if (name.codePointCount(0, name.length()) > 64 || name.codePoints().anyMatch(Character::isISOControl)) name = "";
         var loot = ResourceLocation.tryParse(data.getString("DeathLoot"));
         configureDormantHealth(maximum,Math.clamp(data.getInt("DeathDelay"), 0, HeartHealth.MAX_DEATH_DELAY));
-        relations.load(data.getCompound("Relations"));
+        var configurationRelations = copiedRelations.copy();
+        configurationRelations.remove(BlueprintFaction.TAG);
+        relations.load(configurationRelations);
         combatMusicHits = 0;
         terrainSettings.load(data.getCompound("TerrainBreaking"));terrainBreaker.clear();
         loadRegen(data); loadDefense(data); regenWait=regenDelay; regenProgress=0;
@@ -636,6 +639,12 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
 
     @Override public void onLoad() {
         super.onLoad();
+        var faction = relations.faction();
+        if (level instanceof ServerLevel server && relations.blueprintFaction() != null && faction != null
+                && !FactionRegistry.get(server.getServer()).known(faction)) {
+            relations.bindBlueprintFaction(null);
+            setChanged();
+        }
         dev.sablelife.ownership.LoadedCoreIndex.observe(this);
         dev.sablelife.ownership.LoadedCoreIndex.observeRemote(this);
     }
@@ -692,6 +701,10 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         }
         if (body.otherHearts() > 0) {
             player.displayClientMessage(Component.translatable("message.sablelife.multiple_hearts"), false);
+            return;
+        }
+        if (relations.hasPendingBlueprintFaction()) {
+            player.displayClientMessage(Component.translatable("command.sablelife.blueprint.faction_pending"), false);
             return;
         }
         if(isSurvivalCore()&&!prepareSurvivalActivation()){

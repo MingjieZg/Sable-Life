@@ -70,6 +70,8 @@ public final class HeartModules {
     private final ModuleDistortionTrail distortionTrail=new ModuleDistortionTrail();
     private final ModuleShockwave shockwave=new ModuleShockwave();
     private final ModuleHoverAnchor hoverAnchor = new ModuleHoverAnchor();
+    private final ModuleEntityPassThrough entityPassThrough = new ModuleEntityPassThrough();
+    private List<VirtualModule> passThroughModules;
     private final ModuleGyroscope gyroscope = new ModuleGyroscope();
     private final ModuleSignalTurn signalTurn=new ModuleSignalTurn();
     private final ModuleAutoFacing autoFacing = new ModuleAutoFacing();
@@ -120,6 +122,9 @@ public final class HeartModules {
             laser.tick(heart); pull.tick(heart); freeze.tick(heart); grab.tick(heart); quake.tick(heart);
             homing.tick(heart); itemDisplays.tick(heart); healthBars.tick(heart); shockwave.tick(heart); distortionTrail.tick(heart);
         }
+        if (passThroughModules == null)
+            passThroughModules = modules.stream().filter(module -> VirtualModule.ENTITY_PASS_THROUGH.equals(module.type())).toList();
+        entityPassThrough.tick(heart, passThroughModules);
         if (addonModules != null || ModuleTypes.hasExtensions()) {
             if (addonModules == null) addonModules = new AddonModuleRuntime();
             addonModules.tick(heart, modules, revision);
@@ -139,11 +144,11 @@ public final class HeartModules {
         propulsion.tick(heart);
         motionDamping.tick(heart);
     }
-    public void clearRuntime() { weaponSight.clear(); contactSensor.clear(); propulsion.clear(); motionDamping.clear(); if (addonModules != null) addonModules.clear(); armorBilling.clear(); blockInteraction.clear(); damageBoxes.clear(); summonedWeapons.clear(); signalLogic.clear();combatEvents.clear(); surfaceFields.clear(); distortionTrail.clear(); shockwave.clear(); hitCounter.clear();healthAdjustment.clear(); hoverAnchor.clear(); if(audioLevel!=null)audioModules.forEach(id->ModuleAudio.stop(audioLevel,id));audioModules.clear();audioLevel=null; commandTarget.clear(); linearMovement.clear(); gyroscope.clear(); signalTurn.clear(); autoFacing.clear(); commands.clear(); messageDisplay.clear(); hurtTriggers.clear(); combat.clear(); events.clear(); arena.clear(); groundStrike.clear(); sphereBlast.clear(); slash.clear(); laser.clear(); pull.clear();freeze.clear();grab.clear(); quake.clear(); homing.clear(); moveSets.clear(); sequence.clear(); healthPhase.clear(); damageAccumulation.clear(); partBreak.clear(); }
+    public void clearRuntime() { entityPassThrough.clear(); weaponSight.clear(); contactSensor.clear(); propulsion.clear(); motionDamping.clear(); if (addonModules != null) addonModules.clear(); armorBilling.clear(); blockInteraction.clear(); damageBoxes.clear(); summonedWeapons.clear(); signalLogic.clear();combatEvents.clear(); surfaceFields.clear(); distortionTrail.clear(); shockwave.clear(); hitCounter.clear();healthAdjustment.clear(); hoverAnchor.clear(); if(audioLevel!=null)audioModules.forEach(id->ModuleAudio.stop(audioLevel,id));audioModules.clear();audioLevel=null; commandTarget.clear(); linearMovement.clear(); gyroscope.clear(); signalTurn.clear(); autoFacing.clear(); commands.clear(); messageDisplay.clear(); hurtTriggers.clear(); combat.clear(); events.clear(); arena.clear(); groundStrike.clear(); sphereBlast.clear(); slash.clear(); laser.clear(); pull.clear();freeze.clear();grab.clear(); quake.clear(); homing.clear(); moveSets.clear(); sequence.clear(); healthPhase.clear(); damageAccumulation.clear(); partBreak.clear(); }
     public List<VirtualModule> all() { return List.copyOf(modules); }
     public VirtualModule find(UUID id) { return modules.stream().filter(m -> m.id().equals(id)).findFirst().orElse(null); }
     public int revision() { return revision; }
-    public void changed() { contactModules=null; revision++; partBreakModules = null; messageModules = null; }
+    public void changed() { contactModules=null; passThroughModules = null; revision++; partBreakModules = null; messageModules = null; }
 
     boolean assignGroups(String group, String encodedIds, boolean replaceGroup) {
         if (!ModuleFolders.valid(group) || encodedIds.length() > ModuleNetworking.Action.GROUP_BATCH_TEXT_LIMIT) return false;
@@ -303,8 +308,12 @@ public final class HeartModules {
         if(SignalRules.supported(module.type()))return module.enabled()?"valid":"disabled";
         if(module.type().equals("surface_field"))return module.enabled()?"valid":"disabled";
         if(TargetCastOrigin.targeted(module))return module.enabled()?"valid":"disabled";
-        // Whole-creature protection has no dependency on its retained per-part Mark.
+        // A whole-body scope has no dependency on its retained per-part Mark.
         if(module.type().equals("armor")&&module.value("armorWholeBody")==1)return module.enabled()?"valid":"disabled";
+        if (VirtualModule.ENTITY_PASS_THROUGH.equals(module.type())) {
+            if (ModuleEntityPassThrough.wholeBody(module)) return module.enabled() ? "valid" : "disabled";
+            if (module.anchors().size() != 1) return "unmarked";
+        }
         if (ModuleLinearMovement.worldDestination(module)) {
             if (heart.modules().linearMovement.hasActiveWorldPlan(module.id())
                     || heart.getLevel() instanceof net.minecraft.server.level.ServerLevel level
@@ -376,7 +385,7 @@ public final class HeartModules {
     public void load(CompoundTag tag) {
         clearRuntime();
         templateRevision=Integer.MIN_VALUE;templateCreature=null;
-        modules.clear(); contactModules=null; partBreakModules = null; messageModules = null; revision = tag.getInt("Revision"); var list = tag.getList("Modules", 10);
+        modules.clear(); contactModules=null; passThroughModules = null; partBreakModules = null; messageModules = null; revision = tag.getInt("Revision"); var list = tag.getList("Modules", 10);
         var loadedIds = new java.util.HashSet<UUID>();
         for (int i = 0; i < Math.min(LIMIT, list.size()); i++) {
             if(list.getCompound(i).getString("Type").equals("dispatch"))continue; // Removed standalone scheduler, not a move row.

@@ -77,42 +77,49 @@ public final class LinearMovementGeometry {
     /** Other bodies' enclosing boxes only select candidates; their air is never a collider. */
     private static boolean clearBodyShapes(ServerLevel level,dev.ryanhcode.sable.sublevel.SubLevel other,AABB target,
             CollisionWorkBudget.Budget budget,int[] visits){
+        return bodyShapeCheck(level,other,target,budget,visits)==ShapeCheck.CLEAR;
+    }
+
+    enum ShapeCheck { CLEAR, OVERLAP, INCOMPLETE }
+
+    static ShapeCheck bodyShapeCheck(ServerLevel level,dev.ryanhcode.sable.sublevel.SubLevel other,AABB target,
+            CollisionWorkBudget.Budget budget,int[] visits){
         var worldBounds=other.boundingBox();
-        if(!new AABB(worldBounds.minX(),worldBounds.minY(),worldBounds.minZ(),worldBounds.maxX(),worldBounds.maxY(),worldBounds.maxZ()).intersects(target))return true;
-        var plot=other.getPlot().getBoundingBox();if(plot==null)return true;
+        if(!new AABB(worldBounds.minX(),worldBounds.minY(),worldBounds.minZ(),worldBounds.maxX(),worldBounds.maxY(),worldBounds.maxZ()).intersects(target))return ShapeCheck.CLEAR;
+        var plot=other.getPlot().getBoundingBox();if(plot==null)return ShapeCheck.CLEAR;
         var pose=other.logicalPose();double minX=Double.POSITIVE_INFINITY,minY=minX,minZ=minX,maxX=Double.NEGATIVE_INFINITY,maxY=maxX,maxZ=maxX;
         for(int corner=0;corner<8;corner++){
             var local=pose.transformPositionInverse(new Vec3((corner&1)==0?target.minX:target.maxX,(corner&2)==0?target.minY:target.maxY,(corner&4)==0?target.minZ:target.maxZ));
-            if(!Double.isFinite(local.lengthSqr()))return false;
+            if(!Double.isFinite(local.lengthSqr()))return ShapeCheck.INCOMPLETE;
             minX=Math.min(minX,local.x);minY=Math.min(minY,local.y);minZ=Math.min(minZ,local.z);
             maxX=Math.max(maxX,local.x);maxY=Math.max(maxY,local.y);maxZ=Math.max(maxZ,local.z);
         }
         int x0=(int)Math.max(plot.minX(),Math.floor(minX)),x1=(int)Math.min(plot.maxX(),Math.floor(maxX));
         int y0=(int)Math.max(plot.minY(),Math.floor(minY)),y1=(int)Math.min(plot.maxY(),Math.floor(maxY));
         int z0=(int)Math.max(plot.minZ(),Math.floor(minZ)),z1=(int)Math.min(plot.maxZ(),Math.floor(maxZ));
-        if(x0>x1||y0>y1||z0>z1)return true;
+        if(x0>x1||y0>y1||z0>z1)return ShapeCheck.CLEAR;
         long dx=(long)x1-x0+1,dy=(long)y1-y0+1,dz=(long)z1-z0+1;int limit=32768-visits[0];
-        if(dx>limit||dy>limit||dz>limit||dx>limit/dy||dx*dy>limit/dz)return false;
-        int count=(int)(dx*dy*dz);if(!budget.spend(count))return false;
+        if(dx>limit||dy>limit||dz>limit||dx>limit/dy||dx*dy>limit/dz)return ShapeCheck.INCOMPLETE;
+        int count=(int)(dx*dy*dz);if(!budget.spend(count))return ShapeCheck.INCOMPLETE;
         visits[0]+=count;int checked=0;
         var area=new dev.sablelife.attack.AttackVolume(target.getCenter(),new Vec3(target.getXsize()/2,0,0),new Vec3(0,target.getYsize()/2,0),new Vec3(0,0,target.getZsize()/2));
         try{
             for(var pos:BlockPos.betweenClosed(x0,y0,z0,x1,y1,z1)){
-                checked++;if(!level.hasChunkAt(pos))return false;
+                checked++;if(!level.hasChunkAt(pos))return ShapeCheck.INCOMPLETE;
                 var state=level.getBlockState(pos);if(state.isAir())continue;
                 for(var shape:state.getCollisionShape(level,pos).toAabbs()){
-                    if(!budget.spend(1))return false;
+                    if(!budget.spend(1))return ShapeCheck.INCOMPLETE;
                     var local=shape.getCenter().add(pos.getX(),pos.getY(),pos.getZ());var center=pose.transformPosition(local);
                     // Transform each half-axis as well: rotated or scaled bodies retain their actual shape.
                     var voxel=new dev.sablelife.attack.AttackVolume(center,
                             pose.transformPosition(local.add(shape.getXsize()/2,0,0)).subtract(center),
                             pose.transformPosition(local.add(0,shape.getYsize()/2,0)).subtract(center),
                             pose.transformPosition(local.add(0,0,shape.getZsize()/2)).subtract(center));
-                    if(area.intersects(voxel))return false;
+                    if(area.intersects(voxel))return ShapeCheck.OVERLAP;
                 }
             }
         }finally{budget.refund(count-checked);}
-        return true;
+        return ShapeCheck.CLEAR;
     }
 
     /** Force mode skips colliders but never loads chunks or moves outside the world's valid destination. */

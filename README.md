@@ -6,11 +6,11 @@ Downloads, screenshots and the full gameplay description are available on [Curse
 
 ## Current Source Version
 
-**0.1.452**
+**0.1.456**
 
-[中文更新清单](docs/releases/0.1.452.md) · [English changelog](docs/releases/0.1.452_EN.md) · [Stress-test results](docs/TEST_REPORTS.md)
+[中文更新清单](docs/releases/0.1.456.md) · [English changelog](docs/releases/0.1.456_EN.md) · [Stress-test results](docs/TEST_REPORTS.md)
 
-GitHub stable release [0.1.440](https://github.com/MingjieZg/Sable-Life/releases/tag/v0.1.440) and pre-release [0.1.452-review.3](https://github.com/MingjieZg/Sable-Life/releases/tag/v0.1.452-review.3).
+The latest GitHub stable release is [0.1.440](https://github.com/MingjieZg/Sable-Life/releases/tag/v0.1.440). The previous candidate source is available at [v0.1.452-review.3](https://github.com/MingjieZg/Sable-Life/tree/v0.1.452-review.3).
 
 Minecraft **1.21.1** · **NeoForge** · **Java 21**
 

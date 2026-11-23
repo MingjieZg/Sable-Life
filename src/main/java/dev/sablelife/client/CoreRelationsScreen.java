@@ -32,7 +32,7 @@ public final class CoreRelationsScreen extends Screen {
     private final List<Button> availableButtons=new ArrayList<>(),excludedButtons=new ArrayList<>();
     private Button addMob,removeMob,leftMobPrev,leftMobNext,rightMobPrev,rightMobNext;
     private final List<Button> selectedButtons=new ArrayList<>();
-    public CoreRelationsScreen(Screen parent,HeartSettingsMenu menu){super(tr("title"));this.parent=parent;this.menu=menu;}
+    public CoreRelationsScreen(Screen parent,HeartSettingsMenu menu){super(tr("title"));this.parent=parent;this.menu=menu;factions=hasBlueprintFaction();}
     private static Component tr(String key,Object... args){return Component.translatable("relations.sablelife."+key,args);}
     private Component footer(String status){
         var note=tr(!status.isEmpty()?status:mobs?"mob_note":factions?"faction_note":"player_note",menu.snapshot().getInt("FactionCreationLimit"));
@@ -48,7 +48,9 @@ public final class CoreRelationsScreen extends Screen {
         return List.copyOf(all.values());
     }
     private UUID membership(){var r=menu.snapshot().getCompound("Relations");if(!r.hasUUID("Faction"))return null;var id=r.getUUID("Faction");return dev.sablelife.heart.FactionRegistry.WILDS.equals(id)||menu.snapshot().getList("Factions",10).stream().map(t->(CompoundTag)t).anyMatch(t->t.hasUUID("Id")&&id.equals(t.getUUID("Id")))?id:null;}
-    private String signature(){return menu.snapshot().getCompound("Relations").toString()+menu.snapshot().getList("Factions",10)+menu.snapshot().getString("RelationStatus")+menu.snapshot().getBoolean("LiveControls");}
+    private boolean hasBlueprintFaction(){return !menu.snapshot().getCompound("BlueprintFactionView").isEmpty();}
+    private String signature(){var snapshot=menu.snapshot();return snapshot.getCompound("Relations").toString()+snapshot.getList("Factions",10)+snapshot.getString("RelationStatus")+snapshot.getBoolean("LiveControls");}
+    private void openBlueprintFaction(UUID selected){minecraft.setScreen(new BlueprintFactionScreen(this,menu,selected));}
     private void tab(int value){factions=value==2;mobs=value==1;page=0;deleteUntil=0;deleteTarget=null;rebuildWidgets();}
     private void deleteSelected(UUID id){
         if(id==null)return;
@@ -68,7 +70,11 @@ public final class CoreRelationsScreen extends Screen {
         for(int i=0;i<3;i++){int index=i;var b=button(tr(List.of("players","mobs","factions").get(i)),x+10+i*(tabWidth+6),y+34,tabWidth,18,()->tab(index));if(i==(factions?2:mobs?1:0))selectedButtons.add(b);}
         if(mobs){initMobs(rowHeight);signature=signature();return;}
         var own=membership();
-        if(factions){
+        boolean blueprintFaction = factions && hasBlueprintFaction();
+        if(blueprintFaction){
+            var open = button(tr(own == null ? "bp_open_pending" : "bp_open_bound"),x+10,y+60,w-20,18,()->openBlueprintFaction(null));
+            open.setTooltip(Tooltip.create(tr("bp_open_help")));
+        }else if(factions){
             var input=addRenderableWidget(new EditBox(font,x+10,y+60,w-150,18,tr("name")));factionInput=input;input.setMaxLength(40);input.setValue(draft);input.setHint(tr("name"));input.setResponder(s->draft=s);
             button(tr("create"),x+w-134,y+60,60,18,()->send("create",draft));
             deleteButton=button(tr(deleteUntil>net.minecraft.Util.getMillis()&&Objects.equals(own,deleteTarget)?"confirm_delete":"delete"),x+w-70,y+60,60,18,()->deleteSelected(own));
@@ -94,10 +100,14 @@ public final class CoreRelationsScreen extends Screen {
                         .append(font.plainSubstrByWidth(r.getString("Name"),nameWidth)).append("    ")
                         .append(Component.literal(suffix).withStyle(net.minecraft.ChatFormatting.GRAY));
                 if(id!=null)label.append(visibility).append(invitation);
-                var b=button(label,x+10,py,w-210,rowHeight,()->{deleteUntil=0;deleteTarget=null;send(id==null?"leave":"join",id==null?"":id.toString());});
+                var b=button(label,x+10,py,w-210,rowHeight,()->{
+                    deleteUntil=0;deleteTarget=null;
+                    if (blueprintFaction) openBlueprintFaction(id);
+                    else send(id==null?"leave":"join",id==null?"":id.toString());
+                });
                 b.active=id==null||r.getBoolean("CanJoin");
                 if(Objects.equals(own,id))selectedButtons.add(b);
-                b.setTooltip(Tooltip.create(fullLabel.copy().append("\n").append(tr("join_help")).append(id==null?"":"\n"+id)));
+                b.setTooltip(Tooltip.create(fullLabel.copy().append("\n").append(tr(blueprintFaction?"bp_open_help":"join_help")).append(id==null?"":"\n"+id)));
                 if(id!=null){button(tr("details"),x+w-195,py,72,rowHeight,()->{send("select",id.toString());minecraft.setScreen(new FactionDetailsScreen(this,menu,id));});var ff=button(tr(r.getBoolean("FriendlyFire")?"ff_on":"ff_off"),x+w-117,py,107,rowHeight,()->send("friendlyFire",id.toString()));ff.active=r.getBoolean("Manage");}
             }else{
                 String name=r.getString("Name");var label=button(Component.literal(name),px,py,cellWidth-16,rowHeight,()->{});label.setTooltip(Tooltip.create(Component.literal(name).append("\n").append(tr("exclude_help"))));

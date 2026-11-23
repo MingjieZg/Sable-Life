@@ -78,9 +78,14 @@ public final class ModulePickerScreen extends Screen {
 
     }
     private static int catalogOrder(String type){
-        // Keep contact detection beside target detection rather than after newer functions.
-        int index=VirtualModule.AVAILABLE_TYPES.indexOf(type.equals("contact_sensor")?"sensor":type);
-        return index<0?Integer.MAX_VALUE:index*2+(type.equals("contact_sensor")?1:0);
+        // Keep related modules together without changing their capability bits.
+        String neighbor = switch (type) {
+            case "contact_sensor" -> "sensor";
+            case VirtualModule.ENTITY_PASS_THROUGH -> "armor";
+            default -> type;
+        };
+        int index = VirtualModule.AVAILABLE_TYPES.indexOf(neighbor);
+        return index < 0 ? Integer.MAX_VALUE : index * 2 + (type.equals(neighbor) ? 0 : 1);
     }
     private void sortPreset(String neighbor){if(selected==null||selected.preset==null)return;try{ModulePresetLibrary.moveRelative(selected.name,neighbor);deleteUntil=0;lastClick=0;followSorted=true;rebuildWidgets();}catch(java.io.IOException e){error=tr("failed");}}
     private void loadSelected(){if(selected==null||!parent.canAddModule())return;if(selected.preset==null)parent.addType(selected.type);else parent.addPreset(selected.preset.module());onClose();}

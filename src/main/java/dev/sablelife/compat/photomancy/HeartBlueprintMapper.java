@@ -22,7 +22,10 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
     public static void register() {
         SableBlueprintEventRegistry.register(new SableBlueprintEvent(){
             @Override public net.minecraft.resources.ResourceLocation id(){return net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("sablelife","respawn_placement");}
-            @Override public void onPlaceBeforeBlocks(BlueprintPlaceSession session,CompoundTag data){PhotomancyRespawnBridge.observePlacement(session);}
+            @Override public void onPlaceBeforeBlocks(BlueprintPlaceSession session, CompoundTag data) {
+                BlueprintFactionPlacement.observe(session.level(), session);
+                PhotomancyRespawnBridge.observePlacement(session);
+            }
         });
         SableBlueprintMapperRegistry.register(SableLife.HEART_ENTITY.get(), new HeartBlueprintMapper());
         com.mojang.logging.LogUtils.getLogger().info("Registered Sable Life Heart blueprint mapper for Photomancy");
@@ -32,6 +35,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
         if (defaultTag == null || !(context.blockEntity() instanceof HeartBlockEntity heart)) return defaultTag;
         var tag = defaultTag.copy();
         resetRuntime(tag);
+        BlueprintFactionTags.export(context, heart, tag);
         var references = dev.sablelife.ownership.BlueprintSpawns.references(heart);
         if (!references.isEmpty()) tag.put(dev.sablelife.ownership.BlueprintSpawns.SAVED_REFERENCES,references);
         var parts = dev.ryanhcode.sable.api.SubLevelHelper.getConnectedChain(context.subLevel()).stream()
@@ -110,6 +114,7 @@ public final class HeartBlueprintMapper implements SableBlueprintBlockMapper {
         resetRuntime(tag);
         tag.remove(dev.sablelife.ownership.BlueprintSpawns.SAVED_REFERENCES);
         tag.putUUID("CreatureId", UUID.randomUUID());
+        BlueprintFactionTags.restore(context, tag);
         mapWirelessFaces(tag, mark -> placeMark(context, mark));
         for (var entry : tag.getCompound("VirtualModules").getList("Modules", 10)) {
             var module = (CompoundTag) entry;

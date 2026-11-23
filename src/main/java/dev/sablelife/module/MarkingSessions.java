@@ -130,6 +130,7 @@ public final class MarkingSessions {
             case "linear_movement" -> ModuleLinearMovement.worldDestination(module) ? "move_world_point" : "point";
             case "auto_facing", "signal_turn" -> "auto_facing_point";
             case "navigation" -> "navigation_point";
+            case VirtualModule.ENTITY_PASS_THROUGH -> "pass_through_point";
             default -> module.area() ? (second ? "second" : "first") : "point";
         };
         player.displayClientMessage(Component.translatable("dashboard.sablelife.mark_" + key), true);

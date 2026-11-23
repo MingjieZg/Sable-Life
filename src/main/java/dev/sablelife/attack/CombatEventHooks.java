@@ -24,7 +24,9 @@ public final class CombatEventHooks {
   emit(level,event.getSource(),0,victim instanceof net.minecraft.world.entity.player.Player?0:1,victim.getUUID());
  }
  @SubscribeEvent(priority=EventPriority.LOWEST) public static void shield(LivingShieldBlockEvent event){
-  if(event.isCanceled()||!event.getBlocked()||event.getBlockedDamage()<=0||!(event.getEntity().level() instanceof ServerLevel level))return;
+  if(!(event.getEntity().level() instanceof ServerLevel level))return;
+  if(event.getDamageSource() instanceof BodyMeleeSource body)body.observeShieldBlock(event);
+  if(event.isCanceled()||!event.getBlocked()||event.getBlockedDamage()<=0)return;
   if(event.getDamageSource() instanceof BodyMeleeSource body)body.blocked(1);
   else emit(level,event.getDamageSource(),2,1,event.getEntity().getUUID());
  }

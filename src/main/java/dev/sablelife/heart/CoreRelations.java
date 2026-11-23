@@ -40,6 +40,7 @@ public final class CoreRelations {
     private final Map<String,String> excluded=new LinkedHashMap<>();
     private final Set<ResourceLocation> excludedMobs=new LinkedHashSet<>();
     private UUID faction;
+    private BlueprintFaction blueprintFaction;
     private int priority;
     private String ownerName="";
     public String ownerName(){return ownerName;}
@@ -48,7 +49,15 @@ public final class CoreRelations {
     public int priority(){return priority;}
     public void priority(int value){priority=Math.clamp(value,0,3);}
     public UUID faction(){return faction;}
-    public void faction(UUID id){faction=id;}
+    public void faction(UUID id) {
+        faction = id;
+        blueprintFaction = null;
+    }
+    public BlueprintFaction blueprintFaction() { return blueprintFaction; }
+    public boolean hasPendingBlueprintFaction() { return blueprintFaction != null && faction == null; }
+    public void blueprintFaction(BlueprintFaction source) { blueprintFaction = source; }
+    public void bindBlueprintFaction(UUID id) { faction = id; }
+    public void clearBlueprintFaction() { faction(null); }
     private static String key(String name){return name.strip().toLowerCase(Locale.ROOT);}
     public boolean excludes(String name){return name!=null&&excluded.containsKey(key(name));}
     public boolean exclude(String name){if(name==null)return false;name=name.strip();if(!name.matches("[A-Za-z0-9_]{1,16}"))return false;String key=key(name);if(!excluded.containsKey(key)&&excluded.size()>=LIMIT)return false;excluded.put(key,name);return true;}
@@ -71,10 +80,38 @@ public final class CoreRelations {
         return true;
     }
     public boolean removeMob(String text){var id=mobId(text);return id!=null&&excludedMobs.remove(id);}
-    public CompoundTag save(){var t=new CompoundTag();t.putInt("TargetPriority",priority);t.putString("OwnerName",ownerName);if(faction!=null)t.putUUID("Faction",faction);var list=new ListTag();excluded.values().forEach(name->list.add(StringTag.valueOf(name)));t.put("ExcludedNames",list);var mobs=new ListTag();excludedMobs.forEach(id->mobs.add(StringTag.valueOf(id.toString())));t.put("ExcludedMobs",mobs);return t;}
-    public void load(CompoundTag t){excluded.clear();excludedMobs.clear();ownerName="";ownerName(t.getString("OwnerName"));priority(t.getInt("TargetPriority"));faction=t.hasUUID("Faction")?t.getUUID("Faction"):null;for(var v:t.getList("ExcludedNames",8))exclude(v.getAsString());for(var v:t.getList("Excluded",10))exclude(((CompoundTag)v).getString("Name"));
+    public CompoundTag save() {
+        var tag = new CompoundTag();
+        tag.putInt("TargetPriority", priority);
+        tag.putString("OwnerName", ownerName);
+        if (faction != null) tag.putUUID("Faction", faction);
+        if (blueprintFaction != null) tag.put(BlueprintFaction.TAG, blueprintFaction.save());
+        var players = new ListTag();
+        excluded.values().forEach(name -> players.add(StringTag.valueOf(name)));
+        tag.put("ExcludedNames", players);
+        var mobs = new ListTag();
+        excludedMobs.forEach(id -> mobs.add(StringTag.valueOf(id.toString())));
+        tag.put("ExcludedMobs", mobs);
+        return tag;
+    }
+
+    public void load(CompoundTag tag) {
+        excluded.clear();
+        excludedMobs.clear();
+        ownerName = "";
+        ownerName(tag.getString("OwnerName"));
+        priority(tag.getInt("TargetPriority"));
+        faction = tag.hasUUID("Faction") ? tag.getUUID("Faction") : null;
+        blueprintFaction = BlueprintFaction.read(tag.getCompound(BlueprintFaction.TAG));
+        for (var name : tag.getList("ExcludedNames", Tag.TAG_STRING)) exclude(name.getAsString());
+        for (var entry : tag.getList("Excluded", Tag.TAG_COMPOUND)) exclude(((CompoundTag) entry).getString("Name"));
         // Preserve well-formed IDs from absent mods when moving a blueprint between servers.
-        for(var v:t.getList("ExcludedMobs",8)){if(excludedMobs.size()>=LIMIT)break;var id=mobId(v.getAsString());if(id!=null)excludedMobs.add(id);}}
+        for (var entry : tag.getList("ExcludedMobs", Tag.TAG_STRING)) {
+            if (excludedMobs.size() >= LIMIT) break;
+            var id = mobId(entry.getAsString());
+            if (id != null) excludedMobs.add(id);
+        }
+    }
     public static boolean allies(HeartBlockEntity a,HeartBlockEntity b){return a!=null&&b!=null&&a.getLevel() instanceof ServerLevel level&&FactionRegistry.get(level.getServer()).allied(a.relations().faction,b.relations().faction);}
     public static boolean targetAllowed(ServerLevel level, UUID owner, LivingEntity target) {
         var core = LoadedCoreIndex.find(level, owner);

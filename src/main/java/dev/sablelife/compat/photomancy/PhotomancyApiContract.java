@@ -10,9 +10,15 @@ public final class PhotomancyApiContract {
     static final String API = "dev/rew1nd/sableschematicapi/";
     public static final String FILE_LOAD = "load(Lnet/minecraft/server/MinecraftServer;Lnet/minecraft/server/level/ServerLevel;"
             + "Lnet/minecraft/world/phys/Vec3;Ljava/lang/String;)L" + API + "blueprint/tool/BlueprintToolResult;";
+    private static final String TOOL_SERVICE = API + "blueprint/tool/BlueprintToolService";
+    private static final String BYTES_LOAD = "loadBytes(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;[BLjava/lang/String;)L" + API + "blueprint/tool/BlueprintToolResult;";
+    public static final String FILE_LOAD_INVOKE = "L" + TOOL_SERVICE + ";" + FILE_LOAD;
+    public static final String BYTES_LOAD_INVOKE = "L" + TOOL_SERVICE + ";" + BYTES_LOAD;
+    public static final String COMMAND_LOAD = "loadSchematic(Lcom/mojang/brigadier/context/CommandContext;)I";
+    public static final String TOOL_LOAD = "handleLoadBlueprint(Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/nbt/CompoundTag;)V";
     private static final String BRIDGE = "dev/sablelife/compat/photomancy/";
     private static final List<String> CONSUMERS = List.of(BRIDGE+"HeartBlueprintMapper", BRIDGE+"HeartBlueprintMapper$1",
-            BRIDGE+"SpawnTemplateBridge", BRIDGE+"PhotomancyRespawnBridge", BRIDGE+"PhotomancyRespawnBridge$Build", "dev/sablelife/mixin/RespawnBlueprintNbtMixin");
+            BRIDGE+"BlueprintFactionTags", BRIDGE+"SpawnTemplateBridge", BRIDGE+"PhotomancyRespawnBridge", BRIDGE+"PhotomancyRespawnBridge$Build", "dev/sablelife/mixin/RespawnBlueprintNbtMixin");
     public record Result(boolean compatible, String reason) {}
     private record Member(String owner, String name, String descriptor, boolean field, boolean isStatic, Boolean interfaceOwner) {}
 
@@ -96,12 +102,17 @@ public final class PhotomancyApiContract {
             String owner=switch(simple){
                 case "RespawnBuildDiagnosticsMixin" -> API+"survival/SableBlueprintIncrementalPlacer";
                 case "BlueprintToolFailureDiagnosticsMixin", "BlueprintFileLoadDiagnosticsMixin" -> API+"blueprint/tool/BlueprintToolService";
-                case "BlueprintToolFailureMessageMixin" -> API+"network/BlueprintToolServerActions";
+                case "BlueprintToolFailureMessageMixin", "BlueprintToolFactionActorMixin" -> API+"network/BlueprintToolServerActions";
+                case "BlueprintCommandFactionActorMixin" -> API+"command/SableBlueprintCommands";
                 default -> "";
             };
             var node=read(provider,owner);if(node==null)return false;
             for(var m:node.methods) {
                 if((m.access&Opcodes.ACC_STATIC)==0)continue;
+                if(simple.equals("BlueprintCommandFactionActorMixin")&&(m.name+m.desc).equals(COMMAND_LOAD)
+                        &&callsExactlyOnce(m, TOOL_SERVICE, FILE_LOAD))return true;
+                if(simple.equals("BlueprintToolFactionActorMixin")&&(m.name+m.desc).equals(TOOL_LOAD)
+                        &&callsExactlyOnce(m, TOOL_SERVICE, BYTES_LOAD))return true;
                 if(simple.equals("BlueprintToolFailureDiagnosticsMixin")&&m.name.equals("loadBytes")&&m.desc.equals("(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;[BLjava/lang/String;)L"+API+"blueprint/tool/BlueprintToolResult;"))return true;
                 if(simple.equals("BlueprintFileLoadDiagnosticsMixin")&&(m.name+m.desc).equals(FILE_LOAD)
                         &&calls(m,"java/lang/Exception","getMessage","()Ljava/lang/String;"))return true;
@@ -111,6 +122,15 @@ public final class PhotomancyApiContract {
         }catch(RuntimeException ignored){}
         return false;
     }
+    private static boolean callsExactlyOnce(MethodNode method, String owner, String selector) {
+        int matches = 0;
+        for (var instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call && call.getOpcode() == Opcodes.INVOKESTATIC
+                    && call.owner.equals(owner) && (call.name + call.desc).equals(selector)) matches++;
+        }
+        return matches == 1;
+    }
+
     private static boolean calls(MethodNode method,String owner,String name,String descriptor){for(var i:method.instructions)if(i instanceof MethodInsnNode m&&m.owner.equals(owner)&&m.name.equals(name)&&m.desc.equals(descriptor))return true;return false;}
     private static ClassNode read(Function<String,byte[]> source,String name){var data=source.apply(name);if(data==null)return null;var node=new ClassNode();new ClassReader(data).accept(node,0);return node;}
     private PhotomancyApiContract(){}

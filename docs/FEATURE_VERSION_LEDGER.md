@@ -17,7 +17,7 @@
 
 ## 已登记的功能点
 
-推进与运动阻尼登记为第117、118项；推进世界方向为第119项，观察工具的生存合成获取为第120项。后续新增项登记至第129项，当前源码版本为 0.1.452。第128、129项同时纳入本地候选版。 / Entries now run through 129. The local 0.1.452 candidate includes entries 128 and 129. Follow-up fixes do not add feature numbers.
+推进与运动阻尼登记为第 117、118 项，推进世界方向为第 119 项，观察工具的生存合成为第 120 项。0.1.452 包含第 128、129 项。0.1.456 合入第 130–133 项，累计 133 项。 / Version 0.1.452 adds entries 128 and 129. Version 0.1.456 includes entries 130–133, bringing the total to 133 registered features.
 
 1. 核心玩家名字白名单，支持离线名字、忽略大小写及 All 目标。
 2. 每核心目标优先级排序。
@@ -228,3 +228,11 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 128. 0.1.452：生存生命核心的模块地形破坏可由服主统一关闭，涵盖近战、激光与爆破。 / Server owners can disable terrain damage from Survival Heart Core melee, lasers, and blasts.
 
 129. 0.1.452：可设置失去视线后的目标保留时间，Target Alignment 和 Move Set 可以共用目标传感器的目标记录。 / Configurable target retention after losing sight, with shared Target Sensor records for Target Alignment and Move Set.
+
+130. 0.1.452-review.4：Photomancy 蓝图携带阵营设置和直接盟友引用。玩家可在目标地图绑定、另建或跳过，确认的映射随目标存档保存。 / Photomancy blueprints carry faction settings and direct ally references, with permission-checked assignment and saved mappings in the destination world.
+
+131. 实体穿透测试版：按标记或全身范围，为已触发的生命体关闭玩家和生物的移动碰撞。手册修订 256。 / Entity Pass-Through lets players and mobs move through a marked substructure or the whole connected body while triggered. Manual revision 256.
+
+132. 近战破盾测试版：玩家成功格挡启用破盾的近战攻击后，盾牌进入原版 5 秒冷却。可选音效从被破盾玩家的位置播放给附近其他玩家。手册修订 258。 / Melee shield disabling applies the vanilla five-second cooldown when a player blocks a hit. An optional positional sound plays for nearby players when the shield is disabled. Manual revision 258.
+
+133. 近战击退控制。额外击退为 0 时可编辑「原版受伤击退」，默认开启。额外击退大于 0 时原版击退同时生效，归零后恢复保存的选择。手册修订 259。 / Melee can disable Vanilla hurt knockback when Extra knockback is zero. It defaults to On. Positive Extra knockback enables both, and returning to zero restores the saved choice. Manual revision 259.

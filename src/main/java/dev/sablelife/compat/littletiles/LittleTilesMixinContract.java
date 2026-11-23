@@ -37,6 +37,7 @@ public final class LittleTilesMixinContract {
             var buffer = read(BASE + "cache/buffer/BufferCache", reader);
             if (cache == null || pipeline == null || render == null || tiles == null || buffer == null) return false;
             var upload = method(cache, CACHE_UPLOAD, false);
+            var inQueue = method(render, "isInQueue()Z", false);
             return method(cache, CACHE_GET_UPLOADED, false) != null
                     && method(cache, CACHE_SET_BUFFERS, false) != null
                     && method(cache, CACHE_SET_EMPTY, false) != null
@@ -47,6 +48,7 @@ public final class LittleTilesMixinContract {
                     && method(pipeline, "upload" + UPLOAD, true) != null
                     && method(render, "buffers()L" + BASE + "cache/IBlockBufferCache;", false) != null
                     && method(render, "queue(ZZJ)V", false) != null
+                    && inQueue != null && (inQueue.access & Opcodes.ACC_PUBLIC) != 0
                     && tiles.fields.stream().anyMatch(f -> f.name.equals("render") && f.desc.equals("L" + BASE + "block/BERenderManager;") && (f.access & Opcodes.ACC_PUBLIC) != 0 && (f.access & Opcodes.ACC_STATIC) == 0)
                     && method(buffer, "isInvalid()Z", false) != null
                     && method(buffer, "isEmpty()Z", false) != null;

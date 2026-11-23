@@ -27,11 +27,11 @@ final class ModulePropertyHelp {
         }
         return Component.translatable("dashboard.sablelife."+(m.type().equals("surface_field")&&key.equals("density")?"fieldParticleDensity":m.type().equals("summoned_weapon")&&key.equals("projectile")?"summonItem":m.type().equals("summoned_weapon")&&key.equals("displaySize")?"summonScale":m.type().equals("freeze")&&key.equals("fieldAngle")?"freezeAngle":m.type().equals("grab")&&key.equals("particles")?"grabParticles":m.type().equals("freeze")&&key.equals("particles")?"freezeParticles":m.type().equals("surface_field")&&key.equals("target")?"fieldTarget":m.type().equals("surface_field")&&key.equals("burn")?"fieldBurnDuration":m.type().equals("slash")&&key.equals("burn")?"slashBurnDuration":m.type().equals("slash")&&key.equals("flightSound")?"slashReleaseSound":m.type().equals("slash")&&key.equals("range")?"slash_range":m.type().equals("quake") && key.equals("quakeRange") ? m.value("quakeMode") == 0 ? "quake_length" : "quake_radius" : m.type().equals("ground_strike") && m.value("strikeMode") == 3 && List.of("strikeRange", "waveDelay").contains(key) ? "random_" + key : key.equals("speed") && (m.type().equals("gun") || m.type().equals("mortar")) ? m.type() + "_speed"
                     : key.equals("speed") && m.type().equals("homing") ? "homing_speed" : key.equals("particles") && List.of("arrow", "gun", "mortar", "homing").contains(m.type()) ? "flight_particles"
-                    : key.equals("arrows") && m.type().equals("gun") ? "bullets" : key.equals("interval") && m.type().equals("laser") ? "burstInterval" : key));}
+                    : key.equals("arrows") && m.type().equals("gun") ? "bullets" : key.equals("interval") && m.type().equals("laser") ? "burstInterval" : presentationKey(m,key)));}
     static Component text(VirtualModule module,ModuleFields.Field field){
         String prefix="dashboard.sablelife.property_help.",key=field.key();
         String specific=prefix+module.type()+"."+key;
-        String shared=prefix+(dev.sablelife.module.ArenaBattleTitle.isTemplate(key) ? "arenaBattleTitle" : key);
+        String shared=prefix+(dev.sablelife.module.ArenaBattleTitle.isTemplate(key) ? "arenaBattleTitle" : presentationKey(module,key));
         Component detail;
         if(I18n.exists(specific))detail=Component.translatable(specific);
         else if(I18n.exists(shared))detail=Component.translatable(shared);
@@ -46,6 +46,9 @@ final class ModulePropertyHelp {
         else detail=Component.translatable(prefix+"choice");
         return Component.empty().append(label(module,key).copy().withStyle(net.minecraft.ChatFormatting.BOLD))
                 .append("\n").append(detail);
+    }
+    private static String presentationKey(VirtualModule module, String key) {
+        return module.type().equals("melee") && key.equals("knockback") ? "meleeExtraKnockback" : key;
     }
     private static String number(double value){return java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();}
     static Tooltip tooltip(VirtualModule module,ModuleFields.Field field){return Tooltip.create(text(module,field));}

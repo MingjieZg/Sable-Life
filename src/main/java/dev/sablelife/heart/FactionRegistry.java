@@ -11,7 +11,19 @@ import net.minecraft.world.level.saveddata.SavedData;
 @net.neoforged.fml.common.EventBusSubscriber(modid="sablelife")
 public final class FactionRegistry extends SavedData {
     public static final UUID WILDS = UUID.fromString("79a3db0b-383b-4cff-8091-56cf35776e4a");
+    static final int MAX_FACTIONS = 256;
     private static final int PLAYER_LIMIT=128;
+    private static final int MAX_PLAYER_BLUEPRINT_MAPPINGS = MAX_FACTIONS;
+    private static final int MAX_WORLD_BLUEPRINT_MAPPINGS = 16_384;
+    private static final String BLUEPRINT_WORLD = "BlueprintFactionWorld";
+    private static final String BLUEPRINT_MAPPINGS = "BlueprintFactionMappings";
+
+    private record BlueprintSource(UUID world, UUID faction) {
+        BlueprintSource(BlueprintFaction source) { this(source.sourceWorld(), source.sourceFaction()); }
+    }
+
+    public record BlueprintFactionCreation(UUID id, String error) {}
+
     private static final class Faction {
         final UUID id,owner;
         final String name;
@@ -23,6 +35,9 @@ public final class FactionRegistry extends SavedData {
     }
     private final Map<UUID,Faction> factions=new LinkedHashMap<>();
     private final Map<UUID,String> players=new LinkedHashMap<>();
+    private final Map<UUID,Map<BlueprintSource,UUID>> blueprintMappings = new LinkedHashMap<>();
+    private int blueprintMappingCount;
+    private UUID blueprintWorld = UUID.randomUUID();
     public void observe(ServerPlayer player){String name=player.getGameProfile().getName();if(!name.equals(players.put(player.getUUID(),name)))setDirty();}
     @net.neoforged.bus.api.SubscribeEvent
     public static void login(net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event){if(event.getEntity() instanceof ServerPlayer player)get(player.server).observe(player);}
@@ -43,17 +58,139 @@ public final class FactionRegistry extends SavedData {
         String name=text.strip();
         if(name.isEmpty())return "faction_name_required";
         if(name.equalsIgnoreCase("Wilds"))return "faction_name_reserved";
-        if(name.codePointCount(0,name.length())>40||name.codePoints().anyMatch(Character::isISOControl))return "faction_name_invalid";
-        if(factions.values().stream().anyMatch(f->f.name.equalsIgnoreCase(name)))return "faction_name_duplicate";
-        if(factions.size()>=256)return "faction_server_limit";
+        if(!BlueprintFaction.validName(name))return "faction_name_invalid";
+        if(nameInUse(name))return "faction_name_duplicate";
+        if(factions.size()>=MAX_FACTIONS)return "faction_server_limit";
         int limit=dev.sablelife.SableLifeServerConfig.maximumFactionsPerPlayer();
         if(limit>0&&!player.hasPermissions(2)&&factions.values().stream().filter(f->f.owner.equals(player.getUUID())).count()>=limit)return "faction_player_limit";
         return "";
     }
     public UUID create(ServerPlayer player,String text){
         if(!creationError(player,text).isEmpty())return null;
-        String name=text.strip();
-        var id=UUID.randomUUID();factions.put(id,new Faction(id,player.getUUID(),name,player.getGameProfile().getName()));setDirty();return id;
+        var faction = addFaction(player, text.strip());
+        setDirty();
+        return faction.id;
+    }
+
+    private Faction addFaction(ServerPlayer player, String name) {
+        var faction = new Faction(UUID.randomUUID(), player.getUUID(), name, player.getGameProfile().getName());
+        factions.put(faction.id, faction);
+        return faction;
+    }
+
+    private boolean nameInUse(String name) {
+        return factions.values().stream().anyMatch(faction -> faction.name.equalsIgnoreCase(name));
+    }
+
+    public BlueprintFaction portable(UUID faction) {
+        var source = factions.get(faction);
+        if (source == null) return null;
+        var allies = new ArrayList<BlueprintFaction.Ally>();
+        for (var id : source.allies) {
+            if (id.equals(faction) || !allied(faction, id)) continue;
+            allies.add(new BlueprintFaction.Ally(id, portableName(factions.get(id).name)));
+        }
+        return new BlueprintFaction(blueprintWorld, faction, portableName(source.name), true,
+                source.privateFaction, source.friendlyFire, source.alliedFire, allies);
+    }
+
+    private static String portableName(String name) {
+        return BlueprintFaction.validName(name) && !name.equalsIgnoreCase("Wilds") ? name : "";
+    }
+
+    public UUID resolveBlueprintFaction(ServerPlayer actor, BlueprintFaction source) {
+        return source == null ? null : resolveBlueprintFaction(actor, source.sourceWorld(), source.sourceFaction());
+    }
+
+    public UUID resolveBlueprintFaction(ServerPlayer actor, UUID world, UUID faction) {
+        if (!BlueprintFaction.userFaction(faction)) return null;
+        var remembered = rememberedBlueprintFaction(actor.getUUID(), new BlueprintSource(world, faction));
+        // An explicit binding remains authoritative if it becomes unavailable, including across a restart.
+        var destination = remembered != null ? remembered : localBlueprintFaction(world, faction);
+        return canAssign(actor, destination) ? destination : null;
+    }
+
+    /** For existing server-authorized, actorless template placement. Never uses player mappings. */
+    public UUID resolveTrustedBlueprintFaction(BlueprintFaction source) {
+        return source == null ? null : localBlueprintFaction(source.sourceWorld(), source.sourceFaction());
+    }
+
+    private UUID localBlueprintFaction(UUID world, UUID faction) {
+        return (world == null || blueprintWorld.equals(world)) && contains(faction) ? faction : null;
+    }
+
+    public String suggestBlueprintFactionName(BlueprintFaction source) {
+        String name = source != null ? portableName(source.name()).strip() : "";
+        if (name.isEmpty()) name = "Blueprint Faction";
+        if (!nameInUse(name)) return name;
+        int points = name.codePointCount(0, name.length());
+        for (int i = 1; i <= MAX_FACTIONS; i++) {
+            String suffix = i == 1 ? " (Blueprint)" : " (Blueprint " + i + ")";
+            int end = name.offsetByCodePoints(0, Math.min(points, BlueprintFaction.MAX_NAME_POINTS - suffix.length()));
+            String candidate = name.substring(0, end).stripTrailing() + suffix;
+            if (!nameInUse(candidate)) return candidate;
+        }
+        return "";
+    }
+
+    public boolean bindBlueprintFaction(ServerPlayer actor, BlueprintFaction source, UUID destination) {
+        if (source == null || !canAssign(actor, destination)) return false;
+        var key = new BlueprintSource(source);
+        if (!canRememberBlueprintFaction(actor.getUUID(), key)) return false;
+        if (rememberBlueprintFaction(actor.getUUID(), key, destination)) setDirty();
+        return true;
+    }
+
+    public BlueprintFactionCreation createBlueprintFaction(ServerPlayer actor, BlueprintFaction source, String name,
+            boolean privateFaction, boolean friendlyFire, boolean alliedFire) {
+        if (source == null) return new BlueprintFactionCreation(null, "denied");
+        var player = actor.getUUID();
+        var key = new BlueprintSource(source);
+        var existing = rememberedBlueprintFaction(player, key);
+        if (canAssign(actor, existing)) return new BlueprintFactionCreation(existing, "");
+        String error = creationError(actor, name);
+        if (!error.isEmpty()) return new BlueprintFactionCreation(null, error);
+        if (!canRememberBlueprintFaction(player, key)) return new BlueprintFactionCreation(null, "faction_mapping_limit");
+
+        var faction = addFaction(actor, name.strip());
+        faction.privateFaction = privateFaction;
+        faction.friendlyFire = friendlyFire;
+        faction.alliedFire = alliedFire;
+        rememberBlueprintFaction(player, key, faction.id);
+        setDirty();
+        return new BlueprintFactionCreation(faction.id, "");
+    }
+
+    public boolean confirmBlueprintAlliance(ServerPlayer actor, BlueprintFaction source, UUID boundFaction, UUID allySource) {
+        var origin = factions.get(boundFaction);
+        if (source == null || !source.hasSettings() || !manages(actor, origin)
+                || !boundFaction.equals(resolveBlueprintFaction(actor, source))
+                || source.allies().stream().noneMatch(ally -> ally.id().equals(allySource))) return false;
+        var ally = resolveBlueprintFaction(actor, source.sourceWorld(), allySource);
+        if (ally == null || boundFaction.equals(ally)) return false;
+        if (allied(boundFaction, ally)) return true;
+
+        var destination = factions.get(ally);
+        if (destination.requests.contains(boundFaction)) return acceptAlliance(actor, boundFaction, ally);
+        if (!origin.requests.contains(ally) && !requestAlliance(actor, boundFaction, ally)) return false;
+        return !manages(actor, destination) || acceptAlliance(actor, ally, boundFaction);
+    }
+
+    private UUID rememberedBlueprintFaction(UUID player, BlueprintSource key) {
+        var rows = blueprintMappings.get(player);
+        return rows == null ? null : rows.get(key);
+    }
+
+    private boolean canRememberBlueprintFaction(UUID player, BlueprintSource key) {
+        var rows = blueprintMappings.get(player);
+        return (rows != null && rows.containsKey(key)) || blueprintMappingCount < MAX_WORLD_BLUEPRINT_MAPPINGS
+                && (rows == null || rows.size() < MAX_PLAYER_BLUEPRINT_MAPPINGS);
+    }
+
+    private boolean rememberBlueprintFaction(UUID player, BlueprintSource key, UUID destination) {
+        var previous = blueprintMappings.computeIfAbsent(player, id -> new LinkedHashMap<>()).put(key, destination);
+        if (previous == null) blueprintMappingCount++;
+        return !destination.equals(previous);
     }
     public boolean toggle(ServerPlayer player,UUID id){var f=factions.get(id);if(!manages(player,f))return false;f.friendlyFire=!f.friendlyFire;setDirty();return true;}
     public boolean privacy(ServerPlayer player,UUID id){var f=factions.get(id);if(!manages(player,f))return false;f.privateFaction=!f.privateFaction;setDirty();return true;}
@@ -100,7 +237,7 @@ public final class FactionRegistry extends SavedData {
     public boolean delete(ServerPlayer player,UUID id){
         if(!manages(player,factions.get(id)))return false;
         factions.remove(id);for(var f:factions.values()){f.allies.remove(id);f.requests.remove(id);}setDirty();
-        for(var level:player.server.getAllLevels())for(var core:dev.sablelife.ownership.LoadedCoreIndex.all(level))if(id.equals(core.relations().faction())){core.relations().faction(null);core.setChanged();}
+        for(var level:player.server.getAllLevels())for(var core:dev.sablelife.ownership.LoadedCoreIndex.all(level))if(id.equals(core.relations().faction())){core.relations().bindBlueprintFaction(null);core.setChanged();}
         return true;
     }
     private CompoundTag row(Faction f){var r=new CompoundTag();r.putUUID("Id",f.id);r.putUUID("Owner",f.owner);r.putString("Name",f.name);r.putString("CreatorName",f.creatorName);r.putBoolean("FriendlyFire",f.friendlyFire);r.putBoolean("Private",f.privateFaction);r.putBoolean("AlliedFire",f.alliedFire);return r;}
@@ -121,14 +258,56 @@ public final class FactionRegistry extends SavedData {
     }
     private static ListTag people(Map<UUID,String> values){var rows=new ListTag();values.forEach((id,name)->{var t=new CompoundTag();t.putUUID("Id",id);t.putString("Name",name);rows.add(t);});return rows;}
     private static ListTag ids(Set<UUID> values){var rows=new ListTag();values.forEach(id->rows.add(net.minecraft.nbt.NbtUtils.createUUID(id)));return rows;}
-    @Override public CompoundTag save(CompoundTag t,HolderLookup.Provider registries){var rows=new ListTag();for(var f:factions.values()){var r=row(f);r.put("Members",people(f.members));r.put("Invitations",people(f.invitations));r.put("Allies",ids(f.allies));r.put("Requests",ids(f.requests));rows.add(r);}t.put("Factions",rows);t.put("KnownPlayers",people(players));return t;}
+    @Override public CompoundTag save(CompoundTag t,HolderLookup.Provider registries){
+        var rows = new ListTag();
+        for (var faction : factions.values()) {
+            var entry = row(faction);
+            entry.put("Members", people(faction.members));
+            entry.put("Invitations", people(faction.invitations));
+            entry.put("Allies", ids(faction.allies));
+            entry.put("Requests", ids(faction.requests));
+            rows.add(entry);
+        }
+        t.put("Factions", rows);
+        t.put("KnownPlayers", people(players));
+        t.putUUID(BLUEPRINT_WORLD, blueprintWorld);
+        var mappings = new ListTag();
+        blueprintMappings.forEach((player, entries) -> entries.forEach((key, target) -> {
+            var entry = new CompoundTag();
+            entry.putUUID("Player", player);
+            if (key.world != null) entry.putUUID("World", key.world);
+            entry.putUUID("Source", key.faction);
+            entry.putUUID("Target", target);
+            mappings.add(entry);
+        }));
+        t.put(BLUEPRINT_MAPPINGS, mappings);
+        return t;
+    }
+
+    private void loadBlueprintMappings(CompoundTag tag) {
+        if (tag.hasUUID(BLUEPRINT_WORLD)) blueprintWorld = tag.getUUID(BLUEPRINT_WORLD);
+        else setDirty();
+        var rows = tag.getList(BLUEPRINT_MAPPINGS, Tag.TAG_COMPOUND);
+        for (int i = 0; i < Math.min(rows.size(), MAX_WORLD_BLUEPRINT_MAPPINGS); i++) {
+            var row = rows.getCompound(i);
+            if (!row.hasUUID("Player") || !row.hasUUID("Source") || !row.hasUUID("Target")
+                    || (row.contains("World") && !row.hasUUID("World"))) continue;
+            UUID player = row.getUUID("Player");
+            UUID source = row.getUUID("Source");
+            UUID target = row.getUUID("Target");
+            if (!BlueprintFaction.userFaction(source) || !BlueprintFaction.userFaction(target)) continue;
+            var key = new BlueprintSource(row.hasUUID("World") ? row.getUUID("World") : null, source);
+            if (canRememberBlueprintFaction(player, key)) rememberBlueprintFaction(player, key, target);
+        }
+    }
     private static void loadPeople(CompoundTag t,String key,Map<UUID,String> values){for(var v:t.getList(key,10)){if(values.size()>=PLAYER_LIMIT)break;var r=(CompoundTag)v;if(r.hasUUID("Id"))values.put(r.getUUID("Id"),r.getString("Name"));}}
-    private static void loadIds(CompoundTag t,String key,Set<UUID> values){for(var v:t.getList(key,11)){if(values.size()>=256)break;try{values.add(NbtUtils.loadUUID(v));}catch(IllegalArgumentException ignored){}}}
+    private static void loadIds(CompoundTag t,String key,Set<UUID> values){for(var v:t.getList(key,11)){if(values.size()>=MAX_FACTIONS)break;try{values.add(NbtUtils.loadUUID(v));}catch(IllegalArgumentException ignored){}}}
     public static FactionRegistry load(CompoundTag t,HolderLookup.Provider registries){
-        var result=new FactionRegistry();for(var v:t.getList("KnownPlayers",10)){var r=(CompoundTag)v;if(r.hasUUID("Id"))result.players.put(r.getUUID("Id"),r.getString("Name"));}for(var v:t.getList("Factions",10)){var r=(CompoundTag)v;if(result.factions.size()>=256)break;if(!r.hasUUID("Id")||!r.hasUUID("Owner")||WILDS.equals(r.getUUID("Id")))continue;
+        var result=new FactionRegistry();for(var v:t.getList("KnownPlayers",10)){var r=(CompoundTag)v;if(r.hasUUID("Id"))result.players.put(r.getUUID("Id"),r.getString("Name"));}for(var v:t.getList("Factions",10)){var r=(CompoundTag)v;if(result.factions.size()>=MAX_FACTIONS)break;if(!r.hasUUID("Id")||!r.hasUUID("Owner")||WILDS.equals(r.getUUID("Id")))continue;
             var f=new Faction(r.getUUID("Id"),r.getUUID("Owner"),r.getString("Name"),r.getString("CreatorName"));f.friendlyFire=r.getBoolean("FriendlyFire");f.privateFaction=r.getBoolean("Private");f.alliedFire=r.getBoolean("AlliedFire");loadPeople(r,"Members",f.members);loadPeople(r,"Invitations",f.invitations);f.members.keySet().forEach(f.invitations::remove);loadIds(r,"Allies",f.allies);loadIds(r,"Requests",f.requests);result.factions.put(f.id,f);
         }
         for(var f:result.factions.values()){f.allies.removeIf(id->id.equals(f.id)||!result.contains(id)||!result.factions.get(id).allies.contains(f.id));f.requests.removeIf(id->id.equals(f.id)||!result.contains(id)||f.allies.contains(id));}
+        result.loadBlueprintMappings(t);
         return result;
     }
 }

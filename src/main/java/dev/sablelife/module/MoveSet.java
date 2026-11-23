@@ -7,7 +7,7 @@ import java.util.*;
 public final class MoveSet {
     public static final int LIMIT = 32, ACTION_LIMIT = 16, MAX_TICKS = 12000;
     public static final Set<String> TARGETS = Set.of("summoned_weapon","signal_logic","combat_event","sphere_blast", "slash", "arrow", "flame", "gun", "mortar", "homing", "laser",
-            "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "melee", "armor", "particles", "health_bar", "item_display", "damage_accumulation", "trigger_sound", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sequence", "health_adjustment", "sensor", "navigation", "sound", "bgm", "block_interaction", "message_display", "propulsion", "motion_damping", "contact_sensor");
+            "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "melee", "armor", "particles", "health_bar", "item_display", "damage_accumulation", "trigger_sound", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sequence", "health_adjustment", "sensor", "navigation", "sound", "bgm", "block_interaction", "message_display", "propulsion", "motion_damping", "contact_sensor", VirtualModule.ENTITY_PASS_THROUGH);
     public static boolean supportsModule(String type) {
         return TARGETS.contains(type) || ModuleTypes.find(type) != null;
     }

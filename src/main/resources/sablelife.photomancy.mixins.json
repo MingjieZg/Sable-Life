@@ -9,7 +9,9 @@
     "RespawnBuildDiagnosticsMixin",
     "BlueprintToolFailureDiagnosticsMixin",
     "BlueprintFileLoadDiagnosticsMixin",
-    "BlueprintToolFailureMessageMixin"
+    "BlueprintToolFailureMessageMixin",
+    "BlueprintCommandFactionActorMixin",
+    "BlueprintToolFactionActorMixin"
   ],
   "injectors": {
     "defaultRequire": 1

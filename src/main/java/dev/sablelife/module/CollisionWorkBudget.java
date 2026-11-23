@@ -13,6 +13,7 @@ public final class CollisionWorkBudget {
         private boolean exhausted;
         public boolean spend(int count){if(count>remaining){exhausted=true;return false;}remaining-=count;return true;}
         public void refund(int count){remaining+=count;}
+        boolean isExhausted() { return exhausted; }
     }
     private static final Map<ServerLevel,Budget> budgets=new WeakHashMap<>();
     public static Budget begin(ServerLevel level){
@@ -21,5 +22,10 @@ public final class CollisionWorkBudget {
         b.exhausted=false;return b;
     }
     public static boolean exhausted(ServerLevel level){var b=budgets.get(level);return b!=null&&b.exhausted;}
+    static Budget isolated(int remaining) {
+        var budget = new Budget();
+        budget.remaining = remaining;
+        return budget;
+    }
     private CollisionWorkBudget(){}
 }

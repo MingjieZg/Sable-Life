@@ -2,6 +2,7 @@ package dev.sablelife.module;
 
 import dev.sablelife.SableLifeServerConfig;
 import dev.sablelife.api.module.ModuleDefinition.Core;
+import dev.sablelife.compat.sablecollision.EntityPassThroughMixinPlugin;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.heart.RedstoneCorePolicy;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.stream.Stream;
 /** Core capabilities are a hard boundary; server switches may only narrow them. */
 public final class ModuleAvailability {
     public static boolean enabled(boolean redstoneCore,String type){
+        if (!compatible(type)) return false;
         var addon = ModuleTypes.find(type);
         if (addon != null) {
             var core = redstoneCore ? Core.REDSTONE : Core.HEART;
@@ -19,11 +21,11 @@ public final class ModuleAvailability {
                 &&SableLifeServerConfig.moduleEnabled(redstoneCore,type);
     }
     public static boolean enabled(HeartBlockEntity heart,String type){
-        if (heart.isSurvivalCore()) {
-            var addon = ModuleTypes.find(type);
-            if (addon != null) return addon.cores().contains(Core.SURVIVAL) && SableLifeServerConfig.addonModuleEnabled(type, Core.SURVIVAL);
-        }
-        return heart.isSurvivalCore()?SableLifeServerConfig.survivalModuleEnabled(type):enabled(heart.isControlCore(),type);
+        if (!heart.isSurvivalCore()) return enabled(heart.isControlCore(), type);
+        if (!compatible(type)) return false;
+        var addon = ModuleTypes.find(type);
+        if (addon != null) return addon.cores().contains(Core.SURVIVAL) && SableLifeServerConfig.addonModuleEnabled(type, Core.SURVIVAL);
+        return SableLifeServerConfig.survivalModuleEnabled(type);
     }
     public static boolean enabled(HeartBlockEntity heart,VirtualModule module){return module!=null&&enabled(heart,module.type());}
     public static List<String> available(HeartBlockEntity heart){
@@ -38,7 +40,10 @@ public final class ModuleAvailability {
         return types(redstoneCore?RedstoneCorePolicy.TYPES:VirtualModule.AVAILABLE_TYPES).filter(t->enabled(redstoneCore,t)).toList();
     }
     public static boolean authorable(String type) {
-        return VirtualModule.AVAILABLE_TYPES.contains(type) || ModuleTypes.find(type) != null;
+        return compatible(type) && (VirtualModule.AVAILABLE_TYPES.contains(type) || ModuleTypes.find(type) != null);
+    }
+    private static boolean compatible(String type) {
+        return !VirtualModule.ENTITY_PASS_THROUGH.equals(type) || EntityPassThroughMixinPlugin.supported();
     }
     private static Stream<String> types(List<String> builtIn) {
         return Stream.concat(builtIn.stream(), ModuleTypes.extensionIds());

@@ -10,12 +10,14 @@ import java.util.ArrayList;
 /** Persistent authoring settings shared by the dashboard and validated server runtime. */
 public final class VirtualModule {
     public static final String DISPLAY_MODEL_OMITTED = "DisplayModelOmitted";
-    public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping", "contact_sensor");
-    /** New-module catalog grouped by sidebar color: signal, weapon, function. */
+    public static final String ENTITY_PASS_THROUGH = "entity_pass_through";
+    public static final String PASS_THROUGH_WHOLE_BODY = "passThroughWholeBody";
+    public static final List<String> TYPES = List.of("move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "wireless_redstone", "command", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "sensor", "navigation", "arena", "armor", "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping", "contact_sensor", "entity_pass_through");
+    /** Stable built-in capability order. The picker groups and sorts types for display. */
     public static final List<String> AVAILABLE_TYPES = List.of(
             "move_set", "signal_logic", "combat_event", "health_phase", "hit_counter", "damage_accumulation", "sequence", "wireless_redstone", "command", "sensor", "navigation",
             "melee", "flame", "arrow", "gun", "mortar", "homing", "laser", "sphere_blast", "slash", "ground_strike", "quake", "pull", "freeze", "grab", "pulse", "surface_field", "summoned_weapon",
-            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping", "contact_sensor");
+            "arena", "armor", "health_adjustment", "linear_movement", "auto_facing", "signal_turn", "gyroscope", "hover_anchor", "visual_shockwave", "distortion_trail", "particles", "health_bar", "item_display", "trigger_sound", "sound", "bgm", "loot", "blueprint_spawn", "entity_hitbox", "block_interaction", "part_break", "message_display", "propulsion", "motion_damping", "contact_sensor", "entity_pass_through");
     public record Emitter(net.minecraft.world.phys.Vec3 position,net.minecraft.world.phys.Vec3 direction,org.joml.Quaterniond rotation,UUID audioOwner){}
     private Emitter emitter;
     public Emitter emitter(){return emitter;}
@@ -123,6 +125,7 @@ public final class VirtualModule {
     public boolean coreModule() {
         var addon = ModuleTypes.find(type);
         if (addon != null) return addon.markMode() == dev.sablelife.api.module.ModuleDefinition.MarkMode.NONE;
+        if (type.equals(ENTITY_PASS_THROUGH)) return value(PASS_THROUGH_WHOLE_BODY) == 1;
         return SignalRules.supported(type)||type.equals("surface_field")||type.equals("armor")&&value("armorWholeBody")==1||List.of("bgm", "health_phase", "hit_counter", "health_adjustment", "damage_accumulation", "sequence", "move_set", "command", "message_display").contains(type);
     }
     public boolean area() {
@@ -444,9 +447,16 @@ public final class VirtualModule {
         case "trigger" -> trigger; case "channel" -> channel;
         case "enabled" -> enabled ? 1 : 0; default -> settings.getDouble(key);
     }; }
+    public boolean canEditMeleeVanillaKnockback() {
+        return type.equals("melee") && value("knockback") == 0;
+    }
+
     public boolean edit(String key, double value, String text) {
         if (!known() || !Double.isFinite(value)) return false;
-        if(type.equals("melee")&&List.of("meleeBreakBlocks","meleeDebris","meleeDrops").contains(key)&&value!=0&&value!=1)return false;
+        if (key.equals(ModuleFields.MELEE_VANILLA_KNOCKBACK)
+                && (!canEditMeleeVanillaKnockback() || (value != 0 && value != 1))) return false;
+        if (type.equals(ENTITY_PASS_THROUGH) && key.equals(PASS_THROUGH_WHOLE_BODY) && value != 0 && value != 1) return false;
+        if(type.equals("melee")&&List.of("meleeBreakBlocks","meleeDebris","meleeDrops",ModuleFields.MELEE_DISABLE_SHIELD).contains(key)&&value!=0&&value!=1)return false;
         if(type.equals("melee")&&key.equals("meleeDrops"))legacyMeleeDrops=false;
         if(type.equals("health_phase")&&HealthPhaseRules.FIELDS.contains(key)){if(healthPhaseRules.rows().isEmpty())healthPhaseRules.add();return healthPhaseRules.rows().getFirst().edit(key,value);}
         if(type.equals("wireless_redstone")&&key.equals("redstoneRampRange")){
@@ -620,7 +630,12 @@ public final class VirtualModule {
         if (!datapack) for (var field : ModuleFields.forType(module.type)) if (saved.contains(field.key())) {
             if (ArenaBattleTitle.isTemplate(field.key()) && !saved.contains(field.key(), Tag.TAG_STRING)) continue;
             if (field.choices().equals(List.of("library"))) module.settings.putString(field.key(), saved.getString(field.key()));
-            else module.edit(field.key(), saved.getDouble(field.key()), ModuleFields.arenaText(field.key()) ? saved.getString(field.key()) : "");
+            else if (field.key().equals(ModuleFields.MELEE_VANILLA_KNOCKBACK)) {
+                // The saved choice is dormant while extra knockback is above zero.
+                if (!saved.contains(field.key(), Tag.TAG_ANY_NUMERIC)) continue;
+                double choice = saved.getDouble(field.key());
+                if (choice == 0 || choice == 1) module.settings.putDouble(field.key(), choice);
+            } else module.edit(field.key(), saved.getDouble(field.key()), ModuleFields.arenaText(field.key()) ? saved.getString(field.key()) : "");
         }
         if(module.type.equals("melee")){
             if(tag.contains("MeleeProtection",Tag.TAG_COMPOUND))module.meleeProtection().load(tag.getCompound("MeleeProtection"));

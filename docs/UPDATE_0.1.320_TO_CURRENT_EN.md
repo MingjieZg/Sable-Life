@@ -1,5 +1,19 @@
 # Updates from 0.1.320 to the current build
 
+## 0.1.456
+
+Adds four features to 0.1.452, entries 130–133. See the [release notes](releases/0.1.456_EN.md).
+
+- **Melee knockback control**. At zero Extra knockback, you can turn off Vanilla hurt knockback to deal melee damage without knockback from the module. A positive Extra knockback value applies both kinds of knockback. Returning to zero restores the saved setting. Vanilla hurt knockback is checked by default and applies the small vanilla hurt knockback. Manual revision 259.
+
+- **Melee shield disabling**. Melee can apply the vanilla five-second shield cooldown when a player blocks the hit. An optional shield-break sound plays at the defender for nearby players when the shield is disabled. The defender hears the vanilla cue. The setting defaults to Off for existing Melee modules.
+
+- **Entity Pass-Through test build**. This Function module lets players and mobs pass through one marked substructure or the whole connected creature while triggered. It supports always-on, signal and Move Set triggers. Structure physics and attack hitboxes retain their usual behavior.
+
+- **0.1.452-review.4** updates LittleTiles client mesh recovery. It lets pending rebuilds finish and reuses cached model geometry when restoring vertex buffers.
+
+- **Blueprint faction mapping**. Photomancy blueprints carry faction settings and direct ally references. After placing a blueprint in another world, use the core’s faction tab to bind a local faction, create one, or skip the assignment. Confirmed player mappings are saved in the destination world, and local factions confirm alliances. [Candidate notes](releases/0.1.452_EN.md)
+
 - The **0.1.452 review candidates** improve recovery and compatibility. `review.1` retains saved blueprint jobs when quotas decrease and releases ownership after confirming permanent removal. `review.2` fixes Move Set ordering and target inheritance, weapon previews, concurrent large Item Displays, editor drafts and Data Copier archive restore. `review.3` keeps pending cleanup for Let it Walk leg segments when their chunks unload. [Local candidate notes](releases/0.1.452_EN.md)
 
 - **0.1.452 stability pass**: Weapons check visibility at the muzzle, previews read existing state and inherited targets keep the original expiry. Compatible clients receive large Item Display snapshots in parts and original models stay in saves. The Data Copier verifies saved data, applies a 64 MiB account quota and supports operator status, archive and restore commands. Optional integration contracts and editor draft handling were tightened. [Local candidate notes](releases/0.1.452_EN.md)

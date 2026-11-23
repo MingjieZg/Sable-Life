@@ -145,6 +145,9 @@ public final class ModuleCombat {
         if(previous==null||now!=state.tick+1||!previous.signature().equals(frame.signature())||previous.position().distanceToSqr(frame.position())>64)previous=frame;
         long cost=heart.isSurvivalCore()?SurvivalTokens.meleeCost(module,SableLifeServerConfig.meleeTokenRate()):0;
         int steps=MeleeGeometry.samples(previous,frame),limit=(int)module.value("meleeHitLimit");
+        boolean disableShield = module.value(ModuleFields.MELEE_DISABLE_SHIELD) == 1;
+        double knockback = module.value("knockback");
+        boolean suppressVanillaKnockback = knockback == 0 && module.value(ModuleFields.MELEE_VANILLA_KNOCKBACK) == 0;
         double sag=MeleeGeometry.arcRadius(previous,frame)*(1-Math.cos(MeleeGeometry.angular(previous,frame)/2));
         var candidates=new AABB(previous.center(),frame.center()).inflate(frame.half().length()+sag+1);
         state.hits.entrySet().removeIf(e->e.getValue()<=now);
@@ -154,18 +157,23 @@ public final class ModuleCombat {
             for(int i=0;i<=steps;i++){
                 var sample=MeleeGeometry.sample(previous,frame,i/(double)steps);
                 if(!ContactBox.intersects(sample.center(),frame.half(),sample.rotation(),victim.getBoundingBox()))continue;
-                var source=new dev.sablelife.attack.BodyMeleeSource(world,previous.position().lerp(frame.position(),i/(double)steps),heart.creatureName());
+                var source = new BodyMeleeSource(world, previous.position().lerp(frame.position(), i / (double) steps),
+                        heart.creatureName(), disableShield, suppressVanillaKnockback);
                 if(!heart.spendAttackTokens(cost))break;
                 boolean hit=false;
                 try{
                     hit=ModuleDamage.hurt(victim,source,(float)module.value("damage"),heart,module);
+                    if (source.tryDisableBlockedShield()) {
+                        var sound = module.soundTimeline(ModuleFields.MELEE_SHIELD_BREAK_SOUND);
+                        ModuleAudio.playExcept(world, module.audioId(), sound, SableBodyProbe.toWorld(world, victim.position()), id);
+                    }
                 }finally{
                     if(!hit)heart.refundAttackTokens(cost);
                 }
                 if(hit||source.wasBlocked())state.hits.put(id,now+Math.max(1,(int)module.value("interval")));
                 if(hit){
                     if(limit>0)state.meleeHitCounts.merge(id,1,Integer::sum);
-                    push(victim,sample.center(),module.value("knockback"));effect(victim,module,heart);
+                    push(victim,sample.center(),knockback);effect(victim,module,heart);
                     if (module.value("burn") > 0) victim.igniteForSeconds((int) module.value("burn"));
                     ModuleParticles.send(world,ParticleTypes.CRIT,victim.getX(),victim.getY()+victim.getBbHeight()/2,victim.getZ(),5,.15,.15,.15,.1);
                 }

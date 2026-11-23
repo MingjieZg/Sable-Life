@@ -457,9 +457,13 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if (!channel.active) return;
         try { int n = Integer.parseInt(channel.getValue()); if (n >= 1 && n <= dev.sablelife.heart.HeartWireless.CHANNELS) { action("edit", "channel", n, ""); channel.setFocused(false); } } catch (NumberFormatException ignored) {}
     }
+    private static boolean vanillaKnockbackLocked(VirtualModule module, String key) {
+        return key.equals(ModuleFields.MELEE_VANILLA_KNOCKBACK) && !module.canEditMeleeVanillaKnockback();
+    }
     private void cycle(int index, int direction) {
         if (parameterPage * parameterSlots + index >= parameters.size() || selected() == null) return;
         var field = parameters.get(parameterPage * parameterSlots + index); var m = selected();
+        if (vanillaKnockbackLocked(m, field.key())) return;
         if (field.key().startsWith(OUTPUT_ROW) || field.key().equals(ADD_OUTPUT_ROW)) {
             if (direction > 0) outputFaceAction(index, "mark");
             return;
@@ -651,6 +655,8 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if(m!=null){var soundKeys=ModuleFields.forType(m.type()).stream().filter(f->f.choices().equals(List.of("library"))).map(ModuleFields.Field::key).toList();
             nextFields=nextFields.stream().filter(f->!soundKeys.stream().anyMatch(key->f.key().equals(key+"Volume")||f.key().equals(key+"Radius"))
                 && !(List.of("sound","trigger_sound").contains(m.type())&&List.of("volume","pitch").contains(f.key()))&&!f.key().equals("bgmVolume")).toList();}
+        if (m != null && m.type().equals("melee") && m.value(ModuleFields.MELEE_DISABLE_SHIELD) != 1)
+            nextFields = nextFields.stream().filter(field -> !field.key().equals(ModuleFields.MELEE_SHIELD_BREAK_SOUND)).toList();
         if(m!=null&&m.type().equals("propulsion"))nextFields=nextFields.stream().filter(f->ModulePropulsion.visible(m,f.key())).toList();
         if(m!=null&&m.type().equals("motion_damping"))nextFields=nextFields.stream().filter(f->!PhysicsModuleFields.directionField(f.key())&&(!f.key().equals("dampDuration")||m.value("dampMode")==1)).toList();
         if (m != null && m.type().equals("particles")) nextFields = nextFields.stream().filter(f -> dev.sablelife.module.ParticlePattern.visibleField(m, f.key())).toList();
@@ -808,7 +814,11 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 vanillaFolders.get(i).visible = false; vanillaFolders.get(i).active = true;
                 boolean announcement = exists && ModuleFields.arenaText(field.key());
                 box.setWidth(announcement ? applyX - inputX - 4 : exists && field.key().equals("phaseChannel") ? 40 : applyX - inputX - 32);
-                choices.get(i).setWidth(exists && field.key().equals("redstoneFrequency") ? frequencyButtonWidth() : exists && (ContactSensorQuery.checkbox(field.key()) || List.of("ignoreConditions","hitboxProvokeMobs","hitboxRetaliateAgainstWhitelisted","targetMultiple","armorWholeBody","shockReverse","fieldBurn","slashIgnite","slashBlockable","arrowFaceCamera").contains(field.key())) ? 18 : exists && List.of("lineOfSight", "arenaDeath", "arenaForceReturn", "trail").contains(field.key()) ? 36 : (imageWidth - inputX - 11) - (hasNone ? 20 : 0));
+                boolean checkbox = exists && (ContactSensorQuery.checkbox(field.key()) || List.of("ignoreConditions",
+                        "hitboxProvokeMobs", "hitboxRetaliateAgainstWhitelisted", "targetMultiple", "armorWholeBody", "shockReverse",
+                        "fieldBurn", "slashIgnite", "slashBlockable", "arrowFaceCamera", ModuleFields.MELEE_DISABLE_SHIELD,
+                        ModuleFields.MELEE_VANILLA_KNOCKBACK).contains(field.key()));
+                choices.get(i).setWidth(exists && field.key().equals("redstoneFrequency") ? frequencyButtonWidth() : checkbox ? 18 : exists && List.of("lineOfSight", "arenaDeath", "arenaForceReturn", "trail").contains(field.key()) ? 36 : (imageWidth - inputX - 11) - (hasNone ? 20 : 0));
                 var rgbButton=rgbButtons.get(i);boolean colorField=exists&&ModuleColors.color(m.type(),field.key());rgbButton.visible=colorField;rgbButton.active=colorField&&editable&&usable;
                 if(colorField){rgbButton.setX(leftPos+inputX);LifeUiStyle.bookmark(rgbButton,m.value(field.key()+"Rgb")==1?0xB079E0:0);choices.get(i).setX(leftPos+inputX+40);choices.get(i).setWidth(imageWidth-inputX-51);}
                 if (exists && (field.key().startsWith(OUTPUT_ROW) || field.key().equals(ADD_OUTPUT_ROW))) {
@@ -860,8 +870,9 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                     box.setEditable(editable && usable && !automaticAim); box.active = editable && usable && !automaticAim && !isNone;
                     applyButtons.get(i).active = box.active; choices.get(i).active = (editable || soundField || field.key().equals("effects") || field.key().equals("particles") || field.key().endsWith("Particles") || field.key().equals("sequenceSteps") || field.key().equals("moveSetEditor") || field.key().equals("blueprintEditor") || field.key().equals("commandEditor") || field.key().equals("arenaBuffGroups") || field.key().equals("armorRules") || field.key().equals("healthPhaseRules") || field.key().equals("signalRules")) && usable && !automaticAim && !isNone;
                     box.setTextColor(automaticAim ? 0x777777 : 0xE0E0E0);
-                    box.setTooltip(ModulePropertyHelp.tooltip(m,field));
-                    applyButtons.get(i).setTooltip(ModulePropertyHelp.tooltip(m,field));
+                    var tooltip = ModulePropertyHelp.tooltip(m, field);
+                    box.setTooltip(tooltip);
+                    applyButtons.get(i).setTooltip(tooltip);
                     boolean addonOption = field.key().startsWith("addon_");
                     boolean aimOffset=m.type().equals("auto_facing")&&ModuleFields.facingOffset(field.key());
                     box.setFilter(value -> announcement || (addonOption ? ADDON_NUMBER : aimOffset ? AIM_OFFSET_NUMBER : BUILTIN_NUMBER).matcher(value).matches());
@@ -894,7 +905,9 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                         if(!state.getBoolean("Available")||!snapshot.getBoolean("RespawnAllowed")){box.active=false;applyButtons.get(i).active=false;choices.get(i).setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("arena_respawn.sablelife.requires")));}
                     }
                     if (field.choice()) {
-                        Component label = field.key().equals("signalRules")?Component.translatable("signal_rules.sablelife.count",m.signalRules().rows().size()):field.key().equals("healthPhaseRules")?Component.translatable("phase_rules.sablelife.count",m.healthPhaseRules().rows().size()):field.key().equals("armorRules")?Component.translatable("armor_rules.sablelife.count",m.armorRules().rows().size()):field.key().equals("gyroCalibrate")?tr(snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getBoolean("GyroCalibrated")?"gyro_recalibrate":"gyro_record"):field.key().equals("arenaRespawnRecord")?Component.translatable("arena_respawn.sablelife.record"+(snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("RespawnRuntime").getBoolean("Recorded")?"ed":"")):field.key().equals("arenaBuffGroups")?Component.translatable("arena_buffs.sablelife.count",m.arenaBuffs().groups().size()):(ContactSensorQuery.checkbox(field.key()) || List.of("ignoreConditions","hitboxProvokeMobs","hitboxRetaliateAgainstWhitelisted","targetMultiple","armorWholeBody","shockReverse","fieldBurn","slashIgnite","slashBlockable","arrowFaceCamera").contains(field.key())) ? Component.literal(m.value(field.key()) == 1 || field.key().equals("ignoreConditions") && snapshot.getBoolean("ControlCore") ? "✓" : "") : VirtualModule.particleStage(field.key())!=null ? Component.translatable("particles.sablelife.count",m.movementParticles(VirtualModule.particleStage(field.key())).particles().size()) : field.key().equals("particles") ? Component.translatable("particles.sablelife.count", m.particles().size()) : field.key().equals("effects") ? Component.translatable("effects.sablelife.count", m.effects().size())
+                        boolean forcedVanillaKnockback = vanillaKnockbackLocked(m, field.key());
+                        if (forcedVanillaKnockback) choices.get(i).active = false;
+                        Component label = field.key().equals("signalRules")?Component.translatable("signal_rules.sablelife.count",m.signalRules().rows().size()):field.key().equals("healthPhaseRules")?Component.translatable("phase_rules.sablelife.count",m.healthPhaseRules().rows().size()):field.key().equals("armorRules")?Component.translatable("armor_rules.sablelife.count",m.armorRules().rows().size()):field.key().equals("gyroCalibrate")?tr(snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getBoolean("GyroCalibrated")?"gyro_recalibrate":"gyro_record"):field.key().equals("arenaRespawnRecord")?Component.translatable("arena_respawn.sablelife.record"+(snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("RespawnRuntime").getBoolean("Recorded")?"ed":"")):field.key().equals("arenaBuffGroups")?Component.translatable("arena_buffs.sablelife.count",m.arenaBuffs().groups().size()):checkbox ? Component.literal(m.value(field.key()) == 1 || forcedVanillaKnockback || field.key().equals("ignoreConditions") && snapshot.getBoolean("ControlCore") ? "✓" : "") : VirtualModule.particleStage(field.key())!=null ? Component.translatable("particles.sablelife.count",m.movementParticles(VirtualModule.particleStage(field.key())).particles().size()) : field.key().equals("particles") ? Component.translatable("particles.sablelife.count", m.particles().size()) : field.key().equals("effects") ? Component.translatable("effects.sablelife.count", m.effects().size())
                                 : field.choices().equals(List.of("item")) ? (minecraft.level==null||m.save().getCompound("ProjectileItem").isEmpty() ? tr(m.type().equals("item_display")?"display_empty":m.type().equals("arrow") ? "projectile_default_arrow" : m.type().equals("homing") ? "projectile_default_homing" : "projectile_default") : m.projectileItem(minecraft.level.registryAccess()).getHoverName())
                                 : field.choices().equals(List.of("library")) ? Component.translatable("sound_timeline.sablelife.count",m.soundTimeline(field.key()).rows().size())
                                 : tr("choice_" + field.choices().get(Math.clamp((int) m.value(field.key()), 0, field.choices().size() - 1)));
@@ -946,7 +959,8 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         preview.visible = m != null && !m.type().equals("sequence") && !m.type().equals("health_phase") && !m.type().equals("hit_counter") && !m.type().equals("health_adjustment");
         if(m!=null&&m.type().equals("blueprint_spawn")){for(int i=0;i<parameters.size();i++){int at=i-parameterPage*parameterSlots;if(at>=0&&at<choices.size()&&parameters.get(i).key().equals("spawnActivate")&&!snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("BlueprintSpawn").getBoolean("CanActivate"))choices.get(at).active=false;}}
         if (m != null && (m.type().equals("signal_logic") || m.type().equals("combat_event") || m.type().equals("move_set") || m.type().equals("command") || m.type().equals("surface_field"))) preview.visible = false;
-        if (m != null && m.type().equals("message_display")) preview.visible = false;
+        if (m != null && (m.type().equals("message_display")
+                || m.type().equals(VirtualModule.ENTITY_PASS_THROUGH) && m.coreModule())) preview.visible = false;
         if (m != null && m.value("trigger") >= 4) channel.visible = channelApply.visible = false;
         hurtSettings.visible = !snapshot.getBoolean("ControlCore") && m != null && !loot && m.value("trigger") == 5; hurtSettings.active = usable;
         if(hurtSettings.visible) hurtSettings.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("hurt.sablelife.summary", Component.translatable("hurt.sablelife.mode_"+(int)m.value("hurtMode")), String.format(Locale.ROOT,"%.2f",m.value("hurtCooldown")/20))));
@@ -967,6 +981,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         }
         if(m!=null&&m.type().equals("blueprint_spawn")){var spawnState=snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("BlueprintSpawn");preview.visible=true;preview.active=usable&&snapshot.getBoolean("RespawnAllowed")&&spawnState.getBoolean("CanPreview");preview.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("blueprint_spawn.sablelife.preview_help")));}
         mark.setMessage(tr(m != null && m.area() ? "mark_particle_area" : m != null && m.type().equals("particles") ? "mark_particle_point" : m != null && m.type().equals("arena") ? "mark_arena_center" : loot ? "mark_limb" : m != null && List.of("navigation","auto_facing","signal_turn","propulsion","motion_damping").contains(m.type()) ? "mark_front"
+                : m != null && m.type().equals(VirtualModule.ENTITY_PASS_THROUGH) ? "mark_substructure"
                 : m != null && (m.type().equals("trigger_sound") && m.value("contactMode") == 1 || m.type().equals("visual_shockwave")&&m.value("shockContact")==1) ? "mark_contact" : "mark"));
         if(m!=null&&m.type().equals("part_break"))mark.setMessage(tr("mark_part_break"));
         mark.setTooltip(m!=null&&List.of("propulsion","motion_damping").contains(m.type())?net.minecraft.client.gui.components.Tooltip.create(tr(m.type()+"_help")):m!=null&&m.type().equals("entity_hitbox")?net.minecraft.client.gui.components.Tooltip.create(tr("hitbox_help")):m!=null&&m.type().equals("distortion_trail")?net.minecraft.client.gui.components.Tooltip.create(tr("distortion_trail_help")):m!=null&&m.type().equals("visual_shockwave")?net.minecraft.client.gui.components.Tooltip.create(tr("shock_help")):m!=null&&m.type().equals("hover_anchor")?net.minecraft.client.gui.components.Tooltip.create(tr("hover_help")):m!=null&&m.type().equals("gyroscope")?net.minecraft.client.gui.components.Tooltip.create(tr("gyro_help")):m!=null&&m.type().equals("sensor")?net.minecraft.client.gui.components.Tooltip.create(tr("sensor_output_help")):m!=null&&m.type().equals("signal_turn")?net.minecraft.client.gui.components.Tooltip.create(tr(m.value("turnMode") == 1 ? "signal_turn_random_help" : "signal_turn_help")):m != null && m.type().equals("auto_facing") ? net.minecraft.client.gui.components.Tooltip.create(tr("auto_facing_help")) : null);
@@ -1072,7 +1087,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             String key = parameters.get(parameterPage * parameterSlots + i).key();if(key.startsWith("__rgb_pad_"))continue;
             var label = key.startsWith(OUTPUT_ROW)
                     ? Component.translatable("dashboard.sablelife.output_face_number", outputFaceIndex(key) + 1)
-                    : key.equals(ADD_OUTPUT_ROW) ? tr("output_faces") : ModulePropertyHelp.label(m,key);
+                    : key.equals(ADD_OUTPUT_ROW) ? tr("output_faces") : ModulePropertyHelp.label(m, key);
             int labelWidth = (int) ((inputX - detailX - 6) / textScale());
             if(key.equals("redstoneFrequency"))labelWidth=Math.max(1,font.width(label));
             if(m.type().equals("hit_counter")&&key.equals("hitSource")){var source=modules.stream().filter(x->x.id().equals(m.hitSourceId())).findFirst().orElse(null);label=label.copy().append("\n").append(m.hitSourceId()==null?tr("hit_all"):source==null?tr("hit_missing"):Component.literal(source.name().isEmpty()?tr("type_"+source.type()).getString():source.name()));}
@@ -1085,7 +1100,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             g.pose().pushPose();
             g.pose().translate(detailX, 63 + i * rowPitch + (rowPitch - 2 - lines * font.lineHeight * scale) / 2, 0);
             g.pose().scale(scale, scale, 1);
-            g.drawWordWrap(font, label, 0, 0, labelWidth, 0xE6D8EA);
+            g.drawWordWrap(font, label, 0, 0, labelWidth, vanillaKnockbackLocked(m, key) ? 0xA397AC : 0xE6D8EA);
             g.pose().popPose();
             var field = parameters.get(parameterPage * parameterSlots + i);
             if (List.of("lineOfSight", "arenaDeath", "arenaForceReturn", "trail").contains(key)) {

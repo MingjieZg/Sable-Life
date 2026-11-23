@@ -19,7 +19,10 @@ public final class LittleTilesRenderRecovery {
                     || !(Sable.HELPER.getContaining(level, be.getBlockPos()) instanceof ClientSubLevel body)
                     || body.isRemoved() || !level.hasChunkAt(be.getBlockPos())) return;
             synchronized (be.render) {
-                if (lost.sablelife$takeRecovery(System.nanoTime())) be.render.queue(true, true, section);
+                // Let the pending build finish and keep the model boxes when only the vertex buffer was lost.
+                if (!be.render.isInQueue() && lost.sablelife$takeRecovery(System.nanoTime())) {
+                    be.render.queue(false, true, section);
+                }
             }
         } catch (LinkageError | RuntimeException failure) {
             failed = true;

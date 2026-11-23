@@ -102,4 +102,32 @@ class PhotomancyApiContractTest {
                 .findFirst().orElseThrow();
         assertEquals(List.of(PhotomancyApiContract.FILE_LOAD), wrap.values.get(wrap.values.indexOf("method") + 1));
     }
+
+    @Test void actorHooksRequireOneExactNativePlacementCall() throws Exception {
+        var api = provider();
+        record Hook(String mixin, String owner, String method, String nativeCall) {}
+        var hooks = List.of(
+                new Hook("BlueprintCommandFactionActorMixin", "command/SableBlueprintCommands",
+                        "loadSchematic", "load"),
+                new Hook("BlueprintToolFactionActorMixin", "network/BlueprintToolServerActions",
+                        "handleLoadBlueprint", "loadBytes"));
+        for (var hook : hooks) {
+            String mixin = "dev.sablelife.mixin." + hook.mixin();
+            String owner = PhotomancyApiContract.API + hook.owner();
+            byte[] original = api.get(owner);
+            assertTrue(PhotomancyApiContract.diagnosticHook(mixin, api::get, PhotomancyApiContractTest::own));
+            change(api, owner, node -> {
+                var method = node.methods.stream().filter(m -> m.name.equals(hook.method())).findFirst().orElseThrow();
+                var call = Arrays.stream(method.instructions.toArray())
+                        .filter(MethodInsnNode.class::isInstance).map(MethodInsnNode.class::cast)
+                        .filter(i -> i.owner.endsWith("/BlueprintToolService") && i.name.equals(hook.nativeCall()))
+                        .findFirst().orElseThrow();
+                method.instructions.insert(call, new MethodInsnNode(call.getOpcode(), call.owner, call.name,
+                        call.desc, call.itf));
+            });
+            assertFalse(PhotomancyApiContract.diagnosticHook(mixin, api::get, PhotomancyApiContractTest::own));
+            assertTrue(check(api).compatible(), check(api).reason());
+            api.put(owner, original);
+        }
+    }
 }

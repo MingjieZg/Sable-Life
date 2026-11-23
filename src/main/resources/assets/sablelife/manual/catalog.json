@@ -1,5 +1,5 @@
 {
-  "revision": 254,
+  "revision": 259,
   "entries": [
     {
       "id": "getting_started",
@@ -43,7 +43,8 @@
           "manual.sablelife.core.example"
         ],
         "troubleshooting": [
-          "manual.sablelife.core.troubleshooting"
+          "manual.sablelife.core.troubleshooting",
+          "manual.sablelife.core.blueprint_factions"
         ]
       }
     },
@@ -695,6 +696,22 @@
         ]
       },
       "module": "armor"
+    },
+    {
+      "id": "entity_pass_through",
+      "title": "dashboard.sablelife.type_entity_pass_through",
+      "sections": {
+        "usage": [
+          "manual.sablelife.entity_pass_through.brief_usage"
+        ],
+        "example": [
+          "manual.sablelife.entity_pass_through.brief_example"
+        ],
+        "troubleshooting": [
+          "manual.sablelife.entity_pass_through.brief_troubleshooting"
+        ]
+      },
+      "module": "entity_pass_through"
     },
     {
       "id": "linear_movement",

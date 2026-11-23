@@ -12,6 +12,7 @@
     "HitboxNavigationMixin",
     "ModuleSignalMixin",
     "ModuleDeathMessageMixin",
+    "MeleeHurtKnockbackMixin",
     "NavigationWireMixin",
     "UseOnContextAccess",
     "LivingBlockPlaceMixin",

@@ -60,3 +60,6 @@ config="sablelife.photomancy.mixins.json"
 
 [[mixins]]
 config="sablelife.littletiles.mixins.json"
+
+[[mixins]]
+config="sablelife.entity-pass-through.mixins.json"

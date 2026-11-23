@@ -19,8 +19,11 @@ import java.util.*;
 public final class PhotomancyRespawnBridge {
  private static final ThreadLocal<Build> DIRECT_BUILD=new ThreadLocal<>();
  public static void observePlacement(dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession session){var build=DIRECT_BUILD.get();if(build!=null&&build.session==null&&build.blueprint.subLevels().stream().allMatch(part->session.mapSubLevel(part.sourceUuid())!=null))build.session=session;}
- private static final ThreadLocal<SableBlueprint> TRUSTED=new ThreadLocal<>();
- public static boolean trusted(SableBlueprint blueprint){return TRUSTED.get()==blueprint;}
+ private static final ThreadLocal<Build> ACTIVE_BUILD=new ThreadLocal<>();
+ public static boolean trusted(SableBlueprint blueprint){var build=ACTIVE_BUILD.get();return build!=null&&build.blueprint==blueprint;}
+ static boolean trustedFaction(dev.rew1nd.sableschematicapi.api.blueprint.BlueprintPlaceSession session){
+  var build=ACTIVE_BUILD.get();return build!=null&&!build.spawnGeometry&&(build.legacyIncremental||build.session==session);
+ }
  public static CompoundTag capture(HeartBlockEntity heart,Vec3 center){
   var level=(ServerLevel)heart.getLevel();var root=Sable.HELPER.getContaining(level,heart.getBlockPos());if(root==null||root.isRemoved())throw new IllegalArgumentException("unassembled");
   var ids=new LinkedHashSet<UUID>();long visits=0;
@@ -70,7 +73,7 @@ public final class PhotomancyRespawnBridge {
    if(directDone){dev.sablelife.ownership.ArenaBuildTicks.release(level,bodies());return "DONE";}
    if(!progress.placedSubLevels().isEmpty())throw new IllegalStateException("Incomplete direct placement must be cancelled, not placed again");
    // Same synchronous placer as Photomancy's blueprint tool; no cross-tick pose overrides.
-   var previous=TRUSTED.get();var previousBuild=DIRECT_BUILD.get();TRUSTED.set(blueprint);DIRECT_BUILD.set(this);
+   var previous=ACTIVE_BUILD.get();var previousBuild=DIRECT_BUILD.get();ACTIVE_BUILD.set(this);DIRECT_BUILD.set(this);
    try{
     var result=SableBlueprintPlacer.place(level,blueprint,plan);
     result.diagnostics().logSummary(com.mojang.logging.LogUtils.getLogger(),"Arena direct respawn");
@@ -83,6 +86,8 @@ public final class PhotomancyRespawnBridge {
     }
     directDone=true;return "DONE";
    }finally{
+    if(previous==null)ACTIVE_BUILD.remove();else ACTIVE_BUILD.set(previous);
+    if(previousBuild==null)DIRECT_BUILD.remove();else DIRECT_BUILD.set(previousBuild);
     if(session!=null){
      for(var part:blueprint.subLevels()){
       var body=session.placedSubLevel(part.id());var origin=session.placedBlockOrigin(part.id());
@@ -90,23 +95,20 @@ public final class PhotomancyRespawnBridge {
      }
      session.allocatedUuidMap().forEach(progress::recordAllocatedUuid);
     }
-    if(previous==null)TRUSTED.remove();else TRUSTED.set(previous);
-    if(previousBuild==null)DIRECT_BUILD.remove();else DIRECT_BUILD.set(previousBuild);
    }
   }
   private String stepLegacy(ServerLevel level){
-   var previous=TRUSTED.get();TRUSTED.set(blueprint);
-   dev.sablelife.ownership.ArenaBuildTicks.hold(level,tickGroup,bodies());
-   try{stabilize(level);var result=SableBlueprintIncrementalPlacer.step(level,blueprint,plan,progress,new BlueprintBuildTickBudget(128,16,8,2000000),BlueprintBuildMaterialBudget.UNLIMITED);
+   var previous=ACTIVE_BUILD.get();ACTIVE_BUILD.set(this);
+   try{dev.sablelife.ownership.ArenaBuildTicks.hold(level,tickGroup,bodies());stabilize(level);var result=SableBlueprintIncrementalPlacer.step(level,blueprint,plan,progress,new BlueprintBuildTickBudget(128,16,8,2000000),BlueprintBuildMaterialBudget.UNLIMITED);
     dev.sablelife.ownership.ArenaBuildTicks.hold(level,tickGroup,bodies());
     if(result.status()==BlueprintBuildStatus.FAILED)throw new IllegalStateException("Photomancy build failed: "+result.message().getString());
     stabilize(level);if(result.status()==BlueprintBuildStatus.DONE)dev.sablelife.ownership.ArenaBuildTicks.release(level,bodies());return result.status().name();}
    finally{
+    if(previous==null)ACTIVE_BUILD.remove();else ACTIVE_BUILD.set(previous);
     var container=dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
     if(container!=null)for(var placed:progress.placedSubLevels().values()){
      if(container.getSubLevel(placed.placedUuid()) instanceof dev.ryanhcode.sable.sublevel.ServerSubLevel body)recordRollbackPlot(body);
     }
-    if(previous==null)TRUSTED.remove();else TRUSTED.set(previous);
    }
   }
   private void stabilize(ServerLevel level){

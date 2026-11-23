@@ -1,8 +1,12 @@
 package dev.sablelife.heart;
 
 import dev.sablelife.SableLife;
+import java.util.Objects;
+import java.util.UUID;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -18,6 +22,9 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
     private final int initialPage;
     private String relationStatus="";
     private java.util.UUID inspectedFaction;
+    private BlueprintFaction blueprintSource;
+    private UUID blueprintLocal;
+    private int blueprintRevision;
     private final SimpleContainer snapshot = new SimpleContainer(1);
     public HeartSettingsMenu(int id, Inventory inventory) { this(id, inventory, null); }
     public HeartSettingsMenu(int id, Inventory inventory, HeartBlockEntity heart) {
@@ -38,8 +45,22 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         var tag = new CompoundTag(); tag.putBoolean("Ready", true);tag.putString("RelationStatus",relationStatus);
         tag.putInt("FactionCreationLimit",dev.sablelife.SableLifeServerConfig.maximumFactionsPerPlayer());
         tag.putInt("InitialPage", initialPage);
-        if(viewer instanceof net.minecraft.server.level.ServerPlayer sp){tag.put("Relations",heart.relations().save());tag.put("Factions",FactionRegistry.get(sp.server).snapshot(sp));var players=new net.minecraft.nbt.ListTag();for(var p:sp.server.getPlayerList().getPlayers()){var r=new CompoundTag();r.putUUID("Id",p.getUUID());r.putString("Name",p.getGameProfile().getName());players.add(r);}tag.put("Players",players);}
-        if(viewer instanceof net.minecraft.server.level.ServerPlayer sp&&inspectedFaction!=null)tag.put("FactionDetail",FactionRegistry.get(sp.server).detail(sp,inspectedFaction));
+        if (viewer instanceof ServerPlayer sp) {
+            var registry = FactionRegistry.get(sp.server);
+            tag.put("Relations", heart.relations().save());
+            tag.put("Factions", registry.snapshot(sp));
+            var players = new ListTag();
+            for (var player : sp.server.getPlayerList().getPlayers()) {
+                var row = new CompoundTag();
+                row.putUUID("Id", player.getUUID());
+                row.putString("Name", player.getGameProfile().getName());
+                players.add(row);
+            }
+            tag.put("Players", players);
+            if (inspectedFaction != null) tag.put("FactionDetail", registry.detail(sp, inspectedFaction));
+            var blueprint = blueprintSnapshot(sp, registry);
+            if (!blueprint.isEmpty()) tag.put("BlueprintFactionView", blueprint);
+        }
         tag.putInt("targetPriority",heart.relations().priority());tag.putString("ownerName",heart.relations().ownerName());
         if(heart.isSurvivalCore()){
             tag.putInt("ActivationTokenRate",dev.sablelife.SableLifeServerConfig.activationTokenRate());
@@ -82,7 +103,7 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
     }
     public boolean action(Player player, String key, double value, String text) {
         if (heart == null || !stillValid(player)) return false;
-        if(key.startsWith("relation:")){boolean result=relations(player,key.substring(9),text);refresh();sendAllDataToRemote();return result;}
+        if(key.startsWith("relation:")){boolean result=relations(player,key.substring(9),value,text);refresh();sendAllDataToRemote();return result;}
         if(key.equals("release"))return CoreRelease.release(heart,player);
         if(key.equals("viewPage")){
             if(value!=HIT_EFFECT_PAGE&&(!Double.isFinite(value)||value<0||value>(heart.isSurvivalCore()?2:6)||value!=Math.rint(value)))return false;
@@ -100,9 +121,112 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
         }
         boolean result = heart.editCore(player, key, value, text); refresh(); sendAllDataToRemote(); return result;
     }
-    private boolean relations(Player player,String key,String text){
+    private void refreshBlueprintRevision() {
+        var source = heart.relations().blueprintFaction();
+        var local = heart.relations().faction();
+        if (!Objects.equals(source, blueprintSource) || !Objects.equals(local, blueprintLocal)) {
+            blueprintRevision++;
+            blueprintSource = source;
+            blueprintLocal = local;
+        }
+    }
+
+    private CompoundTag blueprintSnapshot(ServerPlayer player, FactionRegistry registry) {
+        refreshBlueprintRevision();
+        var view = new CompoundTag();
+        if (blueprintSource == null) return view;
+        view.putInt("Revision", blueprintRevision);
+        if (registry.contains(blueprintLocal)) view.putUUID("Bound", blueprintLocal);
+        var suggested = registry.resolveBlueprintFaction(player, blueprintSource);
+        if (suggested != null) view.putUUID("Suggested", suggested);
+        view.putString("CreatedName", registry.suggestBlueprintFactionName(blueprintSource));
+        var allies = new ListTag();
+        for (var ally : blueprintSource.allies()) {
+            var row = new CompoundTag();
+            row.putUUID("Id", ally.id());
+            var mapped = registry.resolveBlueprintFaction(player, blueprintSource.sourceWorld(), ally.id());
+            if (mapped != null) {
+                row.putUUID("Mapped", mapped);
+                row.putBoolean("Allied", registry.allied(blueprintLocal, mapped));
+            }
+            allies.add(row);
+        }
+        view.put("Allies", allies);
+        return view;
+    }
+
+    private boolean blueprintAction(ServerPlayer player, FactionRegistry registry, String key, double value, String text) {
+        int separator = key.lastIndexOf(':');
+        relationStatus = "bp_rejected";
+        if (separator < 0) return false;
+        refreshBlueprintRevision();
+        if (blueprintSource == null || Integer.parseInt(key.substring(separator + 1)) != blueprintRevision) {
+            relationStatus = "bp_stale";
+            return false;
+        }
+        switch (key.substring(0, separator)) {
+            case "bp_bind" -> {
+                var target = UUID.fromString(text);
+                var current = registry.detail(player, target);
+                if (!current.hasUUID("Id")) return false;
+                if (value != factionFlags(current.getBoolean("Private"), current.getBoolean("FriendlyFire"), current.getBoolean("AlliedFire"))) {
+                    relationStatus = "bp_stale";
+                    return false;
+                }
+                if (!registry.bindBlueprintFaction(player, blueprintSource, target)) return false;
+                heart.relations().bindBlueprintFaction(target);
+                relationStatus = "bp_bound";
+            }
+            case "bp_create" -> {
+                if (registry.contains(blueprintLocal) || registry.resolveBlueprintFaction(player, blueprintSource) != null) {
+                    relationStatus = "bp_use_mapping";
+                    return false;
+                }
+                if (!(value >= 0 && value <= 7 && value == Math.rint(value))) return false;
+                int flags = (int) value;
+                var creation = registry.createBlueprintFaction(player, blueprintSource, text,
+                        (flags & 1) != 0, (flags & 2) != 0, (flags & 4) != 0);
+                if (creation.id() == null) {
+                    if (creation.error().startsWith("faction_")) relationStatus = creation.error();
+                    return false;
+                }
+                heart.relations().bindBlueprintFaction(creation.id());
+                relationStatus = "bp_bound";
+            }
+            case "bp_clear" -> {
+                heart.relations().clearBlueprintFaction();
+                relationStatus = "bp_cleared";
+            }
+            case "bp_ally" -> {
+                var ids = text.split("\\|", -1);
+                if (ids.length != 2 || blueprintLocal == null) return false;
+                var sourceAlly = UUID.fromString(ids[0]);
+                var expected = UUID.fromString(ids[1]);
+                var mapped = registry.resolveBlueprintFaction(player, blueprintSource.sourceWorld(), sourceAlly);
+                if (!expected.equals(mapped)) {
+                    relationStatus = "bp_stale";
+                    return false;
+                }
+                if (!registry.confirmBlueprintAlliance(player, blueprintSource, blueprintLocal, sourceAlly)) return false;
+                relationStatus = registry.allied(blueprintLocal, mapped) ? "bp_ally_done" : "bp_ally_requested";
+            }
+            default -> { return false; }
+        }
+        heart.setChanged();
+        return true;
+    }
+
+    public static int factionFlags(boolean privateFaction, boolean friendlyFire, boolean alliedFire) {
+        return (privateFaction ? 1 : 0) | (friendlyFire ? 2 : 0) | (alliedFire ? 4 : 0);
+    }
+
+    private boolean relations(Player player,String key,double value,String text){
         if(!heart.canToggleBreaking(player)||!(player instanceof net.minecraft.server.level.ServerPlayer sp)){relationStatus="denied";return false;}
         var registry=FactionRegistry.get(sp.server);boolean result=false;
+        if (key.startsWith("bp_")) {
+            try { return blueprintAction(sp, registry, key, value, text); }
+            catch (IllegalArgumentException ignored) { relationStatus = "bp_rejected"; return false; }
+        }
         try{switch(key){
             case "excludeName"->{result=heart.relations().exclude(text);relationStatus=result?"player_added":"invalid_name";}
             case "removeName"->result=heart.relations().remove(text);

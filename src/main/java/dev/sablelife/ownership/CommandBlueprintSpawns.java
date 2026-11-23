@@ -1,6 +1,7 @@
 package dev.sablelife.ownership;
 
 import dev.sablelife.SableLifeServerConfig;
+import dev.sablelife.compat.photomancy.BlueprintFactionPlacement;
 import dev.sablelife.compat.photomancy.PhotomancyCompatibility;
 import dev.sablelife.compat.photomancy.PhotomancyRespawnBridge;
 import dev.sablelife.compat.photomancy.SpawnTemplateBridge;
@@ -16,6 +17,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.phys.AABB;
@@ -160,9 +162,11 @@ public final class CommandBlueprintSpawns extends SavedData {
                 checkSpace(level, job.bounds);
                 // Persisted as interrupted before the native placement; interrupted jobs are never replayed.
                 job.cleanup = true; setDirty();
-                build = PhotomancyRespawnBridge.createSpawn(job.template, new CompoundTag(), job.origin, null);
+                var placement = PhotomancyRespawnBridge.createSpawn(job.template, new CompoundTag(), job.origin, null);
+                build = placement;
                 try {
-                    if (!build.step(level).equals("DONE")) throw new Rejected("failed");
+                    if (!BlueprintFactionPlacement.withActor(level, factionActor(server, job),
+                            () -> placement.step(level)).equals("DONE")) throw new Rejected("failed");
                 } finally {
                     job.bodies.addAll(build.bodies());
                     job.placement = BlueprintCleanup.placement(build.save());
@@ -172,6 +176,12 @@ public final class CommandBlueprintSpawns extends SavedData {
                 if (job.activate) {
                     var core = build.heart(level);
                     if (core == null) throw new Rejected("activation");
+                    if (core.relations().hasPendingBlueprintFaction()) {
+                        source(server, level, job).sendSuccess(() -> Component.translatable("command.sablelife.blueprint.faction_pending"), false);
+                        job.activate = false;
+                        complete(server, level, job);
+                        break;
+                    }
                     job.creature = core.creatureId(); setDirty();
                     build.captureOwnership(core);
                     if (!core.activateAfterBlueprintPlacement(build.bodies().size())) throw new Rejected("activation");
@@ -199,6 +209,10 @@ public final class CommandBlueprintSpawns extends SavedData {
     }
     private static CommandSourceStack source(MinecraftServer server, ServerLevel level, Job job) {
         return job.source == null ? server.createCommandSourceStack().withLevel(level) : job.source;
+    }
+    private static ServerPlayer factionActor(MinecraftServer server, Job job) {
+        if (job.source == null || !(job.source.source instanceof ServerPlayer player)) return null;
+        return server.getPlayerList().getPlayer(player.getUUID()) == player && player.hasPermissions(2) ? player : null;
     }
     private static boolean cleanup(ServerLevel level, Job job) {
         try {

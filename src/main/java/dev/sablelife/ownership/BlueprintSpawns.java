@@ -233,7 +233,8 @@ public final class BlueprintSpawns extends SavedData {
                 e.phase = "building";
                 e.progress = e.build.save();
                 setDirty();
-                String status = e.build.step(level);
+                String status = dev.sablelife.compat.photomancy.BlueprintFactionPlacement.withTrustedLocal(
+                        level, () -> e.build.step(level));
                 e.progress = e.build.save();
                 setDirty();
                 if (!status.equals("DONE")) continue;

@@ -99,6 +99,15 @@ final class LittleTilesMixinContractTest {
         assertFalse(LittleTilesMixinContract.inspect(data::get));
     }
 
+    @Test void inaccessibleQueueStatusSkipsTheAdapter() throws Exception {
+        var data = classes("pre239");
+        edit(data, "team/creative/littletiles/client/render/block/BERenderManager", n -> {
+            var status = n.methods.stream().filter(m -> m.name.equals("isInQueue")).findFirst().orElseThrow();
+            status.access &= ~Opcodes.ACC_PUBLIC;
+        });
+        assertFalse(LittleTilesMixinContract.inspect(data::get));
+    }
+
     @Test void acceptsNewerVersionsAndRetainsMinimums() {
         assertTrue(LittleTilesMixinContract.supported("1.6.0-pre235", "2.13.54", "2.0.5"));
         assertTrue(LittleTilesMixinContract.supported("1.6.0-pre240", "2.13.55", "2.0.7"));

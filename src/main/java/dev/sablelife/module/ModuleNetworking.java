@@ -117,6 +117,10 @@ public final class ModuleNetworking {
     }
     public static void register(RegisterPayloadHandlersEvent event) {
         var registrar = event.registrar("50");
+        if (dev.sablelife.compat.sablecollision.EntityPassThroughMixinPlugin.supported()) {
+            registrar.optional().playToClient(EntityPassThroughPacket.TYPE, EntityPassThroughPacket.CODEC,
+                    (packet, context) -> EntityPassThroughState.receive(context.player(), packet));
+        }
         registrar.optional().playToServer(dev.sablelife.item.CommandWandItem.Input.TYPE,
                 dev.sablelife.item.CommandWandItem.Input.CODEC, (packet, context) -> {
                     if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {

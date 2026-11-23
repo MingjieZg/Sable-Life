@@ -8,7 +8,7 @@ public final class RedstoneCorePolicy {
     /** Hard capability boundary. Server configuration may narrow this list, never expand it. */
     public static final java.util.Set<String> OPTIONAL_TYPES=java.util.Set.of("visual_shockwave","distortion_trail","particles","item_display","trigger_sound");
     public static boolean defaultEnabled(String type){return TYPES.contains(type);}
-    public static final List<String> TYPES=List.of("move_set","signal_logic","sequence","wireless_redstone","sensor","navigation","auto_facing","signal_turn","gyroscope","hover_anchor","linear_movement","visual_shockwave","distortion_trail","particles","item_display","trigger_sound","block_interaction","propulsion","motion_damping","contact_sensor");
+    public static final List<String> TYPES=List.of("move_set","signal_logic","sequence","wireless_redstone","sensor","navigation","auto_facing","signal_turn","gyroscope","hover_anchor","linear_movement","visual_shockwave","distortion_trail","particles","item_display","trigger_sound","block_interaction","propulsion","motion_damping","contact_sensor",VirtualModule.ENTITY_PASS_THROUGH);
     public static int maxTrigger(String type){return MoveSet.supportsModule(type)?4:3;}
     public static boolean supports(String type) {
         if (TYPES.contains(type)) return true;
