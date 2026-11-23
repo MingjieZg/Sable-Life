@@ -1,11 +1,31 @@
 package dev.sablelife.module;
 
 import net.minecraft.world.phys.Vec3;
+import org.joml.Quaterniond;
+import org.joml.Vector3d;
 import java.util.*;
 
 /** Deterministic local strokes; no particles, entities, terrain visits or per-frame network traffic. */
 public final class PatternGeometry {
     public record Stroke(Vec3 a,Vec3 b,float width,float alpha){}
+    // Unit coordinates in the marked face's right/up/forward frame.
+    private static final Vec3 SHIELD_IMPACT = shieldPoint(-.19, .13);
+    private static final List<Vec3> SHIELD_RIM = List.of(
+            shieldPoint(0, .97), shieldPoint(.64, .93), shieldPoint(.98, .69),
+            shieldPoint(.95, .30), shieldPoint(.72, -.37), shieldPoint(0, -1),
+            shieldPoint(-.71, -.39), shieldPoint(-.95, .28), shieldPoint(-.98, .70),
+            shieldPoint(-.62, .93));
+    private static final List<ShieldSection> SHIELD_SECTIONS = List.of(
+            new ShieldSection(0, 3, shieldPoint(.35, .55)),
+            new ShieldSection(3, 6, shieldPoint(.30, -.25)),
+            new ShieldSection(6, 10, shieldPoint(-.59, .20)));
+    private static final List<ShieldShard> SHIELD_SHARDS = shieldShards();
+
+    private record ShieldSection(int start, int end, Vec3 joint) {}
+
+    private record ShieldShard(Vec3 center, Vec3 a, Vec3 b, Vec3 c, Vec3 drift,
+                               double pitch, double yaw) {}
+
     private static void line(List<Stroke> out,Vec3 a,Vec3 b,double width,double alpha){
         if(out.size()<512&&alpha>.005&&a.distanceToSqr(b)>1E-10)
             out.add(new Stroke(a,b,(float)width,(float)Math.clamp(alpha,0,1)));
@@ -39,15 +59,7 @@ public final class PatternGeometry {
                     }
                 }
             }
-            case 2 -> { // A faceted dome opens into separating fragments.
-                for(int ring=0;ring<4;ring++)for(int i=0;i<12;i++){
-                    double a=i*Math.PI/6,b=(i+1)*Math.PI/6,phi=.18+ring*.32,spread=1+Math.max(0,t-.4)*1.4;
-                    double r=Math.cos(phi)*size*spread,z=Math.sin(phi)*size*spread;
-                    double gap=t>.4?.04+Math.max(0,t-.4)*.25:0;
-                    line(out,circle(a+gap,r,z),circle(b-gap,r,z),width,fade*(1-t*.6));
-                    if(ring<3)line(out,circle(a+gap,r,z),circle(a+.13,Math.cos(phi+.32)*size*spread,Math.sin(phi+.32)*size*spread),width,fade*.8);
-                }
-            }
+            case 2 -> shieldFracture(out,t,speed,size,width,fade);
             case 3 -> { // Jets stretch out along the marked face and fade into a plume.
                 for(int i=0;i<48;i++){
                     double p=(age*.075*speed+i/48.)%1,angle=i*2.399963+spin*.2;
@@ -82,5 +94,97 @@ public final class PatternGeometry {
         }
         return List.copyOf(out);
     }
+
+    private static Vec3 shieldPoint(double x, double y) {
+        return new Vec3(x, y, .065 + .24 * Math.max(0, 1 - .56 * x * x - .65 * y * y));
+    }
+
+    private static Vec3 shieldRim(int index) {
+        return SHIELD_RIM.get(index % SHIELD_RIM.size());
+    }
+
+    private static List<ShieldShard> shieldShards() {
+        var shards = new ArrayList<ShieldShard>();
+        // Each section fans around a crack junction inside its part of the rim.
+        for (var section : SHIELD_SECTIONS) {
+            addShieldShard(shards, SHIELD_IMPACT, shieldRim(section.start()), section.joint());
+            for (int i = section.start(); i < section.end(); i++) {
+                addShieldShard(shards, shieldRim(i), shieldRim(i + 1), section.joint());
+            }
+            addShieldShard(shards, shieldRim(section.end()), SHIELD_IMPACT, section.joint());
+        }
+        return List.copyOf(shards);
+    }
+
+    private static void addShieldShard(List<ShieldShard> shards, Vec3 a, Vec3 b, Vec3 c) {
+        Vec3 center = a.add(b).add(c).scale(1.0 / 3);
+        Vec3 outward = new Vec3(center.x - SHIELD_IMPACT.x, center.y - SHIELD_IMPACT.y, 0).normalize();
+        int index = shards.size();
+        double push = .42 + .08 * (index % 4);
+        Vec3 drift = outward.scale(push).add(0, 0, .26 + .09 * (index % 5));
+        int tilt = index % 2 == 0 ? 1 : -1;
+        shards.add(new ShieldShard(center, a.subtract(center), b.subtract(center), c.subtract(center),
+                drift, -tilt * (.7 + .18 * (index % 4)), outward.x * 1.3 + tilt * .22));
+    }
+
+    private static void shieldFracture(List<Stroke> out, double progress, double speed,
+                                       double size, double width, double fade) {
+        double breakAt = Math.clamp(.21 / Math.sqrt(speed), .11, .34);
+        double shardsVisible = ease((progress - breakAt) / .09);
+        if (shardsVisible < 1) {
+            double alpha = fade * (1 - shardsVisible);
+            for (int i = 0; i < SHIELD_RIM.size(); i++) {
+                line(out, shieldRim(i).scale(size), shieldRim(i + 1).scale(size), width * 1.45, alpha);
+            }
+            double crack = Math.clamp((progress / breakAt - .10) / .90, 0, 1);
+            for (int i = 0; i < SHIELD_SECTIONS.size(); i++) {
+                var section = SHIELD_SECTIONS.get(i);
+                double delay = i * .075;
+                double reach = (crack - delay) / (1 - delay);
+                shieldCrack(out, SHIELD_IMPACT, shieldRim(section.start()), reach / .85, size, width, alpha);
+                shieldCrack(out, SHIELD_IMPACT, section.joint(), reach / .55, size, width, alpha);
+                for (int edge = section.start(); edge <= section.end(); edge++) {
+                    shieldCrack(out, section.joint(), shieldRim(edge), (reach - .55) / .45,
+                            size, width * .67, alpha * .72);
+                }
+            }
+        }
+        if (shardsVisible > 0) {
+            double flight = (progress - breakAt) / (1 - breakAt);
+            double travel = flight * (.5 + 1.05 * speed / (1 + speed));
+            double alpha = fade * shardsVisible * (1 - .38 * flight);
+            double shardWidth = width * (1.10 - .30 * flight);
+            var rotation = new Quaterniond();
+            var rotated = new Vector3d();
+            for (var shard : SHIELD_SHARDS) {
+                Vec3 center = shard.center().add(shard.drift().scale(travel)).add(0, -.72 * travel * flight, 0);
+                rotation.rotationYXZ(shard.yaw() * travel, shard.pitch() * travel, 0);
+                Vec3 a = shieldVertex(shard.a(), center, size, rotation, rotated);
+                Vec3 b = shieldVertex(shard.b(), center, size, rotation, rotated);
+                Vec3 c = shieldVertex(shard.c(), center, size, rotation, rotated);
+                line(out, a, b, shardWidth, alpha);
+                line(out, b, c, shardWidth, alpha);
+                line(out, c, a, shardWidth, alpha);
+            }
+        }
+    }
+
+    private static Vec3 shieldVertex(Vec3 offset, Vec3 center, double size, Quaterniond rotation, Vector3d rotated) {
+        rotation.transformUnit(offset.x, offset.y, offset.z, rotated);
+        return new Vec3((center.x + rotated.x) * size, (center.y + rotated.y) * size, (center.z + rotated.z) * size);
+    }
+
+    private static void shieldCrack(List<Stroke> out, Vec3 from, Vec3 to, double progress,
+                                    double size, double width, double alpha) {
+        if (progress > 0) {
+            line(out, from.scale(size), from.lerp(to, ease(progress)).scale(size), width, alpha);
+        }
+    }
+
+    private static double ease(double progress) {
+        double t = Math.clamp(progress, 0, 1);
+        return t * t * (3 - 2 * t);
+    }
+
     private PatternGeometry(){}
 }

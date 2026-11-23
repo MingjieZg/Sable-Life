@@ -304,6 +304,8 @@ Message Display can use the same internal channel number as an Own death output.
 
 The two-column Visual Effects picker shows the current page and total pages in the footer, with left and right buttons for browsing. Both buttons are disabled when there is only one page.
 
+The Shield Fracture effect now starts with a curved shield face. Cracks spread from the impact point, and individual shards tumble, scatter, and fade. The speed setting adjusts when the shield breaks and how far the shards scatter.
+
 Part Break's Required health loss field adjusts by 5 per scroll step.
 
 The Damage Accumulation Trigger's Damage threshold adjusts by 5 per scroll step.
