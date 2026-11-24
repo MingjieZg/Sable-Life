@@ -89,4 +89,183 @@ public final class FollowRedstoneGameTests {
   var cow=net.minecraft.world.entity.EntityType.COW.create(h.getLevel());cow.setNoAi(true);cow.setNoGravity(true);cow.setPos(m.anchors().getFirst().world(c,false).add(3,0,0));h.getLevel().addFreshEntity(cow);c.tryActivate(TestActors.creative(h.getLevel()));c.modules().tick(c);h.assertTrue(m.value("trigger")==4&&c.wireless().output(1)==3,"Move Set ramp did not start at configured endpoint");
   h.runAfterDelay(7,()->{c.modules().events().tick(c);h.assertTrue(c.wireless().output(1)==0&&face(c,m)==0,"Ramp outlived shortened Move Set action");cow.discard();h.succeed();});
  }
+
+ @GameTest(template="combat",batch="ramp_release_outputs",timeoutTicks=40)
+ public static void RampReleaseUsesPublishedStrengthAtAllDestinations(GameTestHelper h) {
+  var relay = new RampReleaseOutputs(h, Items.COPPER_INGOT, Items.GOLD_INGOT);
+  relay.trigger(true);
+  relay.expect(3, "Fresh start");
+  h.runAfterDelay(2, () -> {
+   relay.sample(7, "Interrupted rise");
+   relay.trigger(false);
+   relay.expect(7, "Falling edge");
+  });
+  h.runAfterDelay(4, () -> relay.sample(6, "Release rounded up"));
+  h.runAfterDelay(6, () -> {
+   relay.sample(4, "Release midpoint");
+   relay.trigger(true);
+   relay.expect(4, "Retrigger from last visible strength");
+   relay.sample(4, "Second sample in the same tick");
+  });
+  h.runAfterDelay(9, () -> relay.sample(10, "New rise midpoint"));
+  h.runAfterDelay(12, () -> {
+   relay.sample(15, "New rise endpoint");
+   relay.trigger(false);
+   relay.expect(15, "Second falling edge");
+  });
+  h.runAfterDelay(19, () -> relay.sample(2, "Last tick before the deadline"));
+  h.runAfterDelay(20, () -> relay.sample(0, "Exact release deadline despite the Output Buffer"));
+  h.runAfterDelay(21, () -> {
+   relay.trigger(true);
+   relay.expect(3, "Fresh start after a complete release");
+   h.succeed();
+  });
+ }
+
+ @GameTest(template="combat",batch="ramp_release_cleanup",timeoutTicks=20)
+ public static void DisablingOrUnloadingRampReleaseClearsAllOutputs(GameTestHelper h) {
+  var relay = new RampReleaseOutputs(h, Items.IRON_INGOT, Items.LAPIS_LAZULI);
+  relay.trigger(true);
+  relay.trigger(false);
+  h.runAfterDelay(1, () -> {
+   relay.sample(3, "Release before disabling module");
+   relay.module.edit("enabled", 0, "");
+   relay.sample(0, "Module disabled");
+   relay.module.edit("enabled", 1, "");
+   relay.trigger(true);
+   relay.expect(3, "Restart after module disabled");
+   relay.trigger(false);
+  });
+  h.runAfterDelay(2, () -> {
+   relay.sample(3, "Release before disabling master");
+   relay.core.wireless().master(false);
+   relay.sample(0, "Master disabled");
+   relay.core.wireless().master(true);
+   relay.trigger(true);
+   relay.expect(3, "Restart after master disabled");
+   relay.trigger(false);
+  });
+  h.runAfterDelay(3, () -> {
+   relay.sample(3, "Release before core unload");
+   relay.core.onChunkUnloaded();
+   relay.expect(0, "Core unload");
+   h.succeed();
+  });
+ }
+
+ @GameTest(template="combat",batch="ramp_release_legacy_buffer",timeoutTicks=25)
+ public static void OutputBufferStillAppliesOutsideReleaseEnabledRamp(GameTestHelper h) {
+  var relay = new RampReleaseOutputs(h, Items.GHAST_TEAR, Items.BLAZE_ROD);
+  relay.module.edit("redstoneStrengthMode", 0, "");
+  relay.module.edit("redstonePower", 9, "");
+  relay.module.edit("redstoneBufferTime", 4, "");
+  relay.trigger(true);
+  relay.expect(9, "Fixed relay on with stored release time");
+  relay.trigger(false);
+  relay.expect(9, "Fixed relay uses the Output Buffer");
+  h.runAfterDelay(4, () -> {
+   relay.sample(0, "Fixed Output Buffer deadline");
+   relay.module.edit("redstoneStrengthMode", 2, "");
+   relay.module.edit("redstoneRampReleaseTime", 0, "");
+   relay.trigger(true);
+   relay.expect(3, "Legacy Ramp starts at configured endpoint");
+   relay.trigger(false);
+   relay.expect(3, "Zero release time preserves Ramp Output Buffer");
+  });
+  h.runAfterDelay(8, () -> {
+   relay.sample(0, "Legacy Ramp Output Buffer deadline");
+   h.succeed();
+  });
+ }
+
+ @GameTest(template="combat",batch="ramp_release_settings")
+ public static void RampReleaseDefaultsOffAndPersistsInSavesAndPresets(GameTestHelper h) {
+  var module = new VirtualModule("wireless_redstone");
+  var release = "redstoneRampReleaseTime";
+  h.assertTrue(module.value(release) == 0, "Fresh relay should default release time to Off");
+  module.edit("redstoneStrengthMode", 2, "");
+  module.edit("redstoneRampTime", 42, "");
+  module.edit("redstoneBufferTime", 17, "");
+  h.assertTrue(module.edit(release, 57, ""), "Release time was rejected");
+  var authored = module.save();
+  h.assertTrue(VirtualModule.load(authored).value(release) == 57, "Saved relay lost release time");
+  h.assertTrue(ModulePreset.create(authored).value(release) == 57, "Portable preset lost release time");
+
+  var old = authored.copy();
+  old.getCompound("Settings").remove(release);
+  var loaded = VirtualModule.load(old);
+  h.assertTrue(loaded.value(release) == 0 && ModulePreset.create(old).value(release) == 0
+          && loaded.value("redstoneRampTime") == 42 && loaded.value("redstoneBufferTime") == 17,
+          "Legacy relay or preset acquired a release time or lost other settings");
+
+  h.assertTrue(!module.edit(release, Double.NaN, "") && module.value(release) == 57,
+          "Invalid release time replaced a valid setting");
+  var settings = authored.getCompound("Settings");
+  settings.putDouble(release, 12001);
+  h.assertTrue(VirtualModule.load(authored).value(release) == 12000, "Saved release time exceeded its tick limit");
+  settings.putDouble(release, -1);
+  h.assertTrue(VirtualModule.load(authored).value(release) == 0, "Saved release time was negative");
+  h.succeed();
+ }
+
+ private static final class RampReleaseOutputs implements GameTestListener {
+  final GameTestHelper test;
+  final HeartBlockEntity core;
+  final VirtualModule module;
+  final Link receiver;
+  final BlockPos facePosition;
+  final Direction faceDirection;
+
+  RampReleaseOutputs(GameTestHelper test, Item redItem, Item blueItem) {
+   this.test = test;
+   core = core(test);
+   module = out(core);
+   module.edit("redstoneStrengthMode", 2, "");
+   module.edit("redstoneRampStart", 3, "");
+   module.edit("redstoneRampTime", 6, "");
+   module.edit("redstoneRampReleaseTime", 8, "");
+   module.edit("redstoneBufferTime", 30, "");
+   var anchor = module.anchors().getFirst();
+   faceDirection = anchor.face();
+   facePosition = anchor.position(anchor.body(core)).relative(faceDirection);
+   var red = new ItemStack(redItem);
+   var blue = new ItemStack(blueItem);
+   var level = test.getLevel();
+   module.redBlue(false, red, level.registryAccess());
+   module.redBlue(true, blue, level.registryAccess());
+   receiver = new Link(core.getBlockPos(), true, red, blue);
+   com.simibubi.create.Create.REDSTONE_LINK_NETWORK_HANDLER.addToNetwork(level, receiver);
+   test.testInfo.addListener(this);
+   core.tryActivate(TestActors.creative(level));
+  }
+
+  void trigger(boolean powered) {
+   core.wireless().programOutputs("test_input", powered ? Map.of(0, 15) : Map.of());
+   core.modules().events().tick(core);
+  }
+
+  void sample(int expected, String phase) {
+   core.modules().events().tick(core);
+   expect(expected, phase);
+  }
+
+  void expect(int expected, String phase) {
+   int channel = core.wireless().output(1);
+   int face = test.getLevel().getSignal(facePosition, faceDirection);
+   test.assertTrue(channel == expected && face == expected && receiver.rx == expected,
+           phase + " expected " + expected + " but internal/face/Create strengths were "
+                   + channel + "/" + face + "/" + receiver.rx);
+  }
+
+  private void cleanup() {
+   com.simibubi.create.Create.REDSTONE_LINK_NETWORK_HANDLER.removeFromNetwork(test.getLevel(), receiver);
+   core.wireless().stop();
+   core.modules().events().clear();
+  }
+
+  @Override public void testStructureLoaded(GameTestInfo info) {}
+  @Override public void testAddedForRerun(GameTestInfo original, GameTestInfo retry, GameTestRunner runner) { cleanup(); }
+  @Override public void testPassed(GameTestInfo info, GameTestRunner runner) { cleanup(); }
+  @Override public void testFailed(GameTestInfo info, GameTestRunner runner) { cleanup(); }
+ }
 }

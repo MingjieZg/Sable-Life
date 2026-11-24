@@ -7,6 +7,7 @@ public final class ModuleFields {
     public static final String MELEE_DISABLE_SHIELD = "meleeDisableShield";
     public static final String MELEE_SHIELD_BREAK_SOUND = "meleeShieldBreakSound";
     public static final String MELEE_VANILLA_KNOCKBACK = "meleeVanillaKnockback";
+    public static final String REDSTONE_RAMP_RELEASE_TIME = "redstoneRampReleaseTime";
     public static final int ARENA_ANNOUNCEMENT_LENGTH = 256;
     public static final int ARENA_BATTLE_MIN_TICKS = 100;
     public static final int ARENA_BATTLE_MAX_TICKS = 72000;
@@ -96,7 +97,7 @@ public final class ModuleFields {
             case "signal_logic" -> List.of("logicMatch","signalRules","logicChannel","logicPower","logicMode","logicPulse");
             case "combat_event" -> List.of("signalRules");
             case "health_phase" -> List.of("healthPhaseRules");
-            case "wireless_redstone" -> List.of("redstoneStrengthMode", "redstonePower", "redstoneRampStart", "redstoneRampEnd", "redstoneRampTime", "redstoneMode", "redstonePulse", "redstoneBufferTime", "redstoneInvert", "redstoneFaces", "redstoneChannel", "redstoneFrequency");
+            case "wireless_redstone" -> List.of("redstoneStrengthMode", "redstonePower", "redstoneRampStart", "redstoneRampEnd", "redstoneRampTime", REDSTONE_RAMP_RELEASE_TIME, "redstoneMode", "redstonePulse", "redstoneBufferTime", "redstoneInvert", "redstoneFaces", "redstoneChannel", "redstoneFrequency");
         case "sequence" -> List.of("sequenceSteps", "sequenceRepeat", "stopOnLow", "resetChannel", "resetSource");
             case "arena" -> List.of("arenaRadius", "warningRange", "countdown", "arenaDeath", "arenaPlayerDeathCountdown", "arenaForceReturn", "arenaReturn", "arenaBuffEnabled", "arenaBuffGroups", "arenaRespawnEnabled", "arenaRespawnDelay", "arenaRespawnRecord", "arenaRespawnClear", "arenaRespawnBattleTimer", "arenaRespawnBattleLimit", "arenaDefeatAnnouncement", "arenaRespawnAnnouncement",
                     ArenaBattleTitle.ENABLED_KEY, ArenaBattleTitle.DISPLAY_KEY, "arenaRespawnBattleTitleStart", "arenaRespawnBattleTitle10m",
@@ -229,7 +230,8 @@ public final class ModuleFields {
         case "signal_logic" -> List.of(c("logicMatch","signal_all","signal_any","signal_xor","signal_nand","signal_nor","signal_xnor","signal_not"),c("signalRules","signal_rule_editor"),n("logicChannel",0,65535,0),n("logicPower",1,15,15),c("logicMode","signal_hold","signal_pulse"),t("logicPulse",1,12000,10));
         case "combat_event" -> List.of(c("signalRules","signal_rule_editor"));
         case "health_phase" -> List.of(c("healthPhaseRules","phase_rule_editor"));
-        case "wireless_redstone" -> List.of(c("redstoneStrengthMode","redstone_fixed","redstone_follow","redstone_ramp"),n("redstonePower", 0, 15, 15),n("redstoneRampStart",0,15,0),n("redstoneRampEnd",0,15,15),t("redstoneRampTime",1,12000,60), c("redstoneMode", "signal_hold", "signal_pulse"),
+        case "wireless_redstone" -> List.of(c("redstoneStrengthMode","redstone_fixed","redstone_follow","redstone_ramp"),n("redstonePower", 0, 15, 15),n("redstoneRampStart",0,15,0),n("redstoneRampEnd",0,15,15),t("redstoneRampTime",1,12000,60),
+                t(REDSTONE_RAMP_RELEASE_TIME,0,12000,0), c("redstoneMode", "signal_hold", "signal_pulse"),
                 t("redstonePulse", 1, 12000, 20), t("redstoneBufferTime",0,12000,0), c("redstoneInvert", "off", "on"), new Field("redstoneFaces", 0, 1, 1, 1, List.of("all_faces", "marked_face")), n("redstoneChannel",0,65535,0),
                 c("redstoneFrequency", "frequency"));
         case "entity_hitbox" -> List.of(new Field("hitboxDamageMode",0,1,1,1,List.of("hitbox_entity_only","hitbox_hybrid")),c("hitboxProvokeMobs","off","on"),c("hitboxRetaliateAgainstWhitelisted","off","on"),n("hitboxWidth",.25,16,1),n("hitboxHeight",.25,16,1),n("hitboxDepth",.25,16,1),n("hitboxOffsetX",-16,16,0),n("hitboxOffsetY",-16,16,0),n("hitboxOffsetZ",-16,16,0));

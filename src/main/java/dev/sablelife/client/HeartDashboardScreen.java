@@ -408,12 +408,15 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             else deleteUntil = tickCount + 60;
         }); edits.add(remove); sync();
     }
+    private static boolean releaseRampLocksBuffer(VirtualModule module, String key) {
+        return key.equals("redstoneBufferTime") && module != null && ModuleRedstone.releaseRampEnabled(module);
+    }
     private void apply(int index) {
         if (parameterPage * parameterSlots + index >= parameters.size()) return;
         var field = parameters.get(parameterPage * parameterSlots + index);
         if(field.key().equals("arenaRespawnRecord")){action("arena_clear","",0,"");return;}
         var box = fields.get(index);
-        if (!box.visible || !box.active || field.choice()) return;
+        if (!box.visible || !box.active || field.choice() || releaseRampLocksBuffer(selected(), field.key())) return;
         if (ModuleFields.arenaText(field.key())) {
             action("edit", field.key(), 0, box.getValue());
             box.setFocused(false);
@@ -710,7 +713,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if (m != null && m.type().equals("wireless_redstone")) {
             var wirelessFields = new ArrayList<>(nextFields.stream().filter(f -> !f.key().equals("redstoneRampEnd")
                     && !(m.value("redstoneStrengthMode") == 2 ? f.key().equals("redstonePower")
-                        : List.of("redstoneRampStart", "redstoneRampTime").contains(f.key()))).toList());
+                        : List.of("redstoneRampStart", "redstoneRampTime", ModuleFields.REDSTONE_RAMP_RELEASE_TIME).contains(f.key()))).toList());
             // The bottom Mark and Preview buttons own face 1.
             for (int i = 1; i < m.redstoneFaceCount(); i++)
                 wirelessFields.add(new ModuleFields.Field(OUTPUT_ROW + i, 0, 0, 0, 1, List.of("mark")));
@@ -867,9 +870,15 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                             || m.type().equals("laser")&&(field.key().equals("laserBreakMode")&&m.value("laserBreakBlocks")==0||field.key().equals("laserBreakSpeed")&&(m.value("laserBreakBlocks")==0||m.value("laserBreakMode")==0))
                             || field.key().equals("castTargetRange")&&!TargetCastOrigin.targeted(m)
                             || TargetCastOrigin.targeted(m)&&List.of("startDistance","sphereDistance","direction").contains(field.key());
-                    box.setEditable(editable && usable && !automaticAim); box.active = editable && usable && !automaticAim && !isNone;
+                    boolean releaseRampOverridesBuffer = releaseRampLocksBuffer(m, field.key());
+                    if (releaseRampOverridesBuffer && box.isFocused()) {
+                        if (getFocused() == box) setFocused(null);
+                        box.setFocused(false);
+                    }
+                    boolean unavailable = automaticAim || releaseRampOverridesBuffer;
+                    box.setEditable(editable && usable && !unavailable); box.active = editable && usable && !unavailable && !isNone;
                     applyButtons.get(i).active = box.active; choices.get(i).active = (editable || soundField || field.key().equals("effects") || field.key().equals("particles") || field.key().endsWith("Particles") || field.key().equals("sequenceSteps") || field.key().equals("moveSetEditor") || field.key().equals("blueprintEditor") || field.key().equals("commandEditor") || field.key().equals("arenaBuffGroups") || field.key().equals("armorRules") || field.key().equals("healthPhaseRules") || field.key().equals("signalRules")) && usable && !automaticAim && !isNone;
-                    box.setTextColor(automaticAim ? 0x777777 : 0xE0E0E0);
+                    box.setTextColor(unavailable ? 0x777777 : 0xE0E0E0);
                     var tooltip = ModulePropertyHelp.tooltip(m, field);
                     box.setTooltip(tooltip);
                     applyButtons.get(i).setTooltip(tooltip);
@@ -1100,7 +1109,8 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             g.pose().pushPose();
             g.pose().translate(detailX, 63 + i * rowPitch + (rowPitch - 2 - lines * font.lineHeight * scale) / 2, 0);
             g.pose().scale(scale, scale, 1);
-            g.drawWordWrap(font, label, 0, 0, labelWidth, vanillaKnockbackLocked(m, key) ? 0xA397AC : 0xE6D8EA);
+            boolean locked = vanillaKnockbackLocked(m, key) || releaseRampLocksBuffer(m, key);
+            g.drawWordWrap(font, label, 0, 0, labelWidth, locked ? 0xA397AC : 0xE6D8EA);
             g.pose().popPose();
             var field = parameters.get(parameterPage * parameterSlots + i);
             if (List.of("lineOfSight", "arenaDeath", "arenaForceReturn", "trail").contains(key)) {

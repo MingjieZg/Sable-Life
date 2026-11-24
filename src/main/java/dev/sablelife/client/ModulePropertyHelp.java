@@ -1,6 +1,7 @@
 package dev.sablelife.client;
 
 import dev.sablelife.module.ModuleFields;
+import dev.sablelife.module.ModuleRedstone;
 import dev.sablelife.module.SurfaceFieldSettings;
 import dev.sablelife.module.VirtualModule;
 import net.minecraft.client.gui.components.Tooltip;
@@ -34,6 +35,7 @@ final class ModulePropertyHelp {
         String specific=prefix+module.type()+"."+key;
         String helpKey = key.equals("visualSpeed") && SurfaceFieldSettings.isDeployableShield(module)
                 ? "visualShieldSpeed" : presentationKey(module, key);
+        if (key.equals("redstoneBufferTime") && ModuleRedstone.releaseRampEnabled(module)) helpKey = "redstoneBufferRampRelease";
         String shared=prefix+(dev.sablelife.module.ArenaBattleTitle.isTemplate(key) ? "arenaBattleTitle" : helpKey);
         Component detail;
         if(I18n.exists(specific))detail=Component.translatable(specific);
