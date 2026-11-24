@@ -33,7 +33,7 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
     private static final int RAIL_WIDTH=18;
     private static final int TANK_Y=45, TANK_HEIGHT=46;
     private static final int DUMP_Y=96, DUMP_HEIGHT=10;
-    private static final ResourceLocation FILLED_BUCKET_GHOST=ResourceLocation.withDefaultNamespace("item/water_bucket");
+    private static final ResourceLocation FILLED_BUCKET_GHOST=ResourceLocation.withDefaultNamespace("item/lava_bucket");
     private static final ResourceLocation EMPTY_BUCKET_GHOST=ResourceLocation.withDefaultNamespace("item/bucket");
     private int page;
     private int tankMouseButton=-1;
