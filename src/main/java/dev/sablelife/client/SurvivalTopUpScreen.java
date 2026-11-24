@@ -31,6 +31,7 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
     private static final int COLUMNS=12, PER_PAGE=COLUMNS*3;
     private static final int CATALOG_X=12, CATALOG_Y=24;
     private static final int RAIL_WIDTH=18;
+    private static final int SLOT_FRAME=0xFF171821, SLOT_SURFACE=0xFF373542;
     private static final int TANK_Y=45, TANK_HEIGHT=46;
     private static final int DUMP_Y=96, DUMP_HEIGHT=10;
     private static final ResourceLocation FILLED_BUCKET_GHOST=ResourceLocation.withDefaultNamespace("item/lava_bucket");
@@ -110,8 +111,8 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         }
     }
     private static void slot(GuiGraphics g,int x,int y){
-        g.fill(x-1,y-1,x+17,y+17,0xFF171821);
-        g.fill(x,y,x+16,y+16,0xFF373542);
+        g.fill(x-1,y-1,x+17,y+17,SLOT_FRAME);
+        g.fill(x,y,x+16,y+16,SLOT_SURFACE);
     }
     private void bucketSlot(GuiGraphics g,int index,ResourceLocation ghost){
         var bucket=menu.getSlot(index);
@@ -123,8 +124,8 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
     private void drawTank(GuiGraphics g,CompoundTag data){
         int x=leftPos+tankX(),y=topPos+TANK_Y;
         boolean unavailable=data.getBoolean("TankUnavailable");
-        g.fill(x,y,x+RAIL_WIDTH,y+TANK_HEIGHT,unavailable?0xFF87674F:0xFF171821);
-        g.fill(x+1,y+1,x+RAIL_WIDTH-1,y+TANK_HEIGHT-1,0xFF373542);
+        g.fill(x,y,x+RAIL_WIDTH,y+TANK_HEIGHT,unavailable?0xFF87674F:SLOT_FRAME);
+        g.fill(x+1,y+1,x+RAIL_WIDTH-1,y+TANK_HEIGHT-1,SLOT_SURFACE);
         int amount=tankAmount(data);
         if(amount>0){
             int height=Math.max(1,(TANK_HEIGHT-2)*amount/SurvivalLiquidFuel.CAPACITY);
@@ -289,21 +290,30 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
 
         @Override protected void renderWidget(GuiGraphics g,int mouseX,int mouseY,float partial){
             int left=getX(),top=getY(),right=left+getWidth(),bottom=top+getHeight();
-            g.fill(left,top,right,bottom,active&&isHoveredOrFocused()?0xFFD2BADF:0xFF171821);
-            int surface=!active?0xFF34313B:confirming?0xFF713D48:0xFF625968;
+            boolean highlighted=active&&isHoveredOrFocused();
+            int surface=SLOT_SURFACE,icon=0xFF827C89;
+            if(active){
+                if(confirming){
+                    surface=highlighted?0xFF65434F:0xFF51343E;
+                    icon=0xFFF1CDD7;
+                }else{
+                    if(highlighted)surface=0xFF464052;
+                    icon=highlighted?0xFFE1D5EC:0xFFADA3B7;
+                }
+            }
+            g.fill(left,top,right,bottom,SLOT_FRAME);
             g.fill(left+1,top+1,right-1,bottom-1,surface);
             int x=left+getWidth()/2,y=top+getHeight()/2;
-            int icon=active?0xFFEEE4F5:0xFF827C89;
             if(confirming){
-                g.fill(x-3,y,x-2,y+2,icon);
-                g.fill(x-2,y+1,x-1,y+3,icon);
-                for(int step=0;step<5;step++)g.fill(x-1+step,y+2-step,x+step,y+3-step,icon);
+                g.fill(x-3,y-1,x-2,y+1,icon);
+                g.fill(x-2,y,x-1,y+2,icon);
+                for(int step=0;step<4;step++)g.fill(x-1+step,y+1-step,x+step,y+3-step,icon);
             }else{
-                g.fill(x-1,y-4,x+1,y-3,icon);
-                g.fill(x-4,y-3,x+4,y-2,icon);
-                g.fill(x-3,y-1,x-2,y+3,icon);
-                g.fill(x+2,y-1,x+3,y+3,icon);
-                g.fill(x-3,y+3,x+3,y+4,icon);
+                g.fill(x-1,y-3,x+1,y-2,icon);
+                g.fill(x-3,y-2,x+3,y-1,icon);
+                g.fill(x-2,y-1,x-1,y+2,icon);
+                g.fill(x+1,y-1,x+2,y+2,icon);
+                g.fill(x-2,y+2,x+2,y+3,icon);
             }
         }
     }
