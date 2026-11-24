@@ -33,6 +33,7 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
     private static final int RAIL_WIDTH=18;
     private static final int SLOT_FRAME=0xFF171821, SLOT_SURFACE=0xFF373542;
     private static final int TANK_Y=45, TANK_HEIGHT=46;
+    private static final int TANK_MINOR_STEP=5000, TANK_MAJOR_STEP=10000;
     private static final int DUMP_Y=96, DUMP_HEIGHT=10;
     private static final ResourceLocation FILLED_BUCKET_GHOST=ResourceLocation.withDefaultNamespace("item/lava_bucket");
     private static final ResourceLocation EMPTY_BUCKET_GHOST=ResourceLocation.withDefaultNamespace("item/bucket");
@@ -123,20 +124,22 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
 
     private void drawTank(GuiGraphics g,CompoundTag data){
         int x=leftPos+tankX(),y=topPos+TANK_Y;
+        int right=x+RAIL_WIDTH-1,bottom=y+TANK_HEIGHT-1,innerHeight=TANK_HEIGHT-2;
         boolean unavailable=data.getBoolean("TankUnavailable");
         g.fill(x,y,x+RAIL_WIDTH,y+TANK_HEIGHT,unavailable?0xFF87674F:SLOT_FRAME);
-        g.fill(x+1,y+1,x+RAIL_WIDTH-1,y+TANK_HEIGHT-1,SLOT_SURFACE);
+        g.fill(x+1,y+1,right,bottom,SLOT_SURFACE);
         int amount=tankAmount(data);
         if(amount>0){
-            int height=Math.max(1,(TANK_HEIGHT-2)*amount/SurvivalLiquidFuel.CAPACITY);
-            int width=RAIL_WIDTH-2,bottom=y+TANK_HEIGHT-1,top=bottom-height;
+            int height=Math.max(1,innerHeight*amount/SurvivalLiquidFuel.CAPACITY);
+            int top=bottom-height;
             var stack=fluid(data.getString("TankFluid"),amount);
-            if(unavailable||stack.isEmpty())g.fill(x+1,top,x+1+width,bottom,0xFF6E6475);
-            else drawFluid(g,stack,x+1,top,width,height);
+            if(unavailable||stack.isEmpty())g.fill(x+1,top,right,bottom,0xFF6E6475);
+            else drawFluid(g,stack,x+1,top,RAIL_WIDTH-2,height);
         }
-        for(int tick=1;tick<=3;tick++){
-            int tickY=y+TANK_HEIGHT*tick/4;
-            g.fill(x+RAIL_WIDTH-4,tickY,x+RAIL_WIDTH-1,tickY+1,0xA0A89CAF);
+        for(int tick=TANK_MINOR_STEP;tick<SurvivalLiquidFuel.CAPACITY;tick+=TANK_MINOR_STEP){
+            int tickY=bottom-innerHeight*tick/SurvivalLiquidFuel.CAPACITY;
+            int length=tick%TANK_MAJOR_STEP==0?6:3;
+            g.fill(right-length,tickY,right,tickY+1,0xA0A89CAF);
         }
     }
 
@@ -239,8 +242,10 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
                 Component name;
                 if(unavailable)name=id.isEmpty()?tr("tank_unknown_fluid"):Component.literal(id);
                 else name=stack.isEmpty()?tr("tank_empty"):stack.getHoverName();
-                var usage=tr(unavailable?"tank_unavailable":"tank_use");
-                g.renderComponentTooltip(font,List.of(name,tr("tank_amount",amount,SurvivalLiquidFuel.CAPACITY),usage),mouseX,mouseY);
+                var capacity=tr("tank_amount",amount,SurvivalLiquidFuel.CAPACITY);
+                var tooltip=unavailable ? List.of(name,capacity,tr("tank_unavailable"))
+                        : List.of(name,capacity,tr("tank_fill_hint"),tr("tank_take_hint",FluidType.BUCKET_VOLUME));
+                g.renderComponentTooltip(font,tooltip,mouseX,mouseY);
                 return;
             }
             if(bucketTooltip(g,SurvivalTopUpMenu.BUCKET_INPUT,"tank_bucket_input",mouseX,mouseY)
