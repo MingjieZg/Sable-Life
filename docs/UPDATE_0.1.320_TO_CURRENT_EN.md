@@ -2,7 +2,7 @@
 
 ## 0.1.457
 
-- **Deployable Shield**. This Visual Effects pattern opens a planar shield on the marked face, holds it while triggered, and folds it when the trigger stops. Set its color, size and speed, and choose whether it follows the marked part or stays at its release position. Preview duration applies to the manual preview. Entry 134, manual revision 260.
+- **Deployable Shield**. Whole hexagonal tiles appear outward from the center of the marked face, forming a flat, roughly circular honeycomb. The shield holds while triggered and closes inward when the trigger stops. Increasing size adds tiles. Hexagon sides are normally 0.5 world blocks and gradually grow above size 3. Set its color and speed, and choose whether it follows the marked part or stays at its release position. Preview duration applies to the manual preview. Entry 134, manual revision 261.
 
 ## 0.1.456
 

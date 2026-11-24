@@ -20,9 +20,20 @@ public final class PatternVisualClient {
     private static final class Shield {
         final DeployableShieldAnimation animation;
         Frame lastFrame;
+        private DeployableShieldGeometry geometry;
+        private float geometrySize;
 
         Shield(ShieldVisualPacket packet, double now) {
             animation = new DeployableShieldAnimation(packet, now);
+        }
+
+        List<PatternGeometry.Stroke> strokes(double now) {
+            float size = animation.visual().size();
+            if (geometry == null || size != geometrySize) {
+                geometry = new DeployableShieldGeometry(size);
+                geometrySize = size;
+            }
+            return geometry.strokes(animation.openness(now));
         }
     }
 
@@ -102,8 +113,8 @@ public final class PatternVisualClient {
                 frame = shield.lastFrame;
             }
             if (frame == null || frame.point().distanceToSqr(camera) > packet.range() * packet.range()) continue;
-            var lines = DeployableShieldGeometry.strokes(animation.openness(now), packet.size());
-            if (strokes + lines.size() > 8192) break;
+            var lines = shield.strokes(now);
+            if (strokes + lines.size() > 8192) continue;
             if (lines.isEmpty()) continue;
             PatternVisualRenderer.strokes(event, frame.point(), frame.normal(), frame.up(), packet.rgb(), lines);
             strokes += lines.size();

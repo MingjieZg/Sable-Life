@@ -237,4 +237,4 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 
 133. 近战击退控制。额外击退为 0 时可编辑「原版受伤击退」，默认开启。额外击退大于 0 时原版击退同时生效，归零后恢复保存的选择。手册修订 259。 / Melee can disable Vanilla hurt knockback when Extra knockback is zero. It defaults to On. Positive Extra knockback enables both, and returning to zero restores the saved choice. Manual revision 259.
 
-134. 0.1.457：视觉特效新增「展开护盾」。平面护盾沿标记面展开，在触发期间保持，触发结束后收拢。手册修订 260。 / Deployable Shield opens on the marked face, holds while triggered, and folds when the trigger stops. Manual revision 260.
+134. 0.1.457：视觉特效新增「展开护盾」。平面蜂巢从标记面中心展开，在触发期间保持，触发结束后向中心收拢。手册修订 261。 / Deployable Shield reveals a flat honeycomb from the center of the marked face, holds while triggered, and closes inward afterward. Manual revision 261.

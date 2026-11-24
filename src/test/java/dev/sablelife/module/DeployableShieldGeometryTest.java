@@ -1,66 +1,66 @@
 package dev.sablelife.module;
 
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class DeployableShieldGeometryTest {
     @Test
-    void shapeUnfoldsFromItsCenterBeforeTheTrimAppears() {
-        assertTrue(DeployableShieldGeometry.strokes(0, 2).isEmpty());
-        var center = DeployableShieldGeometry.strokes(.033, 2);
-        var opening = DeployableShieldGeometry.strokes(.30, 2);
-        var spread = DeployableShieldGeometry.strokes(.72, 2);
-        var held = DeployableShieldGeometry.strokes(1, 2);
-
-        assertEquals(1, center.size());
-        assertEquals(0, halfWidth(center), 1e-10);
-        assertTrue(halfWidth(opening) > .3 * halfWidth(held));
-        assertTrue(halfWidth(opening) < halfWidth(held));
-        assertEquals(halfWidth(held), halfWidth(spread), 1e-10);
-        assertTrue(opening.size() < held.size());
-        assertNotEquals(spread, held);
-        assertEquals(held, DeployableShieldGeometry.strokes(1, 2));
-    }
-
-    @Test
-    void heldShieldHasAConnectedBroadSixSidedRimAndADownwardTip() {
-        var held = DeployableShieldGeometry.strokes(1, 2);
-        var outline = held.subList(0, 6);
-        for (int i = 0; i < outline.size(); i++) {
-            assertEquals(outline.get(i).b(), outline.get((i + 1) % outline.size()).a());
+    void largerShieldAddsClosedCellsOnTheSameLattice() {
+        var small = DeployableShieldGeometry.strokes(1, 2);
+        var large = DeployableShieldGeometry.strokes(1, 3);
+        assertEquals(13, boundedFaces(small));
+        assertEquals(31, boundedFaces(large));
+        assertTrue(edgePositions(large).containsAll(edgePositions(small)));
+        for (var line : large) {
+            assertEquals(.5, line.a().distanceTo(line.b()), 1e-9);
         }
-        var tip = outline.stream().map(PatternGeometry.Stroke::a)
-                .max(Comparator.comparingDouble(point -> point.y)).orElseThrow();
-        assertEquals(0, tip.x, 1e-10);
-        assertTrue(tip.y > 0);
-        assertTrue(outline.stream().map(PatternGeometry.Stroke::a)
-                .anyMatch(point -> point.y < 0 && Math.abs(point.x) > 1.9));
     }
 
     @Test
-    void strokesStayWithinOnePlaneAndTheSizeAndRenderingBudgets() {
-        for (double size : new double[]{.1, 2, 32}) {
-            for (double openness : new double[]{.08, .25, .45, .85, 1}) {
-                var strokes = DeployableShieldGeometry.strokes(openness, size);
-                assertFalse(strokes.isEmpty());
-                assertTrue(strokes.size() <= 32);
-                double plane = strokes.getFirst().a().z;
+    void openingAndClosingRevealTheSameEdgesFromTheCenter() {
+        var mesh = new DeployableShieldGeometry(2);
+        assertTrue(mesh.strokes(0).isEmpty());
+        var first = mesh.strokes(.20);
+        var middle = mesh.strokes(.64);
+        var held = mesh.strokes(1);
+        assertEquals(6, first.size());
+        assertEquals(1, boundedFaces(first));
+        assertTrue(first.stream().allMatch(stroke -> stroke.a().length() < .51 && stroke.b().length() < .51));
+        assertTrue(first.size() < middle.size() && middle.size() < held.size());
+        assertTrue(edgePositions(middle).containsAll(edgePositions(first)));
+        assertTrue(edgePositions(held).containsAll(edgePositions(middle)));
+        assertEquals(middle, mesh.strokes(.64));
+        assertSame(held, mesh.strokes(1));
+    }
+
+    @Test
+    void allSettingsStayPlanarWithinRadiusAndSharedFrameBudget() {
+        int previousCount = 0;
+        for (double size : new double[]{.1, .5, 1.5, 2, 2.5, 3, 6, 12, 32}) {
+            var held = DeployableShieldGeometry.strokes(1, size);
+            assertFalse(held.isEmpty());
+            assertTrue(held.size() >= previousCount);
+            previousCount = held.size();
+            assertTrue(held.size() * PatternVisual.MAX_EFFECTS <= 8192);
+            assertEquals(held.size(), edgePositions(held).size());
+            for (var line : held) {
+                double plane = held.getFirst().a().z;
                 assertTrue(plane > 0 && plane < .1);
-                for (var stroke : strokes) {
-                    assertEquals(plane, stroke.a().z);
-                    assertEquals(plane, stroke.b().z);
-                    assertTrue(Double.isFinite(stroke.a().lengthSqr()) && Double.isFinite(stroke.b().lengthSqr()));
-                    assertTrue(stroke.a().distanceToSqr(stroke.b()) > 0);
-                    assertTrue(stroke.width() > 0 && stroke.alpha() > 0 && stroke.alpha() <= 1);
-                }
-                assertTrue(halfWidth(strokes) <= size);
+                assertEquals(plane, line.a().z);
+                assertEquals(plane, line.b().z);
+                assertTrue(Math.hypot(line.a().x, line.a().y) <= size + 1e-9);
+                assertTrue(Math.hypot(line.b().x, line.b().y) <= size + 1e-9);
+                assertTrue(line.a().distanceToSqr(line.b()) > 0);
+                assertTrue(line.width() > 0 && line.alpha() > 0 && line.alpha() <= 1);
             }
         }
+        assertEquals(73, boundedFaces(DeployableShieldGeometry.strokes(1, 32)));
         assertTrue(DeployableShieldGeometry.strokes(1, .09).isEmpty());
         assertTrue(DeployableShieldGeometry.strokes(1, 33).isEmpty());
         assertTrue(DeployableShieldGeometry.strokes(1, Double.POSITIVE_INFINITY).isEmpty());
@@ -69,8 +69,19 @@ class DeployableShieldGeometryTest {
         assertTrue(DeployableShieldGeometry.strokes(1.1, 2).isEmpty());
     }
 
-    private static double halfWidth(List<PatternGeometry.Stroke> strokes) {
-        return strokes.stream().flatMap(stroke -> Stream.of(stroke.a(), stroke.b()))
-                .mapToDouble(point -> Math.abs(point.x)).max().orElseThrow();
+    private static Set<Set<Vec3>> edgePositions(List<PatternGeometry.Stroke> strokes) {
+        var edges = new HashSet<Set<Vec3>>();
+        for (var stroke : strokes) edges.add(Set.of(stroke.a(), stroke.b()));
+        return edges;
+    }
+
+    private static int boundedFaces(List<PatternGeometry.Stroke> strokes) {
+        var vertices = new HashSet<Vec3>();
+        for (var stroke : strokes) {
+            vertices.add(stroke.a());
+            vertices.add(stroke.b());
+        }
+        // Euler's formula for this connected planar grid, excluding the outside face.
+        return strokes.size() - vertices.size() + 1;
     }
 }
