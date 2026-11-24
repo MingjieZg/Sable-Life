@@ -32,7 +32,9 @@ final class ModulePropertyHelp {
     static Component text(VirtualModule module,ModuleFields.Field field){
         String prefix="dashboard.sablelife.property_help.",key=field.key();
         String specific=prefix+module.type()+"."+key;
-        String shared=prefix+(dev.sablelife.module.ArenaBattleTitle.isTemplate(key) ? "arenaBattleTitle" : presentationKey(module,key));
+        String helpKey = key.equals("visualSpeed") && SurfaceFieldSettings.isDeployableShield(module)
+                ? "visualShieldSpeed" : presentationKey(module, key);
+        String shared=prefix+(dev.sablelife.module.ArenaBattleTitle.isTemplate(key) ? "arenaBattleTitle" : helpKey);
         Component detail;
         if(I18n.exists(specific))detail=Component.translatable(specific);
         else if(I18n.exists(shared))detail=Component.translatable(shared);
