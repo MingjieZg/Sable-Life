@@ -498,7 +498,7 @@ public final class MarkingSessions {
             if(!List.of("valid","disabled").contains(HeartModules.status(module,heart)))return;
             var anchor=module.anchors().getFirst();
             preview(player,heart,List.of(anchor,anchor));
-            if(module.value("shockContact")==1){
+            if(module.value("shockContact")==1 && SurfaceFieldSettings.visible(module, "shockContact")){
                 var start=ModuleEvents.contactStart(heart,module);
                 var end=start.add(ModuleEvents.contactDirection(heart,module).scale(module.value("contactDistance")));
                 var level=(ServerLevel)player.level();

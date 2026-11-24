@@ -5,10 +5,15 @@ import net.minecraft.server.level.*;
 import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.*;
 public final class ModuleShockwave {
- private static final class Clock{boolean high,touching;VisualFilterPacket filter;long nextFilter;final Set<UUID> filterViewers=new HashSet<>();ShockwaveZoomPacket zoom;long nextZoom;final Set<UUID> viewers=new HashSet<>();long contactDue,due,token=Long.MIN_VALUE,last=Long.MIN_VALUE;}
+ private static final class Clock{boolean high,touching;DeployableShieldState shield;VisualFilterPacket filter;long nextFilter;final Set<UUID> filterViewers=new HashSet<>();ShockwaveZoomPacket zoom;long nextZoom;final Set<UUID> viewers=new HashSet<>();long contactDue,due,token=Long.MIN_VALUE,last=Long.MIN_VALUE;}
  private final Map<UUID,Clock> states=new HashMap<>();private ServerLevel level;
  private void release(Clock state){if(level!=null&&state.zoom!=null&&level.getServer().isRunning())for(var player:level.players())if(state.viewers.contains(player.getUUID()))PacketDistributor.sendToPlayer(player,state.zoom.released());state.zoom=null;state.viewers.clear();}
- public void clear(){states.values().forEach(s->{release(s);releaseFilter(s);});states.clear();level=null;}
+ public void clear(){states.values().forEach(this::releaseAll);states.clear();level=null;}
+ private void releaseAll(Clock state){
+  release(state);
+  releaseFilter(state);
+  if(state.shield!=null)state.shield.close(level);
+ }
  private void hold(Clock state,VirtualModule m,HeartBlockEntity heart,long now){
   var p=packet(heart,m);state.zoom=new ShockwaveZoomPacket(p.dimension(),m.id(),p.point(),(float)m.value("shockZoom"),p.zoomTicks(),p.range(),true);
   var nearby=new HashSet<UUID>();boolean refresh=now>=state.nextZoom;
@@ -34,7 +39,7 @@ public final class ModuleShockwave {
  public static ShockwavePacket packet(HeartBlockEntity heart,VirtualModule m){return packet(heart,m,m.anchors().getFirst().world(heart,false));}
  private static ShockwavePacket packet(HeartBlockEntity heart,VirtualModule m,net.minecraft.world.phys.Vec3 point){return new ShockwavePacket(heart.getLevel().dimension().location(),point,(float)m.value("shockRadius"),(int)m.value(m.value("shockPattern")==1?"shockRadialTime":"shockExpansion"),(float)m.value("shockWidth"),m.value("shockWaveEnabled")==1&&m.value("shockPattern")==0?(float)m.value("shockDistortion"):0,m.value("shockWaveEnabled")==1&&m.value("shockPattern")<=1?(float)m.value(m.value("shockPattern")==1?"shockRadialStrength":"shockBlur"):0,m.value("shockShakeEnabled")==1?(float)m.value("shockShake"):0,(int)m.value("shockShakeTime"),m.value("shockZoomEnabled")==1?(float)m.value("shockZoom"):0,(int)m.value("shockZoomTime"),(float)m.value("shockRange"),m.value("shockReverse")==1,(float)m.value("shockShakeFrequency"),m.value("shockPattern")==1?1:0,(float)(m.value("shockRadialClear")/100));}
  private static void sendPattern(ServerPlayer player,HeartBlockEntity core,VirtualModule module,net.minecraft.world.phys.Vec3 contact){
-  if(module.value("shockWaveEnabled")!=1||module.value("shockPattern")<2)return;
+  if(module.value("shockWaveEnabled")!=1||module.value("shockPattern")<2||deployable(module))return;
   var effect=PatternVisual.create(core,module,contact);
   if(effect.valid()&&dev.sablelife.compat.sable.SableBodyProbe.toWorld(core.getLevel(),player.position()).distanceToSqr(effect.point())<=effect.range()*effect.range()&&VisualBudget.allow(player,32))PacketDistributor.sendToPlayer(player,effect);
  }
@@ -52,18 +57,53 @@ public final class ModuleShockwave {
    }
   }
  }
- public static boolean preview(ServerPlayer p,HeartBlockEntity heart,VirtualModule m){if(!heart.canEdit(p)||!List.of("valid","disabled").contains(HeartModules.status(m,heart)))return false;var packet=packet(heart,m);if(!packet.valid())return false;send(p,packet);sendPattern(p,heart,m,null);if(m.value("filterEnabled")==1)PacketDistributor.sendToPlayer(p,filterPacket(heart,m));return true;}
+ private static boolean deployable(VirtualModule module){
+  return module.value("shockPattern")==ShieldVisualPacket.MODULE_PATTERN;
+ }
+ private static boolean hasCameraPulse(VirtualModule module){
+  return module.value("shockShakeEnabled")==1&&module.value("shockShake")>0
+       ||module.value("shockZoomEnabled")==1&&module.value("shockZoom")!=0;
+ }
+ public static boolean preview(ServerPlayer p,HeartBlockEntity heart,VirtualModule m){
+  if(!heart.canEdit(p)||!List.of("valid","disabled").contains(HeartModules.status(m,heart)))return false;
+  boolean shield=deployable(m);
+  if(!shield||hasCameraPulse(m)){
+   var packet=packet(heart,m);
+   if(!packet.valid())return false;
+   send(p,packet);
+  }
+  if(shield){
+   if(m.value("shockWaveEnabled")==1)DeployableShieldState.preview(p,heart,m);
+  }else sendPattern(p,heart,m,null);
+  if(m.value("filterEnabled")==1)PacketDistributor.sendToPlayer(p,filterPacket(heart,m));
+  return true;
+ }
  public void tick(HeartBlockEntity heart){
   if(!(heart.getLevel() instanceof ServerLevel level)||!heart.operational()||!heart.wireless().master()){clear();return;}
+  if(this.level!=null&&this.level!=level)clear();
   this.level=level;var keep=new HashSet<UUID>();long now=level.getGameTime();
   for(var m:heart.modules().all())if(m.type().equals("visual_shockwave")){
    keep.add(m.id());var s=states.computeIfAbsent(m.id(),ignored->new Clock());if(s.last==now)continue;s.last=now;
    boolean high=HeartModules.triggered(m,heart);long token=m.value("trigger")==4?heart.modules().moveActivation(m.id()):Long.MIN_VALUE;
    if(high&&m.value("filterEnabled")==1&&m.value("filterStrength")>0)holdFilter(s,m,heart,now);else if(s.filter!=null)releaseFilter(s);
+   boolean edge=high&&(!s.high||token!=s.token);s.high=high;s.token=token;
+   if(deployable(m)){
+    if(high&&m.value("shockWaveEnabled")==1){
+     if(s.shield==null)s.shield=new DeployableShieldState();
+     s.shield.hold(level,heart,m,now);
+    }else if(s.shield!=null)s.shield.close(level);
+    if(s.zoom!=null)release(s);
+    s.touching=false;
+    if(edge&&hasCameraPulse(m)){
+     var packet=packet(heart,m);
+     if(packet.valid())broadcast(level,packet);
+    }
+    continue;
+   }
+   if(s.shield!=null)s.shield.close(level);
    boolean held=high&&m.value("shockZoomEnabled")==1&&m.value("shockMode")==1&&m.value("shockContact")==0&&m.value("shockZoom")!=0;
    if(s.zoom!=null){if(held)hold(s,m,heart,now);else release(s);}
-   boolean edge=high&&(!s.high||token!=s.token);s.high=high;s.token=token;
-   boolean pulse=m.value("shockWaveEnabled")==1&&(m.value("shockPattern")>=2|| (m.value("shockPattern")==1?m.value("shockRadialStrength")>0:m.value("shockDistortion")>0||m.value("shockBlur")>0))||m.value("shockShakeEnabled")==1&&m.value("shockShake")>0||m.value("shockZoomEnabled")==1&&m.value("shockZoom")!=0;
+   boolean pulse=m.value("shockWaveEnabled")==1&&(m.value("shockPattern")>=2|| (m.value("shockPattern")==1?m.value("shockRadialStrength")>0:m.value("shockDistortion")>0||m.value("shockBlur")>0))||hasCameraPulse(m);
    if(!pulse)continue;
    net.minecraft.world.phys.Vec3 point=null;
    if(m.value("shockContact")==1){
@@ -80,6 +120,6 @@ public final class ModuleShockwave {
    var packet=point==null?packet(heart,m):packet(heart,m,point);if(held){if(s.zoom==null)hold(s,m,heart,now);packet=withoutZoom(packet);}if(packet.valid())broadcast(level,packet);if(m.value("shockPattern")>=2)for(var viewer:level.players())sendPattern(viewer,heart,m,point);
    heart.modules().hurtTriggers.completed(m);
   }
-  states.entrySet().removeIf(e->{if(keep.contains(e.getKey()))return false;release(e.getValue());releaseFilter(e.getValue());return true;});
+  states.entrySet().removeIf(e->{if(keep.contains(e.getKey()))return false;releaseAll(e.getValue());return true;});
  }
 }

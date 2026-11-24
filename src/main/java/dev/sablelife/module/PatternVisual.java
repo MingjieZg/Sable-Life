@@ -15,7 +15,7 @@ public record PatternVisual(ResourceLocation dimension,UUID id,ModuleAnchor anch
         float startDistance,float size,float speed,int duration,int rgb,int pattern,int symbol,boolean follow,float range)
         implements CustomPacketPayload {
     public static final List<String> SYMBOLS=List.of("!","?","!!","?!","+","...");
-    public static final int PATTERNS=7,MAX_EFFECTS=32;
+    public static final int PATTERNS=8,MAX_EFFECTS=32;
     public static final Type<PatternVisual> TYPE=new Type<>(ResourceLocation.fromNamespaceAndPath(SableLife.MOD_ID,"pattern_visual"));
     public static final StreamCodec<RegistryFriendlyByteBuf,PatternVisual> CODEC=StreamCodec.of((b,p)->{
         b.writeResourceLocation(p.dimension);b.writeUUID(p.id);b.writeUUID(p.anchor.bodyId());
@@ -38,6 +38,9 @@ public record PatternVisual(ResourceLocation dimension,UUID id,ModuleAnchor anch
                 &&rgb>=0&&rgb<=0xFFFFFF&&Float.isFinite(range)&&range>=1&&range<=256;
     }
     public static PatternVisual create(HeartBlockEntity core,VirtualModule module,Vec3 contact){
+        return create(core,module,contact,UUID.randomUUID());
+    }
+    static PatternVisual create(HeartBlockEntity core, VirtualModule module, Vec3 contact, UUID id) {
         var anchor=module.anchors().getFirst();var body=anchor.body(core);
         var local=ModuleHealthBar.localPoint(anchor,body,module.value("visualStart"));
         var point=body.logicalPose().transformPosition(local);
@@ -47,7 +50,7 @@ public record PatternVisual(ResourceLocation dimension,UUID id,ModuleAnchor anch
         var up=body.logicalPose().transformPosition(local.add(localNormal.cross(localRight))).subtract(point).normalize();
         var color=ModuleColors.vector(module,"visualColor");
         int rgb=(Math.round(color.x*255)<<16)|(Math.round(color.y*255)<<8)|Math.round(color.z*255);
-        return new PatternVisual(core.getLevel().dimension().location(),UUID.randomUUID(),anchor,
+        return new PatternVisual(core.getLevel().dimension().location(),id,anchor,
                 contact==null?point:contact.add(normal.scale(.025)),normal,up,(float)module.value("visualStart"),
                 (float)module.value("visualSize"),(float)module.value("visualSpeed"),(int)module.value("visualTime"),rgb,
                 (int)module.value("shockPattern")-2,(int)module.value("visualSymbol"),contact==null&&module.value("visualPlacement")==0,(float)module.value("shockRange"));

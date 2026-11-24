@@ -1,6 +1,7 @@
 package dev.sablelife.client;
 
 import dev.sablelife.module.ModuleFields;
+import dev.sablelife.module.SurfaceFieldSettings;
 import dev.sablelife.module.VirtualModule;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.resources.language.I18n;
@@ -48,6 +49,7 @@ final class ModulePropertyHelp {
                 .append("\n").append(detail);
     }
     private static String presentationKey(VirtualModule module, String key) {
+        if (key.equals("visualTime") && SurfaceFieldSettings.isDeployableShield(module)) return "visualShieldPreviewTime";
         return module.type().equals("melee") && key.equals("knockback") ? "meleeExtraKnockback" : key;
     }
     private static String number(double value){return java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();}

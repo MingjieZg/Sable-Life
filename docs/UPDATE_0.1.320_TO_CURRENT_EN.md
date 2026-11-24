@@ -1,5 +1,9 @@
 # Updates from 0.1.320 to the current build
 
+## 0.1.457
+
+- **Deployable Shield**. This Visual Effects pattern opens a planar shield on the marked face, holds it while triggered, and folds it when the trigger stops. Set its color, size and speed, and choose whether it follows the marked part or stays at its release position. Preview duration applies to the manual preview. Entry 134, manual revision 260.
+
 ## 0.1.456
 
 Adds four features to 0.1.452, entries 130–133. See the [release notes](releases/0.1.456_EN.md).

@@ -38,7 +38,8 @@ import java.util.function.IntConsumer;
 @EventBusSubscriber(modid = "sablelife_tests", value = Dist.CLIENT)
 public final class VisualEffectPickerCheck {
     private static final List<String> EFFECTS = List.of("shock_ring", "shock_radial", "visual_gather", "visual_mechanical",
-            "visual_shield", "visual_jet", "visual_fissures", "visual_echo", "visual_symbols");
+            "visual_shield", "visual_jet", "visual_fissures", "visual_echo", "visual_symbols", "visual_deployable_shield");
+    private static final int DEPLOYABLE_SHIELD = EFFECTS.size() - 1;
     private static int phase, ticks;
     private static int loggedPhase = -1;
     private static BlockPos pos;
@@ -99,9 +100,9 @@ public final class VisualEffectPickerCheck {
             click(dashboard, name(1) + " …", 0);
         } else if (phase == 4) {
             capture(mc, "effect-picker-en");
-            click(mc.screen, name(8), 0);
+            click(mc.screen, name(DEPLOYABLE_SHIELD), 0);
             phase++;
-        } else if (phase == 5 && mc.screen instanceof HeartDashboardScreen dashboard && pattern(dashboard) == 8) {
+        } else if (phase == 5 && mc.screen instanceof HeartDashboardScreen dashboard && pattern(dashboard) == DEPLOYABLE_SHIELD) {
             phase++;
             mc.getLanguageManager().setSelected("zh_cn");
             mc.options.languageCode = "zh_cn";
@@ -111,8 +112,8 @@ public final class VisualEffectPickerCheck {
             reload = mc.reloadResourcePacks();
         } else if (phase == 6 && reload.isDone() && mc.getOverlay() == null && mc.screen instanceof HeartDashboardScreen dashboard) {
             reload.join();
-            open(dashboard, 8);
-            verify(mc.screen, 8, true);
+            open(dashboard, DEPLOYABLE_SHIELD);
+            verify(mc.screen, DEPLOYABLE_SHIELD, true);
             phase++;
         } else if (phase == 7) {
             capture(mc, "effect-picker-zh");
@@ -141,7 +142,7 @@ public final class VisualEffectPickerCheck {
     private static void verify(Screen screen, int selected, boolean chinese) {
         String title = chinese ? "选择视觉特效" : "Choose a visual effect";
         if (!screen.getTitle().getString().equals(title)) throw new AssertionError("Incorrect picker title");
-        var options = buttons(screen).subList(1, 10);
+        var options = buttons(screen).subList(1, 1 + EFFECTS.size());
         verifyPager(screen, false, false);
         for (int i = 0; i < options.size(); i++) {
             var option = options.get(i);
@@ -163,18 +164,20 @@ public final class VisualEffectPickerCheck {
         constructor.setAccessible(true);
         int[] chosen = {-1};
         IntConsumer choose = index -> chosen[0] = index;
-        var picker = (Screen) constructor.newInstance(parent, options, 11, choose);
+        int repeatedOption = 2;
+        int selected = EFFECTS.size() + repeatedOption;
+        var picker = (Screen) constructor.newInstance(parent, options, selected, choose);
         mc.setScreen(picker);
         verifyPager(picker, true, false);
-        if (buttons(picker).stream().noneMatch(button -> button.getMessage().getString().equals("✓ " + name(2)))) {
+        if (buttons(picker).stream().noneMatch(button -> button.getMessage().getString().equals("✓ " + name(repeatedOption)))) {
             throw new AssertionError("Picker did not open on the selected effect's page");
         }
         click(picker, "‹", 0);
         verifyPager(picker, false, true);
         click(picker, "›", 0);
         verifyPager(picker, true, false);
-        click(picker, "✓ " + name(2), 0);
-        if (chosen[0] != 11 || mc.screen != parent) throw new AssertionError("Second page returned the wrong effect");
+        click(picker, "✓ " + name(repeatedOption), 0);
+        if (chosen[0] != selected || mc.screen != parent) throw new AssertionError("Second page returned the wrong effect");
     }
 
     private static void verifyPager(Screen screen, boolean previousEnabled, boolean nextEnabled) {

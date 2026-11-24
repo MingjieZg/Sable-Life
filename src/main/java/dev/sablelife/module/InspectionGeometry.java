@@ -112,7 +112,7 @@ final class InspectionGeometry {
             case "trigger_sound", "visual_shockwave" -> {
                 markBox(out, heart, mark, marks, false);
                 String key = module.type().equals("trigger_sound") ? "contactMode" : "shockContact";
-                if (module.value(key) == 1) {
+                if (module.value(key) == 1 && SurfaceFieldSettings.visible(module, key)) {
                     out.add(atWorld(heart, mark, ARROW, ModuleEvents.contactStart(heart, module),
                             uniformly(module.value("contactDistance")), aim(ModuleEvents.contactDirection(heart, module)), false));
                 }

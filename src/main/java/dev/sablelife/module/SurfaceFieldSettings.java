@@ -4,6 +4,9 @@ import java.util.List;
 
 /** Shared mode visibility, also exercised without a client. Stored hidden values are retained. */
 public final class SurfaceFieldSettings {
+    public static boolean isDeployableShield(VirtualModule module) {
+        return module.type().equals("visual_shockwave") && module.value("shockPattern") == ShieldVisualPacket.MODULE_PATTERN;
+    }
     public static boolean visible(VirtualModule m,String key){
         if (key.equals("lineOfSight")) return switch (m.type()) {
             case "mortar" -> m.value("aimMode") == 1;
@@ -18,11 +21,14 @@ public final class SurfaceFieldSettings {
         if(key.equals("watchedPart")||key.equals("partBreakThreshold"))return m.listensToPart();
         if(m.type().equals("visual_shockwave")){
             if(List.of("filterColor","filterStrength","filterFadeIn","filterFadeOut").contains(key))return m.value("filterEnabled")==1;
-            if(key.equals("shockPattern"))return m.value("shockWaveEnabled")==1;
+            boolean patternEnabled = m.value("shockWaveEnabled") == 1;
+            boolean shield = isDeployableShield(m);
+            if (key.equals("shockPattern")) return patternEnabled;
+            if (shield && List.of("shockContact", "contactDirection", "contactDistance", "contactCooldown", "shockMode", "shockInterval").contains(key)) return false;
             if(List.of("visualColor","visualSize","visualTime","visualSpeed","visualStart","visualPlacement","visualSymbol").contains(key)){
-                boolean world=m.value("shockWaveEnabled")==1&&m.value("shockPattern")>=2;
+                boolean world = patternEnabled && m.value("shockPattern") >= 2;
                 if(key.equals("visualSymbol"))return world&&m.value("shockPattern")==8;
-                if(List.of("visualStart","visualPlacement").contains(key)&&m.value("shockContact")==1)return false;
+                if(!shield && List.of("visualStart","visualPlacement").contains(key)&&m.value("shockContact")==1)return false;
                 return world;
             }
             if(List.of("shockRadialStrength","shockRadialTime","shockRadialClear").contains(key))return m.value("shockWaveEnabled")==1&&m.value("shockPattern")==1;

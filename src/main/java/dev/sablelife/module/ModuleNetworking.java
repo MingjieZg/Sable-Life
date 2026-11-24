@@ -177,6 +177,8 @@ public final class ModuleNetworking {
         registrar.playToClient(VisualFilterPacket.TYPE,VisualFilterPacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ShockwaveZoomPacket.TYPE,ShockwaveZoomPacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(PatternVisual.TYPE,PatternVisual.CODEC,(p,ctx)->dev.sablelife.client.PatternVisualClient.receive(p));
+        registrar.optional().playToClient(ShieldVisualPacket.TYPE, ShieldVisualPacket.CODEC,
+                (packet, context) -> dev.sablelife.client.PatternVisualClient.receiveShield(packet));
         registrar.playToClient(ShockwavePacket.TYPE,ShockwavePacket.CODEC,(p,ctx)->dev.sablelife.client.ShockwaveClient.receive(p));
         registrar.playToClient(ItemDisplayPacket.TYPE,ItemDisplayPacket.CODEC,(p,ctx)->dev.sablelife.client.ModuleItemDisplayClient.receive(p));
         registrar.optional().playToClient(ItemDisplayPacket.Part.TYPE, ItemDisplayPacket.Part.CODEC,
