@@ -4,9 +4,10 @@
 
 ### Survival Heart Core liquid fuel
 
-- Refuel now has a 1,000 mB tank on the right that holds one registered fluid at a time. Put a filled container in the input slot and collect the resulting container from the output slot. You can also right-click the tank with a filled container to add fluid. When the tank holds 1,000 mB of a fluid with a bucket, left-click it with an empty bucket to withdraw the fluid. Use **Dump** to empty the tank.
+- Refuel has a narrow 40,000 mB tank aligned with the container slots on the right. It holds one registered fluid at a time. Put a filled container in the input slot and collect the resulting container from the output slot, or right-click the tank with a filled container to add fluid directly. Left-click the tank with an empty bucket to withdraw 1,000 mB when it holds enough of a fluid that can be bucketed. Click the small dump icon twice to empty the tank if its contents still match the first click.
 - Compatible pipes can insert fluid through the input-only NeoForge fluid capability. The tank contents save with the core in the world. Cores placed from blueprints start with an empty tank.
-- Set the Energy value per 1,000 mB in `survivalTokens.fluidDepositValues` using fluid IDs or tags prefixed with `#`. The default `minecraft:lava=25` gives 25 Energy per bucket of lava. Use the existing two-click confirmation to convert priced fluids. Auto Refuel applies to solid fuels. Entry 136.
+- Set the Energy value per 1,000 mB in `survivalTokens.fluidDepositValues` using fluid IDs or tags prefixed with `#`. The default `minecraft:lava=250` gives 250 Energy per bucket of lava. Manual Refuel quotes the amount that can be converted, including partial buckets, and settles it with the existing two-click confirmation.
+- Auto Refuel can convert one full 1,000 mB portion of priced fluid at each eight-tick interval and also processes solid fuels. It leaves amounts below 1,000 mB and unpriced fluids in the tank. Entry 136.
 
 ## 0.1.458
 

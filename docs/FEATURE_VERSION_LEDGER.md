@@ -241,4 +241,4 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 
 135. 0.1.458：无线红石渐变新增关闭时长，触发结束后从当前输出渐变至 0，回落途中再次触发时从当前强度继续。默认 0 秒，沿用输出缓冲。手册修订 263。 / Wireless Redstone Ramp adds a release duration. Output ramps to zero when the trigger ends and resumes from its current strength when retriggered mid-release. The default of 0 seconds keeps Output buffer behavior. Manual revision 263.
 
-136. 待发布。生存生命核心新增 1,000 mB 液体储槽，支持容器和兼容流体管道注入，可用空桶取液，也可通过界面清空储槽。服主可按流体 ID 或标签设置液体兑换能量的价格。 / The Survival Heart Core gains a 1,000 mB liquid tank with container and compatible pipe input, bucket withdrawal, and a dump control. Servers can price fluids by ID or tag for manual Energy conversion. Unreleased.
+136. 待发布。生存生命核心新增 40,000 mB 单液体储槽，支持容器和兼容流体管道注入，可用空桶取液，清空需点击两次确认。服主可按流体 ID 或标签定价，熔岩默认每桶兑换 250 能量。手动兑换支持不足一桶的用量，自动补充能源每 8 tick 可兑换一整桶。 / The Survival Heart Core gains a 40,000 mB single-fluid tank with container and compatible pipe input, bucket withdrawal, and two-click dumping. Servers can price fluids by ID or tag, with lava defaulting to 250 Energy per bucket. Manual conversion accepts partial buckets, and Auto Refuel can convert one full bucket every eight ticks. Unreleased.

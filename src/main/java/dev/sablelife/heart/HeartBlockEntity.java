@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.HashSet;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidType;
 import org.jetbrains.annotations.Nullable;
 
 public final class HeartBlockEntity extends com.simibubi.create.content.decoration.copycat.CopycatBlockEntity {
@@ -265,6 +266,19 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         if (solidValue > 0) survivalFuel.clearContent();
         setChanged();
         return true;
+    }
+    private void settleAutomaticRefuel() {
+        if (!canRefuel()) return;
+        if (!survivalFuel.isEmpty()) settleRefuel();
+
+        var tank = survivalFuel.liquid();
+        var fluid = tank.getFluid();
+        if (fluid.getAmount() < FluidType.BUCKET_VOLUME) return;
+        int value = SurvivalFluidPrices.price(fluid.getFluid());
+        if (value <= 0 || value > Long.MAX_VALUE - survivalTokenBalance) return;
+        if (!tank.consume(fluid, FluidType.BUCKET_VOLUME)) return;
+        survivalTokenBalance += value;
+        setChanged();
     }
     public boolean canAccessEditor(Player player) {
         if (isRemoved() || player.level() != level || player.isSpectator()) return false;
@@ -947,7 +961,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             return;
         }
         if (heart.survivalFuel != null && heart.survivalFuel.automatic()
-                && (level.getGameTime() & 7) == 0 && !heart.survivalFuel.isEmpty()) heart.settleRefuel();
+                && (level.getGameTime() & 7) == 0) heart.settleAutomaticRefuel();
         heart.checkVoidDeath();
         heart.tickRegeneration();
         heart.updateBossBar((ServerLevel) level);

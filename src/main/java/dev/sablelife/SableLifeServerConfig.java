@@ -20,7 +20,7 @@ public final class SableLifeServerConfig {
             "minecraft:emerald_block=1080",
             "minecraft:diamond_block=2700",
             "minecraft:netherite_block=27000");
-    public static final java.util.List<String> DEFAULT_FLUID_VALUES = java.util.List.of("minecraft:lava=25");
+    public static final java.util.List<String> DEFAULT_FLUID_VALUES = java.util.List.of("minecraft:lava=250");
     public static final ModConfigSpec SPEC;
     public static final net.neoforged.fml.config.IConfigSpec LOADER_SPEC;
     private static final java.util.Map<String,ModConfigSpec.IntValue> CAST_RATES=new java.util.LinkedHashMap<>();

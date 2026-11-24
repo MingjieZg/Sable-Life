@@ -14,9 +14,9 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 import org.jetbrains.annotations.Nullable;
 
-/** A single core-local tank. Only the server menu may withdraw or convert fuel. */
+/** A single core-local tank with an input-only automation capability. */
 public final class SurvivalLiquidFuel {
-    public static final int CAPACITY = FluidType.BUCKET_VOLUME;
+    public static final int CAPACITY = 40 * FluidType.BUCKET_VOLUME;
     static final String TAG = "Liquid";
 
     private final HeartBlockEntity core;
@@ -62,7 +62,7 @@ public final class SurvivalLiquidFuel {
         changed();
     }
 
-    /** Settles only the exact fluid amount previously quoted by the menu. */
+    /** Consumes the requested amount only if the authoritative tank still matches the quote. */
     public boolean consume(FluidStack expected, int amount) {
         if (!canTransfer() || amount <= 0 || amount > tank.getFluidAmount()
                 || !FluidStack.matches(tank.getFluid(), expected)) return false;
@@ -78,7 +78,7 @@ public final class SurvivalLiquidFuel {
         var staged = new FluidTank(CAPACITY, SurvivalLiquidFuel::registered);
         staged.setFluid(original.copy());
         var action = toTank ? FluidUtil.tryEmptyContainer(container, staged, CAPACITY, null, true)
-                : FluidUtil.tryFillContainer(container, staged, CAPACITY, null, true);
+                : FluidUtil.tryFillContainer(container, staged, FluidType.BUCKET_VOLUME, null, true);
         var result = action.getResult();
         if (!action.isSuccess() || result.getCount() > 1) return null;
         int change = staged.getFluidAmount() - original.getAmount();

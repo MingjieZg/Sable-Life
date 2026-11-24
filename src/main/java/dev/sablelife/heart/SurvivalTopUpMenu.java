@@ -19,12 +19,15 @@ import net.neoforged.neoforge.fluids.FluidStack;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class SurvivalTopUpMenu extends AbstractContainerMenu {
     public static final int INPUTS = 9, INVENTORY_Y = 141;
     public static final int BUCKET_INPUT = INPUTS + 36, BUCKET_OUTPUT = BUCKET_INPUT + 1;
     public static final int CONFIRM = 0, BACK = 1, ENABLE_AUTO = 2, DISABLE_AUTO = 3;
     public static final int FILL_TANK = 4, DRAIN_TANK = 5;
+    private static final int CONFIRM_WINDOW_TICKS = 100;
+    private static final AtomicInteger NEXT_DUMP_ACTION = new AtomicInteger();
     private final SimpleContainer inputs;
     private final SimpleContainer buckets = new SimpleContainer(2);
     private final SimpleContainer data = new SimpleContainer(1);
@@ -33,6 +36,8 @@ public final class SurvivalTopUpMenu extends AbstractContainerMenu {
     private FluidStack confirmedFluid = FluidStack.EMPTY;
     private SurvivalFluidPrices.Quote confirmedQuote;
     private long confirmedValue, confirmedRevision, confirmationUntil;
+    private long dumpRevision = -1, dumpConfirmationUntil;
+    private int dumpAction;
 
     public SurvivalTopUpMenu(int id, Inventory inventory) {
         this(id, inventory, null);
@@ -109,6 +114,7 @@ public final class SurvivalTopUpMenu extends AbstractContainerMenu {
     private void refresh() {
         if (heart == null) return;
         var tank = heart.survivalLiquidFuel();
+        refreshDumpConfirmation(tank);
         var fluid = tank.getFluid();
         var quote = SurvivalFluidPrices.quote(fluid, Long.MAX_VALUE);
         long balance = heart.survivalTokenBalance();
@@ -120,7 +126,8 @@ public final class SurvivalTopUpMenu extends AbstractContainerMenu {
         tag.putBoolean("Confirming", confirmationMatches(value, fluid, quote));
         tag.putBoolean("Automatic", heart.survivalFuel().automatic());
         tag.putInt("TankAmount", fluid.getAmount());
-        tag.putInt("TankDumpAction", dumpAction(tank));
+        tag.putInt("TankDumpAction", dumpAction);
+        tag.putBoolean("TankDumpConfirming", dumpConfirmationUntil != 0);
         tag.putBoolean("TankUnavailable", tank.hasUnreadableFluid());
         if (!fluid.isEmpty()) {
             tag.putString("TankFluid", BuiltInRegistries.FLUID.getKey(fluid.getFluid()).toString());
@@ -146,9 +153,30 @@ public final class SurvivalTopUpMenu extends AbstractContainerMenu {
         return row;
     }
 
-    private static int dumpAction(SurvivalLiquidFuel tank) {
-        // Negative button IDs carry the liquid revision the player saw.
-        return Integer.MIN_VALUE | (int) (tank.revision() & Integer.MAX_VALUE);
+    private void refreshDumpConfirmation(SurvivalLiquidFuel tank) {
+        long revision = tank.revision();
+        boolean expired = dumpConfirmationUntil != 0 && heart.getLevel().getGameTime() > dumpConfirmationUntil;
+        if (revision != dumpRevision || expired) {
+            dumpRevision = revision;
+            dumpConfirmationUntil = 0;
+            advanceDumpAction();
+        }
+    }
+
+    private void advanceDumpAction() {
+        // Negative IDs separate the steps and prevent reuse between open menus.
+        dumpAction = Integer.MIN_VALUE | (NEXT_DUMP_ACTION.getAndIncrement() & Integer.MAX_VALUE);
+    }
+
+    private boolean dumpTank(int action) {
+        if (action >= 0) return false;
+        var tank = heart.survivalLiquidFuel();
+        refreshDumpConfirmation(tank);
+        if (action != dumpAction || (tank.getFluid().isEmpty() && !tank.hasUnreadableFluid())) return false;
+        if (dumpConfirmationUntil != 0) return tank.clear();
+        dumpConfirmationUntil = heart.getLevel().getGameTime() + CONFIRM_WINDOW_TICKS;
+        advanceDumpAction();
+        return true;
     }
 
     @Override public boolean stillValid(Player player) {
@@ -169,10 +197,7 @@ public final class SurvivalTopUpMenu extends AbstractContainerMenu {
             }
             case CONFIRM -> confirm();
             case FILL_TANK, DRAIN_TANK -> transferCarried(player, id == FILL_TANK);
-            default -> {
-                var tank = heart.survivalLiquidFuel();
-                yield id == dumpAction(tank) && tank.clear();
-            }
+            default -> dumpTank(id);
         };
         if (handled && id != BACK) broadcastChanges();
         return handled;
@@ -194,7 +219,7 @@ public final class SurvivalTopUpMenu extends AbstractContainerMenu {
             confirmedRevision = heart.survivalFuel().revision();
             confirmedFluid = fluid;
             confirmedQuote = quote;
-            confirmationUntil = heart.getLevel().getGameTime() + 100;
+            confirmationUntil = heart.getLevel().getGameTime() + CONFIRM_WINDOW_TICKS;
         }
         return true;
     }

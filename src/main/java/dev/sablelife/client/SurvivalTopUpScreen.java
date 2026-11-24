@@ -22,6 +22,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidType;
 
 import java.util.List;
 
@@ -29,12 +30,15 @@ import java.util.List;
 public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalTopUpMenu> {
     private static final int COLUMNS=12, PER_PAGE=COLUMNS*3;
     private static final int CATALOG_X=12, CATALOG_Y=24;
-    private static final int TANK_X=236, TANK_Y=46, TANK_WIDTH=42, TANK_HEIGHT=42;
+    private static final int RAIL_WIDTH=18;
+    private static final int TANK_Y=45, TANK_HEIGHT=46;
+    private static final int DUMP_Y=96, DUMP_HEIGHT=10;
     private static final ResourceLocation FILLED_BUCKET_GHOST=ResourceLocation.withDefaultNamespace("item/water_bucket");
     private static final ResourceLocation EMPTY_BUCKET_GHOST=ResourceLocation.withDefaultNamespace("item/bucket");
     private int page;
     private int tankMouseButton=-1;
-    private Button previous,next,confirm,automatic,dump;
+    private Button previous,next,confirm,automatic;
+    private DumpButton dump;
 
     public SurvivalTopUpScreen(SurvivalTopUpMenu menu,Inventory inventory,Component title){
         super(menu,inventory,title);
@@ -54,8 +58,8 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         automatic=button(tr("automatic_off"),181,158,102,()->click(menu.snapshot().getBoolean("Automatic")
                 ? SurvivalTopUpMenu.DISABLE_AUTO : SurvivalTopUpMenu.ENABLE_AUTO));
         automatic.setTooltip(Tooltip.create(tr("automatic_hint")));
-        dump=button(tr("tank_dump"),231,91,52,()->click(menu.snapshot().getInt("TankDumpAction")));
-        dump.setTooltip(Tooltip.create(tr("tank_dump_hint")));
+        dump=addRenderableWidget(new DumpButton(leftPos+tankX(),topPos+DUMP_Y,
+                ()->click(menu.snapshot().getInt("TankDumpAction"))));
         button(Component.translatable("menu.sablelife.back"),229,5,54,()->click(SurvivalTopUpMenu.BACK));
         sync();
     }
@@ -78,6 +82,7 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         dump.visible=data.contains("TankAmount",Tag.TAG_INT);
         dump.active=dump.visible&&data.contains("TankDumpAction",Tag.TAG_INT)
                 &&(data.getInt("TankAmount")>0||data.getBoolean("TankUnavailable"));
+        dump.updateConfirmation(data.getBoolean("TankDumpConfirming"));
     }
     @Override protected void containerTick(){super.containerTick();sync();}
 
@@ -91,7 +96,7 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
             slot(g,x,y);
             var row=catalog.getCompound(page*PER_PAGE+i);
             String id=row.getString("Id");
-            if(row.getBoolean("Fluid"))drawFluid(g,fluid(id,SurvivalLiquidFuel.CAPACITY),x,y,16,16);
+            if(row.getBoolean("Fluid"))drawFluid(g,fluid(id,FluidType.BUCKET_VOLUME),x,y,16,16);
             else g.renderItem(stack(id),x,y);
         }
         for(int i=0;i<SurvivalTopUpMenu.INPUTS+36;i++){
@@ -116,21 +121,21 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
     }
 
     private void drawTank(GuiGraphics g,CompoundTag data){
-        int x=leftPos+TANK_X,y=topPos+TANK_Y;
+        int x=leftPos+tankX(),y=topPos+TANK_Y;
         boolean unavailable=data.getBoolean("TankUnavailable");
-        g.fill(x,y,x+TANK_WIDTH,y+TANK_HEIGHT,unavailable?0xFF87674F:0xFF171821);
-        g.fill(x+1,y+1,x+TANK_WIDTH-1,y+TANK_HEIGHT-1,0xFF373542);
+        g.fill(x,y,x+RAIL_WIDTH,y+TANK_HEIGHT,unavailable?0xFF87674F:0xFF171821);
+        g.fill(x+1,y+1,x+RAIL_WIDTH-1,y+TANK_HEIGHT-1,0xFF373542);
         int amount=tankAmount(data);
         if(amount>0){
-            int height=Math.max(1,(TANK_HEIGHT-4)*amount/SurvivalLiquidFuel.CAPACITY);
-            int width=TANK_WIDTH-4,bottom=y+TANK_HEIGHT-2,top=bottom-height;
+            int height=Math.max(1,(TANK_HEIGHT-2)*amount/SurvivalLiquidFuel.CAPACITY);
+            int width=RAIL_WIDTH-2,bottom=y+TANK_HEIGHT-1,top=bottom-height;
             var stack=fluid(data.getString("TankFluid"),amount);
-            if(unavailable||stack.isEmpty())g.fill(x+2,top,x+2+width,bottom,0xFF6E6475);
-            else drawFluid(g,stack,x+2,top,width,height);
+            if(unavailable||stack.isEmpty())g.fill(x+1,top,x+1+width,bottom,0xFF6E6475);
+            else drawFluid(g,stack,x+1,top,width,height);
         }
         for(int tick=1;tick<=3;tick++){
             int tickY=y+TANK_HEIGHT*tick/4;
-            g.fill(x+TANK_WIDTH-7,tickY,x+TANK_WIDTH-1,tickY+1,0xA0A89CAF);
+            g.fill(x+RAIL_WIDTH-4,tickY,x+RAIL_WIDTH-1,tickY+1,0xA0A89CAF);
         }
     }
 
@@ -178,8 +183,12 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         return Math.clamp(data.getInt("TankAmount"),0,SurvivalLiquidFuel.CAPACITY);
     }
 
+    private int tankX(){
+        return menu.getSlot(SurvivalTopUpMenu.BUCKET_INPUT).x-1;
+    }
+
     private boolean overTank(double mouseX,double mouseY){
-        return isHovering(TANK_X,TANK_Y,TANK_WIDTH,TANK_HEIGHT,mouseX,mouseY);
+        return isHovering(tankX(),TANK_Y,RAIL_WIDTH,TANK_HEIGHT,mouseX,mouseY);
     }
 
     @Override public boolean mouseClicked(double mouseX,double mouseY,int button){
@@ -247,7 +256,7 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         boolean liquid=row.getBoolean("Fluid");
         Component name;
         if(liquid){
-            var stack=fluid(id,SurvivalLiquidFuel.CAPACITY);
+            var stack=fluid(id,FluidType.BUCKET_VOLUME);
             name=stack.isEmpty()?Component.literal(id):stack.getHoverName();
         }else{
             var stack=stack(id);
@@ -261,5 +270,41 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         if(slot.hasItem()||!isHovering(slot.x,slot.y,16,16,mouseX,mouseY))return false;
         g.renderTooltip(font,tr(text),mouseX,mouseY);
         return true;
+    }
+
+    private static final class DumpButton extends Button {
+        private boolean confirming;
+
+        private DumpButton(int x,int y,Runnable action){
+            super(x,y,RAIL_WIDTH,DUMP_HEIGHT,tr("tank_dump"),button->action.run(),DEFAULT_NARRATION);
+            setTooltip(Tooltip.create(tr("tank_dump_hint")));
+        }
+
+        private void updateConfirmation(boolean next){
+            if(confirming==next)return;
+            confirming=next;
+            setMessage(tr(next?"tank_dump_confirm":"tank_dump"));
+            setTooltip(Tooltip.create(tr(next?"tank_dump_confirm_hint":"tank_dump_hint")));
+        }
+
+        @Override protected void renderWidget(GuiGraphics g,int mouseX,int mouseY,float partial){
+            int left=getX(),top=getY(),right=left+getWidth(),bottom=top+getHeight();
+            g.fill(left,top,right,bottom,active&&isHoveredOrFocused()?0xFFD2BADF:0xFF171821);
+            int surface=!active?0xFF34313B:confirming?0xFF713D48:0xFF625968;
+            g.fill(left+1,top+1,right-1,bottom-1,surface);
+            int x=left+getWidth()/2,y=top+getHeight()/2;
+            int icon=active?0xFFEEE4F5:0xFF827C89;
+            if(confirming){
+                g.fill(x-3,y,x-2,y+2,icon);
+                g.fill(x-2,y+1,x-1,y+3,icon);
+                for(int step=0;step<5;step++)g.fill(x-1+step,y+2-step,x+step,y+3-step,icon);
+            }else{
+                g.fill(x-1,y-4,x+1,y-3,icon);
+                g.fill(x-4,y-3,x+4,y-2,icon);
+                g.fill(x-3,y-1,x-2,y+3,icon);
+                g.fill(x+2,y-1,x+3,y+3,icon);
+                g.fill(x-3,y+3,x+3,y+4,icon);
+            }
+        }
     }
 }
