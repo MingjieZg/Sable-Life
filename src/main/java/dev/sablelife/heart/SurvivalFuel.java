@@ -14,12 +14,14 @@ import net.neoforged.neoforge.items.wrapper.InvWrapper;
 public final class SurvivalFuel extends SimpleContainer {
     public static final String TAG = "SurvivalRefuel";
     private final HeartBlockEntity core;
+    private final SurvivalLiquidFuel liquid;
     private boolean automatic;
     private long revision;
 
     SurvivalFuel(HeartBlockEntity core) {
         super(SurvivalTopUpMenu.INPUTS);
         this.core = core;
+        liquid = new SurvivalLiquidFuel(core, this::setChanged);
     }
 
     @Override public boolean canPlaceItem(int slot, ItemStack stack) {
@@ -34,6 +36,7 @@ public final class SurvivalFuel extends SimpleContainer {
 
     boolean automatic() { return automatic; }
     long revision() { return revision; }
+    SurvivalLiquidFuel liquid() { return liquid; }
 
     void automatic(boolean enabled) {
         if (automatic == enabled) return;
@@ -41,9 +44,10 @@ public final class SurvivalFuel extends SimpleContainer {
         setChanged();
     }
 
-    CompoundTag save(HolderLookup.Provider registries) {
+    CompoundTag save(HolderLookup.Provider registries, boolean includeLiquid) {
         var tag = new CompoundTag();
         if (automatic) tag.putBoolean("Automatic", true);
+        if (includeLiquid) liquid.save(tag, registries);
         return ContainerHelper.saveAllItems(tag, getItems(), false, registries);
     }
 
@@ -51,11 +55,14 @@ public final class SurvivalFuel extends SimpleContainer {
         automatic = tag.getBoolean("Automatic");
         getItems().clear();
         ContainerHelper.loadAllItems(tag, getItems(), registries);
+        liquid.load(tag, registries);
         revision++;
     }
 
     public static void clearBlueprintContents(CompoundTag coreTag) {
-        coreTag.getCompound(TAG).remove("Items");
+        var fuel = coreTag.getCompound(TAG);
+        fuel.remove("Items");
+        fuel.remove(SurvivalLiquidFuel.TAG);
     }
 
     int itemCount() {
@@ -80,5 +87,7 @@ public final class SurvivalFuel extends SimpleContainer {
     public static void register(RegisterCapabilitiesEvent event) {
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, SableLife.HEART_ENTITY.get(), (core, side) ->
                 core.isSurvivalCore() ? core.survivalFuel().input : null);
+        event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, SableLife.HEART_ENTITY.get(), (core, side) ->
+                core.isSurvivalCore() ? core.survivalLiquidFuel().input() : null);
     }
 }

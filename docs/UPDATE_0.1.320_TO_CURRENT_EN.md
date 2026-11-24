@@ -1,5 +1,13 @@
 # Updates from 0.1.320 to the current build
 
+## Unreleased
+
+### Survival Heart Core liquid fuel
+
+- Refuel now has a 1,000 mB tank on the right that holds one registered fluid at a time. Put a filled container in the input slot and collect the resulting container from the output slot. You can also right-click the tank with a filled container to add fluid. When the tank holds 1,000 mB of a fluid with a bucket, left-click it with an empty bucket to withdraw the fluid. Use **Dump** to empty the tank.
+- Compatible pipes can insert fluid through the input-only NeoForge fluid capability. The tank contents save with the core in the world. Cores placed from blueprints start with an empty tank.
+- Set the Energy value per 1,000 mB in `survivalTokens.fluidDepositValues` using fluid IDs or tags prefixed with `#`. The default `minecraft:lava=25` gives 25 Energy per bucket of lava. Use the existing two-click confirmation to convert priced fluids. Auto Refuel applies to solid fuels. Entry 136.
+
 ## 0.1.458
 
 - **Blueprint factions on first placement**. The pending entry shows the source faction's name. When there is no usable local faction, the setup opens on the Create tab with the source settings filled in. Players can confirm creation and binding or skip the faction. Manual revision 264.

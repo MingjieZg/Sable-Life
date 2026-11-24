@@ -116,7 +116,8 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("50");
+        // The Survival Top Up menu now synchronizes two additional slots.
+        var registrar = event.registrar("51");
         if (dev.sablelife.compat.sablecollision.EntityPassThroughMixinPlugin.supported()) {
             registrar.optional().playToClient(EntityPassThroughPacket.TYPE, EntityPassThroughPacket.CODEC,
                     (packet, context) -> EntityPassThroughState.receive(context.player(), packet));

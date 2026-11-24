@@ -1207,9 +1207,23 @@ public final class BlueprintSpawnGameTests {
             player.setPos(ModuleArena.corePosition(core));
             var menu = new SurvivalTopUpMenu(1, player.getInventory(), core);
             menu.getSlot(2).set(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COPPER_INGOT, 3));
+            var tank = level.getCapability(net.neoforged.neoforge.capabilities.Capabilities.FluidHandler.BLOCK,
+                    core.getBlockPos(), Direction.UP);
+            h.assertTrue(tank != null && tank.fill(new net.neoforged.neoforge.fluids.FluidStack(
+                    net.minecraft.world.level.material.Fluids.LAVA, 600),
+                    net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction.EXECUTE) == 600,
+                    "Could not store fixture liquid in the source core");
             h.assertTrue(menu.clickMenuButton(player, SurvivalTopUpMenu.ENABLE_AUTO), "Could not enable automatic refuel");
         });
-        var build = PhotomancyRespawnBridge.createSpawn(source.tag, new CompoundTag(),
+        var incoming = source.tag.copy();
+        var coreTag = incoming.getList("sub_levels", 10).getCompound(0).getList("block_entities", 10).getCompound(0);
+        var exportedFuel = coreTag.getCompound("SurvivalRefuel");
+        h.assertTrue(exportedFuel.getBoolean("Automatic") && !exportedFuel.contains("Items") && !exportedFuel.contains("Liquid"),
+                "Export did not remove stored fuels");
+        var originalFuel = source.core.saveWithoutMetadata(level.registryAccess()).getCompound("SurvivalRefuel");
+        h.assertTrue(originalFuel.contains("Liquid"), "Missing unfiltered input tank fixture");
+        coreTag.put("SurvivalRefuel", originalFuel);
+        var build = PhotomancyRespawnBridge.createSpawn(incoming, new CompoundTag(),
                 h.absoluteVec(new Vec3(6, 40, 16)), new org.joml.Quaterniond());
         h.assertTrue(build.step(level).equals("DONE"), "Native placement failed");
         var copy = LoadedCoreIndex.all(level).stream()
@@ -1219,8 +1233,10 @@ public final class BlueprintSpawnGameTests {
         h.assertTrue(copy.isSurvivalCore() && menu.snapshot().getBoolean("Automatic")
                 && menu.getSlot(2).getItem().isEmpty() && copy.survivalTokenBalance() == 0,
                 "Blueprint did not preserve Auto Refuel or duplicated fuel");
-        h.assertTrue(new SurvivalTopUpMenu(1, player.getInventory(), source.core).getSlot(2).getItem().getCount() == 3,
+        h.assertTrue(new SurvivalTopUpMenu(1, player.getInventory(), source.core).getSlot(2).getItem().getCount() == 3
+                && source.core.survivalLiquidFuel().getFluid().getAmount() == 600,
                 "Export removed fuel from the original core");
+        h.assertTrue(copy.survivalLiquidFuel().getFluid().isEmpty(), "Import duplicated liquid fuel from an unfiltered template");
         h.succeed();
     }
 

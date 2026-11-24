@@ -23,6 +23,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.UUID;
 import java.util.HashSet;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.fluids.FluidStack;
+import org.jetbrains.annotations.Nullable;
 
 public final class HeartBlockEntity extends com.simibubi.create.content.decoration.copycat.CopycatBlockEntity {
     public static final float DEFAULT_MAX_HEALTH = 100;
@@ -182,6 +184,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     public long survivalTokenBalance(){return survivalTokenBalance;}
 
     SurvivalFuel survivalFuel() { return survivalFuel; }
+    public @Nullable SurvivalLiquidFuel survivalLiquidFuel() { return survivalFuel == null ? null : survivalFuel.liquid(); }
 
     boolean canRefuel() {
         return isSurvivalCore() && !pendingFuelClaim && !isRemoved()
@@ -190,9 +193,10 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     }
 
     SurvivalTokenTransfers.Claim takeFuelClaim(HolderLookup.Provider registries) {
-        var claim = new SurvivalTokenTransfers.Claim(survivalTokenBalance, survivalFuel.save(registries));
+        var claim = new SurvivalTokenTransfers.Claim(survivalTokenBalance, survivalFuel.save(registries, true));
         survivalTokenBalance = 0;
         survivalFuel.clearContent();
+        survivalFuel.liquid().reset();
         survivalFuel.automatic(false);
         setChanged();
         return claim;
@@ -243,6 +247,22 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         if(value<=0||value>Long.MAX_VALUE-survivalTokenBalance)return false;
         survivalTokenBalance+=value;
         survivalFuel.clearContent();
+        setChanged();
+        return true;
+    }
+    boolean settleRefuel(FluidStack expectedFluid, SurvivalFluidPrices.Quote expectedQuote) {
+        if (!canRefuel()) return false;
+        var tank = survivalLiquidFuel();
+        var fluid = tank.getFluid();
+        var quote = SurvivalFluidPrices.quote(fluid, Long.MAX_VALUE);
+        if (!FluidStack.matches(expectedFluid, fluid) || !quote.equals(expectedQuote)) return false;
+
+        long solidValue = SurvivalTokens.inputValue(survivalFuel);
+        long value = solidValue + quote.energy();
+        if (value <= 0 || value > Long.MAX_VALUE - survivalTokenBalance) return false;
+        if (quote.amount() > 0 && !tank.consume(fluid, quote.amount())) return false;
+        survivalTokenBalance += value;
+        if (solidValue > 0) survivalFuel.clearContent();
         setChanged();
         return true;
     }
@@ -1047,7 +1067,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         }
         if(isSurvivalCore()){
             tag.putLong("SurvivalTokens",survivalTokenBalance);
-            var fuel = survivalFuel.save(registries);
+            var fuel = survivalFuel.save(registries, !clientPacket);
             if (!fuel.isEmpty()) tag.put(SurvivalFuel.TAG, fuel);
         }
         tag.putInt("DataVersion", 1);

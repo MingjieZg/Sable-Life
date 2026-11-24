@@ -17,7 +17,7 @@
 
 ## 已登记的功能点
 
-推进与运动阻尼登记为第 117、118 项，推进世界方向为第 119 项，观察工具的生存合成为第 120 项。0.1.452 包含第 128、129 项。0.1.456 合入第 130–133 项。0.1.457 登记蜂巢护盾为第 134 项。0.1.458 登记无线红石断电渐降为第 135 项。 / Version 0.1.452 adds entries 128 and 129. Version 0.1.456 includes entries 130–133. Honeycomb Shield is entry 134 in 0.1.457. Wireless Redstone release ramp is entry 135 in 0.1.458.
+推进与运动阻尼登记为第 117、118 项，推进世界方向为第 119 项，观察工具的生存合成为第 120 项。0.1.452 包含第 128、129 项。0.1.456 合入第 130–133 项。0.1.457 登记蜂巢护盾为第 134 项。0.1.458 登记无线红石断电渐降为第 135 项。生存生命核心的液体燃料登记为第 136 项，待发布。 / Version 0.1.452 adds entries 128 and 129. Version 0.1.456 includes entries 130–133. Honeycomb Shield is entry 134 in 0.1.457. Wireless Redstone release ramp is entry 135 in 0.1.458. Survival Heart Core liquid fuel is unreleased as entry 136.
 
 1. 核心玩家名字白名单，支持离线名字、忽略大小写及 All 目标。
 2. 每核心目标优先级排序。
@@ -240,3 +240,5 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 134. 0.1.457：视觉特效新增「蜂巢护盾」。平面蜂巢从标记面中心展开，在触发期间保持，触发结束后向中心收拢。手册修订 262。 / Honeycomb Shield reveals a flat honeycomb from the center of the marked face, holds while triggered, and closes inward afterward. Manual revision 262.
 
 135. 0.1.458：无线红石渐变新增关闭时长，触发结束后从当前输出渐变至 0，回落途中再次触发时从当前强度继续。默认 0 秒，沿用输出缓冲。手册修订 263。 / Wireless Redstone Ramp adds a release duration. Output ramps to zero when the trigger ends and resumes from its current strength when retriggered mid-release. The default of 0 seconds keeps Output buffer behavior. Manual revision 263.
+
+136. 待发布。生存生命核心新增 1,000 mB 液体储槽，支持容器和兼容流体管道注入，可用空桶取液，也可通过界面清空储槽。服主可按流体 ID 或标签设置液体兑换能量的价格。 / The Survival Heart Core gains a 1,000 mB liquid tank with container and compatible pipe input, bucket withdrawal, and a dump control. Servers can price fluids by ID or tag for manual Energy conversion. Unreleased.

@@ -20,6 +20,7 @@ public final class SableLifeServerConfig {
             "minecraft:emerald_block=1080",
             "minecraft:diamond_block=2700",
             "minecraft:netherite_block=27000");
+    public static final java.util.List<String> DEFAULT_FLUID_VALUES = java.util.List.of("minecraft:lava=25");
     public static final ModConfigSpec SPEC;
     public static final net.neoforged.fml.config.IConfigSpec LOADER_SPEC;
     private static final java.util.Map<String,ModConfigSpec.IntValue> CAST_RATES=new java.util.LinkedHashMap<>();
@@ -35,6 +36,7 @@ public final class SableLifeServerConfig {
     private static final ModConfigSpec.IntValue PROJECTILES, CREATURE_PROJECTILES, ENTITY_HITBOXES, BLUEPRINT_PROJECTION;
     private static final int DEFAULT_ENTITY_HITBOXES=8;
     private static final ModConfigSpec.ConfigValue<java.util.List<String>> TOKEN_VALUES;
+    private static final ModConfigSpec.ConfigValue<java.util.List<String>> FLUID_VALUES;
     private static final ModConfigSpec.IntValue ACTIVATION_RATE, HEAL_RATE, ARROW_RATE, MELEE_RATE, ARMOR_RATE;
     private static final ModConfigSpec.IntValue WILD_ACTIVE, WILD_NEARBY;
     private static final ModConfigSpec.IntValue WILD_WORKBENCH_RADIUS;
@@ -136,6 +138,12 @@ public final class SableLifeServerConfig {
         TOKEN_VALUES=builder.comment("All refueling materials as item_id=energy_value, including copper. Later duplicate entries override earlier ones. An empty list disables refueling.")
                 .define("depositValues",DEFAULT_TOKEN_VALUES,value->value instanceof java.util.List<?> entries&&entries.size()<=257
                         &&entries.stream().allMatch(entry->entry instanceof String text&&text.matches("[a-z0-9_.-]+:[a-z0-9/_.-]+=[1-9][0-9]{0,6}")&&Integer.parseInt(text.substring(text.indexOf('=')+1))<=1000000));
+        FLUID_VALUES = builder.comment(
+                "Fluid refueling prices as fluid_id=Energy or #fluid_tag=Energy per 1000 mB. Range: 1-1000000.",
+                "Exact fluid IDs take priority over tags. For duplicate IDs or overlapping tags, the last entry wins.",
+                "An empty list disables fluid refueling. Unpriced fluids can still be stored in the tank.")
+                .define("fluidDepositValues", DEFAULT_FLUID_VALUES, value -> value instanceof java.util.List<?> entries
+                        && entries.size() <= 257 && entries.stream().allMatch(String.class::isInstance));
         ACTIVATION_RATE=builder.comment("Energy per missing health point when activating. Costs round up.")
                 .defineInRange("activationTokensPerHealth",1,1,1000000);
         HEAL_RATE=builder.comment("Energy per health point actually restored while active. Costs round up.")
@@ -201,6 +209,9 @@ public final class SableLifeServerConfig {
         return !SPEC.isLoaded() || addonModuleEnabled(type) && !DISABLED_CORE_ADDONS.get(core).get().contains(type);
     }
     public static java.util.List<String> tokenValues(){return SPEC.isLoaded()?TOKEN_VALUES.get():DEFAULT_TOKEN_VALUES;}
+    public static java.util.List<String> fluidTokenValues() {
+        return SPEC.isLoaded() ? FLUID_VALUES.get() : DEFAULT_FLUID_VALUES;
+    }
     public static int activationTokenRate(){return SPEC.isLoaded()?ACTIVATION_RATE.get():1;}
     public static int castTokenRate(String type){return SPEC.isLoaded()?CAST_RATES.get(type).get():1;}
     public static int arrowTokenRate(){return SPEC.isLoaded()?ARROW_RATE.get():1;}

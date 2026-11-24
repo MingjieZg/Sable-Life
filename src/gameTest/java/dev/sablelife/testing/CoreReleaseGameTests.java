@@ -10,6 +10,10 @@ import net.minecraft.gametest.framework.*;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.GameType;
 import net.neoforged.neoforge.gametest.*;
+import net.minecraft.world.level.material.Fluids;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import java.util.*;
 @GameTestHolder("sablelife_core_ui_tests") @PrefixGameTestTemplate(false)
 public final class CoreReleaseGameTests {
@@ -170,10 +174,15 @@ public final class CoreReleaseGameTests {
         var menu=new SurvivalTopUpMenu(1,player.getInventory(),core);
         h.assertTrue(core.survivalTokenBalance()==5&&core.spendAttackTokens(5)&&menu.getSlot(4).getItem().isEmpty()
                 &&!menu.snapshot().getBoolean("Automatic"),"A legacy core's balance or refuel defaults changed");
+        var input = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, Direction.UP);
+        h.assertTrue(input != null && input.getFluidInTank(0).isEmpty(), "Legacy core did not begin with an empty tank");
         var copper=net.minecraft.world.item.Items.COPPER_INGOT;
         menu.getSlot(4).set(new net.minecraft.world.item.ItemStack(copper,4));
+        h.assertTrue(input.fill(new FluidStack(Fluids.LAVA, 375), FluidAction.EXECUTE) == 375,
+                "Could not store liquid fuel before mining");
         core.loadWithComponents(core.saveWithoutMetadata(level.registryAccess()),level.registryAccess());
-        h.assertTrue(menu.getSlot(4).getItem().getCount()==4,"Saving changed the fuel stack or slot");
+        h.assertTrue(menu.getSlot(4).getItem().getCount()==4 && input.getFluidInTank(0).getAmount() == 375
+                && input.getFluidInTank(0).getFluid() == Fluids.LAVA,"Saving changed the fuel stack, slot or stored lava");
         player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE));
         h.assertTrue(player.gameMode.destroyBlock(pos),"Survival mining could not break a dormant core");
@@ -188,9 +197,14 @@ public final class CoreReleaseGameTests {
                 player.getMainHandItem(),hit);
         h.assertTrue(player.getMainHandItem().getItem() instanceof net.minecraft.world.item.BlockItem item
                 &&item.place(place).consumesAction(),"Mining drop could not be placed");
+        var restoredInput = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, Direction.UP);
+        var water = new FluidStack(Fluids.WATER, 100);
+        h.assertTrue(restoredInput != null && restoredInput.fill(water, FluidAction.EXECUTE) == 0,
+                "A new tank could be modified before its pickup claim was restored");
         var duplicatePos=pos.east();
         level.setBlockAndUpdate(duplicatePos,block.defaultBlockState());
         block.setPlacedBy(level,duplicatePos,block.defaultBlockState(),player,stack.copy());
+        var duplicateInput = level.getCapability(Capabilities.FluidHandler.BLOCK, duplicatePos, Direction.UP);
         h.runAfterDelay(3,()->{
             var restored=(HeartBlockEntity)level.getBlockEntity(pos);
             var duplicate=(HeartBlockEntity)level.getBlockEntity(duplicatePos);
@@ -198,6 +212,10 @@ public final class CoreReleaseGameTests {
                     "Placed core did not restore its fuel");
             h.assertTrue(new SurvivalTopUpMenu(3,player.getInventory(),duplicate).getSlot(4).getItem().isEmpty(),
                     "A copied core item redeemed the same fuel twice");
+            var restoredFluid = restoredInput.getFluidInTank(0);
+            h.assertTrue(restoredFluid.getFluid() == Fluids.LAVA && restoredFluid.getAmount() == 375
+                    && duplicateInput != null && duplicateInput.getFluidInTank(0).isEmpty(),
+                    "Liquid fuel was lost or duplicated on mining and placement");
             h.succeed();
         });
     }
