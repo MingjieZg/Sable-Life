@@ -41,7 +41,7 @@ final class BlueprintFactionScreen extends Screen {
     private Tab tab = Tab.EXISTING;
     private String name = "";
     private String status = "";
-    private boolean privateFaction, friendlyFire, alliedFire, editable;
+    private boolean privateFaction, friendlyFire, alliedFire, editable, hasAssignableFaction;
     private Button create;
     private EditBox nameInput;
     private int left, top, panelWidth, panelHeight, page = -1, capacity, rowCount;
@@ -52,6 +52,7 @@ final class BlueprintFactionScreen extends Screen {
         this.menu = menu;
         this.selected = selected;
         sync(menu.snapshot());
+        if (source != null && !view.isEmpty() && canCreate() && !hasAssignableFaction) tab = Tab.CREATE;
     }
 
     private static Component tr(String key, Object... args) {
@@ -70,7 +71,8 @@ final class BlueprintFactionScreen extends Screen {
         if (!nextStatus.startsWith("bp_") && !nextStatus.startsWith("faction_")) nextStatus = "";
         boolean nextEditable = snapshot.getBoolean("LiveControls");
         boolean sourceChanged = !Objects.equals(source, nextSource);
-        boolean changed = sourceChanged || !view.equals(nextView) || !factions.equals(nextFactions)
+        boolean factionsChanged = !factions.equals(nextFactions);
+        boolean changed = sourceChanged || !view.equals(nextView) || factionsChanged
                 || editable != nextEditable || !status.equals(nextStatus);
         var previousBound = id(view, "Bound");
         var currentBound = id(nextView, "Bound");
@@ -81,6 +83,7 @@ final class BlueprintFactionScreen extends Screen {
         }
         view = nextView;
         factions = nextFactions;
+        if (factionsChanged) hasAssignableFaction = factions.stream().anyMatch(value -> ((CompoundTag) value).getBoolean("CanJoin"));
         status = nextStatus;
         editable = nextEditable;
         if (sourceChanged && nextSource != null) {
@@ -169,8 +172,12 @@ final class BlueprintFactionScreen extends Screen {
                 () -> send("bp_bind", revision, flags, target.getUUID("Id").toString()));
         bind.active = editable && target.getBoolean("CanJoin");
         bind.setTooltip(Tooltip.create(tr("bp_bind_help")));
+        addSkip(revision, actionWidth);
+    }
+
+    private void addSkip(int revision, int width) {
         var skip = button(tr(id(view, "Bound") == null ? "bp_skip" : "bp_unbind"), left + panelWidth / 2 + 3,
-                actionTop(), actionWidth, () -> confirmSkip(revision));
+                actionTop(), width, () -> confirmSkip(revision));
         skip.active = editable;
     }
 
@@ -198,9 +205,12 @@ final class BlueprintFactionScreen extends Screen {
         toggle(friendlyFire ? "ff_on" : "ff_off", null, 1, cellWidth, () -> friendlyFire = !friendlyFire);
         toggle(alliedFire ? "allied_fire_on" : "allied_fire_off", "allied_fire_help", 2, cellWidth, () -> alliedFire = !alliedFire);
         int revision = view.getInt("Revision");
-        create = button(tr("bp_create_confirm"), left + 10, actionTop(), panelWidth - 20, () -> createFaction(revision));
+        boolean pending = id(view, "Bound") == null;
+        int actionWidth = pending ? panelWidth / 2 - 13 : panelWidth - 20;
+        create = button(tr("bp_create_confirm"), left + 10, actionTop(), actionWidth, () -> createFaction(revision));
         create.active = canCreate && !name.isBlank();
         if (!canCreate && editable) create.setTooltip(Tooltip.create(tr("bp_use_mapping")));
+        if (pending) addSkip(revision, actionWidth);
     }
 
     private boolean canCreate() {
@@ -325,8 +335,13 @@ final class BlueprintFactionScreen extends Screen {
             line(g, bound.hasUUID("Id") ? tr("bp_current", bound.getString("Name")) : tr("bp_unassigned"), compact() ? 66 : 87, LABEL);
             if (tab == Tab.EXISTING) {
                 var local = row(selected);
-                line(g, local.hasUUID("Id") ? tr("bp_selected", local.getString("Name")) : tr("bp_choose"), compact() ? 77 : 102, LABEL);
-                if (local.hasUUID("Id")) line(g, rules(local), compact() ? 88 : 115, TEXT);
+                if (local.hasUUID("Id")) {
+                    line(g, tr("bp_selected", local.getString("Name")), compact() ? 77 : 102, LABEL);
+                    line(g, rules(local), compact() ? 88 : 115, TEXT);
+                } else {
+                    String hint = hasAssignableFaction ? "bp_choose" : canCreate() ? "bp_no_available_create" : "bp_no_available";
+                    line(g, tr(hint), compact() ? 77 : 102, LABEL);
+                }
             }
             if (tab != Tab.CREATE && pageCount() > 1) g.drawCenteredString(font, (page + 1) + " / " + pageCount(),
                     left + panelWidth / 2, compact() ? top + 8 : pagerTop() + 5, LABEL);

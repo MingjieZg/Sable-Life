@@ -1,6 +1,7 @@
 package dev.sablelife.client;
 
 import java.util.*;
+import dev.sablelife.heart.BlueprintFaction;
 import dev.sablelife.heart.HeartSettingsMenu;
 import dev.sablelife.heart.CoreRelations;
 import dev.sablelife.module.ModuleNetworking;
@@ -70,10 +71,17 @@ public final class CoreRelationsScreen extends Screen {
         for(int i=0;i<3;i++){int index=i;var b=button(tr(List.of("players","mobs","factions").get(i)),x+10+i*(tabWidth+6),y+34,tabWidth,18,()->tab(index));if(i==(factions?2:mobs?1:0))selectedButtons.add(b);}
         if(mobs){initMobs(rowHeight);signature=signature();return;}
         var own=membership();
-        boolean blueprintFaction = factions && hasBlueprintFaction();
+        var snapshot = menu.snapshot();
+        var blueprintView = snapshot.getCompound("BlueprintFactionView");
+        boolean blueprintFaction = factions && !blueprintView.isEmpty();
         if(blueprintFaction){
-            var open = button(tr(own == null ? "bp_open_pending" : "bp_open_bound"),x+10,y+60,w-20,18,()->openBlueprintFaction(null));
-            open.setTooltip(Tooltip.create(tr("bp_open_help")));
+            boolean bound = blueprintView.hasUUID("Bound");
+            var source = BlueprintFaction.read(snapshot.getCompound("Relations").getCompound(BlueprintFaction.TAG));
+            var sourceName = source == null || source.name().isEmpty() ? tr("bp_unknown") : Component.literal(source.name());
+            var label = bound ? tr("bp_open_bound") : tr("bp_open_pending_named", sourceName);
+            var open = button(label,x+10,y+60,w-20,18,()->openBlueprintFaction(null));
+            var help = tr("bp_open_help");
+            open.setTooltip(Tooltip.create(bound ? help : label.copy().append("\n").append(help)));
         }else if(factions){
             var input=addRenderableWidget(new EditBox(font,x+10,y+60,w-150,18,tr("name")));factionInput=input;input.setMaxLength(40);input.setValue(draft);input.setHint(tr("name"));input.setResponder(s->draft=s);
             button(tr("create"),x+w-134,y+60,60,18,()->send("create",draft));

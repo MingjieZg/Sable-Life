@@ -17,6 +17,9 @@ import dev.sablelife.heart.BlueprintFaction;
 import dev.sablelife.heart.CoreRelations;
 import dev.sablelife.heart.FactionRegistry;
 import dev.sablelife.heart.HeartBlockEntity;
+import dev.sablelife.heart.HeartSettingsMenu;
+import dev.sablelife.module.ModuleNetworking;
+import io.netty.buffer.Unpooled;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Set;
@@ -29,6 +32,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -269,6 +273,10 @@ public final class BlueprintFactionGameTests {
             var same = place(test, playerSource(test, importer, 12), fileName);
             test.assertTrue(sourceId.equals(same.relations().faction()), "Official same-world placement did not restore the local faction");
 
+            var nativeData = Files.readAllBytes(path);
+            var tool = new ItemStack(SableSchematicApiItems.BLUEPRINT_TOOL.get());
+            verifyFirstPlacementInEmptyRegistry(test, importer, portable, fileName, nativeData, tool);
+
             var destination = new FactionRegistry();
             var replacement = destination.create(other, name);
             test.assertTrue(replacement != null && !portable.sourceWorld().equals(destination.portable(replacement).sourceWorld()),
@@ -290,8 +298,6 @@ public final class BlueprintFactionGameTests {
             test.assertTrue(actorless.relations().faction() == null && portable.equals(actorless.relations().blueprintFaction()),
                     "Console execution borrowed a player's remembered faction binding");
 
-            var nativeData = Files.readAllBytes(path);
-            var tool = new ItemStack(SableSchematicApiItems.BLUEPRINT_TOOL.get());
             var beforeTool = bodyIds(level);
             requestToolPlacement(test, importer, fileName, nativeData, 44);
             test.assertTrue(beforeTool.equals(bodyIds(level)), "An operator without the tool placed a structure");
@@ -318,6 +324,73 @@ public final class BlueprintFactionGameTests {
             }
         }
         test.succeed();
+    }
+
+    private static void verifyFirstPlacementInEmptyRegistry(GameTestHelper test, ServerPlayer importer,
+            BlueprintFaction source, String fileName, byte[] nativeData, ItemStack tool) throws Exception {
+        var level = test.getLevel();
+        var destination = new FactionRegistry();
+        level.getServer().overworld().getDataStorage().set("sablelife_factions", destination);
+        importer.setItemInHand(InteractionHand.OFF_HAND, tool.copy());
+        try {
+            var beforeFirst = bodyIds(level);
+            requestToolPlacement(test, importer, fileName, nativeData, 52);
+            var first = restoredCore(test, beforeFirst);
+            var firstMenu = new HeartSettingsMenu(1, importer.getInventory(), first);
+            var initial = firstMenu.snapshot();
+            var view = initial.getCompound("BlueprintFactionView");
+            test.assertTrue(first.relations().hasPendingBlueprintFaction()
+                            && source.equals(BlueprintFaction.read(initial.getCompound("Relations").getCompound(BlueprintFaction.TAG)))
+                            && !view.hasUUID("Bound") && !view.hasUUID("Suggested") && initial.getBoolean("LiveControls")
+                            && source.name().equals(view.getString("CreatedName"))
+                            && initial.getList("Factions", Tag.TAG_COMPOUND).isEmpty(),
+                    "First official placement did not expose the pending source and its creation draft in an empty destination");
+
+            test.assertTrue(sendFactionAction(test, firstMenu, importer, "bp_clear", 0, "")
+                            && first.relations().blueprintFaction() == null && first.relations().faction() == null
+                            && firstMenu.snapshot().getCompound("BlueprintFactionView").isEmpty()
+                            && destination.snapshot(importer).isEmpty() && destination.resolveBlueprintFaction(importer, source) == null,
+                    "Skipping a pending import created a local faction or mapping");
+
+            var pending = place(test, playerSource(test, importer, 60), fileName);
+            test.assertTrue(pending.relations().hasPendingBlueprintFaction() && source.equals(pending.relations().blueprintFaction()),
+                    "Placement after skipping did not remain pending");
+            var menu = new HeartSettingsMenu(2, importer.getInventory(), pending);
+            String draft = menu.snapshot().getCompound("BlueprintFactionView").getString("CreatedName");
+            int flags = HeartSettingsMenu.factionFlags(source.privateFaction(), source.friendlyFire(), source.alliedFire());
+            test.assertTrue(sendFactionAction(test, menu, importer, "bp_create", flags, draft),
+                    "The actual menu could not create and bind the first local blueprint faction");
+            var local = pending.relations().faction();
+            test.assertTrue(local != null && !local.equals(source.sourceFaction())
+                            && local.equals(menu.snapshot().getCompound("BlueprintFactionView").getUUID("Bound"))
+                            && local.equals(destination.resolveBlueprintFaction(importer, source))
+                            && draft.equals(destination.detail(importer, local).getString("Name")),
+                    "Creating the first local faction did not assign the core and remember its mapping");
+
+            var beforeRepeat = bodyIds(level);
+            requestToolPlacement(test, importer, fileName, nativeData, 68);
+            var repeat = restoredCore(test, beforeRepeat);
+            test.assertTrue(local.equals(repeat.relations().faction()) && source.equals(repeat.relations().blueprintFaction())
+                            && destination.snapshot(importer).size() == 1,
+                    "Later official placement did not bind the same faction or created a duplicate");
+        } finally {
+            importer.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        }
+    }
+
+    private static boolean sendFactionAction(GameTestHelper test, HeartSettingsMenu menu, ServerPlayer actor,
+            String action, double value, String text) {
+        int revision = menu.snapshot().getCompound("BlueprintFactionView").getInt("Revision");
+        var packet = new ModuleNetworking.Action(menu.containerId, 0, new UUID(0, 0), "core",
+                "relation:" + action + ":" + revision, value, text);
+        var buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), test.getLevel().registryAccess());
+        try {
+            ModuleNetworking.Action.CODEC.encode(buffer, packet);
+            var received = ModuleNetworking.Action.CODEC.decode(buffer);
+            return menu.action(actor, received.key(), received.value(), received.text());
+        } finally {
+            buffer.release();
+        }
     }
 
     private static CommandSourceStack playerSource(GameTestHelper test, ServerPlayer actor, int x) {

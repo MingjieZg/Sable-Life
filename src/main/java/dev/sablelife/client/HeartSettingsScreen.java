@@ -26,7 +26,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     private final List<Button> applies=new ArrayList<>();
     private final Map<String,Button> toggles=new LinkedHashMap<>(), sounds=new LinkedHashMap<>(), soundNones=new LinkedHashMap<>();
     private final java.text.DecimalFormat lifeFormat=new java.text.DecimalFormat("0.##");
-    private Button particle,pattern,preview,restore,experienceMode,release,bossColor,targetPriority,hitParticles;
+    private Button particle,pattern,preview,restore,experienceMode,release,bossColor,targetPriority,hitParticles,relations;
     public HeartSettingsScreen(HeartSettingsMenu menu,Inventory inventory,Component title) { super(menu,inventory,title);imageWidth=330;imageHeight=246; }
     private Component tr(String key) { return Component.translatable("core.sablelife."+key); }
     private String prefix() { return page==3?"vanish":"death"; }
@@ -44,7 +44,8 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
         keys=hitEffectPage()?new String[]{"hitParticleCount","hitParticleSpread"}:page==6?new String[]{"limbCleanupDelay"}:page==5?new String[]{"crushDelay"}:page==4?new String[]{"defenseThreshold","defenseMaximum","defenseWindow","knockbackResistance"}:page==0?new String[]{"name","health","delay","xp","regen","regenPercent","regenDelay"}:page==1?new String[]{"voidDeathHeight","ownerName"}:page==2?new String[]{"deathCount","deathSpread","deathEffectRadius"}:page==3?new String[]{"vanishCount","vanishSpread"}:new String[]{};
         if(survival()&&page==0)keys=new String[]{"name","health","regen","regenPercent","regenDelay","ownerName"};
         if(survival()&&page==1)keys=new String[]{};
-        button(Component.translatable("manual.sablelife.open"),10,9,75,()->minecraft.setScreen(new ManualScreen(this,survival()?"survival_heart_core":"core")));button(Component.translatable("relations.sablelife.title"),90,9,80,()->minecraft.setScreen(new CoreRelationsScreen(this,menu)));
+        button(Component.translatable("manual.sablelife.open"),10,9,75,()->minecraft.setScreen(new ManualScreen(this,survival()?"survival_heart_core":"core")));
+        relations=button(Component.translatable("relations.sablelife.title"),90,9,80,()->minecraft.setScreen(new CoreRelationsScreen(this,menu)));
         release=button(Component.translatable("dashboard.sablelife.release").withStyle(net.minecraft.ChatFormatting.RED),175,9,85,()->edit("release",0,""));release.setTooltip(Tooltip.create(Component.translatable("dashboard.sablelife.release_help")));
         button(Component.translatable("dashboard.sablelife.back"),265,9,55,()->{if(hitEffectPage())showPage(0);else navigation(0);});
         for(int i=0;i<keys.length;i++) {
@@ -124,6 +125,7 @@ public final class HeartSettingsScreen extends AbstractContainerScreen<HeartSett
     private void cyclePattern(int direction) { edit(prefix()+"Pattern",Math.floorMod((int)menu.snapshot().getDouble(prefix()+"Pattern")+direction,6),""); }
     private void sync() {
         var data=menu.snapshot();boolean ready=data.getBoolean("Ready"),live=ready&&data.getBoolean("LiveControls");
+        relations.active=ready;
         if(targetPriority!=null){targetPriority.active=live;targetPriority.setMessage(tr("target_priority_"+Math.clamp(data.getInt("targetPriority"),0,3)));}
         if(bossColor!=null){bossColor.active=live;var color=net.minecraft.world.BossEvent.BossBarColor.values()[Math.clamp(data.getInt("bossbarColor"),0,6)];bossColor.setMessage(tr("bossbar_color_"+color.name().toLowerCase(Locale.ROOT)));}
         if(release!=null)release.active=ready&&data.getBoolean("ReleaseAllowed");

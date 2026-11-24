@@ -2,6 +2,8 @@
 
 ## 0.1.458
 
+- **Blueprint factions on first placement**. The pending entry shows the source faction's name. When there is no usable local faction, the setup opens on the Create tab with the source settings filled in. Players can confirm creation and binding or skip the faction. Manual revision 264.
+
 - **Wireless Redstone release ramp**. Set Release ramp duration in Ramp mode to lower the current output gradually to zero when the trigger ends. A trigger during the fall continues toward the configured end strength from the current output. A fresh trigger starts from the configured start. It defaults to 0 seconds, which keeps the original Output buffer behavior. A positive duration takes over release in Ramp mode and retains the saved buffer setting. Entry 135, manual revision 263.
 
 ## 0.1.457
