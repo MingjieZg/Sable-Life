@@ -128,6 +128,63 @@ public final class RedstoneCoreGameTests {
         var body=SubLevelAssemblyHelper.assembleBlocks(level,pos,List.of(pos,pos.east()),new BoundingBox3i(pos.getX(),pos.getY(),pos.getZ(),pos.getX()+1,pos.getY(),pos.getZ()));return (HeartBlockEntity)level.getBlockEntity(body.getPlot().getCenterBlock());
     }
     private static net.neoforged.neoforge.common.util.FakePlayer player(GameTestHelper h,HeartBlockEntity core){var p=net.neoforged.neoforge.common.util.FakePlayerFactory.get(h.getLevel(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),"RedstoneAuthor"));p.setGameMode(GameType.SURVIVAL);var w=SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter());p.setPos(w.x,w.y,w.z);return p;}
+    @GameTest(template="combat", batch="redstone_priority_targets")
+    public static void PriorityTargetsUseTheControlDashboardAndExistingPermissions(GameTestHelper h) {
+        var core = fixture(h, false);
+        var author = player(h, core);
+        var menu = new HeartDashboardMenu(1, author.getInventory(), core);
+        var module = new UUID(0, 0);
+        var zombie = net.minecraft.world.entity.EntityType.ZOMBIE;
+        h.assertTrue(menu.stillValid(author) && menu.priorityTargetsSnapshot().getBoolean("LiveControls")
+                && !core.relations().hasPriorityMobs(), "Survival editor did not see the empty priority list");
+
+        var action = new ModuleNetworking.Action(menu.containerId, 0, module, "core", "relation:prioritizeMob", 0, "minecraft:zombie");
+        var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), h.getLevel().registryAccess());
+        try {
+            ModuleNetworking.Action.CODEC.encode(buffer, action);
+            var decoded = ModuleNetworking.Action.CODEC.decode(buffer);
+            h.assertTrue(decoded.equals(action) && menu.action(author, decoded.revision(), decoded.module(),
+                    decoded.operation(), decoded.key(), decoded.value(), decoded.text()), "Normal priority action was lost or refused");
+            h.assertTrue(menu.action(author, decoded.revision(), decoded.module(), decoded.operation(),
+                    decoded.key(), decoded.value(), decoded.text()), "Duplicate add was rejected");
+        } finally {
+            buffer.release();
+        }
+        var entries = menu.priorityTargetsSnapshot().getCompound("Relations").getList("PriorityMobs", 8);
+        h.assertTrue(entries.size() == 1 && entries.getString(0).equals("minecraft:zombie")
+                && core.relations().prioritizesMob(zombie), "List update did not sync or duplicated the entry");
+        h.assertTrue(!menu.action(author, 0, module, "core", "relation:excludeMob", 0, "minecraft:zombie")
+                && !menu.action(author, 0, module, "core", "relation:excludeName", 0, "AnotherPlayer")
+                && !menu.action(author, 0, module, "core", "ownerName", 0, "AnotherPlayer")
+                && !core.relations().excludesMob(zombie) && core.relations().ownerName().isEmpty(),
+                "Dedicated priority route accepted unrelated relations");
+        h.assertTrue(menu.action(author, 0, module, "core", "relation:prioritizeMob", 0, "minecraft:*")
+                && core.relations().prioritizesMob(net.minecraft.world.entity.EntityType.SKELETON), "Namespace was not added");
+        var saved = new CoreRelations();
+        saved.load(core.relations().save());
+        h.assertTrue(saved.prioritizesMob(zombie) && saved.prioritizesMob(net.minecraft.world.entity.EntityType.SKELETON),
+                "Priority entries failed the existing relations save round trip");
+
+        var near = author.position();
+        author.setPos(near.x + 32, near.y, near.z);
+        h.assertTrue(!menu.stillValid(author)
+                && !menu.action(author, 0, module, "core", "relation:removePriorityMob", 0, "minecraft:zombie")
+                && core.relations().prioritizesMob(zombie), "Out-of-range editor changed the list");
+        author.setPos(near.x, near.y, near.z);
+        var spectator = TestActors.creative(h.getLevel());
+        spectator.setGameMode(GameType.SPECTATOR);
+        spectator.setPos(near.x, near.y, near.z);
+        h.assertTrue(!menu.stillValid(spectator)
+                && !menu.action(spectator, 0, module, "core", "relation:removePriorityMob", 0, "minecraft:*"),
+                "Spectator could edit the priority list");
+        h.assertTrue(menu.action(author, 0, module, "core", "relation:removePriorityMob", 0, "minecraft:*")
+                && menu.action(author, 0, module, "core", "relation:removePriorityMob", 0, "minecraft:zombie")
+                && !core.relations().hasPriorityMobs()
+                && menu.priorityTargetsSnapshot().getCompound("Relations").getList("PriorityMobs", 8).isEmpty(),
+                "Authorized removal did not sync the empty list");
+        h.succeed();
+    }
+
     @GameTest(template="combat",batch="redstone_survivaleditsandsignalsrunwithoutactivatinglife")
     public static void SurvivalEditsAndSignalsRunWithoutActivatingLife(GameTestHelper h){
         var core=fixture(h,false);var author=player(h,core);h.assertTrue(core.isControlCore()&&core.canEdit(author)&&core.operational()&&core.health().state()==HeartState.DORMANT,"Controller required creative or life activation: edit="+core.canEdit(author)+", ready="+core.operational()+", graph="+SableBodyProbe.inspect(h.getLevel(),core.getBlockPos()));

@@ -39,6 +39,7 @@ public final class ArenaRespawns extends SavedData {
   transient Build build;transient int shown=-1;
   UUID stageJob, stage, respawningCore;
   long stageDeadline, lastNearby, battleDeadline;
+  Long stageFactionPausedAt;
   Integer battleLimit;
   CompoundTag battleTitles;
   int shownBattleTitles;
@@ -147,7 +148,7 @@ public final class ArenaRespawns extends SavedData {
   var entry = get(level.getServer()).stages.get(heart.creatureId());
   return entry == null || entry.abandoning || !entry.dimension.equals(level.dimension().location()) ? null : entry.boundary;
  }
- static UUID reserveBlueprint(HeartBlockEntity heart, VirtualModule spawn, int role, boolean death, BlueprintSpawnPlacement.Destination point) {
+ static UUID reserveBlueprint(HeartBlockEntity heart, VirtualModule spawn, int role, boolean death, BlueprintSpawnPlacement.Destination configured) {
   if (!(heart.getLevel() instanceof ServerLevel level)) return null;
   var data=get(level.getServer());
   var id=heart.creatureId();
@@ -160,8 +161,8 @@ public final class ArenaRespawns extends SavedData {
    if (role==NEXT_STAGE && (!death || entry.stageJob!=null || entry.stage!=null) || role==SUMMON && (death || heart.health().state()!=HeartState.ALIVE)) return null;
    setBoundary(entry,heart.modules().find(entry.module));
   }
-  if (entry.boundary==null || !entry.dimension.equals(point.dimension())
-          || !ModuleArena.withinBoundary(entry.boundary,point.position()))return null;
+  if (entry.boundary==null || !entry.dimension.equals(configured.dimension())
+          || !ModuleArena.withinBoundary(entry.boundary,configured.position()))return null;
   if (role==NEXT_STAGE) {
    entry.stageJob=spawn.id();
    entry.stageDeadline=level.getGameTime()+heart.health().remainingDeathTicks()+(long)spawn.value("spawnDelay")+ABANDONED_TICKS;
@@ -176,7 +177,7 @@ public final class ArenaRespawns extends SavedData {
   var entry=get(level.getServer()).entries.get(arena);
   if(entry==null || !entry.dimension.equals(level.dimension().location()) || entry.abandoning
           || entry.stageDefeated || entry.phase.equals("resetting")
-          || entry.battleDeadline>0&&level.getGameTime()>=entry.battleDeadline
+          || entry.stageFactionPausedAt==null&&entry.battleDeadline>0&&level.getGameTime()>=entry.battleDeadline
           || !ModuleAvailability.enabled(false,"arena")) return false;
   return role==NEXT_STAGE ? job.equals(entry.stageJob) && entry.stage==null
           : entry.phase.equals("ready") || entry.stageJob!=null || entry.stage!=null;
@@ -189,6 +190,7 @@ public final class ArenaRespawns extends SavedData {
    entry.stage=heart.creatureId();
    entry.defeatPending=false;
    entry.lastNearby=level.getGameTime();
+   entry.stageFactionPausedAt=heart.awaitingBlueprintFactionDecision()?entry.lastNearby:null;
    data.stages.put(entry.stage,entry);
   } else entry.summons.add(heart.creatureId());
   LoadedCoreIndex.observe(heart);
@@ -320,12 +322,36 @@ public final class ArenaRespawns extends SavedData {
   if(e.stage!=null&&quietRemoval(level,e.stage,e.center)){
    stages.remove(e.stage);
    e.stage=null;
+   e.stageFactionPausedAt=null;
    setDirty();
   }
   if(e.summons.removeIf(id->quietRemoval(level,id,e.center)))setDirty();
   return quietRemoval(level,e.creature,e.center)&&e.stage==null&&e.summons.isEmpty();
  }
- private boolean waitForEncounter(ServerLevel level, Entry e) {
+ private boolean waitForStageFaction(ServerLevel level, Entry e, HeartBlockEntity stageHeart) {
+  if(e.stage==null||e.stageDefeated||e.abandoning)return false;
+  long now=level.getGameTime();
+  if(stageHeart!=null&&stageHeart.awaitingBlueprintFactionDecision()){
+   if(e.stageFactionPausedAt==null){e.stageFactionPausedAt=now;setDirty();}
+   return true;
+  }
+  if(e.stageFactionPausedAt==null)return false;
+  var life=LifeLifecycle.get(level.getServer());
+  if(life.naturalRemovalPending(e.stage)||life.finished(e.stage)){
+   e.stageFactionPausedAt=null;
+   e.abandoning=true;
+   setDirty();
+   return false;
+  }
+  // Keep the reservation while the pending stage is unloaded or finishing joint settlement.
+  if(stageHeart==null?BodyOwnership.get(level).hasOwned(e.stage):stageHeart.awaitingBlueprintActivation())return true;
+  if(e.battleDeadline>0)e.battleDeadline=now+Math.max(0,e.battleDeadline-e.stageFactionPausedAt);
+  e.lastNearby=now;
+  e.stageFactionPausedAt=null;
+  setDirty();
+  return false;
+ }
+ private boolean waitForEncounter(ServerLevel level, Entry e, HeartBlockEntity stageHeart) {
   var server=level.getServer();
   var lifecycle=LifeLifecycle.get(server);
   if(e.stageJob!=null){
@@ -340,8 +366,7 @@ public final class ArenaRespawns extends SavedData {
     if(e.defeatPending){e.defeatPending=false;setDirty();announce(server,e.defeatAnnouncement);}
     if(!lifecycle.finished(e.stage))return true;
    }else{
-    var heart=LoadedCoreIndex.find(level,e.stage);
-    if(!e.abandoning && heart!=null && heart.health().state()==HeartState.DORMANT && !heart.awaitingBlueprintActivation())e.abandoning=true;
+    if(!e.abandoning && stageHeart!=null && stageHeart.health().state()==HeartState.DORMANT && !stageHeart.awaitingBlueprintActivation())e.abandoning=true;
     if(!e.abandoning && !BodyOwnership.get(level).hasOwned(e.stage) && !lifecycle.isDying(e.stage))e.abandoning=true;
     if(!e.abandoning && level.getGameTime()%20==0){
      boolean nearby=level.players().stream().anyMatch(player->player.isAlive()&&!player.isCreative()&&!player.isSpectator()
@@ -356,6 +381,7 @@ public final class ArenaRespawns extends SavedData {
    }
    stages.remove(e.stage);
    e.stage=null;
+   e.stageFactionPausedAt=null;
    setDirty();
   }
   if(e.defeatPending){e.defeatPending=false;setDirty();announce(server,e.defeatAnnouncement);}
@@ -401,6 +427,12 @@ public final class ArenaRespawns extends SavedData {
     boolean ready=e.phase.equals("ready");
     if(ready&&!inBattle){if(e.display!=null)hide(level,e);keepSummonsInBounds(level,e);continue;}
     if(!available()){display(level,e,"missing",0);continue;}
+    var stageHeart=e.stage==null||e.stageDefeated||e.abandoning?null:LoadedCoreIndex.find(level,e.stage);
+    if(e.phase.equals("countdown")&&waitForStageFaction(level,e,stageHeart)){
+     display(level,e,"faction_pending",0,0);
+     keepSummonsInBounds(level,e);
+     continue;
+    }
     if(inBattle&&level.getGameTime()>=e.battleDeadline
             &&(ready||e.stageJob!=null||e.stage!=null&&!e.stageDefeated)){
      beginBattleReset(level,e);
@@ -410,7 +442,7 @@ public final class ArenaRespawns extends SavedData {
     if(e.battleDeadline>0&&e.stageJob==null&&e.stage==null){e.battleDeadline=0;setDirty();}
     boolean resetting=e.phase.equals("resetting");
     if(resetting&&!battleResetCleaned(level,e)){display(level,e,"resetting",0);continue;}
-    if(e.phase.equals("countdown") && waitForEncounter(level,e)){
+    if(e.phase.equals("countdown") && waitForEncounter(level,e,stageHeart)){
      if(e.battleDeadline>0)displayBattle(level,e);else hide(level,e);
      if(!e.abandoning)keepSummonsInBounds(level,e);
      continue;
@@ -424,6 +456,7 @@ public final class ArenaRespawns extends SavedData {
      }
      var module=core.modules().find(e.module);
      if(module!=null && core.health().state()==HeartState.ALIVE){finishRespawn(level,e,core,module);continue;}
+     if(core.awaitingBlueprintFactionDecision()){display(level,e,"faction_pending",0,0);continue;}
      if(!core.awaitingBlueprintActivation()){
       if (e.newBodies.isEmpty() && e.progress.isEmpty()) quietRemoval(level,core.creatureId(),e.center);
       else rollback(server, e);
@@ -464,7 +497,7 @@ public final class ArenaRespawns extends SavedData {
      restoreBattleTitles(e,module);
      e.respawningCore=heart.creatureId();
      e.build.captureOwnership(heart);
-     if(!heart.activateAfterBlueprintPlacement(e.build.bodies().size())){rollback(server,e);e.phase="failed";setDirty();continue;}
+     if(!heart.activateAfterBlueprintPlacementWaitingForFaction(e.build.bodies().size())){rollback(server,e);e.phase="failed";setDirty();continue;}
      if(heart.awaitingBlueprintActivation()){
       e.respawningCore=heart.creatureId();e.module=moduleId;e.phase="activating";setDirty();
      }else finishRespawn(level,e,heart,module);
@@ -496,7 +529,9 @@ public final class ArenaRespawns extends SavedData {
   Display.TextDisplay text=e.display==null?null:level.getEntity(e.display) instanceof Display.TextDisplay t?t:null;
   if(text==null){text=EntityType.TEXT_DISPLAY.create(level);if(text==null)return;if(e.display!=null)text.setUUID(e.display);text.setPos(displayPoint);text.setNoGravity(true);text.addTag("sablelife_arena_respawn");text.getPersistentData().putUUID("SableLifeArenaRecord",e.id);if(!level.addFreshEntity(text))return;e.display=text.getUUID();setDirty();}
   if(!text.position().equals(displayPoint))text.setPos(displayPoint);
-  var label=Component.translatable("arena_respawn.sablelife."+phase,seconds).append("\n").append(Component.literal("\u25A0".repeat(filled)+"\u25A1".repeat(20-filled)).withStyle(net.minecraft.ChatFormatting.YELLOW));
+  var label=phase.equals("faction_pending")
+          ? Component.translatable("command.sablelife.blueprint.faction_pending")
+          : Component.translatable("arena_respawn.sablelife."+phase,seconds).append("\n").append(Component.literal("\u25A0".repeat(filled)+"\u25A1".repeat(20-filled)).withStyle(net.minecraft.ChatFormatting.YELLOW));
   // Keep a translatable arena root so the existing shader label path recognizes it.
   var name=CreatureNames.formatted(e.name);if(name.getString().isBlank())name=Component.translatable("entity.sablelife.creature");
   label=Component.translatable("arena_respawn.sablelife.named",name,label);
@@ -525,6 +560,7 @@ public final class ArenaRespawns extends SavedData {
   }
   if(e.stage!=null)stages.remove(e.stage);
   e.stage=null;e.stageJob=null;e.respawningCore=null;e.summons.clear();e.summonsUsed=0;
+  e.stageFactionPausedAt=null;
   e.stageDefeated=false;e.abandoning=false;e.defeatPending=false;
   e.battleDeadline=0;e.battleLimit=null;
   if(level!=null)removeDisplays(level,e.id);
@@ -547,6 +583,7 @@ public final class ArenaRespawns extends SavedData {
  private static void saveEncounter(Entry e, CompoundTag tag) {
   if(e.stageJob!=null)tag.putUUID("StageJob",e.stageJob);
   if(e.stage!=null)tag.putUUID("Stage",e.stage);
+  if(e.stageFactionPausedAt!=null)tag.putLong("StageFactionPausedAt",e.stageFactionPausedAt);
   if(e.respawningCore!=null)tag.putUUID("RespawningCore",e.respawningCore);
   tag.putLong("StageDeadline",e.stageDeadline);
   tag.putLong("LastNearby",e.lastNearby);
@@ -569,6 +606,7 @@ public final class ArenaRespawns extends SavedData {
  private void loadEncounter(Entry e, CompoundTag tag) {
   if(tag.hasUUID("StageJob"))e.stageJob=tag.getUUID("StageJob");
   if(tag.hasUUID("Stage")){e.stage=tag.getUUID("Stage");stages.put(e.stage,e);}
+  if(e.stage!=null&&tag.contains("StageFactionPausedAt",Tag.TAG_LONG))e.stageFactionPausedAt=Math.max(0,tag.getLong("StageFactionPausedAt"));
   if(tag.hasUUID("RespawningCore"))e.respawningCore=tag.getUUID("RespawningCore");
   if(e.phase.equals("activating")&&e.respawningCore==null)e.phase="failed";
   e.stageDeadline=tag.getLong("StageDeadline");

@@ -583,6 +583,235 @@ public final class BlueprintSpawnGameTests {
     private static HeartBlockEntity core(GameTestHelper h){return template(h,1,0).core;}
     private static VirtualModule module(GameTestHelper h,HeartBlockEntity c,CompoundTag template){var m=c.modules().add("blueprint_spawn");m.edit("spawnAnchor",1,"");m.arenaCenter(h.absoluteVec(new Vec3(4,25,12)),h.getLevel().dimension().location().toString());m.edit("spawnDelay",0,"");m.edit("spawnCooldown",1,"");BlueprintSpawns.install(c,m,"test",SpawnTemplateBridge.inspect(template));return m;}
 
+    @GameTest(template="combat", batch="blueprint_faction_pending_spawn", timeoutTicks=260)
+    public static void AutomaticBlueprintKeepsTheSameCoreUntilFactionIsSkipped(GameTestHelper h) {
+        var level = h.getLevel();
+        var server = level.getServer();
+        var owner = core(h);
+        var source = factionPendingTemplate(h);
+        var actor = admin(h);
+        var spawn = module(h, owner, source.tag);
+        owner.tryActivate(actor);
+        BlueprintSpawns.tickCore(owner);
+        UUID[] placed = new UUID[1];
+        h.startSequence().thenWaitUntil(() -> {
+            var copy = onlyPlacedCopy(h, source.core, source.core.creatureId());
+            h.assertTrue(BlueprintSpawns.snapshot(owner, spawn).getInt("Count") == 1, "Placement did not consume its count once");
+            assertPendingFaction(h, copy);
+            placed[0] = copy.creatureId();
+        }).thenExecute(() -> {
+            var saved = BlueprintSpawns.get(server).save(new CompoundTag(), level.registryAccess());
+            server.overworld().getDataStorage().set("sablelife_blueprint_spawns", BlueprintSpawns.load(saved, level.registryAccess()));
+            reloadPendingCore(h, LoadedCoreIndex.find(level, placed[0]));
+        }).thenIdle(115).thenExecute(() -> {
+            var copy = onlyPlacedCopy(h, source.core, source.core.creatureId());
+            h.assertTrue(copy.creatureId().equals(placed[0]), "Pending spawn replaced its original core");
+            assertPendingFaction(h, copy);
+            actor.setPos(ModuleArena.corePosition(copy));
+            copy.tryActivate(actor);
+            assertPendingFaction(h, copy);
+            var unauthorized = TestActors.creative(level);
+            unauthorized.setGameMode(GameType.SPECTATOR);
+            unauthorized.setPos(actor.position());
+            h.assertTrue(!decideBlueprintFaction(unauthorized, copy, "bp_clear", ""), "Spectator changed the pending faction");
+            h.assertTrue(decideBlueprintFaction(actor, copy, "bp_clear", ""), "Could not explicitly skip the faction");
+        }).thenWaitUntil(() -> {
+            var copy = onlyPlacedCopy(h, source.core, source.core.creatureId());
+            h.assertTrue(copy.creatureId().equals(placed[0]) && copy.health().state()==HeartState.ALIVE
+                            && copy.relations().faction()==null && copy.relations().blueprintFaction()==null,
+                    "The operator's skip did not activate the same core as unaffiliated");
+            h.assertTrue(BlueprintSpawns.snapshot(owner, spawn).getInt("Count") == 1, "Choosing a faction consumed a second generation");
+        }).thenSucceed();
+    }
+
+    @GameTest(template="combat", batch="blueprint_faction_pending_arena", timeoutTicks=430)
+    public static void ArenaRebuildWaitsForBindingAfterItsRecordedFactionIsDeleted(GameTestHelper h) {
+        var level = h.getLevel();
+        var boss = core(h);
+        var actor = admin(h);
+        var registry = FactionRegistry.get(level.getServer());
+        var faction = registry.create(actor, "Arena source " + boss.creatureName());
+        h.assertTrue(faction != null, "Could not create the recorded faction");
+        boss.relations().faction(faction);
+        var arena = recordFactionArena(h, boss, actor, false);
+        UUID original = boss.creatureId();
+        boss.tryActivate(actor);
+        h.assertTrue(registry.delete(actor, faction) && boss.forceDeath(), "Could not delete the recorded faction and start the rebuild");
+        UUID[] placed = new UUID[1];
+        h.startSequence().thenWaitUntil(() -> {
+            var copy = onlyPlacedCopy(h, boss, original);
+            var state = arenaRecord(h, original);
+            assertPendingFaction(h, copy);
+            h.assertTrue(state.getString("Phase").equals("activating")
+                            && copy.creatureId().equals(state.getUUID("RespawningCore")), "Arena lost the waiting rebuild reservation");
+            placed[0] = copy.creatureId();
+        }).thenExecute(() -> {
+            reloadArena(h);
+            reloadPendingCore(h, LoadedCoreIndex.find(level, placed[0]));
+        }).thenIdle(115).thenExecute(() -> {
+            var copy = onlyPlacedCopy(h, boss, original);
+            h.assertTrue(copy.creatureId().equals(placed[0]), "Arena rebuilt again while waiting for a faction decision");
+            assertPendingFaction(h, copy);
+            actor.setPos(ModuleArena.corePosition(copy));
+            var replacement = registry.create(actor, "Arena destination " + boss.creatureName());
+            h.assertTrue(replacement!=null && decideBlueprintFaction(actor, copy, "bp_bind", replacement.toString()),
+                    "Could not bind an accessible local faction through the settings menu");
+            h.assertTrue(replacement.equals(copy.relations().faction()), "Binding did not set the chosen local faction");
+        }).thenWaitUntil(() -> {
+            var copy = onlyPlacedCopy(h, boss, original);
+            var restoredArena = copy.modules().all().stream().filter(m -> m.type().equals(arena.type())).findFirst().orElse(null);
+            h.assertTrue(copy.creatureId().equals(placed[0]) && copy.health().state()==HeartState.ALIVE
+                            && copy.relations().faction()!=null && restoredArena!=null
+                            && ArenaRespawns.snapshot(copy, restoredArena.id()).getString("Phase").equals("ready"),
+                    "Binding did not finish the same arena rebuild with the chosen faction");
+        }).thenExecute(() -> {
+            var copy = LoadedCoreIndex.find(level, placed[0]);
+            var copiedArena = copy.modules().all().stream().filter(m -> m.type().equals(arena.type())).findFirst().orElseThrow();
+            h.assertTrue(ArenaRespawns.clear(actor, copy, copiedArena), "Could not clear the test's arena record");
+        }).thenSucceed();
+    }
+
+    @GameTest(template="combat", batch="blueprint_faction_pending_stage", timeoutTicks=830)
+    public static void PendingNextStagePausesBattleAndAbandonmentAcrossSave(GameTestHelper h) {
+        var level = h.getLevel();
+        var boss = core(h);
+        var source = factionPendingTemplate(h);
+        var actor = admin(h);
+        var arena = recordFactionArena(h, boss, actor, true);
+        UUID original = boss.creatureId();
+        startPendingStage(h, boss, source, actor, arena);
+        UUID[] placed = new UUID[1];
+        long[] pausedDeadline = new long[1];
+        h.startSequence().thenWaitUntil(() -> {
+            var copy = onlyPlacedCopy(h, source.core, source.core.creatureId());
+            assertPendingFaction(h, copy);
+            var state = arenaRecord(h, original);
+            h.assertTrue(copy.creatureId().equals(state.getUUID("Stage")) && !state.hasUUID("StageJob")
+                            && state.contains("StageFactionPausedAt", Tag.TAG_LONG), "Faction wait did not preserve the stage reservation");
+            placed[0] = copy.creatureId();
+            pausedDeadline[0] = state.getLong("BattleDeadline");
+            h.assertTrue(pausedDeadline[0] > level.getGameTime(), "No battle timer was running at placement");
+        }).thenExecute(() -> {
+            reloadArena(h);
+            reloadPendingCore(h, LoadedCoreIndex.find(level, placed[0]));
+        }).thenIdle(620).thenExecute(() -> {
+            var copy = onlyPlacedCopy(h, source.core, source.core.creatureId());
+            h.assertTrue(copy.creatureId().equals(placed[0]) && level.getGameTime() > pausedDeadline[0]
+                            && aliveNamed(level, boss.creatureName()).isEmpty(), "Expired wall time replaced the pending stage");
+            assertPendingFaction(h, copy);
+            actor.setPos(ModuleArena.corePosition(copy));
+            h.assertTrue(decideBlueprintFaction(actor, copy, "bp_clear", ""), "Could not skip the stage faction");
+        }).thenWaitUntil(() -> {
+            var copy = LoadedCoreIndex.find(level, placed[0]);
+            var state = arenaRecord(h, original);
+            h.assertTrue(copy!=null && copy.health().state()==HeartState.ALIVE
+                            && ArenaRespawns.inheritedBoundary(copy)!=null && copy.creatureId().equals(state.getUUID("Stage"))
+                            && !state.contains("StageFactionPausedAt") && state.getLong("BattleDeadline") > level.getGameTime(),
+                    "Skipping did not activate the same stage and resume its battle timer");
+        }).thenExecute(() -> {
+            actor.setPos(arena.arenaCenter());
+            level.getServer().getCommands().performPrefixedCommand(actor.createCommandSourceStack().withPermission(2), "sablelife_respawn cancel");
+            h.assertTrue(ArenaRespawns.inheritedBoundary(LoadedCoreIndex.find(level, placed[0]))==null,
+                    "Could not clear the test's next-stage record");
+        }).thenSucceed();
+    }
+
+    @GameTest(template="combat", batch="blueprint_faction_pending_stage_removal", timeoutTicks=280)
+    public static void BreakingThePendingStageCoreCleansItsBodyAndReleasesTheReservation(GameTestHelper h) {
+        var level = h.getLevel();
+        var boss = core(h);
+        var source = factionPendingTemplate(h);
+        var actor = admin(h);
+        var arena = recordFactionArena(h, boss, actor, true);
+        UUID original = boss.creatureId();
+        startPendingStage(h, boss, source, actor, arena);
+        UUID[] removed = new UUID[1];
+        h.startSequence().thenWaitUntil(() -> {
+            var copy = onlyPlacedCopy(h, source.core, source.core.creatureId());
+            assertPendingFaction(h, copy);
+            removed[0] = copy.creatureId();
+        }).thenExecute(() -> {
+            var copy = LoadedCoreIndex.find(level, removed[0]);
+            h.assertTrue(level.removeBlock(copy.getBlockPos(), false), "Could not remove the dormant stage core");
+            h.assertTrue(LifeLifecycle.get(level.getServer()).naturalRemovalPending(removed[0]),
+                    "Removing the waiting core did not schedule rewardless cleanup");
+        }).thenWaitUntil(() -> {
+            var state = arenaRecord(h, original);
+            h.assertTrue(!BodyOwnership.get(level).hasOwned(removed[0]) && !state.hasUUID("Stage")
+                            && !state.contains("StageFactionPausedAt"), "A removed waiting stage still owned bodies or held the reservation");
+        }).thenExecute(() -> {
+            actor.setPos(arena.arenaCenter());
+            level.getServer().getCommands().performPrefixedCommand(actor.createCommandSourceStack().withPermission(2), "sablelife_respawn cancel");
+        }).thenSucceed();
+    }
+
+    private static void startPendingStage(GameTestHelper h, HeartBlockEntity boss, Template source,
+            net.minecraft.server.level.ServerPlayer actor, VirtualModule arena) {
+        var spawn = module(h, boss, source.tag);
+        spawn.arenaCenter(arena.arenaCenter().add(5, 2, 6), arena.arenaDimension());
+        spawn.edit("spawnArenaRole", 1, "");
+        spawn.edit("spawnEvent", 1, "");
+        boss.tryActivate(actor);
+        h.assertTrue(boss.damageFromHit(null, 1, actor) && boss.forceDeath(), "Could not start the timed next stage");
+    }
+
+    private static Template factionPendingTemplate(GameTestHelper h) {
+        var faction = new BlueprintFaction(UUID.randomUUID(), UUID.randomUUID(), "Imported Faction", true,
+                true, false, false, List.of());
+        return template(h, 1, 8, core -> core.relations().blueprintFaction(faction));
+    }
+
+    private static VirtualModule recordFactionArena(GameTestHelper h, HeartBlockEntity boss,
+            net.minecraft.server.level.ServerPlayer actor, boolean timed) {
+        var arena = boss.modules().add("arena");
+        var center = ModuleArena.corePosition(boss);
+        arena.arenaCenter(center, h.getLevel().dimension().location().toString());
+        arena.edit("arenaRespawnEnabled", 1, "");
+        arena.edit("arenaRespawnDelay", 100, "");
+        if(timed) {
+            arena.edit("arenaRespawnBattleTimer", 1, "");
+            arena.edit("arenaRespawnBattleLimit", 160, "");
+        }
+        actor.setPos(center);
+        h.assertTrue(ArenaRespawns.record(actor, boss, arena), "Could not capture the arena fixture");
+        return arena;
+    }
+
+    private static HeartBlockEntity onlyPlacedCopy(GameTestHelper h, HeartBlockEntity source, UUID excluded) {
+        var copies = LoadedCoreIndex.all(h.getLevel()).stream()
+                .filter(core -> !core.creatureId().equals(excluded) && core.creatureName().equals(source.creatureName())).toList();
+        h.assertTrue(copies.size()==1, "Expected one generated core, found " + copies.size());
+        return copies.getFirst();
+    }
+
+    private static void assertPendingFaction(GameTestHelper h, HeartBlockEntity core) {
+        h.assertTrue(core!=null && core.health().state()==HeartState.DORMANT
+                        && core.awaitingBlueprintFactionDecision() && core.relations().faction()==null,
+                "Generated core did not remain dormant with its pending faction");
+    }
+
+    private static void reloadPendingCore(GameTestHelper h, HeartBlockEntity core) {
+        assertPendingFaction(h, core);
+        var registries = h.getLevel().registryAccess();
+        core.loadWithComponents(core.saveWithoutMetadata(registries), registries);
+        assertPendingFaction(h, core);
+    }
+
+    private static void reloadArena(GameTestHelper h) {
+        var level = h.getLevel();
+        var server = level.getServer();
+        var registries = level.registryAccess();
+        var saved = ArenaRespawns.get(server).save(new CompoundTag(), registries);
+        server.overworld().getDataStorage().set("sablelife_arena_respawns", ArenaRespawns.load(saved, registries));
+    }
+
+    private static boolean decideBlueprintFaction(net.minecraft.server.level.ServerPlayer actor, HeartBlockEntity core,
+            String action, String text) {
+        var menu = new HeartSettingsMenu(1, actor.getInventory(), core);
+        int revision = menu.snapshot().getCompound("BlueprintFactionView").getInt("Revision");
+        return menu.action(actor, "relation:" + action + ":" + revision, 0, text);
+    }
+
     @GameTest(template="combat", batch="arena_square_stage_and_summon", timeoutTicks=240)
     public static void SquareBoundaryControlsNativeStageAndSummonPlacementAndReturn(GameTestHelper h) {
         var level = h.getLevel();
@@ -1652,6 +1881,98 @@ public final class BlueprintSpawnGameTests {
         h.assertTrue(Math.abs(bounds.minY-point.y)<1e-6&&Math.abs(bounds.getCenter().x-point.x)<1e-6&&Math.abs(bounds.getCenter().z-point.z)<1e-6,"Base anchor not at bounds bottom center");
         c.tryActivate(admin(h));BlueprintSpawns.tickCore(c);var rows=BlueprintSpawns.get(h.getLevel().getServer()).save(new CompoundTag(),h.getLevel().registryAccess()).getList("Entries",10);var job=rows.stream().map(t->(CompoundTag)t).filter(t->t.getUUID("Module").equals(m.id())).findFirst().orElseThrow();var q=job.getList("Rotation",6);var rotation=new org.joml.Quaterniond(q.getDouble(0),q.getDouble(1),q.getDouble(2),q.getDouble(3));var build=PhotomancyRespawnBridge.createSpawn(job.getCompound("Template"),new CompoundTag(),new Vec3(job.getDouble("X"),job.getDouble("Y"),job.getDouble("Z")),rotation);sameBox(h,bounds,build.bounds());h.succeed();
     }
+    @GameTest(template = "combat", batch = "arena_bottom_center_circle_boundary")
+    public static void CircleArenaAdmissionUsesConfiguredBottomCenterRatherThanRotatedPivot(GameTestHelper h) {
+        checkArenaBottomCenterAdmission(h, 0);
+    }
+
+    @GameTest(template = "combat", batch = "arena_bottom_center_square_boundary")
+    public static void SquareArenaAdmissionUsesConfiguredBottomCenterRatherThanRotatedPivot(GameTestHelper h) {
+        checkArenaBottomCenterAdmission(h, 1);
+    }
+
+    private static void checkArenaBottomCenterAdmission(GameTestHelper h, int shape) {
+        var level = h.getLevel();
+        var boss = core(h);
+        var source = template(h, 1, 8);
+        var primary = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, source.core.getBlockPos());
+        var secondaryPos = h.absolutePos(new BlockPos(19, 40, 6));
+        level.setBlockAndUpdate(secondaryPos, Blocks.IRON_BLOCK.defaultBlockState());
+        var secondary = SubLevelAssemblyHelper.assembleBlocks(level, secondaryPos, List.of(secondaryPos),
+                new BoundingBox3i(secondaryPos.getX(), secondaryPos.getY(), secondaryPos.getZ(),
+                        secondaryPos.getX(), secondaryPos.getY(), secondaryPos.getZ()));
+        var basis = primary.logicalPose().position();
+        var template = dev.rew1nd.sableschematicapi.blueprint.SableBlueprintExporter.exportSelected(level,
+                new Vec3(basis.x(), basis.y(), basis.z()), List.of(primary.getUniqueId(), secondary.getUniqueId())).save();
+        var bossPosition = ModuleArena.corePosition(boss);
+        var center = new Vec3(Math.rint(bossPosition.x), bossPosition.y, Math.rint(bossPosition.z));
+        var dimension = level.dimension().location().toString();
+        var arena = boss.modules().add("arena");
+        arena.arenaCenter(center, dimension);
+        arena.edit("arenaShape", shape, "");
+        arena.edit("arenaRadius", 12, "");
+        arena.edit("arenaRespawnEnabled", 1, "");
+
+        var offsets = new Vec3(.25, 2.5, -.75);
+        var inside = arenaBottomCenterSummon(h, boss, template, offsets);
+        var outside = arenaBottomCenterSummon(h, boss, template, offsets);
+        var raw = BlueprintSpawnPlacement.resolve(boss, inside);
+        var unadjusted = SpawnTemplateBridge.geometry(template).bounds(raw);
+        var correction = raw.position().subtract(new Vec3(unadjusted.getCenter().x, unadjusted.minY, unadjusted.getCenter().z));
+        var axis = Math.abs(correction.x) >= Math.abs(correction.z)
+                ? new Vec3(Math.signum(correction.x), 0, 0) : new Vec3(0, 0, Math.signum(correction.z));
+        double shift = correction.dot(axis);
+        h.assertTrue(shift > .1 && shift < 6, "The rotated template must move its native pivot on the tested axis: " + shift);
+        var height = center.add(0, 8, 0);
+        var insidePoint = height.add(axis.scale(12));
+        var outsidePoint = height.subtract(axis.scale(12 + shift / 2));
+        inside.arenaCenter(insidePoint.subtract(offsets), dimension);
+        outside.arenaCenter(outsidePoint.subtract(offsets), dimension);
+        var configured = BlueprintSpawnPlacement.resolve(boss, inside).position();
+        var preview = BlueprintSpawns.previewBounds(boss, inside);
+        h.assertTrue(configured.equals(insidePoint) && ModuleArena.boundaryDistance(arena, configured, center) == 12,
+                "The configured point plus spawn offsets must be exactly on the inclusive edge");
+        h.assertTrue(new Vec3(preview.getCenter().x, preview.minY, preview.getCenter().z).distanceTo(configured) < 1e-6,
+                "The preview must place the bottom center at the configured point");
+        h.assertTrue(ModuleArena.withinBoundary(arena, configured)
+                        && !ModuleArena.withinBoundary(arena, configured.add(correction))
+                        && !ModuleArena.withinBoundary(arena, outsidePoint)
+                        && ModuleArena.withinBoundary(arena, outsidePoint.add(correction)),
+                "The fixture must separate the preview anchor and corrected native pivot on both sides of the boundary");
+
+        var player = admin(h);
+        player.setPos(bossPosition);
+        h.assertTrue(ArenaRespawns.record(player, boss, arena), "Could not capture the arena");
+        boss.tryActivate(player);
+        h.assertTrue(boss.health().state() == HeartState.ALIVE, "The arena boss did not activate");
+        BlueprintSpawns.tickCore(boss);
+        h.assertTrue(BlueprintSpawns.snapshot(boss, inside).getString("Phase").equals("queued"),
+                "The arena rejected an inclusive bottom center when its native pivot was outside");
+        h.assertTrue(BlueprintSpawns.snapshot(boss, outside).getString("Error").equals("arena"),
+                "The arena accepted an outside bottom center when its native pivot was inside");
+        var data = BlueprintSpawns.get(level.getServer()).save(new CompoundTag(), level.registryAccess());
+        var queued = data.getList("Entries", 10).stream().map(CompoundTag.class::cast)
+                .filter(row -> row.getUUID("Module").equals(inside.id())).findFirst().orElseThrow();
+        var queuedPivot = new Vec3(queued.getDouble("X"), queued.getDouble("Y"), queued.getDouble("Z"));
+        h.assertTrue(queuedPivot.distanceTo(configured.add(correction)) < 1e-6,
+                "Queueing the inside point lost the separate native placement pivot");
+        h.succeed();
+    }
+
+    private static VirtualModule arenaBottomCenterSummon(GameTestHelper h, HeartBlockEntity boss, CompoundTag template, Vec3 offsets) {
+        var spawn = module(h, boss, template);
+        spawn.edit("spawnAnchor", 0, "");
+        spawn.edit("spawnOffsetX", offsets.x, "");
+        spawn.edit("spawnOffsetY", offsets.y, "");
+        spawn.edit("spawnOffsetZ", offsets.z, "");
+        spawn.edit("spawnYaw", 35, "");
+        spawn.edit("spawnPitch", 25, "");
+        spawn.edit("spawnDelay", 20, "");
+        spawn.edit("spawnActivate", 1, "");
+        spawn.edit("spawnArenaRole", 2, "");
+        return spawn;
+    }
+
     @GameTest(template="combat",batch="spawn_release_retains",timeoutTicks=45)
     public static void ReleaseKeepsBothTemplatesAndCancelsQueuedGeneration(GameTestHelper h){
         var c=core(h);var player=admin(h);var m=module(h,c,template(h,0,8).tag);m.edit("spawnDelay",10,"");var arena=c.modules().add("arena");arena.arenaCenter(h.absoluteVec(new Vec3(4,25,12)),h.getLevel().dimension().location().toString());h.assertTrue(ArenaRespawns.record(player,c,arena),"Arena record failed");

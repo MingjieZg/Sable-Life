@@ -6,6 +6,7 @@ import dev.sablelife.module.*;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -215,7 +216,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private final List<Button> rgbButtons=new ArrayList<>();
     private String pendingRgb="";private double pendingRgbMode;
     private Button releaseLife, tokenHelp;
-    private Button settingsNav,lootNav;
+    private Button settingsNav,lootNav,priorityNav;
     private final List<Button> rows = new ArrayList<>(), edits = new ArrayList<>();
     private final List<EditBox> fields = new ArrayList<>();
     private final List<Button> applyButtons = new ArrayList<>(), choices = new ArrayList<>(), soundFolders = new ArrayList<>(), vanillaFolders = new ArrayList<>(), noneButtons = new ArrayList<>();
@@ -301,6 +302,9 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         settingsNav=button(tr("settings"), 11, 8, nav, () -> { if(menu.snapshot().getBoolean("ControlCore"))minecraft.setScreen(new ManualScreen(this,"survival_core"));else action("settings", "", 0, ""); });
         button(tr("wireless"), 15 + nav, 8, nav, () -> action("wireless", "", 0, ""));
         lootNav=button(tr("loot"), 19 + nav * 2, 8, languageX-4-(19+nav*2), () -> action("loot", "", 0, ""));lootNav.visible=!menu.snapshot().getBoolean("ControlCore")&&!menu.snapshot().getBoolean("SurvivalCore");
+        priorityNav=button(Component.translatable("relations.sablelife.priority_targets"),19+nav*2,8,
+                languageX-4-(19+nav*2),()->minecraft.setScreen(new CoreRelationsScreen(this,menu)));
+        priorityNav.setTooltip(Tooltip.create(tr("redstone_priority_targets_help")));
         button(Component.translatable("language_picker.sablelife.button"),languageX,8,45,()->minecraft.setScreen(new LanguagePickerScreen(this))).setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("language_picker.sablelife.help")));
         var densityButton = button(tr("density_" + LifeUiStyle.density()), densityX, 8, 45, this::changeDensity);
         LifeUiStyle.reverse(densityButton, () -> changeDensity(-1));
@@ -635,7 +639,11 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 && (!snapshot.hasUUID("Selected") || !selected.equals(snapshot.getUUID("Selected")))) editable = false;
         if (m != null && m.type().equals("message_display") && !HeartDashboardMenu.messageEditable(snapshot)) editable = false;
         releaseLife.visible=!snapshot.getBoolean("ControlCore");releaseLife.active = snapshot.getBoolean("Ready");
-        lootNav.visible=!snapshot.getBoolean("ControlCore");if(snapshot.getBoolean("ControlCore"))settingsNav.setMessage(Component.translatable("manual.sablelife.open"));
+        boolean controlCore = snapshot.getBoolean("ControlCore");
+        lootNav.visible = !controlCore;
+        priorityNav.visible = controlCore && snapshot.contains("PriorityTargets", 10);
+        priorityNav.active = priorityNav.visible && snapshot.getBoolean("Ready");
+        if (controlCore) settingsNav.setMessage(Component.translatable("manual.sablelife.open"));
         if(snapshot.getBoolean("SurvivalCore"))
             lootNav.setMessage(Component.translatable("survival_tokens.sablelife.balance_top_up",
                     Component.literal(Long.toString(snapshot.getLong("SurvivalTokens"))).withStyle(net.minecraft.ChatFormatting.YELLOW))
@@ -948,7 +956,13 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                         }
                         if (field.key().equals("shockPattern")) label = Component.empty().append(label).append(" …");
                         choices.get(i).setMessage(field.key().equals("redstoneFrequency") ? tr("frequency_item") : label);
-                        choices.get(i).setTooltip(ModulePropertyHelp.tooltip(m,field));
+                        if (controlCore && field.key().equals("priorityOnly")) {
+                            var help = ModulePropertyHelp.text(m, field).copy().append("\n").append(tr("redstone_priority_targets_help"));
+                            var priorityTargets = snapshot.getCompound("PriorityTargets").getCompound("Relations").getList("PriorityMobs", 8);
+                            if (m.value("priorityOnly") == 1 && snapshot.contains("PriorityTargets", 10) && priorityTargets.isEmpty())
+                                help.append("\n").append(tr("redstone_priority_targets_empty").copy().withStyle(net.minecraft.ChatFormatting.GOLD));
+                            choices.get(i).setTooltip(Tooltip.create(help));
+                        } else choices.get(i).setTooltip(ModulePropertyHelp.tooltip(m,field));
                         if(field.key().startsWith("arenaRespawn")&&(!snapshot.getBoolean("RespawnAllowed")||!snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getCompound("RespawnRuntime").getBoolean("Available")))choices.get(i).setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("arena_respawn.sablelife.requires")));
                     }
                     if(field.key().equals("accumReset"))choices.get(i).active=usable&&snapshot.getBoolean("Ready");

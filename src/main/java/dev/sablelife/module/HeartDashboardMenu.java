@@ -24,6 +24,7 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
     private final Player viewer;
     private net.minecraft.nbt.ListTag blueprintFiles=new net.minecraft.nbt.ListTag();
     private int inspectedChannel,connectionsRevision=Integer.MIN_VALUE;
+    private String priorityStatus = "";
     private java.util.List<ModuleConnections.Link> connections=java.util.List.of();
     private java.util.List<ModuleConnections.Endpoint> endpoints=java.util.List.of();
     private final SimpleContainer snapshot = new SimpleContainer(1);
@@ -36,7 +37,14 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
             @Override public boolean isActive() { return false; }
         }); refresh();
     }
-    public CompoundTag snapshot() { return snapshot.getItem(0).getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag(); }
+    private CustomData snapshotData() {
+        return snapshot.getItem(0).getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+    }
+    public CompoundTag snapshot() { return snapshotData().copyTag(); }
+    public CompoundTag priorityTargetsSnapshot() {
+        // Copy only the dedicated view. The dashboard can contain large unrelated module data.
+        return snapshotData().getUnsafe().getCompound("PriorityTargets").copy();
+    }
     public static boolean messageEditable(CompoundTag snapshot) {
         return snapshot.contains("MessageEditable") ? snapshot.getBoolean("MessageEditable") : snapshot.getBoolean("RespawnAllowed");
     }
@@ -51,6 +59,15 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         tag.putBoolean("GroupTools", true);
         tag.putInt("OutputFaceLimit",dev.sablelife.SableLifeServerConfig.maximumRedstoneOutputFaces());
         tag.putBoolean("GroupMemberEditing", true);
+        if (heart.isControlCore()) {
+            var priority = new CompoundTag();
+            var relations = new CompoundTag();
+            relations.put("PriorityMobs", heart.relations().savePriorityMobs());
+            priority.put("Relations", relations);
+            priority.putBoolean("LiveControls", tag.getBoolean("Editable"));
+            priority.putString("RelationStatus", priorityStatus);
+            tag.put("PriorityTargets", priority);
+        }
         if (selected != null) tag.putUUID("Selected", selected);
         if(connectionsRevision!=heart.modules().revision()){connections=ModuleConnections.links(modules);endpoints=ModuleConnections.endpoints(modules);connectionsRevision=heart.modules().revision();}
         tag.put("References",ModuleConnections.references(connections,selected));
@@ -75,8 +92,23 @@ public final class HeartDashboardMenu extends AbstractContainerMenu {
         return heart == null || heart.canAccessEditor(player) && !heart.isRemoved() && player.level() == heart.getLevel()
                 && heart.editorInRange(player, 64);
     }
+    private boolean editPriorityTargets(Player player, String key, String text) {
+        if (!heart.canEdit(player)) return false;
+        boolean added = key.equals("relation:prioritizeMob");
+        boolean changed;
+        if (added) changed = heart.relations().prioritizeMob(text);
+        else if (key.equals("relation:removePriorityMob")) changed = heart.relations().removePriorityMob(text);
+        else return false;
+        priorityStatus = changed ? (added ? "priority_added" : "updated") : "invalid_mob";
+        if (changed) heart.setChanged();
+        refresh();
+        super.broadcastChanges();
+        return changed;
+    }
+
     public boolean action(Player player, int revision, UUID id, String operation, String key, double value, String text) {
         if (heart == null || !stillValid(player)) return false;
+        if (heart.isControlCore() && operation.equals("core")) return editPriorityTargets(player, key, text);
         if(operation.equals("blueprint_spawn")&&key.equals("list")){if(!(player instanceof net.minecraft.server.level.ServerPlayer sp)||!sp.canUseGameMasterBlocks())return false;blueprintFiles=new net.minecraft.nbt.ListTag();for(var name:dev.sablelife.ownership.BlueprintSpawns.files(sp))blueprintFiles.add(net.minecraft.nbt.StringTag.valueOf(name));refresh();sendAllDataToRemote();return true;}
         if(operation.equals("inspect")){
             if(!Double.isFinite(value)||value!=Math.rint(value)||value<0||value>=heart.wireless().size())return false;

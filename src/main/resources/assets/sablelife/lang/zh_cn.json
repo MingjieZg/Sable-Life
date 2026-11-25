@@ -2899,6 +2899,8 @@
   "dashboard.sablelife.property_help.shape": "圆环围绕标记点检测；前向锥体沿标记方向检测。",
   "dashboard.sablelife.property_help.innerRadius": "排除距离标记点小于此值的目标。",
   "dashboard.sablelife.property_help.priorityOnly": "只选择优先目标名单中符合条件的生物。名单为空时不选择目标。指挥棒明确指定的目标不受此开关限制。",
+  "dashboard.sablelife.redstone_priority_targets_help": "在红石核心面板打开「优先目标」，编辑此核心的目标名单。",
+  "dashboard.sablelife.redstone_priority_targets_empty": "此核心的优先目标名单当前为空。",
   "dashboard.sablelife.property_help.frontWidth": "前向锥体末端的半径，只在前向锥体模式生效。",
   "dashboard.sablelife.property_help.sensorChannel": "接收感应信号的内部频道；0 表示不向内部输出。",
   "dashboard.sablelife.property_help.sensorPower": "感应到目标时，频道输出使用的信号强度；标记面输出仍为 15。",

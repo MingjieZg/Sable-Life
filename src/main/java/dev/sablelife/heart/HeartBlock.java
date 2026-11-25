@@ -52,9 +52,9 @@ public class HeartBlock extends CopycatBlock {
         var core=level.getBlockEntity(pos) instanceof HeartBlockEntity entity?entity:null;
         if (!level.isClientSide && !state.is(replacement.getBlock())
                 && dev.sablelife.ownership.BodyOwnership.MOVING.get() == 0
-                && core!=null
-                && core.health().state() == HeartState.ALIVE) {
-            core.forceDeath();
+                && core!=null) {
+            if (core.health().state() == HeartState.ALIVE) core.forceDeath();
+            else if (!moved && dev.sablelife.ownership.BodyProtection.CLEANING.get() == 0) core.removeWaitingBlueprintCore();
         }
         // Sable moves block entities through ordinary replacement calls; Create must not refund
         // the disguise during that transfer, since the saved entity still owns the material.

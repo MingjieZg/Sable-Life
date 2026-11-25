@@ -55,10 +55,9 @@ public final class BlueprintSpawns extends SavedData {
     }
     private static BlueprintSpawnPlacement.Destination destination(HeartBlockEntity heart,VirtualModule module,Entry entry){
         if(entry!=null&&List.of("queued","building").contains(entry.phase)&&entry.position!=null)return new BlueprintSpawnPlacement.Destination(entry.dimension,entry.position,entry.rotation);
-        return currentDestination(heart,module,entry);
+        return placementDestination(module,entry,BlueprintSpawnPlacement.resolve(heart,module));
     }
-    private static BlueprintSpawnPlacement.Destination currentDestination(HeartBlockEntity heart,VirtualModule module,Entry entry){
-        var point=BlueprintSpawnPlacement.resolve(heart,module);
+    private static BlueprintSpawnPlacement.Destination placementDestination(VirtualModule module,Entry entry,BlueprintSpawnPlacement.Destination point){
         if(point==null||entry==null||module.value("spawnAnchor")!=0||!available())return point;
         if(entry.geometry==null)entry.geometry=SpawnTemplateBridge.geometry(entry.template);
         var bounds=entry.geometry.bounds(point);var base=new Vec3(bounds.getCenter().x,bounds.minY,bounds.getCenter().z);
@@ -146,14 +145,15 @@ public final class BlueprintSpawns extends SavedData {
         var e=entries.get(m.id());
         if(e==null||!e.owner.equals(heart.creatureId())||!List.of("ready","done").contains(e.phase)
                 ||e.count>=m.value("spawnLimit")||heart.getLevel().getGameTime()<e.next)return false;
-        var point=currentDestination(heart,m,e);
-        if(point==null)return false;
+        var configured=BlueprintSpawnPlacement.resolve(heart,m);
+        if(configured==null)return false;
         boolean activate=m.value("spawnActivate")==1;
         int role=(int)m.value("spawnArenaRole");
         if((activate||role!=0)&&(e.life!=1||e.redstone!=0)||role!=0&&!activate){
             e.error="activation";setDirty();return false;
         }
-        UUID arena=role==0?null:ArenaRespawns.reserveBlueprint(heart,m,role,death,point);
+        var point=placementDestination(m,e,configured);
+        UUID arena=role==0?null:ArenaRespawns.reserveBlueprint(heart,m,role,death,configured);
         if(role!=0&&arena==null){e.error="arena";setDirty();return false;}
         e.arena=arena;e.arenaRole=role;
         e.position=point.position();e.dimension=point.dimension();e.rotation=point.rotation()==null?null:new org.joml.Quaterniond(point.rotation());
@@ -243,7 +243,7 @@ public final class BlueprintSpawns extends SavedData {
                     core = e.build.heart(level);
                     if (core == null) throw new IllegalStateException("activation");
                     e.build.captureOwnership(core);
-                    if (!core.activateAfterBlueprintPlacement(e.build.bodies().size())) throw new IllegalStateException("activation");
+                    if (!core.activateAfterBlueprintPlacementWaitingForFaction(e.build.bodies().size())) throw new IllegalStateException("activation");
                     if(e.arena!=null){
                         ArenaRespawns.blueprintPlaced(level,e.arena,e.module,e.arenaRole,core);
                         if(e.arenaRole==ArenaRespawns.NEXT_STAGE)e.build.restoreBlueprintSpawns(core,new CompoundTag(),true);

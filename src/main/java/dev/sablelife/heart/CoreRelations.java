@@ -88,6 +88,7 @@ public final class CoreRelations {
     public boolean prioritizeMob(String text) { return priorityMobs.add(text, true); }
     public boolean removePriorityMob(String text) { return priorityMobs.remove(text); }
     public boolean hasPriorityMobs() { return !priorityMobs.isEmpty(); }
+    public ListTag savePriorityMobs() { return priorityMobs.save(); }
 
     public boolean prioritizesMob(EntityType<?> type) {
         if (type == null || !hasPriorityMobs()) return false;
@@ -171,7 +172,7 @@ public final class CoreRelations {
         excluded.values().forEach(name -> players.add(StringTag.valueOf(name)));
         tag.put("ExcludedNames", players);
         tag.put("ExcludedMobs", excludedMobs.save());
-        if (hasPriorityMobs()) tag.put("PriorityMobs", priorityMobs.save());
+        if (hasPriorityMobs()) tag.put("PriorityMobs", savePriorityMobs());
         return tag;
     }
 

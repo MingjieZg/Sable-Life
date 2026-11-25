@@ -18,34 +18,143 @@ import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 final class ModuleBlockInteraction {
     private static final GameProfile ACTOR=new GameProfile(UUID.fromString("16543ce7-37b3-4ccd-bbe8-786035308725"),"[SableLife]");
-    private record Activation(long next,long move){}
-    private final Map<UUID,Activation> active=new HashMap<>();
+    // One maximum-size request always fits. Palette pruning can make a scan cheaper,
+    // but it must never allow a core to reserve more scan volume than this in one tick.
+    static final int SCAN_VOLUME_PER_TICK = 30 * 30 * 30;
+    private static final List<String> REQUEST_FIELDS = List.of("trigger", "channel", "hurtMode", "hurtCooldown",
+            "hurtDuration", "interactionMode", "interactionInterval", "interactionSpace",
+            "interactionSizeX", "interactionSizeY", "interactionSizeZ", "startDistance",
+            "interactionOffsetX", "interactionOffsetY", "interactionOffsetZ");
 
-    void clear(){active.clear();}
+    private record Activation(long next, long move) {}
 
-    void tick(HeartBlockEntity core){
-        if(!(core.getLevel() instanceof ServerLevel level))return;
-        if(!core.wireless().master()||!core.operational()){clear();return;}
-        active.keySet().removeIf(id->core.modules().find(id)==null);
-        long now=level.getGameTime();
-        for(var module:core.modules().all()){
-            if(!module.type().equals("block_interaction"))continue;
-            var id=module.id();
-            if(!HeartModules.triggered(module,core)){active.remove(id);continue;}
-            var previous=active.get(id);
-            long move=module.value("trigger")==4?core.modules().moveActivation(id):Long.MIN_VALUE;
-            if(previous!=null&&previous.move()==move&&(module.value("interactionMode")==0||now<previous.next()))continue;
-            if(!core.modules().hurtTriggers.start(module))continue;
-            active.put(id,new Activation(now+(long)module.value("interactionInterval"),move));
-            interact(level,core,module);
-            core.modules().hurtTriggers.completed(module);
+    private static final class Request {
+        final VirtualModule module;
+        final ModuleAnchor anchor;
+        final long move;
+        final boolean oneShot;
+        final boolean moveSet;
+        final int volume;
+        final double[] settings = new double[REQUEST_FIELDS.size()];
+
+        Request(VirtualModule module, long move) {
+            this.module = module;
+            anchor = module.anchors().getFirst();
+            this.move = move;
+            oneShot = module.value("interactionMode") == 0 || ModuleHurt.once(module);
+            moveSet = module.value("trigger") == 4;
+            volume = (int) module.value("interactionSizeX") * (int) module.value("interactionSizeY")
+                    * (int) module.value("interactionSizeZ");
+            for (int i = 0; i < settings.length; i++) settings[i] = module.value(REQUEST_FIELDS.get(i));
         }
+
+        boolean valid(HeartBlockEntity core, VirtualModule current, long activation, boolean powered) {
+            if (current != module || activation != move || module.anchors().isEmpty()
+                    || !anchor.equals(module.anchors().getFirst())) return false;
+            if (!powered && (!oneShot || moveSet || !HeartModules.status(module, core).equals("valid"))) return false;
+            for (int i = 0; i < settings.length; i++) if (settings[i] != module.value(REQUEST_FIELDS.get(i))) return false;
+            return true;
+        }
+    }
+
+    private final Map<UUID, Activation> active = new HashMap<>();
+    private final LinkedHashMap<UUID, Request> pending = new LinkedHashMap<>();
+    private long budgetTick = Long.MIN_VALUE;
+    private int remainingVolume;
+
+    void clear() {
+        active.clear();
+        pending.clear();
+    }
+
+    void tick(HeartBlockEntity core) {
+        if (!(core.getLevel() instanceof ServerLevel level)) return;
+        if (!core.wireless().master() || !core.operational()) {
+            clear();
+            return;
+        }
+        long now = level.getGameTime();
+        if (budgetTick != now) {
+            budgetTick = now;
+            remainingVolume = SCAN_VOLUME_PER_TICK;
+        }
+        drain(level, core, now);
+
+        HashSet<UUID> present = null;
+        for (var module : core.modules().all()) {
+            if (!module.type().equals("block_interaction")) continue;
+            var id = module.id();
+            if (present == null) present = new HashSet<>();
+            present.add(id);
+            boolean powered = HeartModules.triggered(module, core);
+            long move = moveActivation(core, module);
+            var request = pending.get(id);
+            if (request != null && !request.valid(core, module, move, powered)) {
+                pending.remove(id);
+                active.remove(id);
+            }
+            if (!powered) {
+                active.remove(id);
+                continue;
+            }
+            if (pending.containsKey(id)) continue;
+
+            var previous = active.get(id);
+            if (previous != null && previous.move() == move
+                    && (module.value("interactionMode") == 0 || now < previous.next())) continue;
+            if (!core.modules().hurtTriggers.start(module)) continue;
+
+            request = new Request(module, move);
+            pending.put(id, request);
+            if (request.oneShot) {
+                active.put(id, new Activation(now, move));
+                core.modules().hurtTriggers.completed(module);
+            }
+            // New actions run immediately when prior requests leave room. Their block changes
+            // can still affect the trigger sampled for the next module in this same tick.
+            if (pending.size() == 1 && request.volume <= remainingVolume) drain(level, core, now);
+        }
+        if (present == null) {
+            clear();
+            return;
+        }
+        pending.keySet().retainAll(present);
+        active.keySet().retainAll(present);
+    }
+
+    private void drain(ServerLevel level, HeartBlockEntity core, long now) {
+        while (remainingVolume > 0 && !pending.isEmpty()) {
+            var next = pending.firstEntry();
+            var request = next.getValue();
+            var module = core.modules().find(next.getKey());
+            boolean powered = module != null && HeartModules.triggered(module, core);
+            if (module == null || !core.wireless().master()
+                    || !request.valid(core, module, moveActivation(core, module), powered)) {
+                pending.pollFirstEntry();
+                active.remove(next.getKey());
+                continue;
+            }
+
+            // Leave this request at the front for the next tick even if smaller ones could fit.
+            if (request.volume > remainingVolume) break;
+            pending.pollFirstEntry();
+            remainingVolume -= request.volume;
+            if (!request.oneShot)
+                active.put(module.id(), new Activation(now + (long) module.value("interactionInterval"), request.move));
+            interact(level, core, module);
+        }
+    }
+
+    private static long moveActivation(HeartBlockEntity core, VirtualModule module) {
+        return module.value("trigger") == 4 ? core.modules().moveActivation(module.id()) : Long.MIN_VALUE;
     }
 
     record Area(Vec3 point, BlockPos min, BlockPos max, Direction face,

@@ -144,6 +144,91 @@ public final class SensorFacingGameTests {
         return sensor;
     }
 
+    @GameTest(template = "combat", batch = "sensor_short_wide_edge")
+    public static void ShortWideSensorDetectsTheSideBoundaryAndOmniStillUsesItsRadii(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var sensor = sensor(heart, Direction.EAST);
+        sensor.edit("radius", 4, "");
+        sensor.edit("frontWidth", 16, "");
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        var center = sensor.anchors().getFirst().world(heart, false);
+        var events = heart.modules().events();
+        var target = namedCow(h, "Short wide cone edge", center.add(2, 0, 8.25));
+        try {
+            events.tick(heart);
+            h.assertTrue(events.sensorPowered(sensor.id()) && events.sensorTarget(heart, sensor.id()) == target,
+                    "The sensor missed a loaded target exactly on the short, wide cone's side");
+
+            placeAtCenter(target, center.add(2, 0, 8.5));
+            heart.modules().changed();
+            events.tick(heart);
+            h.assertTrue(!events.sensorPowered(sensor.id()) && events.sensorTarget(heart, sensor.id()) == null,
+                    "The larger candidate search included a target beyond the exact cone edge");
+
+            sensor.edit("shape", 0, "");
+            sensor.edit("innerRadius", 2, "");
+            placeAtCenter(target, center.add(-3, 0, 0));
+            heart.modules().changed();
+            events.tick(heart);
+            h.assertTrue(events.sensorPowered(sensor.id()) && events.sensorTarget(heart, sensor.id()) == target,
+                    "Omnidirectional detection stopped finding targets behind the mark");
+
+            placeAtCenter(target, center.add(-1, 0, 0));
+            heart.modules().changed();
+            events.tick(heart);
+            h.assertTrue(!events.sensorPowered(sensor.id()) && events.sensorTarget(heart, sensor.id()) == null,
+                    "Omnidirectional detection stopped excluding its inner radius");
+        } finally {
+            target.discard();
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "combat", batch = "sensor_short_wide_rotated_links")
+    public static void RotatedShortWideSensorSuppliesTheSameTargetToAlignmentAndMoveSet(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var sensor = sensor(heart, Direction.EAST);
+        sensor.edit("radius", 4, "");
+        sensor.edit("frontWidth", 16, "");
+        var alignment = alignment(heart, 0);
+        alignment.edit("radius", 16, "");
+        alignment.edit("lineOfSight", 1, "");
+        alignment.edit("facingSource", 1, "");
+        alignment.facingSensor(sensor.id());
+        var controller = heart.modules().add("move_set");
+        controller.edit("facingSource", 1, "");
+        controller.facingSensor(sensor.id());
+        var moves = controller.moveSet();
+        h.assertTrue(moves.edit("add", 0, "", heart.modules())
+                        && moves.edit("action_add", 0, "0|" + alignment.id(), heart.modules()),
+                "Could not bind the alignment to the Move Set action");
+        moves.get(0).config().edit("inheritMoveTarget", 1, "");
+
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        var mark = sensor.anchors().getFirst();
+        mark.body(heart).logicalPose().orientation().rotateZ(.4);
+        var center = mark.world(heart, false);
+        var forward = ModuleCombat.direction(heart, sensor);
+        var upward = new Vec3(0, 0, 1).cross(forward).normalize();
+        var edge = forward.scale(2.5).add(upward.scale(9.8));
+        h.assertTrue(edge.y > 6 && ModuleEvents.withinShape(heart, sensor, edge),
+                "The rotated cone fixture did not extend past the old world-axis query");
+        var target = namedCow(h, "Rotated cone edge", center.add(edge));
+        try {
+            heart.modules().tick(heart);
+            var events = heart.modules().events();
+            h.assertTrue(events.sensorPowered(sensor.id()) && events.sensorTarget(heart, sensor.id()) == target,
+                    "The rotated short cone did not acquire its off-axis candidate");
+            h.assertTrue(target.getUUID().equals(heart.modules().moveTarget(alignment.id())),
+                    "The Move Set did not inherit the sensor's off-axis candidate");
+            h.assertTrue(events.navigation().name(alignment.id()).equals(target.getName().getString()),
+                    "The linked alignment did not track the same candidate");
+        } finally {
+            target.discard();
+        }
+        h.succeed();
+    }
+
     @GameTest(template = "combat", batch = "sensor_facing_blueprint")
     public static void BlueprintRemapsBoundSensorAndOrdinaryCoreRejectsSurvivalEdits(GameTestHelper h) {
         var heart = fixture(h, SableLife.HEART.get());

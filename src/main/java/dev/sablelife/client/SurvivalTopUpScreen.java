@@ -25,6 +25,7 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
 
 import java.util.List;
+import java.util.function.IntConsumer;
 
 @EventBusSubscriber(modid=SableLife.MOD_ID,bus=EventBusSubscriber.Bus.MOD,value=Dist.CLIENT)
 public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalTopUpMenu> {
@@ -60,8 +61,7 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         automatic=button(tr("automatic_off"),181,158,102,()->click(menu.snapshot().getBoolean("Automatic")
                 ? SurvivalTopUpMenu.DISABLE_AUTO : SurvivalTopUpMenu.ENABLE_AUTO));
         automatic.setTooltip(Tooltip.create(tr("automatic_hint")));
-        dump=addRenderableWidget(new DumpButton(leftPos+tankX(),topPos+DUMP_Y,
-                ()->click(menu.snapshot().getInt("TankDumpAction"))));
+        dump=addRenderableWidget(new DumpButton(leftPos+tankX(),topPos+DUMP_Y,this::click));
         button(Component.translatable("menu.sablelife.back"),229,5,54,()->click(SurvivalTopUpMenu.BACK));
         sync();
     }
@@ -81,10 +81,6 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         automatic.active=data.contains("Automatic");
         automatic.setMessage(tr(enabled?"automatic_on":"automatic_off"));
         LifeUiStyle.fill(automatic,enabled?0xFF24543B:0);
-        dump.visible=data.contains("TankAmount",Tag.TAG_INT);
-        dump.active=dump.visible&&data.contains("TankDumpAction",Tag.TAG_INT)
-                &&(data.getInt("TankAmount")>0||data.getBoolean("TankUnavailable"));
-        dump.updateConfirmation(data.getBoolean("TankDumpConfirming"));
     }
     @Override protected void containerTick(){super.containerTick();sync();}
 
@@ -227,6 +223,7 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
         g.drawString(font,playerInventoryTitle,12,130,0xE6D8EA,false);
     }
     @Override public void render(GuiGraphics g,int mouseX,int mouseY,float partial){
+        dump.prepareRender(menu.snapshot());
         super.render(g,mouseX,mouseY,partial);
         renderTooltip(g,mouseX,mouseY);
     }
@@ -280,10 +277,25 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
 
     private static final class DumpButton extends Button {
         private boolean confirming;
+        private int frameAction, renderedAction;
 
-        private DumpButton(int x,int y,Runnable action){
-            super(x,y,RAIL_WIDTH,DUMP_HEIGHT,tr("tank_dump"),button->action.run(),DEFAULT_NARRATION);
+        private DumpButton(int x,int y,IntConsumer action){
+            super(x,y,RAIL_WIDTH,DUMP_HEIGHT,tr("tank_dump"),button->{
+                int rendered=((DumpButton)button).renderedAction;
+                if(rendered<0)action.accept(rendered);
+            },DEFAULT_NARRATION);
+            visible=false;
+            active=false;
             setTooltip(Tooltip.create(tr("tank_dump_hint")));
+        }
+
+        private void prepareRender(CompoundTag data){
+            renderedAction=0;
+            frameAction=data.getInt("TankDumpAction");
+            visible=data.contains("TankAmount",Tag.TAG_INT);
+            active=visible&&data.contains("TankDumpAction",Tag.TAG_INT)&&frameAction<0
+                    &&(data.getInt("TankAmount")>0||data.getBoolean("TankUnavailable"));
+            updateConfirmation(data.getBoolean("TankDumpConfirming"));
         }
 
         private void updateConfirmation(boolean next){
@@ -320,6 +332,8 @@ public final class SurvivalTopUpScreen extends AbstractContainerScreen<SurvivalT
                 g.fill(x+1,y-1,x+2,y+2,icon);
                 g.fill(x-2,y+2,x+2,y+3,icon);
             }
+            // Input can arrive after a menu sync but before the player has seen the next frame.
+            if(active)renderedAction=frameAction;
         }
     }
 }

@@ -2899,6 +2899,8 @@
   "dashboard.sablelife.property_help.shape": "Кольцо сканирует вокруг отметки; Конус вперёд сканирует вдоль её направления.",
   "dashboard.sablelife.property_help.innerRadius": "Исключать цели, ближе к отмеченной точке, чем это расстояние.",
   "dashboard.sablelife.property_help.priorityOnly": "Выбирает подходящих мобов из списка приоритетных целей. При пустом списке цель не выбирается. Приказы Посоха команд сохраняют приоритет.",
+  "dashboard.sablelife.redstone_priority_targets_help": "Откройте «Приоритетные цели» на панели редстоун-ядра, чтобы изменить его список.",
+  "dashboard.sablelife.redstone_priority_targets_empty": "Список приоритетных целей этого ядра сейчас пуст.",
   "dashboard.sablelife.property_help.frontWidth": "Радиус у дальнего конца Конуса вперёд. Действует только для Конуса вперёд.",
   "dashboard.sablelife.property_help.sensorChannel": "Внутренний канал, принимающий сигнал датчика. 0 — без внутреннего выхода.",
   "dashboard.sablelife.property_help.sensorPower": "Сила сигнала на выходах каналов, когда датчик обнаруживает цель. Выход отмеченной грани остаётся 15.",

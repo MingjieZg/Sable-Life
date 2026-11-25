@@ -2899,6 +2899,8 @@
   "dashboard.sablelife.property_help.shape": "Ring scans around the mark; Forward cone scans along its direction.",
   "dashboard.sablelife.property_help.innerRadius": "Exclude targets closer to the marked origin than this distance.",
   "dashboard.sablelife.property_help.priorityOnly": "Only selects eligible mobs from Priority Targets. An empty list selects nothing. This filter does not apply to Command Wand orders.",
+  "dashboard.sablelife.redstone_priority_targets_help": "Open Priority Targets from the Redstone Core dashboard to edit this core's list.",
+  "dashboard.sablelife.redstone_priority_targets_empty": "This core's priority list is currently empty.",
   "dashboard.sablelife.property_help.frontWidth": "Radius at the far end of the Forward cone. Only applies to Forward cone.",
   "dashboard.sablelife.property_help.sensorChannel": "Internal channel receiving the sensor signal. 0 means no internal output.",
   "dashboard.sablelife.property_help.sensorPower": "Signal strength for channel outputs when the sensor detects a target. The marked-face output remains 15.",

@@ -109,6 +109,11 @@ public final class ModuleAvailabilityGameTests {
         var oldStates = changed.stream().map(level::getBlockState).toList();
         var open = net.minecraft.world.level.block.TrapDoorBlock.OPEN;
         var module = core.modules().add("block_interaction");
+        Runnable cleanup = () -> {
+            module.edit("enabled", 0, "");
+            core.modules().clearRuntime();
+            for (int i = 0; i < changed.size(); i++) level.setBlockAndUpdate(changed.get(i), oldStates.get(i));
+        };
         try {
             level.setBlockAndUpdate(center, Blocks.CHEST.defaultBlockState());
             crank.ifPresent(block -> {
@@ -129,22 +134,127 @@ public final class ModuleAvailabilityGameTests {
             h.assertTrue(level.getBlockState(left).getValue(open) && !level.getBlockState(right).getValue(open)
                             && !level.getBlockState(edge).getValue(open) && !level.getBlockState(outside).getValue(open),
                     "World search did not skip the chest/crank and choose only the original cross-chunk tie winner");
-            level.setBlockAndUpdate(left, Blocks.AIR.defaultBlockState());
-            level.setBlockAndUpdate(right, Blocks.AIR.defaultBlockState());
-            core.modules().clearRuntime();
-            core.modules().tick(core);
-            h.assertTrue(level.getBlockState(edge).getValue(open) && !level.getBlockState(outside).getValue(open),
-                    "World search did not include the last cell of the 30-block box");
-            level.setBlockAndUpdate(edge, Blocks.AIR.defaultBlockState());
-            core.modules().clearRuntime();
-            core.modules().tick(core);
-            h.assertTrue(!level.getBlockState(outside).getValue(open), "World search exceeded its 30-block box");
-            h.succeed();
-        } finally {
-            module.edit("enabled", 0, "");
-            core.modules().clearRuntime();
-            for (int i = 0; i < changed.size(); i++) level.setBlockAndUpdate(changed.get(i), oldStates.get(i));
+        } catch (RuntimeException | Error failure) {
+            cleanup.run();
+            throw failure;
         }
+        h.runAfterDelay(1, () -> {
+            try {
+                level.setBlockAndUpdate(left, Blocks.AIR.defaultBlockState());
+                level.setBlockAndUpdate(right, Blocks.AIR.defaultBlockState());
+                core.modules().clearRuntime();
+                core.modules().tick(core);
+                h.assertTrue(level.getBlockState(edge).getValue(open) && !level.getBlockState(outside).getValue(open),
+                        "World search did not include the last cell of the 30-block box");
+            } catch (RuntimeException | Error failure) {
+                cleanup.run();
+                throw failure;
+            }
+        });
+        h.runAfterDelay(2, () -> {
+            try {
+                level.setBlockAndUpdate(edge, Blocks.AIR.defaultBlockState());
+                core.modules().clearRuntime();
+                core.modules().tick(core);
+                h.assertTrue(!level.getBlockState(outside).getValue(open), "World search exceeded its 30-block box");
+                h.succeed();
+            } finally {
+                cleanup.run();
+            }
+        });
+    }
+
+    @GameTest(template = "combat", batch = "block_interaction_budget", timeoutTicks = 15)
+    public static void MaximumInteractionVolumesShareAFairBudgetAndCancelStaleWork(GameTestHelper h) {
+        var core = core(h, true, 3);
+        var level = h.getLevel();
+        var anchor = ModuleAnchor.create(core, core.getBlockPos().east(), Direction.UP);
+        var center = BlockPos.containing(anchor.world(core, false)).above(27);
+        var offsets = new int[]{-8, -5, -2, 1, 4, 7};
+        var positions = Arrays.stream(offsets).mapToObj(center::east).toList();
+        var oldStates = positions.stream().map(level::getBlockState).toList();
+        var modules = new ArrayList<VirtualModule>();
+        int input = core.wireless().add();
+        core.wireless().channel(input).set(0, 1);
+        core.wireless().channel(input).set(6, 3);
+        var open = net.minecraft.world.level.block.TrapDoorBlock.OPEN;
+        Runnable cleanup = () -> {
+            core.wireless().programOutputs("interaction_budget_test", Map.of());
+            modules.forEach(module -> module.edit("enabled", 0, ""));
+            core.modules().clearRuntime();
+            for (int i = 0; i < positions.size(); i++) level.setBlockAndUpdate(positions.get(i), oldStates.get(i));
+        };
+        try {
+            for (int i = 0; i < offsets.length; i++) {
+                level.setBlockAndUpdate(positions.get(i), Blocks.OAK_TRAPDOOR.defaultBlockState());
+                var module = core.modules().add("block_interaction");
+                modules.add(module);
+                module.anchors(List.of(anchor));
+                module.edit("interactionSize", 30, "");
+                module.edit("interactionOffsetY", 27, "");
+                module.edit("interactionOffsetX", offsets[i], "");
+                if (i == 0 || i == 2) {
+                    module.edit("interactionMode", 1, "");
+                    module.edit("interactionInterval", 1, "");
+                }
+                if (i > 0 && i < offsets.length - 1) {
+                    module.edit("trigger", 2, "");
+                    module.edit("channel", input + 1, "");
+                }
+            }
+            core.wireless().programOutputs("interaction_budget_test", Map.of(input, 15));
+            core.modules().tick(core);
+            core.modules().tick(core);
+            h.assertTrue(level.getBlockState(positions.getFirst()).getValue(open)
+                            && positions.subList(1, positions.size()).stream().noneMatch(pos -> level.getBlockState(pos).getValue(open)),
+                    "One maximum request must fit and repeated calls in the same tick may not replenish its budget");
+
+            // Retain the accepted one-shot pulse, discard the recurring low input, and
+            // discard a queued one-shot whose authored area changed while the pulse was low.
+            core.wireless().programOutputs("interaction_budget_test", Map.of());
+            modules.get(3).edit("interactionOffsetX", 2, "");
+            modules.get(4).anchors(List.of(ModuleAnchor.create(core, core.getBlockPos().east(), Direction.EAST)));
+        } catch (RuntimeException | Error failure) {
+            cleanup.run();
+            throw failure;
+        }
+        h.runAfterDelay(1, () -> {
+            try {
+                core.modules().tick(core);
+                h.assertTrue(level.getBlockState(positions.get(1)).getValue(open)
+                                && !level.getBlockState(positions.getLast()).getValue(open),
+                        "The accepted short pulse should dispatch first in the next tick");
+            } catch (RuntimeException | Error failure) {
+                cleanup.run();
+                throw failure;
+            }
+        });
+        h.runAfterDelay(2, () -> {
+            try {
+                core.modules().tick(core);
+                h.assertTrue(level.getBlockState(positions.getLast()).getValue(open)
+                                && !level.getBlockState(positions.get(2)).getValue(open)
+                                && !level.getBlockState(positions.get(3)).getValue(open)
+                                && !level.getBlockState(positions.get(4)).getValue(open)
+                                && level.getBlockState(positions.getFirst()).getValue(open),
+                        "An older one-shot was starved by a repeat, or stale input/settings interacted");
+            } catch (RuntimeException | Error failure) {
+                cleanup.run();
+                throw failure;
+            }
+        });
+        h.runAfterDelay(3, () -> {
+            try {
+                core.modules().tick(core);
+                h.assertTrue(!level.getBlockState(positions.getFirst()).getValue(open)
+                                && level.getBlockState(positions.get(1)).getValue(open)
+                                && level.getBlockState(positions.getLast()).getValue(open),
+                        "The fair queue did not resume repeats or ran a one-shot twice");
+                h.succeed();
+            } finally {
+                cleanup.run();
+            }
+        });
     }
 
     @GameTest(template = "combat", batch = "block_interaction_large_structure")
@@ -324,9 +434,10 @@ public final class ModuleAvailabilityGameTests {
         author.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);author.setPos(SableBodyProbe.toWorld(h.getLevel(),core.getBlockPos().getCenter()));
         var menu=new HeartDashboardMenu(1,author.getInventory(),core);var previous=new HashMap<String,Boolean>();
         try{
-            h.assertTrue(RedstoneCorePolicy.TYPES.size()==19
-                    &&RedstoneCorePolicy.TYPES.containsAll(List.of("propulsion","motion_damping")),
-                    "Expected nineteen supported modules including Propulsion and Motion Damping");
+            h.assertTrue(RedstoneCorePolicy.TYPES.size() == 21
+                            && RedstoneCorePolicy.TYPES.containsAll(List.of("propulsion", "motion_damping",
+                            "contact_sensor", VirtualModule.ENTITY_PASS_THROUGH)),
+                    "Expected 21 built-in Redstone Core modules including the four retained capabilities");
             for(String type:RedstoneCorePolicy.OPTIONAL_TYPES){
                 var option=setting(true,type);previous.put(type,option.get());
                 h.assertTrue(option.get()&&offered(core,type),"Presentation module disabled by default: "+type);

@@ -5,6 +5,7 @@ import dev.sablelife.heart.BlueprintFaction;
 import dev.sablelife.heart.HeartSettingsMenu;
 import dev.sablelife.heart.CoreRelations;
 import dev.sablelife.module.ModuleNetworking;
+import dev.sablelife.module.HeartDashboardMenu;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.*;
@@ -13,6 +14,7 @@ import net.minecraft.nbt.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -20,7 +22,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public final class CoreRelationsScreen extends Screen {
     private static final List<String> TABS=List.of("players","mobs","priority_targets","factions");
     private final Screen parent;
-    private final HeartSettingsMenu menu;
+    private final AbstractContainerMenu menu;
     private boolean factions,mobs,priority;
     private int page,x,y,w,h,capacity,noteHeight;
     private String draft="",playerDraft="",signature="";
@@ -36,6 +38,17 @@ public final class CoreRelationsScreen extends Screen {
     private Button addMob,removeMob,leftMobPrev,leftMobNext,rightMobPrev,rightMobNext;
     private final List<Button> selectedButtons=new ArrayList<>();
     public CoreRelationsScreen(Screen parent,HeartSettingsMenu menu){super(tr("title"));this.parent=parent;this.menu=menu;factions=hasBlueprintFaction();}
+    public CoreRelationsScreen(Screen parent, HeartDashboardMenu menu) {
+        super(tr("priority_targets"));
+        this.parent = parent;
+        this.menu = menu;
+        mobs = priority = true;
+    }
+    private boolean priorityOnlyMenu() { return menu instanceof HeartDashboardMenu; }
+    private CompoundTag snapshot() {
+        return menu instanceof HeartDashboardMenu dashboard ? dashboard.priorityTargetsSnapshot() : ((HeartSettingsMenu) menu).snapshot();
+    }
+    private int mobTop() { return y + (priorityOnlyMenu() ? 35 : 60); }
     private static Component tr(String key,Object... args){return Component.translatable("relations.sablelife."+key,args);}
     private String statusForTab(String status){
         if(status.equals("priority_added"))return priority?status:"";
@@ -44,22 +57,24 @@ public final class CoreRelationsScreen extends Screen {
     }
     private Component footer(String status){
         status=statusForTab(status);
-        var note=tr(!status.isEmpty()?status:priority?"priority_note":mobs?"mob_note":factions?"faction_note":"player_note",menu.snapshot().getInt("FactionCreationLimit"));
+        var note=tr(!status.isEmpty()?status:priority?"priority_note":mobs?"mob_note":factions?"faction_note":"player_note",snapshot().getInt("FactionCreationLimit"));
         return mobs&&!priority?note.copy().append(" ").append(tr("mob_damage_note").copy().withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD)):note;
     }
     private void send(String key,String text){PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,0,new UUID(0,0),"core","relation:"+key,0,text));}
     private Button button(Component label,int px,int py,int width,int height,Runnable action){return addRenderableWidget(LifeUiStyle.button(label,px,py,width,height,action));}
     private List<CompoundTag> rows(){
-        var s=menu.snapshot();
+        var s=snapshot();
         if(factions){var result=new ArrayList<CompoundTag>();var none=new CompoundTag();none.putString("Name",tr("none").getString());result.add(none);for(var row:s.getList("Factions",10))result.add((CompoundTag)row);return result;}
         var all=new LinkedHashMap<String,CompoundTag>();
         for(var t:s.getCompound("Relations").getList("ExcludedNames",8)){String name=t.getAsString();var r=new CompoundTag();r.putString("Name",name);all.put(name.toLowerCase(Locale.ROOT),r);}
         return List.copyOf(all.values());
     }
-    private UUID membership(){var r=menu.snapshot().getCompound("Relations");if(!r.hasUUID("Faction"))return null;var id=r.getUUID("Faction");return dev.sablelife.heart.FactionRegistry.WILDS.equals(id)||menu.snapshot().getList("Factions",10).stream().map(t->(CompoundTag)t).anyMatch(t->t.hasUUID("Id")&&id.equals(t.getUUID("Id")))?id:null;}
-    private boolean hasBlueprintFaction(){return !menu.snapshot().getCompound("BlueprintFactionView").isEmpty();}
-    private String signature(){var snapshot=menu.snapshot();return snapshot.getCompound("Relations").toString()+snapshot.getList("Factions",10)+snapshot.getString("RelationStatus")+snapshot.getBoolean("LiveControls");}
-    private void openBlueprintFaction(UUID selected){minecraft.setScreen(new BlueprintFactionScreen(this,menu,selected));}
+    private UUID membership(){var r=snapshot().getCompound("Relations");if(!r.hasUUID("Faction"))return null;var id=r.getUUID("Faction");return dev.sablelife.heart.FactionRegistry.WILDS.equals(id)||snapshot().getList("Factions",10).stream().map(t->(CompoundTag)t).anyMatch(t->t.hasUUID("Id")&&id.equals(t.getUUID("Id")))?id:null;}
+    private boolean hasBlueprintFaction(){return !snapshot().getCompound("BlueprintFactionView").isEmpty();}
+    private String signature(){var snapshot=snapshot();return snapshot.getCompound("Relations").toString()+snapshot.getList("Factions",10)+snapshot.getString("RelationStatus")+snapshot.getBoolean("LiveControls");}
+    private void openBlueprintFaction(UUID selected) {
+        if (menu instanceof HeartSettingsMenu settings) minecraft.setScreen(new BlueprintFactionScreen(this, settings, selected));
+    }
     private void tab(int value){
         boolean nextPriority=value==2;
         if(nextPriority!=priority){leftMob="";rightMob="";leftMobPage=0;rightMobPage=0;}
@@ -75,11 +90,16 @@ public final class CoreRelationsScreen extends Screen {
     @Override protected void init(){
         w=Math.min(620,width-16);h=Math.min(370,height-16);x=(width-w)/2;y=(height-h)/2;selectedButtons.clear();deleteButton=null;playerInput=null;factionInput=null;mobSearch=null;
         int noteLines=font.split(footer(""),w-20).size();
-        if(mobs)noteLines=Math.max(noteLines,font.split(footer(menu.snapshot().getString("RelationStatus")),w-20).size());
+        if(mobs)noteLines=Math.max(noteLines,font.split(footer(snapshot().getString("RelationStatus")),w-20).size());
         noteHeight=Math.max(2,noteLines)*font.lineHeight+4;
         int rowHeight=Math.max(12,Math.round(18*LifeUiStyle.scale())),stride=rowHeight+2,gridRows=Math.max(1,(h-noteHeight-119)/stride),columns=factions?1:5;
         capacity=gridRows*columns;var rows=rows();page=Math.clamp(page,0,Math.max(0,(rows.size()-1)/capacity));
         button(Component.translatable("dashboard.sablelife.back"),x+w-70,y+8,60,18,this::onClose);
+        if (priorityOnlyMenu()) {
+            initMobs(rowHeight);
+            signature = signature();
+            return;
+        }
         int tabWidth=(w-20-(TABS.size()-1)*6)/TABS.size();
         int selectedTab=factions?3:priority?2:mobs?1:0;
         for(int i=0;i<TABS.size();i++){
@@ -89,7 +109,7 @@ public final class CoreRelationsScreen extends Screen {
         }
         if(mobs){initMobs(rowHeight);signature=signature();return;}
         var own=membership();
-        var snapshot = menu.snapshot();
+        var snapshot = snapshot();
         var blueprintView = snapshot.getCompound("BlueprintFactionView");
         boolean blueprintFaction = factions && !blueprintView.isEmpty();
         if(blueprintFaction){
@@ -134,7 +154,7 @@ public final class CoreRelationsScreen extends Screen {
                 b.active=id==null||r.getBoolean("CanJoin");
                 if(Objects.equals(own,id))selectedButtons.add(b);
                 b.setTooltip(Tooltip.create(fullLabel.copy().append("\n").append(tr(blueprintFaction?"bp_open_help":"join_help")).append(id==null?"":"\n"+id)));
-                if(id!=null){button(tr("details"),x+w-195,py,72,rowHeight,()->{send("select",id.toString());minecraft.setScreen(new FactionDetailsScreen(this,menu,id));});var ff=button(tr(r.getBoolean("FriendlyFire")?"ff_on":"ff_off"),x+w-117,py,107,rowHeight,()->send("friendlyFire",id.toString()));ff.active=r.getBoolean("Manage");}
+                if(id!=null&&menu instanceof HeartSettingsMenu settings){button(tr("details"),x+w-195,py,72,rowHeight,()->{send("select",id.toString());minecraft.setScreen(new FactionDetailsScreen(this,settings,id));});var ff=button(tr(r.getBoolean("FriendlyFire")?"ff_on":"ff_off"),x+w-117,py,107,rowHeight,()->send("friendlyFire",id.toString()));ff.active=r.getBoolean("Manage");}
             }else{
                 String name=r.getString("Name");var label=button(Component.literal(name),px,py,cellWidth-16,rowHeight,()->{});label.setTooltip(Tooltip.create(Component.literal(name).append("\n").append(tr("exclude_help"))));
                 var remove=button(Component.literal("X").withStyle(net.minecraft.ChatFormatting.RED),px+cellWidth-15,py,15,rowHeight,()->send("removeName",name));remove.setTooltip(Tooltip.create(tr("remove_player",name)));
@@ -165,7 +185,7 @@ public final class CoreRelationsScreen extends Screen {
         send(add?(priority?"prioritizeMob":"excludeMob"):(priority?"removePriorityMob":"removeMob"),id);
     }
     private void initMobs(int rowHeight){
-        availableButtons.clear();excludedButtons.clear();paneWidth=(w-52)/2;mobRows=Math.max(1,(h-noteHeight-119)/(rowHeight+2));
+        availableButtons.clear();excludedButtons.clear();paneWidth=(w-52)/2;mobRows=Math.max(1,(y+h-noteHeight-59-mobTop())/(rowHeight+2));
         if(mobCatalog.isEmpty()){
             var catalog=new ArrayList<String>();
             CoreRelations.MOB_GROUPS.forEach(group->catalog.add(group.id().toString()));
@@ -176,11 +196,11 @@ public final class CoreRelationsScreen extends Screen {
             catalog.removeIf(id->id.length()>CoreRelations.MOB_RULE_TEXT_LIMIT);
             mobCatalog=List.copyOf(catalog);
         }
-        mobSearch=addRenderableWidget(new EditBox(font,x+10,y+60,paneWidth,18,tr("mob_search")));mobSearch.setMaxLength(128);mobSearch.setHint(tr("mob_search"));mobSearch.setValue(mobQuery);
+        mobSearch=addRenderableWidget(new EditBox(font,x+10,mobTop(),paneWidth,18,tr("mob_search")));mobSearch.setMaxLength(128);mobSearch.setHint(tr("mob_search"));mobSearch.setValue(mobQuery);
         mobSearch.setResponder(s->{mobQuery=s;leftMobPage=0;syncMobs();});
         int right=x+42+paneWidth;
         for(int i=0;i<mobRows;i++){
-            int index=i,py=y+87+i*(rowHeight+2);
+            int index=i,py=mobTop()+27+i*(rowHeight+2);
             availableButtons.add(button(Component.empty(),x+10,py,paneWidth,rowHeight,()->{int at=leftMobPage*mobRows+index;if(at<availableMobs.size())leftMob=availableMobs.get(at);syncMobs();}));
             excludedButtons.add(button(Component.empty(),right,py,paneWidth,rowHeight,()->{int at=rightMobPage*mobRows+index;if(at<excludedMobs.size())rightMob=excludedMobs.get(at);syncMobs();}));
         }
@@ -198,7 +218,7 @@ public final class CoreRelationsScreen extends Screen {
     }
     private void syncMobs(){
         if(!mobs||addMob==null)return;
-        var snapshot=menu.snapshot();
+        var snapshot=snapshot();
         excludedMobs=snapshot.getCompound("Relations").getList(priority?"PriorityMobs":"ExcludedMobs",Tag.TAG_STRING)
                 .stream().map(Tag::getAsString).distinct().toList();
         var excluded=new HashSet<>(excludedMobs);String query=mobQuery.strip().toLowerCase(Locale.ROOT);
@@ -225,7 +245,7 @@ public final class CoreRelationsScreen extends Screen {
         leftMobPrev.active=leftMobPage>0;leftMobNext.active=(leftMobPage+1)*mobRows<availableMobs.size();rightMobPrev.active=rightMobPage>0;rightMobNext.active=(rightMobPage+1)*mobRows<excludedMobs.size();
     }
     @Override public boolean mouseClicked(double mx,double my,int button){
-        if(mobs&&button==1&&menu.snapshot().getBoolean("LiveControls")){
+        if(mobs&&button==1&&snapshot().getBoolean("LiveControls")){
             for(int i=0;i<mobRows;i++){
                 if(availableButtons.get(i).visible&&availableButtons.get(i).isMouseOver(mx,my)){
                     if(excludedMobs.size()<CoreRelations.LIMIT)editMob(true,availableMobs.get(leftMobPage*mobRows+i));
@@ -262,19 +282,19 @@ public final class CoreRelationsScreen extends Screen {
         var titleText=font.plainSubstrByWidth(title.getString(),w-90);g.drawString(font,titleText,x+10,y+14,0xD9C4ED,false);
         if(mobs){
             int bottom=y+h-noteHeight-27,right=x+42+paneWidth;
-            for(int px:new int[]{x+8,right-2}){int color=0xFF675C79;g.fill(px,y+57,px+paneWidth+4,y+58,color);g.fill(px,bottom,px+paneWidth+4,bottom+1,color);g.fill(px,y+57,px+1,bottom,color);g.fill(px+paneWidth+3,y+57,px+paneWidth+4,bottom,color);}
+            for(int px:new int[]{x+8,right-2}){int color=0xFF675C79,top=mobTop()-3;g.fill(px,top,px+paneWidth+4,top+1,color);g.fill(px,bottom,px+paneWidth+4,bottom+1,color);g.fill(px,top,px+1,bottom,color);g.fill(px+paneWidth+3,top,px+paneWidth+4,bottom,color);}
             var paneTitle=tr(priority?"priority_mobs":"excluded_mobs").copy().append(" · "+excludedMobs.size()+" / "+CoreRelations.LIMIT);
             float titleScale=Math.min(1,(paneWidth-4f)/Math.max(1,font.width(paneTitle)));
             g.pose().pushPose();
-            g.pose().translate(right,y+65,0);
+            g.pose().translate(right,mobTop()+5,0);
             g.pose().scale(titleScale,titleScale,1);
             g.drawString(font,paneTitle,0,0,0xD9C4ED,false);
             g.pose().popPose();
             int py=y+h-noteHeight-19;g.drawCenteredString(font,(leftMobPage+1)+" / "+Math.max(1,(availableMobs.size()+mobRows-1)/mobRows),x+10+paneWidth/2,py,0xD9C4ED);g.drawCenteredString(font,(rightMobPage+1)+" / "+Math.max(1,(excludedMobs.size()+mobRows-1)/mobRows),right+paneWidth/2,py,0xD9C4ED);
-            if(availableMobs.isEmpty())g.drawWordWrap(font,tr("no_mobs"),x+14,y+91,paneWidth-8,0xAEB8C7);
-            if(excludedMobs.isEmpty())g.drawWordWrap(font,tr(priority?"empty_priority_mobs":"empty_mobs"),right+4,y+91,paneWidth-8,0xAEB8C7);
+            if(availableMobs.isEmpty())g.drawWordWrap(font,tr("no_mobs"),x+14,mobTop()+31,paneWidth-8,0xAEB8C7);
+            if(excludedMobs.isEmpty())g.drawWordWrap(font,tr(priority?"empty_priority_mobs":"empty_mobs"),right+4,mobTop()+31,paneWidth-8,0xAEB8C7);
         }else g.drawCenteredString(font,(page+1)+" / "+Math.max(1,(rows().size()+capacity-1)/capacity),x+w/2,y+h-noteHeight-19,0xD9C4ED);
-        String status=statusForTab(menu.snapshot().getString("RelationStatus"));
+        String status=statusForTab(snapshot().getString("RelationStatus"));
         int noteColor=status.startsWith("faction_")||status.equals("denied")||status.equals("invalid_name")||status.equals("invalid_mob")?0xEF8D8D:status.equals("updated")||status.equals("player_added")||status.equals("mob_added")||status.equals("priority_added")?0x89DFA8:0xAEB8C7;
         g.drawWordWrap(font,footer(status),x+10,y+h-noteHeight,w-20,noteColor);
         for(var widget:renderables)widget.render(g,mx,my,partial);

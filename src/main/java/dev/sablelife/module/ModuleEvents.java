@@ -226,13 +226,45 @@ public final class ModuleEvents {
         emitted++;
     }
     public static boolean withinShape(HeartBlockEntity heart, VirtualModule module, Vec3 delta) {
-        if (module.value("shape") == 0) {
-            double distance = delta.lengthSqr();
-            return distance <= Math.pow(module.value("radius"), 2) && distance >= Math.pow(module.value("innerRadius"), 2);
+        return SensorShape.capture(heart, module).contains(delta);
+    }
+
+    private record SensorShape(double range, double innerRadius, Vec3 forward, double frontRadius) {
+        private static final double REAR_RADIUS = .5;
+
+        static SensorShape capture(HeartBlockEntity heart, VirtualModule module) {
+            double range = module.value("radius");
+            if (module.value("shape") == 0) return new SensorShape(range, module.value("innerRadius"), null, 0);
+            return new SensorShape(range, 0, ModuleCombat.direction(heart, module), module.value("frontWidth"));
         }
-        var forward = ModuleCombat.direction(heart, module); double along = delta.dot(forward);
-        double width = .5 + (module.value("frontWidth") - .5) * along / module.value("radius");
-        return along >= 0 && along <= module.value("radius") && delta.subtract(forward.scale(along)).lengthSqr() <= width * width;
+
+        boolean contains(Vec3 delta) {
+            if (forward == null) {
+                double distance = delta.lengthSqr();
+                return distance <= range * range && distance >= innerRadius * innerRadius;
+            }
+            double along = delta.dot(forward);
+            if (along < 0 || along > range) return false;
+            double width = REAR_RADIUS + (frontRadius - REAR_RADIUS) * along / range;
+            return delta.subtract(forward.scale(along)).lengthSqr() <= width * width;
+        }
+
+        AABB bounds(Vec3 center) {
+            if (forward == null) return new AABB(center, center).inflate(range + 2);
+            // Both the disk center and its radius vary linearly, so the endpoint disks bound the cone.
+            var radialExtent = new Vec3(radialExtent(forward.x), radialExtent(forward.y), radialExtent(forward.z));
+            var rear = diskBounds(center, radialExtent.scale(REAR_RADIUS));
+            var front = diskBounds(center.add(forward.scale(range)), radialExtent.scale(frontRadius));
+            return rear.minmax(front).inflate(1e-6);
+        }
+
+        private static double radialExtent(double axis) {
+            return Math.sqrt(Math.max(0, 1 - axis * axis));
+        }
+
+        private static AABB diskBounds(Vec3 center, Vec3 extent) {
+            return new AABB(center.subtract(extent), center.add(extent));
+        }
     }
     private boolean detect(ServerLevel level, HeartBlockEntity heart, VirtualModule module) {
         var selection = sensorSelections.get(module.id());
@@ -240,7 +272,8 @@ public final class ModuleEvents {
             return sensorAim(heart, module.id()) != null;
         sensorMemory.remove(module.id());
         var center = module.anchors().getFirst().world(heart, false);
-        return findSensorTarget(level, heart, module, center, sight(level, heart, module, center), false) != null;
+        var shape = SensorShape.capture(heart, module);
+        return findSensorTarget(level, heart, module, center, shape, sight(level, heart, module, center), false) != null;
     }
 
     public LivingEntity sensorTarget(HeartBlockEntity heart, UUID id) {
@@ -281,6 +314,7 @@ public final class ModuleEvents {
                     ModuleTargets.resolveForModule(level, target.id(), heart, sensor))) return target;
         }
         var center = sensor.anchors().getFirst().world(heart, false);
+        var shape = SensorShape.capture(heart, sensor);
         var sees = sight(level, heart, sensor, center);
         int ticks = SightMemory.ticks(sensor);
         var memory = ticks > 0 && sensorRevision == revision ? sensorMemory.get(id) : null;
@@ -291,8 +325,8 @@ public final class ModuleEvents {
                 var old = ModuleTargets.resolveForModule(level, last.id(), heart, sensor);
                 if (ModuleTargets.matchesTrackingTarget(heart, sensor, old)) {
                     var point = targetCenter(level, old);
-                    boolean withinCurrent = withinShape(heart, sensor, point.subtract(center));
-                    boolean withinLast = withinShape(heart, sensor, last.point().subtract(center));
+                    boolean withinCurrent = shape.contains(point.subtract(center));
+                    boolean withinLast = shape.contains(last.point().subtract(center));
                     if (withinCurrent || withinLast) {
                         if (SightMemory.canRecheck(center, point) && sees.test(old)) {
                             if (withinCurrent) selected = new SightMemory.Target(last.id(), point, true);
@@ -304,7 +338,7 @@ public final class ModuleEvents {
             }
             if (update && selected == null) memory.clear();
         }
-        if (selected == null) selected = findSensorTarget(level, heart, sensor, center, sees, true);
+        if (selected == null) selected = findSensorTarget(level, heart, sensor, center, shape, sees, true);
         if (update) {
             if (ticks == 0 || selected == null) {
                 sensorMemory.remove(id);
@@ -328,16 +362,17 @@ public final class ModuleEvents {
     }
 
     private static SightMemory.Target findSensorTarget(ServerLevel level, HeartBlockEntity heart, VirtualModule sensor,
-                                                        Vec3 center, Predicate<LivingEntity> sees, boolean chooseBest) {
+                                                        Vec3 center, SensorShape shape, Predicate<LivingEntity> sees,
+                                                        boolean chooseBest) {
         if (sensor.value("priorityOnly") == 1 && !heart.relations().hasPriorityMobs()) return null;
-        var bounds = new AABB(center, center).inflate(sensor.value("radius") + 2);
+        var bounds = shape.bounds(center);
         SightMemory.Target best = null;
         int bestRank = Integer.MAX_VALUE;
         double bestDistance = Double.POSITIVE_INFINITY;
         for (var entity : ModuleTargets.queryForModule(level, heart, sensor, bounds, target -> ModuleTargets.matchesTrackingTarget(heart, sensor, target))) {
             var point = targetCenter(level, entity);
             var delta = point.subtract(center);
-            if (!withinShape(heart, sensor, delta)) continue;
+            if (!shape.contains(delta)) continue;
             var id = entity.getUUID();
             int rank = chooseBest ? ModuleTargets.rank(heart, entity) : 0;
             double distance = delta.lengthSqr();

@@ -88,16 +88,17 @@ public final class ModuleHoming {
         double range = module.value("targetRange");
         double squaredRange = range * range;
         boolean requireSight = SightMemory.enabled(module);
+        var probes = requireSight && points.size() > 1 ? points.stream().distinct().toList() : points;
         var owner = heart.creatureId();
-        var bounds = new AABB(points.getFirst(), points.getFirst());
-        for (int i = 1; i < points.size(); i++) {
-            var point = points.get(i);
+        var bounds = new AABB(probes.getFirst(), probes.getFirst());
+        for (int i = 1; i < probes.size(); i++) {
+            var point = probes.get(i);
             bounds = bounds.minmax(new AABB(point, point));
         }
         // Only gate deployment here. Each shot makes its own selection after it has finished charging.
         for (var target : ModuleTargets.query(level, owner, bounds.inflate(range), candidate -> eligible(candidate, module))) {
             var targetPoint = SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter());
-            for (var point : points) {
+            for (var point : probes) {
                 if (targetPoint.distanceToSqr(point) <= squaredRange
                         && (!requireSight || ModuleTargets.visible(level, owner, point, target))) return true;
             }

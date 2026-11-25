@@ -31,6 +31,16 @@
 
 - Set Arena shape to Circle or Square. A square aligns with the world's X and Z axes. Arena half-side measures from the marked center to an edge. Preview, boss boundary checks, inherited stages, summon placement, and summon returns use the selected shape. The player warning range remains a separate circle. Existing arenas retain Circle. Record the first-stage arena again after changing its shape if future respawns should use the new shape. Entry 139, manual revision 267.
 
+### Stability fixes
+
+- The Survival Heart Core tank can be emptied once the confirmation check mark is visible. A change to the tank contents requires a fresh confirmation.
+- Circular and square arenas check the configured blueprint spawn point, including offsets. Rotated blueprints still align to that point when using Bottom Center.
+- A blueprint awaiting faction binding can retain its placed, dormant core during an automated spawn or respawn. Binding or skipping lets the same core finish activation, including after a restart.
+- Redstone Cores have a dedicated Priority Targets editor. With Lock only listed targets enabled, an empty list prompts the player to add targets.
+- Forward Target Sensors detect targets throughout short, wide cones, including when rotated. Linked Target Alignment and Move Sets can use the same target.
+- Automatic hovering projectiles reuse deployment sight checks for matching hover positions. The configured projectile count still applies.
+- Block Interaction modules on the same core share a per-tick scan budget and queue pending interactions. Each interaction checks for the nearest supported block when it runs.
+
 ## 0.1.458
 
 - **Blueprint factions on first placement**. The pending entry shows the source faction's name. When there is no usable local faction, the setup opens on the Create tab with the source settings filled in. Players can confirm creation and binding or skip the faction. Manual revision 264.
@@ -403,7 +413,7 @@ Default material values:
 ### Module visuals, interaction and damage compatibility
 
 - Fixed missed contacts at the edges of maximum-size entity hitboxes spanning section boundaries. The query coverage is tracked per section storage and resets when large hitboxes are removed. All 397 related native checks passed. See the hitbox stress report.
-- Block Interaction supports World and Marked Structure modes, single and repeated interaction, a default one-block area and a maximum side length of three blocks, start distance and offsets. It interacts only with the nearest supported block and skips UI interactions such as chests and crafting tables. Internal interactions are no longer blocked by the creature's own interaction protection.
+- Block Interaction supports World and Marked Structure modes, single and repeated interaction, start distance and offsets. Each axis of the box can be 1–30 blocks and defaults to one block. It interacts only with the nearest supported block and skips UI interactions such as chests and crafting tables. The creature's own interaction protection allows internal module interactions.
 - Continuous laser beams follow moving parts and support colors. Particle visuals remain available; the old default visual and untranslated style labels were fixed. The two sweep axes have separate speeds, extra-particle spacing is adjustable, and continuous beams interpolate between compatible frames.
 - Flamethrower supports Cone/Fan patterns, fan angle and end thickness. Attraction supports a directional funnel and stable intake. Screen shake still works when facing away from its source and has an adjustable frequency.
 - Radial blur has adjustable strength, duration, and clear-center radius. It centers on the emitter while visible and on the screen when the emitter is behind the camera.

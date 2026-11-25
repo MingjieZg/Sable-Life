@@ -102,9 +102,11 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
 
     private static final int BLUEPRINT_CONNECTION_SETTLE_TICKS = 5;
     private static final int BLUEPRINT_ACTIVATION_TIMEOUT = 100;
+    private static final long BLUEPRINT_FACTION_WAIT = Long.MAX_VALUE;
     private long blueprintConnectionsSettleUntil = Long.MIN_VALUE;
     private long blueprintActivationDeadline = Long.MIN_VALUE;
     private long blueprintActivationEarliest = Long.MIN_VALUE;
+    private boolean waitForBlueprintFaction;
     private final HashSet<UUID> blueprintConnections = new HashSet<>();
     private final java.util.Map<UUID, Vec3> blueprintWaypoints = new java.util.HashMap<>();
 
@@ -128,8 +130,20 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
 
     public boolean awaitingBlueprintActivation() { return blueprintActivationDeadline != Long.MIN_VALUE; }
 
+    public boolean awaitingBlueprintFactionDecision() {
+        return waitForBlueprintFaction && awaitingBlueprintActivation() && relations.hasPendingBlueprintFaction();
+    }
+
     /** Called after the native placer has committed every recorded part. */
     public boolean activateAfterBlueprintPlacement(int placedParts) {
+        return activateAfterBlueprintPlacement(placedParts, false);
+    }
+
+    public boolean activateAfterBlueprintPlacementWaitingForFaction(int placedParts) {
+        return activateAfterBlueprintPlacement(placedParts, true);
+    }
+
+    private boolean activateAfterBlueprintPlacement(int placedParts, boolean waitForFaction) {
         if (!canActivateForRespawn()) return false;
         if (placedParts > 1 && blueprintConnections.isEmpty()) {
             // Legacy templates lack the saved chain. Allow unmarked joints time to publish too.
@@ -138,8 +152,13 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
                 for (var mark : module.storedAnchors()) blueprintConnections.add(mark.anchor().bodyId());
             }
         }
-        if (blueprintWaypoints.isEmpty() && blueprintConnectionsReady()) return activateForRespawn();
-        blueprintActivationDeadline = level.getGameTime() + BLUEPRINT_ACTIVATION_TIMEOUT;
+        waitForBlueprintFaction = waitForFaction;
+        if (waitForBlueprintFaction && relations.hasPendingBlueprintFaction()) {
+            blueprintActivationDeadline = BLUEPRINT_FACTION_WAIT;
+        } else {
+            if (blueprintWaypoints.isEmpty() && blueprintConnectionsReady()) return activateForRespawn();
+            blueprintActivationDeadline = level.getGameTime() + BLUEPRINT_ACTIVATION_TIMEOUT;
+        }
         dev.sablelife.ownership.LoadedCoreIndex.observe(this);
         setChanged();
         return true;
@@ -166,10 +185,22 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             setChanged();
         }
         if (blueprintActivationDeadline == Long.MIN_VALUE) return;
+        if (awaitingBlueprintFactionDecision()) {
+            if (blueprintActivationDeadline != BLUEPRINT_FACTION_WAIT) {
+                blueprintActivationDeadline = BLUEPRINT_FACTION_WAIT;
+                setChanged();
+            }
+            return;
+        }
+        if (blueprintActivationDeadline == BLUEPRINT_FACTION_WAIT) {
+            blueprintActivationDeadline = server.getGameTime() + BLUEPRINT_ACTIVATION_TIMEOUT;
+            setChanged();
+        }
         if (blueprintConnectionsReady() && activateForRespawn()) return;
         if (server.getGameTime() >= blueprintActivationDeadline) {
             blueprintActivationDeadline = Long.MIN_VALUE;
             blueprintActivationEarliest = Long.MIN_VALUE;
+            waitForBlueprintFaction = false;
             blueprintConnections.clear();
             setChanged();
             com.mojang.logging.LogUtils.getLogger().warn("Blueprint core {} remained dormant because its structure was not ready", creatureId);
@@ -719,6 +750,10 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         if(isControlCore())return;
         if (level == null || level.isClientSide) return;
         if(isSurvivalCore()&&!canAccessEditor(player))return;
+        if (awaitingBlueprintFactionDecision()) {
+            player.displayClientMessage(Component.translatable("command.sablelife.blueprint.faction_pending"), false);
+            return;
+        }
         if (blueprintActivationDeadline != Long.MIN_VALUE || !blueprintWaypoints.isEmpty()) return;
         if (health.state() == HeartState.DYING || health.state() == HeartState.DEAD) {
             player.displayClientMessage(Component.translatable("message.sablelife.dead"), false);
@@ -751,7 +786,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             player.displayClientMessage(Component.translatable("survival_tokens.sablelife.activation_partial"),true);
     }
     public boolean activateForRespawn() {
-        if (!canActivateForRespawn()) return false;
+        if (!canActivateForRespawn() || awaitingBlueprintFactionDecision()) return false;
         var body=SableBodyProbe.inspect(level,worldPosition);if(!body.assembled()||body.otherHearts()>0)return false;
         activateAssembled(body.rootId());return true;
     }
@@ -762,6 +797,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     private void activateAssembled(UUID root) {
         blueprintActivationDeadline = Long.MIN_VALUE;
         blueprintActivationEarliest = Long.MIN_VALUE;
+        waitForBlueprintFaction = false;
         blueprintConnections.clear();
         boundBody = root;
         health.activate();adaptiveDefense.reset();
@@ -849,6 +885,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         if (!LifeLifecycle.get(server.getServer()).scheduleNaturalRemoval(this)) return false;
         blueprintActivationDeadline = Long.MIN_VALUE;
         blueprintActivationEarliest = Long.MIN_VALUE;
+        waitForBlueprintFaction = false;
         blueprintConnections.clear();
         blueprintWaypoints.clear();
         health = HeartHealth.restore(health.maximum(), 0, health.deathDelay(), HeartState.DEAD, 0);
@@ -862,6 +899,10 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         pulseSignal = 0;
         changed();
         return true;
+    }
+
+    void removeWaitingBlueprintCore() {
+        if (waitForBlueprintFaction && awaitingBlueprintActivation()) expireWildEncounter();
     }
 
     private void finishOwnDeath(){
@@ -920,6 +961,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         ownershipCaptured = false;
         blueprintActivationDeadline = Long.MIN_VALUE;
         blueprintActivationEarliest = Long.MIN_VALUE;
+        waitForBlueprintFaction = false;
         blueprintConnections.clear();
         health = HeartHealth.restore(health.maximum(),remainingHealth,isSurvivalCore()?0:health.deathDelay(),HeartState.DORMANT,0);
         combatMusicHits = 0; regenWait=regenDelay; regenProgress=0;
@@ -1066,6 +1108,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
             var pending = new CompoundTag();
             pending.putLong("Deadline", blueprintActivationDeadline);
             pending.putLong("Earliest", blueprintActivationEarliest);
+            if (awaitingBlueprintActivation() && waitForBlueprintFaction) pending.putBoolean("WaitForFaction", true);
             var parts = new net.minecraft.nbt.ListTag();
             blueprintConnections.forEach(part -> parts.add(net.minecraft.nbt.NbtUtils.createUUID(part)));
             pending.put("Parts", parts);
@@ -1134,6 +1177,7 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
         var pending = tag.getCompound("PendingBlueprintActivation");
         blueprintActivationDeadline = pending.contains("Deadline", 4) ? pending.getLong("Deadline") : Long.MIN_VALUE;
         blueprintActivationEarliest = pending.contains("Earliest", 4) ? pending.getLong("Earliest") : Long.MIN_VALUE;
+        waitForBlueprintFaction = awaitingBlueprintActivation() && pending.getBoolean("WaitForFaction");
         blueprintConnections.clear();
         for (var part : pending.getList("Parts", 11)) {
             if (part instanceof net.minecraft.nbt.IntArrayTag uuid && uuid.size() == 4)
