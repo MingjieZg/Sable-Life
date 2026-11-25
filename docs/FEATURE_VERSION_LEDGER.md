@@ -241,7 +241,7 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 
 135. 0.1.458：无线红石渐变新增关闭时长，触发结束后从当前输出渐变至 0，回落途中再次触发时从当前强度继续。默认 0 秒，沿用输出缓冲。手册修订 263。 / Wireless Redstone Ramp adds a release duration. Output ramps to zero when the trigger ends and resumes from its current strength when retriggered mid-release. The default of 0 seconds keeps Output buffer behavior. Manual revision 263.
 
-136. 待发布。生存生命核心新增 40,000 mB 单液体储槽，支持容器和兼容流体管道注入，可用空桶取液，清空需点击两次确认。服主可按流体 ID 或标签定价，熔岩默认每桶兑换 250 能量。手动兑换支持不足一桶的用量，自动补充能源每 8 tick 可兑换一整桶。 / The Survival Heart Core gains a 40,000 mB single-fluid tank with container and compatible pipe input, bucket withdrawal, and two-click dumping. Servers can price fluids by ID or tag, with lava defaulting to 250 Energy per bucket. Manual conversion accepts partial buckets, and Auto Refuel can convert one full bucket every eight ticks. Unreleased.
+136. 待发布。生存生命核心新增 40,000 mB 单液体储槽，支持容器和兼容流体管道注入，可用空桶取液，清空需点击两次确认。服主可按流体 ID 或标签定价，熔岩默认每桶兑换 60 能量。手动兑换支持不足一桶的用量，自动补充能源每 8 tick 可兑换一整桶。 / The Survival Heart Core gains a 40,000 mB single-fluid tank with container and compatible pipe input, bucket withdrawal, and two-click dumping. Servers can price fluids by ID or tag, with lava defaulting to 60 Energy per bucket. Manual conversion accepts partial buckets, and Auto Refuel can convert one full bucket every eight ticks. Unreleased.
 
 137. 待发布。目标对准可按距标记方块的侦测内半径排除过近的目标，适用于自行索敌、关联的目标感应和自定义动作抽选提供的目标。默认 0，预览显示两个生效的半径，指挥棒明确指定的目标或目的地仍可跳过距离限制。手册修订 265。 / Target Alignment gains a detection inner radius measured from the marked block. It applies to its own search, a linked Target Sensor, and Move Set targets. It defaults to zero, preview shows the active radii, and explicit Command Wand targets and destinations still bypass the distance limits. Unreleased, manual revision 265.
 

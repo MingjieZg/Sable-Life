@@ -134,11 +134,11 @@ public final class SurvivalLiquidFuelGameTests {
             h.assertTrue(input.fill(new FluidStack(Fluids.LAVA, 2637), EXECUTE) == 2637
                     && core.survivalTokenBalance() == 30, "Filling a tank directly credited Energy or rejected fuel");
             h.runAfterDelay(8, () -> h.assertTrue(input.getFluidInTank(0).getAmount() == 1637
-                    && core.survivalTokenBalance() == 280, "The first poll did not convert exactly one 250-Energy bucket"));
+                    && core.survivalTokenBalance() == 90, "The first poll did not convert exactly one 60-Energy bucket"));
             h.runAfterDelay(16, () -> h.assertTrue(input.getFluidInTank(0).getAmount() == 637
-                    && core.survivalTokenBalance() == 530, "The second poll did not convert exactly one 250-Energy bucket"));
+                    && core.survivalTokenBalance() == 150, "The second poll did not convert exactly one 60-Energy bucket"));
             h.runAfterDelay(24, () -> {
-                h.assertTrue(input.getFluidInTank(0).getAmount() == 637 && core.survivalTokenBalance() == 530,
+                h.assertTrue(input.getFluidInTank(0).getAmount() == 637 && core.survivalTokenBalance() == 150,
                         "Automatic settlement did not preserve the sub-bucket remainder");
                 h.succeed();
             });
@@ -151,7 +151,7 @@ public final class SurvivalLiquidFuelGameTests {
         var player = survivalPlayer(h, core);
         var level = h.getLevel();
         var saved = core.saveWithoutMetadata(level.registryAccess());
-        saved.putLong("SurvivalTokens", Long.MAX_VALUE - 249);
+        saved.putLong("SurvivalTokens", Long.MAX_VALUE - 59);
         core.loadWithComponents(saved, level.registryAccess());
         var menu = new SurvivalTopUpMenu(1, player.getInventory(), core);
         var input = input(h, core);
@@ -161,14 +161,14 @@ public final class SurvivalLiquidFuelGameTests {
                 "Could not stock or enable the overflow fixture");
 
         h.runAfterDelay(8, () -> {
-            h.assertTrue(input.getFluidInTank(0).getAmount() == 2000 && core.survivalTokenBalance() == Long.MAX_VALUE - 249,
+            h.assertTrue(input.getFluidInTank(0).getAmount() == 2000 && core.survivalTokenBalance() == Long.MAX_VALUE - 59,
                     "Automatic refuel charged fluid without room for its full price");
             h.assertTrue(core.spendAttackTokens(1), "Could not make room for one bucket's Energy");
-            h.assertTrue(solidInput.insertItem(0, new ItemStack(Items.COPPER_INGOT, 26), false).isEmpty(),
+            h.assertTrue(solidInput.insertItem(0, new ItemStack(Items.COPPER_INGOT, 7), false).isEmpty(),
                     "Could not stock a separate solid batch that exceeds the remaining room");
         });
         h.runAfterDelay(16, () -> h.assertTrue(input.getFluidInTank(0).getAmount() == 1000
-                && core.survivalTokenBalance() == Long.MAX_VALUE && solidInput.getStackInSlot(0).getCount() == 26,
+                && core.survivalTokenBalance() == Long.MAX_VALUE && solidInput.getStackInSlot(0).getCount() == 7,
                 "An unaffordable solid batch blocked liquid or consumed solid fuel"));
         h.runAfterDelay(24, () -> {
             h.assertTrue(input.getFluidInTank(0).getAmount() == 1000 && core.survivalTokenBalance() == Long.MAX_VALUE,
@@ -241,16 +241,16 @@ public final class SurvivalLiquidFuelGameTests {
 
         h.assertTrue(input.fill(new FluidStack(Fluids.LAVA, 97), EXECUTE) == 97, "Could not input a partial bucket");
         menu.broadcastChanges();
-        h.assertTrue(menu.snapshot().getInt("TankAmount") == 97 && menu.snapshot().getLong("Value") == 24
+        h.assertTrue(menu.snapshot().getInt("TankAmount") == 97 && menu.snapshot().getLong("Value") == 5
                 && menu.clickMenuButton(player, SurvivalTopUpMenu.CONFIRM) && core.survivalTokenBalance() == 0,
                 "The first confirmation did not quote 97 mB of lava without spending it");
         h.assertTrue(input.fill(new FluidStack(Fluids.LAVA, 1), EXECUTE) == 1, "Could not change the quoted tank");
         h.assertTrue(menu.clickMenuButton(player, SurvivalTopUpMenu.CONFIRM) && core.survivalTokenBalance() == 0,
                 "Confirmation spent fluid that was added after the first click");
-        h.assertTrue(menu.clickMenuButton(player, SurvivalTopUpMenu.CONFIRM) && core.survivalTokenBalance() == 24
-                && input.getFluidInTank(0).getAmount() == 2, "Settlement did not conserve exact partial-bucket fuel");
+        h.assertTrue(menu.clickMenuButton(player, SurvivalTopUpMenu.CONFIRM) && core.survivalTokenBalance() == 5
+                && input.getFluidInTank(0).getAmount() == 14, "Settlement did not conserve exact partial-bucket fuel");
         h.assertTrue(!menu.clickMenuButton(player, SurvivalTopUpMenu.DRAIN_TANK) && menu.getCarried().is(Items.BUCKET)
-                && input.getFluidInTank(0).getAmount() == 2, "A partial bucket was lost on a failed withdrawal");
+                && input.getFluidInTank(0).getAmount() == 14, "A partial bucket was lost on a failed withdrawal");
         h.succeed();
     }
 

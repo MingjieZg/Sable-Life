@@ -10,13 +10,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class SurvivalFluidPricesTest {
     @Test
     void pricesTheDefaultLavaAtTheFortyBucketTankCapacity() {
-        assertEquals(List.of("minecraft:lava=250"), SableLifeServerConfig.DEFAULT_FLUID_VALUES);
-        assertEquals(new SurvivalFluidPrices.Quote(40_000, 10_000),
-                SurvivalFluidPrices.quote(40_000, 250, Long.MAX_VALUE));
-        assertEquals(new SurvivalFluidPrices.Quote(39_996, 9_999),
-                SurvivalFluidPrices.quote(40_000, 250, 9_999));
-        assertEquals(new SurvivalFluidPrices.Quote(4, 1),
-                SurvivalFluidPrices.quote(7, 250, Long.MAX_VALUE));
+        assertEquals(List.of("minecraft:lava=60"), SableLifeServerConfig.DEFAULT_FLUID_VALUES);
+        assertEquals(new SurvivalFluidPrices.Quote(40_000, 2_400),
+                SurvivalFluidPrices.quote(40_000, 60, Long.MAX_VALUE));
+        assertEquals(new SurvivalFluidPrices.Quote(39_984, 2_399),
+                SurvivalFluidPrices.quote(40_000, 60, 2_399));
+        assertEquals(new SurvivalFluidPrices.Quote(17, 1),
+                SurvivalFluidPrices.quote(33, 60, Long.MAX_VALUE));
     }
 
     @Test
@@ -47,7 +47,7 @@ class SurvivalFluidPricesTest {
 
     @Test
     void agreesWithEveryRepresentableAmountForWholeAndFractionalRates() {
-        for (int price : new int[]{1, 25, 250, 333, 999, 1000, 1001, 1499, 2500, 1_000_000}) {
+        for (int price : new int[]{1, 25, 60, 250, 333, 999, 1000, 1001, 1499, 2500, 1_000_000}) {
             for (int available = 0; available <= 33; available++) {
                 for (long room : new long[]{0, 1, 2, 3, 11, 25, 50, 999, 1000, 1001, 9999, Long.MAX_VALUE}) {
                     int bestAmount = 0;
