@@ -630,19 +630,14 @@ public final class MarkingSessions {
                 }
                 MarkOutline.send(player, kinds[d], colors[d], edges);
             }
-            for (int plane = 0; plane < 3; plane++) for (int i = 0; i < 48; i++) {
-                double a = Math.PI * 2 * i / 48, x = Math.cos(a) * module.value("radius"), y = Math.sin(a) * module.value("radius");
-                particle(level, player, center.add(switch (plane) { case 0 -> new Vec3(x, y, 0); case 1 -> new Vec3(x, 0, y); default -> new Vec3(0, x, y); }));
-            }
+            previewSphere(level, player, center, module.value("radius"));
+            previewSphere(level, player, center, module.value("innerRadius"));
             player.displayClientMessage(Component.translatable("dashboard.sablelife.navigation_preview_help"), true);
         } else if (module.type().equals("sensor")) {
             var center = ModuleCombat.origin(heart, module, false); double radius = module.value("radius");
             if (module.value("shape") == 0) {
-                for (double r : new double[] {radius, module.value("innerRadius")}) if (r > 0)
-                    for (int plane = 0; plane < 3; plane++) for (int i = 0; i < 48; i++) {
-                        double angle = Math.PI * 2 * i / 48, a = Math.cos(angle) * r, b = Math.sin(angle) * r;
-                        particle(level, player, center.add(switch (plane) { case 0 -> new Vec3(a, b, 0); case 1 -> new Vec3(a, 0, b); default -> new Vec3(0, a, b); }));
-                    }
+                previewSphere(level, player, center, radius);
+                previewSphere(level, player, center, module.value("innerRadius"));
             } else {
                 var forward = ModuleCombat.direction(heart, module);
                 var side = forward.cross(Math.abs(forward.y) > .9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize();
@@ -712,6 +707,24 @@ public final class MarkingSessions {
         for(int i=0;i<=count;i++){var p=from.lerp(to,i/(double)count);level.sendParticles(player,cyan,true,p.x,p.y,p.z,1,0,0,0,0);}
         level.sendParticles(player,new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1,.85F,0),1.3F),true,to.x,to.y,to.z,1,0,0,0,0);
     }
+
+    private static void previewSphere(ServerLevel level, ServerPlayer player, Vec3 center, double radius) {
+        if (!(radius > 0)) return;
+        for (int plane = 0; plane < 3; plane++) {
+            for (int i = 0; i < 48; i++) {
+                double angle = Math.PI * 2 * i / 48;
+                double a = Math.cos(angle) * radius;
+                double b = Math.sin(angle) * radius;
+                var offset = switch (plane) {
+                    case 0 -> new Vec3(a, b, 0);
+                    case 1 -> new Vec3(a, 0, b);
+                    default -> new Vec3(0, a, b);
+                };
+                particle(level, player, center.add(offset));
+            }
+        }
+    }
+
     private static void particle(ServerLevel level, ServerPlayer player, Vec3 point) {
         level.sendParticles(player, ParticleTypes.ELECTRIC_SPARK, true, point.x, point.y, point.z, 1, 0, 0, 0, 0);
     }

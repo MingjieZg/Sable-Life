@@ -500,7 +500,8 @@ public final class VirtualModule {
                     if (key.equals("innerRadius")) next = Math.min(next, value("radius") - 1);
                     settings.putDouble(key, next);
                     if (key.equals("particlePattern")) { invalidated = false; detached = false; }
-                    if (key.equals("radius") && type.equals("sensor")) settings.putDouble("innerRadius", Math.min(value("innerRadius"), next - 1));
+                    if (key.equals("radius") && (type.equals("sensor") || type.equals("navigation")))
+                        settings.putDouble("innerRadius", Math.min(value("innerRadius"), next - 1));
                     if (key.equals("ambientMin")) settings.putDouble("ambientMax", Math.max(value("ambientMax"), next));
                     if (key.equals("ambientMax")) settings.putDouble("ambientMin", Math.min(value("ambientMin"), next));
                 }

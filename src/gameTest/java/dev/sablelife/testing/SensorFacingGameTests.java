@@ -13,9 +13,12 @@ import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -288,6 +291,188 @@ public final class SensorFacingGameTests {
             h.assertTrue(heart.modules().events().sensorAim(heart, sensor.id()) == null, "Sensor saw a fully covered player");
             h.succeed();
         } finally { player.discard(); }
+    }
+
+    @GameTest(template = "combat", batch = "alignment_inner_radius_settings")
+    public static void AlignmentInnerRadiusDefaultsRoundsAndPersists(GameTestHelper h) {
+        var alignment = new VirtualModule("navigation");
+        alignment.edit("radius", 12, "");
+        var oldTag = alignment.save();
+        oldTag.getCompound("Settings").remove("innerRadius");
+        alignment = VirtualModule.load(oldTag);
+        h.assertTrue(alignment.value("innerRadius") == 0 && alignment.value("radius") == 12,
+                "Legacy Target Alignment did not keep its original search radius with an empty exclusion zone");
+        h.assertTrue(alignment.edit("innerRadius", 2.6, "") && alignment.value("innerRadius") == 3,
+                "Target Alignment did not accept the new field in whole blocks");
+        alignment.edit("innerRadius", -1, "");
+        h.assertTrue(alignment.value("innerRadius") == 0, "The exclusion zone accepted a negative radius");
+        alignment.edit("radius", 64, "");
+        alignment.edit("innerRadius", 50, "");
+        h.assertTrue(alignment.value("innerRadius") == 31, "The exclusion radius exceeded its upper limit");
+        alignment.edit("radius", 5, "");
+        h.assertTrue(alignment.value("innerRadius") == 4, "Reducing the outer radius did not clamp the inner radius");
+        alignment.edit("innerRadius", 31, "");
+        alignment = VirtualModule.load(alignment.save());
+        h.assertTrue(alignment.value("innerRadius") == 4 && alignment.value("radius") == 5,
+                "Saved Target Alignment lost its clamped detection ring");
+        h.succeed();
+    }
+
+    @GameTest(template = "combat", batch = "alignment_inner_radius_edges")
+    public static void AlignmentIncludesBothRadiusEdgesAndRejectsTheHole(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var alignment = alignment(heart, 0);
+        var mark = alignment.anchors().getFirst();
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        h.assertTrue(HeartModules.triggered(alignment, heart), "Fixture alignment was not powered");
+        var center = mark.world(heart, false);
+        var inside = namedCow(h, "Inside hole", center.add(0, 0, 1.25));
+        var target = namedCow(h, "On radial edge", center.add(0, 0, 3));
+        var outside = namedCow(h, "Beyond exterior edge", center.add(0, 0, 9));
+        try {
+            var events = heart.modules().events();
+            var navigation = events.navigation();
+            double innerDistance = SableBodyProbe.toWorld(h.getLevel(), target.getBoundingBox().getCenter())
+                    .distanceToSqr(mark.world(heart, false));
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).equals(target.getName().getString()),
+                    "Alignment missed the inclusive inner boundary: selected=" + navigation.name(alignment.id())
+                            + ", boundaryDistanceSquared=" + innerDistance + ", innerRadius=" + alignment.value("innerRadius"));
+            h.assertTrue(navigation.left(alignment.id()) + navigation.right(alignment.id()) > 0,
+                    "Inner boundary target published no turn: left=" + navigation.left(alignment.id())
+                            + ", right=" + navigation.right(alignment.id()) + ", boundaryDistanceSquared=" + innerDistance);
+            placeAtCenter(target, mark.world(heart, false).add(0, 0, 8));
+            var nearest = alignment(heart, 1);
+            events.tick(heart);
+            double outerDistance = SableBodyProbe.toWorld(h.getLevel(), target.getBoundingBox().getCenter())
+                    .distanceToSqr(mark.world(heart, false));
+            h.assertTrue(navigation.name(alignment.id()).equals(target.getName().getString())
+                            && navigation.name(nearest.id()).equals(target.getName().getString()),
+                    "Alignment missed the inclusive outer boundary: locked=" + navigation.name(alignment.id())
+                            + ", nearest=" + navigation.name(nearest.id()) + ", boundaryDistanceSquared=" + outerDistance);
+            placeAtCenter(target, mark.world(heart, false).add(0, 0, 8.25));
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).isEmpty()
+                            && navigation.left(alignment.id()) == 0 && navigation.right(alignment.id()) == 0
+                            && navigation.name(nearest.id()).isEmpty(),
+                    "Alignment retained a target or turn beyond the outer boundary");
+            h.succeed();
+        } finally {
+            inside.discard();
+            target.discard();
+            outside.discard();
+        }
+    }
+
+    @GameTest(template = "combat", batch = "alignment_inner_radius_lock", timeoutTicks = 24)
+    public static void NearestSwitchesButLockSurvivesUntilItsTargetEntersTheHole(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var locked = alignment(heart, 0);
+        var nearest = alignment(heart, 1);
+        var mark = locked.anchors().getFirst();
+        var center = mark.world(heart, false);
+        var first = namedCow(h, "Original lock", center.add(0, 0, 5));
+        var next = namedCow(h, "Closer in ring", center.add(0, 0, -6));
+        var events = heart.modules().events();
+        var navigation = events.navigation();
+        try {
+            heart.tryActivate(TestActors.creative(h.getLevel()));
+            events.tick(heart);
+            h.assertTrue(navigation.name(locked.id()).equals(first.getName().getString())
+                            && navigation.name(nearest.id()).equals(first.getName().getString()),
+                    "Both selections must begin with the same closest target in the ring");
+            placeAtCenter(next, center.add(0, 0, -3.5));
+            h.runAfterDelay(7, () -> {
+                try {
+                    events.tick(heart);
+                    h.assertTrue(navigation.name(locked.id()).equals(first.getName().getString())
+                                    && navigation.name(nearest.id()).equals(next.getName().getString()),
+                            "Nearest did not reselect, or Locked abandoned an eligible target");
+                    placeAtCenter(first, mark.world(heart, false).add(0, 0, 1.25));
+                    events.tick(heart);
+                    h.assertTrue(navigation.name(locked.id()).equals(next.getName().getString())
+                                    && navigation.left(locked.id()) > 0 && navigation.right(locked.id()) == 0,
+                            "Entering the inner radius did not revoke the lock and switch the turn output");
+                    h.succeed();
+                } finally {
+                    first.discard();
+                    next.discard();
+                }
+            });
+        } catch (RuntimeException | AssertionError failure) {
+            first.discard();
+            next.discard();
+            throw failure;
+        }
+    }
+
+    @GameTest(template = "combat", batch = "alignment_inner_radius_sources")
+    public static void AlignmentRejectsSensorInsideTheHoleButKeepsWandOverride(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var sensor = sensor(heart, Direction.EAST);
+        sensor.edit("shape", 0, "");
+        sensor.edit("lineOfSight", 1, "");
+        var alignment = alignment(heart, 0);
+        alignment.edit("facingSource", 1, "");
+        alignment.facingSensor(sensor.id());
+        var center = alignment.anchors().getFirst().world(heart, false);
+        var inside = namedCow(h, "Sensor lock", center.add(0, 0, 2));
+        var other = namedCow(h, "Independent candidate", center.add(0, 0, 6));
+        try {
+            heart.tryActivate(TestActors.creative(h.getLevel()));
+            var events = heart.modules().events();
+            var navigation = events.navigation();
+            var source = events.sensorAim(heart, sensor.id());
+            h.assertTrue(source != null && source.id().equals(inside.getUUID()), "Sensor did not select the closer target");
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).isEmpty(),
+                    "Sensor-linked alignment passed the inner limit or fell back to an independent target");
+            placeAtCenter(inside, center.add(0, 0, 4));
+            heart.modules().changed();
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).equals(inside.getName().getString()),
+                    "Sensor-linked alignment did not reacquire when the source entered the detection ring");
+            placeAtCenter(inside, center.add(0, 0, 2));
+            heart.modules().commandTarget().entity(inside, h.getLevel().getGameTime() + 20, CommandTarget.TARGET_ALIGNMENT);
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).equals(inside.getName().getString()),
+                    "The local exclusion radius suppressed the explicit Command Wand order");
+            heart.modules().commandTarget().clear();
+            heart.modules().changed();
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).isEmpty(), "Ending the wand order left the hole target selected");
+            h.succeed();
+        } finally {
+            inside.discard();
+            other.discard();
+            heart.modules().commandTarget().clear();
+        }
+    }
+
+    private static VirtualModule alignment(HeartBlockEntity heart, int lockMode) {
+        var module = heart.modules().add("navigation");
+        module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos(), Direction.EAST)));
+        module.edit("trigger", 0, "");
+        module.edit("target", 1, "");
+        module.edit("lineOfSight", 1, "");
+        module.edit("radius", 8, "");
+        module.edit("innerRadius", 3, "");
+        module.edit("targetLock", lockMode, "");
+        return module;
+    }
+
+    private static Cow namedCow(GameTestHelper h, String name, Vec3 center) {
+        var cow = EntityType.COW.create(h.getLevel());
+        cow.setCustomName(Component.literal(name));
+        cow.setNoAi(true);
+        cow.setNoGravity(true);
+        placeAtCenter(cow, center);
+        h.getLevel().addFreshEntity(cow);
+        return cow;
+    }
+
+    private static void placeAtCenter(Cow cow, Vec3 center) {
+        cow.setPos(center.add(0, -cow.getBbHeight() / 2, 0));
     }
 
     private static HeartBlockEntity fixture(GameTestHelper h, Block block) {

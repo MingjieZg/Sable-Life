@@ -130,7 +130,7 @@ public final class ModuleFields {
             case "sound" -> List.of("approach", "hurt", "radius", "volume", "pitch", "cooldown", "ambient", "ambientMin", "ambientMax");
             case "trigger_sound" -> List.of("triggerSound", "soundMode", "volume", "pitch", "cooldown", "interval", "contactMode", "contactSound", "contactDirection", "contactDistance", "contactCooldown");
             case "bgm" -> List.of("bgm", "bgmStart", "bgmRadius", "bgmVolume", "bgmFade");
-            case "navigation" -> List.of("facingSource","facingSensor","target", "radius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert", "navigationLeftChannel", "navigationRightChannel", "navigationUpChannel", "navigationDownChannel", "navigationForwardChannel", "navigationBackwardChannel");
+            case "navigation" -> List.of("facingSource","facingSensor","target", "radius", "innerRadius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert", "navigationLeftChannel", "navigationRightChannel", "navigationUpChannel", "navigationDownChannel", "navigationForwardChannel", "navigationBackwardChannel");
             case "loot" -> List.of("weighted", "rolls");
             default -> List.of();
         };
@@ -307,7 +307,7 @@ public final class ModuleFields {
                 n("volume", 0, 4, 1), n("pitch", .5, 2, 1), t("cooldown", 0, 12000, 20), t("interval", 1, 12000, 60), c("contactMode", "off", "on"), c("contactSound", "library"),
                 c("contactDirection", "down", "up", "north", "south", "west", "east"), n("contactDistance", .05, 4, .25), t("contactCooldown", 1, 200, 6));
         case "bgm" -> List.of(c("bgm", "library"), c("bgmStart", "after_hit", "on_approach"), n("bgmRadius", 1, 256, 64), t("bgmFade", 0, 400, 60), n("bgmVolume", 0, 1, 1));
-        case "navigation" -> List.of(c("facingSource","facing_self","facing_sensor"),c("facingSensor","select_sensor"),ownerTarget(0), n("radius", 1, 256, 32), c("lineOfSight", "on", "off"),
+        case "navigation" -> List.of(c("facingSource","facing_self","facing_sensor"),c("facingSensor","select_sensor"),ownerTarget(0), n("radius", 1, 256, 32), n("innerRadius", 0, 31, 0), c("lineOfSight", "on", "off"),
                 new Field("verticalTracking", 0, 1, 1, 1, List.of("off", "on")), c("targetLock", "locked", "nearest"), n("deadZone", 0, 45, 3), n("pitchDeadZone", 0, 45, 3),
                 c("navigationFront", "marked", "north", "south", "west", "east"), c("navigationInvert", "off", "on"), n("navigationLeftChannel",0,65535,0), n("navigationRightChannel",0,65535,0), n("navigationUpChannel",0,65535,0), n("navigationDownChannel",0,65535,0), n("navigationForwardChannel",0,65535,0), n("navigationBackwardChannel",0,65535,0));
         case "loot" -> List.of(c("weighted", "chance", "weighted"), n("rolls", 1, 27, 1));

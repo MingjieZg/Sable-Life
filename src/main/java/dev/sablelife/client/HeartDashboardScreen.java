@@ -411,6 +411,10 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
     private static boolean releaseRampLocksBuffer(VirtualModule module, String key) {
         return key.equals("redstoneBufferTime") && module != null && ModuleRedstone.releaseRampEnabled(module);
     }
+    private static double displayedMaximum(VirtualModule module, ModuleFields.Field field) {
+        double maximum = field.max() / field.scale();
+        return field.key().equals("innerRadius") ? Math.min(maximum, Math.max(0, module.value("radius") - 1)) : maximum;
+    }
     private void apply(int index) {
         if (parameterPage * parameterSlots + index >= parameters.size()) return;
         var field = parameters.get(parameterPage * parameterSlots + index);
@@ -1056,7 +1060,8 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
             double step = NumericWheelSteps.module(selected().type(),field.key(),field.scale(),field.min());
             boolean aimOffset=selected().type().equals("auto_facing")&&ModuleFields.facingOffset(field.key());
             double precision=aimOffset?1_000_000:100;
-            double next = Math.clamp(Math.round((value + Math.signum(vertical) * step) * precision) / precision, field.min() / field.scale(), field.max() / field.scale());
+            double next = Math.clamp(Math.round((value + Math.signum(vertical) * step) * precision) / precision,
+                    field.min() / field.scale(), displayedMaximum(selected(), field));
             box.setValue(aimOffset?java.math.BigDecimal.valueOf(next).stripTrailingZeros().toPlainString():String.format(Locale.ROOT, "%.2f", next)); apply(i); box.setFocused(true); return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
@@ -1163,7 +1168,7 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 g.pose().popPose();
             }
             if (!field.choice() && !key.equals("phaseChannel")&&!key.equals("redstoneRampStart") && !ModuleFields.arenaText(key)) {
-                double maximum = field.max() / field.scale();
+                double maximum = displayedMaximum(m, field);
                 String hint = field.min() < 0 ? ((int) (field.min() / field.scale())) + "…" + (int) maximum : "≤" + (maximum == Math.rint(maximum) ? Integer.toString((int) maximum) : Double.toString(maximum));
                 float hintScale = Math.min(textScale(), 26f / Math.max(1, font.width(hint)));
                 g.pose().pushPose(); g.pose().translate(applyX - 28, 66 + i * rowPitch, 0); g.pose().scale(hintScale, hintScale, 1);

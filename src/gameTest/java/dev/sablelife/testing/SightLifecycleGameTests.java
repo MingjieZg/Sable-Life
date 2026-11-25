@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Blocks;
@@ -245,6 +246,87 @@ public final class SightLifecycleGameTests {
             helper.assertTrue(!movement.aligned(heart) && !movement.facing(heart), "A movement module extended the source's retention time");
             scene.finish(helper);
         });
+    }
+
+    @GameTest(template = "combat", batch = "alignment_inner_radius_legacy_move", timeoutTicks = 35)
+    public static void LegacyMoveAlignmentRejectsItsInheritedTargetInsideTheHole(GameTestHelper helper) {
+        moveAlignmentInnerRadius(helper, false);
+    }
+
+    @GameTest(template = "combat", batch = "alignment_inner_radius_observed_move", timeoutTicks = 35)
+    public static void ObservedMoveAlignmentRejectsItsInheritedTargetInsideTheHole(GameTestHelper helper) {
+        moveAlignmentInnerRadius(helper, true);
+    }
+
+    private static void moveAlignmentInnerRadius(GameTestHelper helper, boolean observed) {
+        var scene = setup(helper);
+        var heart = scene.heart();
+        var alignment = heart.modules().add("navigation");
+        var mark = ModuleAnchor.create(heart, heart.getBlockPos(), Direction.EAST);
+        alignment.anchors(List.of(mark));
+        alignment.edit("target", 1, "");
+        alignment.edit("lineOfSight", 1, "");
+        alignment.edit("radius", 9, "");
+        alignment.edit("innerRadius", 4, "");
+        editMove(helper, scene, "action_delete", 0, "0|0");
+        addAction(helper, heart, scene.table(), alignment);
+        editMove(helper, scene, "dispatchNear", 0, "0");
+        editMove(helper, scene, "dispatchBusy", 30, "0");
+        editMove(helper, scene, "action_duration", 1, "0|0");
+        if (observed) {
+            editMove(helper, scene, "lineOfSight", 1, "0");
+            editMove(helper, scene, "sightMemory", 24, "0");
+        }
+        var fallback = EntityType.COW.create(helper.getLevel());
+        fallback.setNoAi(true);
+        fallback.setNoGravity(true);
+        fallback.setCustomName(Component.literal("Independent ring candidate"));
+        fallback.setPos(mark.world(heart, false).add(-6, -fallback.getBbHeight() / 2, 0));
+        helper.getLevel().addFreshEntity(fallback);
+        Runnable cleanup = () -> {
+            alignment.edit("enabled", 0, "");
+            scene.gun().edit("enabled", 0, "");
+            scene.target().discard();
+            fallback.discard();
+        };
+        var runtime = heart.modules().events().navigation();
+        checkAlignmentMove(cleanup, () -> {
+            scene.activate(helper);
+            helper.assertTrue(HeartModules.triggered(alignment, heart)
+                            && scene.target().getUUID().equals(heart.modules().moveTarget(alignment.id()))
+                            && ((heart.modules().moveAction(alignment.id()) != null) == observed)
+                            && runtime.name(alignment.id()).equals(scene.target().getName().getString()),
+                    "Move Set did not start with the expected inherited target and observation path");
+            scene.target().setPos(mark.world(heart, false).add(2, -scene.target().getBbHeight() / 2, 0));
+        });
+        helper.runAfterDelay(2, () -> checkAlignmentMove(cleanup, () -> {
+            var aim = heart.modules().moveAim(alignment.id());
+            helper.assertTrue(aim != null && aim.visible() && aim.id().equals(scene.target().getUUID())
+                            && aim.point().distanceToSqr(mark.world(heart, false)) < 16,
+                    "Move Set stopped supplying the intended visible target before alignment checked the hole");
+            helper.assertTrue(runtime.name(alignment.id()).isEmpty()
+                            && runtime.left(alignment.id()) == 0 && runtime.right(alignment.id()) == 0,
+                    "Alignment tracked its inherited target in the hole or switched to its independent candidate");
+            scene.target().setPos(mark.world(heart, false).add(6, -scene.target().getBbHeight() / 2, 0));
+        }));
+        helper.runAfterDelay(5, () -> {
+            try {
+                helper.assertTrue(runtime.name(alignment.id()).equals(scene.target().getName().getString()),
+                        "Alignment did not resume the same inherited target after it returned to the ring");
+                helper.succeed();
+            } finally {
+                cleanup.run();
+            }
+        });
+    }
+
+    private static void checkAlignmentMove(Runnable cleanup, Runnable check) {
+        try {
+            check.run();
+        } catch (RuntimeException | AssertionError failure) {
+            cleanup.run();
+            throw failure;
+        }
     }
 
     private static void link(VirtualModule table, VirtualModule sensor) {

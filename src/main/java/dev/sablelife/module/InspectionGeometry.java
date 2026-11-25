@@ -134,6 +134,7 @@ final class InspectionGeometry {
                 for (var direction : List.of(front, front.getClockWise(), front.getCounterClockWise(), front.getOpposite(), Direction.UP, Direction.DOWN))
                     arrow(out, mark, Vec3.ZERO, Vec3.atLowerCornerOf(direction.getNormal()), direction == front ? 3 : 2.4);
                 sphere(out, mark, Vec3.ZERO, module.value("radius"));
+                sphere(out, mark, Vec3.ZERO, module.value("innerRadius"));
             }
             case "gyroscope" -> {
                 var down = UP.scale(-1);

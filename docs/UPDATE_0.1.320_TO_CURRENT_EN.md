@@ -9,6 +9,10 @@
 - Set the Energy value per 1,000 mB in `survivalTokens.fluidDepositValues` using fluid IDs or tags prefixed with `#`. The default `minecraft:lava=250` gives 250 Energy per bucket of lava. Manual Refuel quotes the amount that can be converted, including partial buckets, and settles it with the existing two-click confirmation.
 - Auto Refuel can convert one full 1,000 mB portion of priced fluid at each eight-tick interval and also processes solid fuels. It leaves amounts below 1,000 mB and unpriced fluids in the tank. Entry 136.
 
+### Target Alignment detection inner radius
+
+- Set Detection inner radius from 0 to 31 blocks, below Radius. It defaults to 0, so there is no minimum distance. Target Alignment measures from the marked block and excludes targets closer than the inner radius from its own search, a linked Target Sensor, and Move Set. Preview shows the outer sphere and adds an inner sphere when the setting is above 0. Explicit Command Wand targets and destinations still bypass the distance limits and follow the module's trigger and line-of-sight settings. Entry 137, manual revision 265.
+
 ## 0.1.458
 
 - **Blueprint factions on first placement**. The pending entry shows the source faction's name. When there is no usable local faction, the setup opens on the Create tab with the source settings filled in. Players can confirm creation and binding or skip the faction. Manual revision 264.

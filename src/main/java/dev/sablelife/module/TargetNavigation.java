@@ -77,7 +77,9 @@ public final class TargetNavigation {
             return SensorGeometry.commandVisible(level, heart, start, aim.point(), order.lifeId()) ? aim : null;
         }
         double range = module.value("radius");
+        double inner = module.value("innerRadius");
         double rangeSquared = range * range;
+        double innerSquared = inner * inner;
         if (module.value("facingSource") == 1) {
             state.target = null;
             state.memory.clear();
@@ -89,7 +91,7 @@ public final class TargetNavigation {
                 return null;
             }
             var point = state.sourceLink.follow(module.facingSensorId(), source, sight,
-                    candidate -> candidate.distanceToSqr(center) <= rangeSquared,
+                    candidate -> withinRange(candidate.distanceToSqr(center), innerSquared, rangeSquared),
                     ignored -> sees(level, heart, module, center, orientation, target));
             return point == null ? null : new CommandTarget.Aim(point, target.getName().getString());
         }
@@ -105,12 +107,13 @@ public final class TargetNavigation {
             var action = heart.modules().moveAction(module.id());
             if (action != null) {
                 var point = state.sourceLink.follow(action.table(), inherited, sight,
-                        candidate -> candidate.distanceToSqr(center) <= rangeSquared,
+                        candidate -> withinRange(candidate.distanceToSqr(center), innerSquared, rangeSquared),
                         ignored -> sees(level, heart, module, center, orientation, target));
                 return point == null ? null : new CommandTarget.Aim(point, target.getName().getString());
             }
             state.sourceLink.clear();
-            if (inherited.point().distanceToSqr(center) > rangeSquared || !sees(level, heart, module, center, orientation, target)) return null;
+            if (!withinRange(inherited.point().distanceToSqr(center), innerSquared, rangeSquared)
+                    || !sees(level, heart, module, center, orientation, target)) return null;
             return new CommandTarget.Aim(inherited.point(), target.getName().getString());
         }
         state.sourceLink.clear();
@@ -121,8 +124,8 @@ public final class TargetNavigation {
         Vec3 targetPoint = null;
         if (eligible(module, target) && !(state.memory.obscured() && last == null)) {
             var point = SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter());
-            boolean withinCurrent = point.distanceToSqr(center) <= rangeSquared;
-            boolean withinLast = last != null && last.point().distanceToSqr(center) <= rangeSquared;
+            boolean withinCurrent = withinRange(point.distanceToSqr(center), innerSquared, rangeSquared);
+            boolean withinLast = last != null && withinRange(last.point().distanceToSqr(center), innerSquared, rangeSquared);
             if (withinCurrent || withinLast) {
                 if (SightMemory.canRecheck(center, point) && sees(level, heart, module, center, orientation, target)) {
                     if (withinCurrent) targetPoint = point;
@@ -139,7 +142,7 @@ public final class TargetNavigation {
         }
         if (now >= state.nextSearch && (state.target == null || module.value("targetLock") != 0)) {
             state.nextSearch = now + 5;
-            var selected = select(level, heart, module, center, orientation, range);
+            var selected = select(level, heart, module, center, orientation, range, innerSquared, rangeSquared);
             target = selected == null ? null : selected.entity();
             targetPoint = selected == null ? null : selected.point();
             state.target = target == null ? null : target.getUUID();
@@ -149,10 +152,14 @@ public final class TargetNavigation {
         return new CommandTarget.Aim(targetPoint, target.getName().getString());
     }
 
+    private static boolean withinRange(double distanceSquared, double innerSquared, double rangeSquared) {
+        return distanceSquared >= innerSquared && distanceSquared <= rangeSquared;
+    }
+
     private record Candidate(LivingEntity entity, Vec3 point) {}
 
     private Candidate select(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center,
-                             Quaterniond orientation, double range) {
+                             Quaterniond orientation, double range, double innerSquared, double rangeSquared) {
         var bounds = new AABB(center, center).inflate(range + 2);
         Candidate best = null;
         int bestRank = Integer.MAX_VALUE;
@@ -160,7 +167,7 @@ public final class TargetNavigation {
         for (var entity : ModuleTargets.queryForModule(level, heart, module, bounds, e -> eligible(module, e))) {
             var point = SableBodyProbe.toWorld(level, entity.getBoundingBox().getCenter());
             double distance = point.distanceToSqr(center);
-            if (distance > range * range) continue;
+            if (!withinRange(distance, innerSquared, rangeSquared)) continue;
             int rank = ModuleTargets.rank(heart, entity);
             if (best != null && (rank > bestRank || rank == bestRank && (distance > bestDistance
                     || distance == bestDistance && entity.getUUID().compareTo(best.entity().getUUID()) >= 0))) continue;
