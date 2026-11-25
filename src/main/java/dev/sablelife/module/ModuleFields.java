@@ -126,11 +126,11 @@ public final class ModuleFields {
             case "health_bar" -> List.of("healthBarStyle","healthBarWidth","healthBarHeight","startDistance","healthBarName","healthBarNameSize","healthBarNameGap","healthBarViewDistance","healthBarVisibility","healthBarHideDelay");
         case "item_display" -> List.of("displayItem","displaySize","displayX","displayY","displayZ","displayRotX","displayRotY","displayRotZ","displayAlways");
             case "particles" -> List.of("particlePattern", "particles", "particleExpandLength", "particleExpandWidth", "particleExpandHeight", "startDistance", "direction", "particleRadius", "particleRingHeight", "particleLength", "particleDistribution", "particleFill", "particleLineMode", "particlePropagation", "particleSpeed", "interval", "density", "trail", "motionOnly", "drift");
-            case "sensor" -> List.of("target", "shape", "radius", "lineOfSight", "direction", "innerRadius", "frontWidth", "sensorChannel", "sensorPower", "sensorInvert", "redstoneFrequency");
+            case "sensor" -> List.of("target", "priorityOnly", "shape", "radius", "lineOfSight", "direction", "innerRadius", "frontWidth", "sensorChannel", "sensorPower", "sensorInvert", "redstoneFrequency");
             case "sound" -> List.of("approach", "hurt", "radius", "volume", "pitch", "cooldown", "ambient", "ambientMin", "ambientMax");
             case "trigger_sound" -> List.of("triggerSound", "soundMode", "volume", "pitch", "cooldown", "interval", "contactMode", "contactSound", "contactDirection", "contactDistance", "contactCooldown");
             case "bgm" -> List.of("bgm", "bgmStart", "bgmRadius", "bgmVolume", "bgmFade");
-            case "navigation" -> List.of("facingSource","facingSensor","target", "radius", "innerRadius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert", "navigationLeftChannel", "navigationRightChannel", "navigationUpChannel", "navigationDownChannel", "navigationForwardChannel", "navigationBackwardChannel");
+            case "navigation" -> List.of("facingSource","facingSensor","target", "priorityOnly", "radius", "innerRadius", "navigationFront", "verticalTracking", "deadZone", "pitchDeadZone", "targetLock", "lineOfSight", "navigationInvert", "navigationLeftChannel", "navigationRightChannel", "navigationUpChannel", "navigationDownChannel", "navigationForwardChannel", "navigationBackwardChannel");
             case "loot" -> List.of("weighted", "rolls");
             default -> List.of();
         };
@@ -301,14 +301,14 @@ public final class ModuleFields {
                 n("startDistance", 0, 128, 0), direction(), n("particleRadius", .05, 32, 3), n("particleRingHeight",0,128,0), n("particleLength", .1, 128, 8),
                 c("particleDistribution", "particle_random", "particle_even"), c("particleFill", "particle_inside", "particle_surface"),
                 c("particleLineMode", "particle_line_place", "particle_line_spray"), c("particlePropagation", "particle_default", "particle_outward", "particle_inward"), n("particleSpeed", .01, 4, .25), c("particles", "particles"), t("interval", 1, 200, 2), n("density", 1, 32, 4), new Field("trail", 0, 1, 1, 1, List.of("off", "on")), c("motionOnly", "off", "on"), n("drift", 0, .5, 0));
-        case "sensor" -> List.of(n("radius", 1, 256, 12), ownerTarget(0), c("lineOfSight", "on", "off"), c("shape", "ring", "front"), n("innerRadius", 0, 31, 0), n("frontWidth", .5, 16, 3), direction(),n("sensorChannel",0,65535,0),n("sensorPower",1,15,15),c("sensorInvert","off","on"),c("redstoneFrequency","frequency"));
+        case "sensor" -> List.of(n("radius", 1, 256, 12), ownerTarget(0), c("priorityOnly", "off", "on"), c("lineOfSight", "on", "off"), c("shape", "ring", "front"), n("innerRadius", 0, 31, 0), n("frontWidth", .5, 16, 3), direction(),n("sensorChannel",0,65535,0),n("sensorPower",1,15,15),c("sensorInvert","off","on"),c("redstoneFrequency","frequency"));
         case "sound" -> List.of(c("approach", "library"), c("hurt", "library"), n("radius", 1, 64, 16), n("volume", 0, 4, 1), n("pitch", .5, 2, 1), t("cooldown", 2, 1200, 20),
                 c("ambient", "library"), t("ambientMin", 20, 12000, 100), t("ambientMax", 20, 12000, 200));
         case "trigger_sound" -> List.of(c("triggerSound", "library"), c("soundMode", "signal_once", "signal_repeat"),
                 n("volume", 0, 4, 1), n("pitch", .5, 2, 1), t("cooldown", 0, 12000, 20), t("interval", 1, 12000, 60), c("contactMode", "off", "on"), c("contactSound", "library"),
                 c("contactDirection", "down", "up", "north", "south", "west", "east"), n("contactDistance", .05, 4, .25), t("contactCooldown", 1, 200, 6));
         case "bgm" -> List.of(c("bgm", "library"), c("bgmStart", "after_hit", "on_approach"), n("bgmRadius", 1, 256, 64), t("bgmFade", 0, 400, 60), n("bgmVolume", 0, 1, 1));
-        case "navigation" -> List.of(c("facingSource","facing_self","facing_sensor"),c("facingSensor","select_sensor"),ownerTarget(0), n("radius", 1, 256, 32), n("innerRadius", 0, 31, 0), c("lineOfSight", "on", "off"),
+        case "navigation" -> List.of(c("facingSource","facing_self","facing_sensor"),c("facingSensor","select_sensor"),ownerTarget(0), c("priorityOnly", "off", "on"), n("radius", 1, 256, 32), n("innerRadius", 0, 31, 0), c("lineOfSight", "on", "off"),
                 new Field("verticalTracking", 0, 1, 1, 1, List.of("off", "on")), c("targetLock", "locked", "nearest"), n("deadZone", 0, 45, 3), n("pitchDeadZone", 0, 45, 3),
                 c("navigationFront", "marked", "north", "south", "west", "east"), c("navigationInvert", "off", "on"), n("navigationLeftChannel",0,65535,0), n("navigationRightChannel",0,65535,0), n("navigationUpChannel",0,65535,0), n("navigationDownChannel",0,65535,0), n("navigationForwardChannel",0,65535,0), n("navigationBackwardChannel",0,65535,0));
         case "loot" -> List.of(c("weighted", "chance", "weighted"), n("rolls", 1, 27, 1));

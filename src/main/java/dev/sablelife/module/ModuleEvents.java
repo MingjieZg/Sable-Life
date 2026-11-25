@@ -277,7 +277,8 @@ public final class ModuleEvents {
         var selection = sensorSelections.get(id);
         if (selection != null && selection.tick() == now && selection.revision() == revision) {
             var target = selection.target();
-            if (target == null || eligibleSensorTarget(sensor, ModuleTargets.resolveForModule(level, target.id(), heart, sensor))) return target;
+            if (target == null || ModuleTargets.matchesTrackingTarget(heart, sensor,
+                    ModuleTargets.resolveForModule(level, target.id(), heart, sensor))) return target;
         }
         var center = sensor.anchors().getFirst().world(heart, false);
         var sees = sight(level, heart, sensor, center);
@@ -288,7 +289,7 @@ public final class ModuleEvents {
             var last = memory.aimAt(now);
             if (last != null) {
                 var old = ModuleTargets.resolveForModule(level, last.id(), heart, sensor);
-                if (eligibleSensorTarget(sensor, old)) {
+                if (ModuleTargets.matchesTrackingTarget(heart, sensor, old)) {
                     var point = targetCenter(level, old);
                     boolean withinCurrent = withinShape(heart, sensor, point.subtract(center));
                     boolean withinLast = withinShape(heart, sensor, last.point().subtract(center));
@@ -319,10 +320,6 @@ public final class ModuleEvents {
         return SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter());
     }
 
-    private static boolean eligibleSensorTarget(VirtualModule module, LivingEntity target) {
-        return target != null && !target.isRemoved() && ModuleTargets.matches(target, module);
-    }
-
     private static Predicate<LivingEntity> sight(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center) {
         if (!SightMemory.enabled(module)) return ignored -> true;
         var orientation = new org.joml.Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation());
@@ -332,11 +329,12 @@ public final class ModuleEvents {
 
     private static SightMemory.Target findSensorTarget(ServerLevel level, HeartBlockEntity heart, VirtualModule sensor,
                                                         Vec3 center, Predicate<LivingEntity> sees, boolean chooseBest) {
+        if (sensor.value("priorityOnly") == 1 && !heart.relations().hasPriorityMobs()) return null;
         var bounds = new AABB(center, center).inflate(sensor.value("radius") + 2);
         SightMemory.Target best = null;
         int bestRank = Integer.MAX_VALUE;
         double bestDistance = Double.POSITIVE_INFINITY;
-        for (var entity : ModuleTargets.queryForModule(level, heart, sensor, bounds, target -> eligibleSensorTarget(sensor, target))) {
+        for (var entity : ModuleTargets.queryForModule(level, heart, sensor, bounds, target -> ModuleTargets.matchesTrackingTarget(heart, sensor, target))) {
             var point = targetCenter(level, entity);
             var delta = point.subtract(center);
             if (!withinShape(heart, sensor, delta)) continue;

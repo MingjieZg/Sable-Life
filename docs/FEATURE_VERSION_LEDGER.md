@@ -17,7 +17,7 @@
 
 ## 已登记的功能点
 
-推进与运动阻尼登记为第 117、118 项，推进世界方向为第 119 项，观察工具的生存合成为第 120 项。0.1.452 包含第 128、129 项。0.1.456 合入第 130–133 项。0.1.457 登记蜂巢护盾为第 134 项。0.1.458 登记无线红石断电渐降为第 135 项。生存生命核心的液体燃料和目标对准的侦测内半径分别登记为第 136、137 项，待发布。 / Version 0.1.452 adds entries 128 and 129. Version 0.1.456 includes entries 130–133. Honeycomb Shield is entry 134 in 0.1.457. Wireless Redstone release ramp is entry 135 in 0.1.458. Survival Heart Core liquid fuel and the Target Alignment detection inner radius are unreleased as entries 136 and 137.
+推进与运动阻尼登记为第 117、118 项，推进世界方向为第 119 项，观察工具的生存合成为第 120 项。0.1.452 包含第 128、129 项。0.1.456 合入第 130–133 项。0.1.457 登记蜂巢护盾为第 134 项。0.1.458 登记无线红石断电渐降为第 135 项。生存生命核心的液体燃料、目标对准的侦测内半径和优先目标分别登记为第 136、137、138 项，待发布。 / Version 0.1.452 adds entries 128 and 129. Version 0.1.456 includes entries 130–133. Honeycomb Shield is entry 134 in 0.1.457. Wireless Redstone release ramp is entry 135 in 0.1.458. Survival Heart Core liquid fuel, the Target Alignment detection inner radius, and Priority Targets are unreleased as entries 136, 137, and 138.
 
 1. 核心玩家名字白名单，支持离线名字、忽略大小写及 All 目标。
 2. 每核心目标优先级排序。
@@ -244,3 +244,5 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 136. 待发布。生存生命核心新增 40,000 mB 单液体储槽，支持容器和兼容流体管道注入，可用空桶取液，清空需点击两次确认。服主可按流体 ID 或标签定价，熔岩默认每桶兑换 250 能量。手动兑换支持不足一桶的用量，自动补充能源每 8 tick 可兑换一整桶。 / The Survival Heart Core gains a 40,000 mB single-fluid tank with container and compatible pipe input, bucket withdrawal, and two-click dumping. Servers can price fluids by ID or tag, with lava defaulting to 250 Energy per bucket. Manual conversion accepts partial buckets, and Auto Refuel can convert one full bucket every eight ticks. Unreleased.
 
 137. 待发布。目标对准可按距标记方块的侦测内半径排除过近的目标，适用于自行索敌、关联的目标感应和自定义动作抽选提供的目标。默认 0，预览显示两个生效的半径，指挥棒明确指定的目标或目的地仍可跳过距离限制。手册修订 265。 / Target Alignment gains a detection inner radius measured from the marked block. It applies to its own search, a linked Target Sensor, and Move Set targets. It defaults to zero, preview shows the active radii, and explicit Command Wand targets and destinations still bypass the distance limits. Unreleased, manual revision 265.
+
+138. 待发布。核心可按生物类型或整个模组设置优先目标。通过白名单和阵营规则等筛选后，自动索敌优先选取符合条件的名单目标，已有的有效锁定会保留。目标感应和目标对准可选择仅锁定名单内的目标。 / The core’s Priority Targets list accepts individual mob types or all mobs from a mod. Eligible listed mobs come first during automatic acquisition after whitelist and faction checks. Existing valid locks stay in place. Target Sensor and Target Alignment can filter to the list. Unreleased.

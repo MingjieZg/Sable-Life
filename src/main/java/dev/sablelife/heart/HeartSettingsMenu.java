@@ -232,6 +232,8 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
             case "removeName"->result=heart.relations().remove(text);
             case "excludeMob"->{result=heart.relations().excludeMob(text);relationStatus=result?"mob_added":"invalid_mob";}
             case "removeMob"->result=heart.relations().removeMob(text);
+            case "prioritizeMob"->{result=heart.relations().prioritizeMob(text);relationStatus=result?"priority_added":"invalid_mob";}
+            case "removePriorityMob"->result=heart.relations().removePriorityMob(text);
             case "create"->{relationStatus=registry.creationError(sp,text);if(relationStatus.isEmpty()){var id=registry.create(sp,text);if(id!=null){heart.relations().faction(id);result=true;}relationStatus=result?"updated":"denied";}}
             case "join"->{var id=java.util.UUID.fromString(text);if(registry.joinPlayer(sp,id)){heart.relations().faction(id);result=true;}}
             case "leave"->{heart.relations().faction(null);result=true;}
@@ -256,7 +258,8 @@ public final class HeartSettingsMenu extends AbstractContainerMenu {
                 };
             }
         }}catch(IllegalArgumentException ignored){}
-        if(!key.equals("excludeName")&&!key.equals("removeName")&&!key.equals("excludeMob")&&!key.equals("create"))relationStatus=result?"updated":"denied";
+        if(!key.equals("excludeName")&&!key.equals("removeName")&&!key.equals("excludeMob")&&!key.equals("prioritizeMob")
+                &&!key.equals("create"))relationStatus=result?"updated":"denied";
         if(result)heart.setChanged();return result;
     }
     @Override public boolean clickMenuButton(Player player, int button) {

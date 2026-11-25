@@ -449,6 +449,118 @@ public final class SensorFacingGameTests {
         }
     }
 
+    @GameTest(template = "combat", batch = "sensor_alignment_priority", timeoutTicks = 24)
+    public static void SensorAndAlignmentPriorityOnlyTrackEligibleListedMobs(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var sensor = sensor(heart, Direction.EAST);
+        sensor.edit("shape", 0, "");
+        sensor.edit("radius", 8, "");
+        var alignment = alignment(heart, 0);
+        alignment.edit("innerRadius", 0, "");
+        for (var module : List.of(sensor, alignment)) {
+            var old = module.save();
+            old.getCompound("Settings").remove("priorityOnly");
+            h.assertTrue(VirtualModule.load(old).value("priorityOnly") == 0,
+                    "Legacy " + module.type() + " enabled priority-only tracking");
+        }
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        var center = alignment.anchors().getFirst().world(heart, false);
+        var cow = namedCow(h, "Close candidate", center.add(0, 0, 3));
+        var pig = EntityType.PIG.create(h.getLevel());
+        pig.setCustomName(Component.literal("Far preferred candidate"));
+        pig.setNoAi(true);
+        pig.setNoGravity(true);
+        pig.setPos(center.add(0, -pig.getBbHeight() / 2, 6));
+        h.getLevel().addFreshEntity(pig);
+        var rules = heart.relations();
+        var events = heart.modules().events();
+        var navigation = events.navigation();
+        try {
+            rules.prioritizeMob("minecraft:pig");
+            events.tick(heart);
+            var first = events.sensorAim(heart, sensor.id());
+            h.assertTrue(first != null && first.id().equals(pig.getUUID())
+                            && navigation.name(alignment.id()).equals(pig.getName().getString()),
+                    "Direct tracking ranked the closer unlisted mob ahead of the eligible preferred mob");
+            for (var module : List.of(sensor, alignment))
+                h.assertTrue(module.edit("priorityOnly", 1, "")
+                                && VirtualModule.load(module.save()).value("priorityOnly") == 1,
+                        "Priority-only setting did not round-trip for " + module.type());
+            rules.removePriorityMob("minecraft:pig");
+            heart.modules().changed();
+            events.tick(heart);
+            h.assertTrue(events.sensorAim(heart, sensor.id()) == null && navigation.name(alignment.id()).isEmpty(),
+                    "Empty priority-only list retained a locked target or fell back to a nearby mob");
+
+            rules.prioritizeMob("minecraft:cow");
+            heart.modules().changed();
+            h.runAfterDelay(6, () -> {
+                try {
+                    events.tick(heart);
+                    var second = events.sensorAim(heart, sensor.id());
+                    h.assertTrue(second != null && second.id().equals(cow.getUUID())
+                                    && navigation.name(alignment.id()).equals(cow.getName().getString()),
+                            "Adding an eligible type did not restore the sensor or the locked alignment");
+                    rules.excludeMob("minecraft:cow");
+                    events.tick(heart);
+                    h.assertTrue(events.sensorAim(heart, sensor.id()) == null && navigation.name(alignment.id()).isEmpty(),
+                            "A preferred mob kept a direct alignment lock or cached sensor selection after whitelisting");
+                    h.succeed();
+                } finally {
+                    cow.discard();
+                    pig.discard();
+                }
+            });
+        } catch (RuntimeException | AssertionError failure) {
+            cow.discard();
+            pig.discard();
+            throw failure;
+        }
+    }
+
+    @GameTest(template = "combat", batch = "alignment_priority_sensor_link")
+    public static void PriorityOnlyAlignmentFiltersItsSensorSourceButKeepsWandOverride(GameTestHelper h) {
+        var heart = fixture(h, SableLife.HEART.get());
+        var sensor = sensor(heart, Direction.EAST);
+        sensor.edit("shape", 0, "");
+        sensor.edit("radius", 8, "");
+        var alignment = alignment(heart, 0);
+        alignment.edit("priorityOnly", 1, "");
+        alignment.edit("facingSource", 1, "");
+        alignment.facingSensor(sensor.id());
+        heart.tryActivate(TestActors.creative(h.getLevel()));
+        var center = alignment.anchors().getFirst().world(heart, false);
+        var cow = namedCow(h, "Linked candidate", center.add(0, 0, 5));
+        var events = heart.modules().events();
+        var navigation = events.navigation();
+        var command = heart.modules().commandTarget();
+        try {
+            var source = events.sensorAim(heart, sensor.id());
+            h.assertTrue(source != null && source.id().equals(cow.getUUID()),
+                    "Unfiltered source sensor had no ordinary target");
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).isEmpty(),
+                    "Alignment's own priority-only rule was ignored for a sensor source");
+            heart.relations().prioritizeMob("minecraft:cow");
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).equals(cow.getName().getString()),
+                    "Alignment did not follow its preferred sensor target");
+            heart.relations().removePriorityMob("minecraft:cow");
+            command.entity(cow, h.getLevel().getGameTime() + 20, CommandTarget.TARGET_ALIGNMENT);
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).equals(cow.getName().getString()),
+                    "The priority-only rule suppressed the explicit Command Wand order");
+            command.clear();
+            events.tick(heart);
+            h.assertTrue(navigation.name(alignment.id()).isEmpty(),
+                    "Ending the wand order left an unlisted sensor target selected");
+            h.succeed();
+        } finally {
+            cow.discard();
+            command.clear();
+        }
+    }
+
     private static VirtualModule alignment(HeartBlockEntity heart, int lockMode) {
         var module = heart.modules().add("navigation");
         module.anchors(List.of(ModuleAnchor.create(heart, heart.getBlockPos(), Direction.EAST)));

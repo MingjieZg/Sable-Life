@@ -1,6 +1,7 @@
 package dev.sablelife.module;
 
 import dev.sablelife.SableLife;
+import dev.sablelife.heart.CoreRelations;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -69,6 +70,11 @@ public final class ModuleNetworking {
                 case "commands" -> CommandProgram.MAX_TEXT + 8;
                 case "msg_row" -> MessageProgram.MAX_TEXT;
                 case "edit" -> ModuleFields.arenaText(key) ? ModuleFields.ARENA_ANNOUNCEMENT_LENGTH : 80;
+                case "core" -> switch (key) {
+                    case "relation:excludeMob", "relation:removeMob", "relation:prioritizeMob", "relation:removePriorityMob" ->
+                            CoreRelations.MOB_RULE_TEXT_LIMIT;
+                    default -> 80;
+                };
                 case "sound_timeline" -> 256;
                 case "wild_encounter" -> key.equals("conditions") || key.endsWith("_rule") ? 16000 : 80;
                 case GROUP_BATCH, GROUP_MEMBERS -> GROUP_BATCH_TEXT_LIMIT;
@@ -116,8 +122,8 @@ public final class ModuleNetworking {
         @Override public Type<FlameJet> type(){return TYPE;}
     }
     public static void register(RegisterPayloadHandlersEvent event) {
-        // The Survival Top Up menu requires peers to agree on tank capacity and confirmation steps.
-        var registrar = event.registrar("52");
+        // Core mob-rule actions use a larger text limit than earlier builds.
+        var registrar = event.registrar("53");
         if (dev.sablelife.compat.sablecollision.EntityPassThroughMixinPlugin.supported()) {
             registrar.optional().playToClient(EntityPassThroughPacket.TYPE, EntityPassThroughPacket.CODEC,
                     (packet, context) -> EntityPassThroughState.receive(context.player(), packet));

@@ -258,6 +258,56 @@ public final class SightLifecycleGameTests {
         moveAlignmentInnerRadius(helper, true);
     }
 
+    @GameTest(template = "combat", batch = "alignment_priority_move", timeoutTicks = 24)
+    public static void PriorityOnlyAlignmentKeepsItsAssignedMoveTargetWithoutFallback(GameTestHelper helper) {
+        var scene = setup(helper);
+        var heart = scene.heart();
+        var alignment = heart.modules().add("navigation");
+        var mark = ModuleAnchor.create(heart, heart.getBlockPos(), Direction.EAST);
+        alignment.anchors(List.of(mark));
+        alignment.edit("target", 1, "");
+        alignment.edit("lineOfSight", 1, "");
+        alignment.edit("radius", 9, "");
+        alignment.edit("priorityOnly", 1, "");
+        editMove(helper, scene, "action_delete", 0, "0|0");
+        addAction(helper, heart, scene.table(), alignment);
+        editMove(helper, scene, "dispatchNear", 0, "0");
+        editMove(helper, scene, "dispatchBusy", 30, "0");
+        editMove(helper, scene, "action_duration", 1, "0|0");
+        editMove(helper, scene, "lineOfSight", 1, "0");
+        editMove(helper, scene, "sightMemory", 24, "0");
+        var fallback = EntityType.PIG.create(helper.getLevel());
+        fallback.setCustomName(Component.literal("Listed mob outside the move cone"));
+        fallback.setNoAi(true);
+        fallback.setNoGravity(true);
+        fallback.setPos(mark.world(heart, false).add(-6, -fallback.getBbHeight() / 2, 0));
+        helper.getLevel().addFreshEntity(fallback);
+        var rules = heart.relations();
+        var events = heart.modules().events();
+        var navigation = events.navigation();
+        try {
+            rules.prioritizeMob("minecraft:pig");
+            scene.activate(helper);
+            var aim = heart.modules().moveAim(alignment.id());
+            helper.assertTrue(HeartModules.triggered(alignment, heart) && aim != null && aim.visible()
+                            && aim.id().equals(scene.target().getUUID()) && heart.modules().moveAction(alignment.id()) != null,
+                    "The Move Set did not dispatch the expected observed target inside its cone");
+            helper.assertTrue(navigation.name(alignment.id()).isEmpty()
+                            && navigation.left(alignment.id()) == 0 && navigation.right(alignment.id()) == 0,
+                    "Priority-only alignment followed an unlisted inherited target or an independent listed candidate");
+            rules.prioritizeMob("minecraft:cow");
+            events.tick(heart);
+            helper.assertTrue(navigation.name(alignment.id()).equals(scene.target().getName().getString()),
+                    "Listing the assigned type did not restore alignment to the same Move Set target");
+            helper.succeed();
+        } finally {
+            alignment.edit("enabled", 0, "");
+            scene.gun().edit("enabled", 0, "");
+            scene.target().discard();
+            fallback.discard();
+        }
+    }
+
     private static void moveAlignmentInnerRadius(GameTestHelper helper, boolean observed) {
         var scene = setup(helper);
         var heart = scene.heart();

@@ -16,6 +16,8 @@ import dev.sablelife.ownership.LoadedCoreIndex;
 /** Player exclusions use case-insensitive login names; faction identities use UUIDs. Exclusions affect acquisition only. */
 public final class CoreRelations {
     public static final int LIMIT=256;
+    public static final int MOB_RULE_TEXT_LIMIT = 256;
+    private static final String NAMESPACE_SUFFIX = ":*";
     public enum MobGroup {
         PASSIVE("passive"), NEUTRAL("neutral");
 
@@ -38,7 +40,8 @@ public final class CoreRelations {
         return null;
     }
     private final Map<String,String> excluded=new LinkedHashMap<>();
-    private final Set<ResourceLocation> excludedMobs=new LinkedHashSet<>();
+    private final MobRules excludedMobs = new MobRules(true);
+    private final MobRules priorityMobs = new MobRules(false);
     private UUID faction;
     private BlueprintFaction blueprintFaction;
     private int priority;
@@ -65,21 +68,99 @@ public final class CoreRelations {
     /** Attribute registration identifies living types, including modded MISC types, without spawning them. */
     public static boolean selectableMob(EntityType<?> type){return type!=null&&type!=EntityType.PLAYER&&type!=dev.sablelife.SableLife.ENTITY_HITBOX.get()&&DefaultAttributes.hasSupplier(type);}
     public static List<ResourceLocation> mobTypes(){return BuiltInRegistries.ENTITY_TYPE.stream().filter(CoreRelations::selectableMob).map(BuiltInRegistries.ENTITY_TYPE::getKey).sorted().toList();}
-    private static ResourceLocation mobId(String text){return text==null||text.length()>256?null:ResourceLocation.tryParse(text.strip());}
-    public boolean excludesMob(EntityType<?> type){
-        if(excludedMobs.isEmpty())return false;
-        if(excludedMobs.contains(BuiltInRegistries.ENTITY_TYPE.getKey(type)))return true;
-        for(var group:MOB_GROUPS)if(excludedMobs.contains(group.id())&&type.is(group.tag))return true;
+    public static List<String> mobNamespaces() {
+        return mobTypes().stream().map(ResourceLocation::getNamespace).distinct().sorted().toList();
+    }
+
+    public boolean excludesMob(EntityType<?> type) {
+        return type != null && !excludedMobs.isEmpty()
+                && excludesMob(type, BuiltInRegistries.ENTITY_TYPE.getKey(type));
+    }
+
+    private boolean excludesMob(EntityType<?> type, ResourceLocation id) {
+        if (excludedMobs.matches(id)) return true;
+        for (var group : MOB_GROUPS) if (excludedMobs.ids.contains(group.id()) && type.is(group.tag)) return true;
         return false;
     }
-    public boolean excludeMob(String text){
-        var id=mobId(text);
-        if(id==null||!excludedMobs.contains(id)&&excludedMobs.size()>=LIMIT)return false;
-        if(mobGroup(id)==null&&(!BuiltInRegistries.ENTITY_TYPE.containsKey(id)||!selectableMob(BuiltInRegistries.ENTITY_TYPE.get(id))))return false;
-        excludedMobs.add(id);
-        return true;
+
+    public boolean excludeMob(String text) { return excludedMobs.add(text, true); }
+    public boolean removeMob(String text) { return excludedMobs.remove(text); }
+    public boolean prioritizeMob(String text) { return priorityMobs.add(text, true); }
+    public boolean removePriorityMob(String text) { return priorityMobs.remove(text); }
+    public boolean hasPriorityMobs() { return !priorityMobs.isEmpty(); }
+
+    public boolean prioritizesMob(EntityType<?> type) {
+        if (type == null || !hasPriorityMobs()) return false;
+        var id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+        return priorityMobs.matches(id) && (excludedMobs.isEmpty() || !excludesMob(type, id));
     }
-    public boolean removeMob(String text){var id=mobId(text);return id!=null&&excludedMobs.remove(id);}
+
+    private static final class MobRules {
+        private final boolean allowGroups;
+        private final Set<ResourceLocation> ids = new LinkedHashSet<>();
+        private final Set<String> namespaces = new LinkedHashSet<>();
+
+        private MobRules(boolean allowGroups) { this.allowGroups = allowGroups; }
+
+        private int size() { return ids.size() + namespaces.size(); }
+        private boolean isEmpty() { return ids.isEmpty() && namespaces.isEmpty(); }
+        private boolean matches(ResourceLocation id) {
+            return id != null && (ids.contains(id) || namespaces.contains(id.getNamespace()));
+        }
+
+        private static String namespace(String entry) {
+            var value = entry.substring(0, entry.length() - NAMESPACE_SUFFIX.length());
+            return !value.isEmpty() && ResourceLocation.isValidNamespace(value) ? value : null;
+        }
+
+        private boolean add(String text, boolean registeredOnly) {
+            if (text == null || text.length() > MOB_RULE_TEXT_LIMIT) return false;
+            var entry = text.strip();
+            var registry = BuiltInRegistries.ENTITY_TYPE;
+            if (entry.endsWith(NAMESPACE_SUFFIX)) {
+                var namespace = namespace(entry);
+                if (namespace == null || (size() >= LIMIT && !namespaces.contains(namespace))) return false;
+                if (registeredOnly && registry.stream().noneMatch(type ->
+                        registry.getKey(type).getNamespace().equals(namespace) && selectableMob(type))) return false;
+                namespaces.add(namespace);
+                return true;
+            }
+
+            var id = ResourceLocation.tryParse(entry);
+            if (id == null || (size() >= LIMIT && !ids.contains(id))) return false;
+            if (mobGroup(id) != null) {
+                if (!allowGroups) return false;
+            } else if (registeredOnly && (!registry.containsKey(id) || !selectableMob(registry.get(id)))) {
+                return false;
+            }
+            ids.add(id);
+            return true;
+        }
+
+        private boolean remove(String text) {
+            if (text == null || text.length() > MOB_RULE_TEXT_LIMIT) return false;
+            var entry = text.strip();
+            return entry.endsWith(NAMESPACE_SUFFIX) ? namespaces.remove(namespace(entry))
+                    : ids.remove(ResourceLocation.tryParse(entry));
+        }
+
+        private ListTag save() {
+            var entries = new ListTag();
+            ids.forEach(id -> entries.add(StringTag.valueOf(id.toString())));
+            namespaces.forEach(namespace -> entries.add(StringTag.valueOf(namespace + NAMESPACE_SUFFIX)));
+            return entries;
+        }
+
+        private void load(ListTag entries) {
+            ids.clear();
+            namespaces.clear();
+            // Preserve well-formed entries from absent mods when a blueprint moves between servers.
+            for (var entry : entries) {
+                if (size() >= LIMIT) break;
+                add(entry.getAsString(), false);
+            }
+        }
+    }
     public CompoundTag save() {
         var tag = new CompoundTag();
         tag.putInt("TargetPriority", priority);
@@ -89,15 +170,13 @@ public final class CoreRelations {
         var players = new ListTag();
         excluded.values().forEach(name -> players.add(StringTag.valueOf(name)));
         tag.put("ExcludedNames", players);
-        var mobs = new ListTag();
-        excludedMobs.forEach(id -> mobs.add(StringTag.valueOf(id.toString())));
-        tag.put("ExcludedMobs", mobs);
+        tag.put("ExcludedMobs", excludedMobs.save());
+        if (hasPriorityMobs()) tag.put("PriorityMobs", priorityMobs.save());
         return tag;
     }
 
     public void load(CompoundTag tag) {
         excluded.clear();
-        excludedMobs.clear();
         ownerName = "";
         ownerName(tag.getString("OwnerName"));
         priority(tag.getInt("TargetPriority"));
@@ -105,12 +184,8 @@ public final class CoreRelations {
         blueprintFaction = BlueprintFaction.read(tag.getCompound(BlueprintFaction.TAG));
         for (var name : tag.getList("ExcludedNames", Tag.TAG_STRING)) exclude(name.getAsString());
         for (var entry : tag.getList("Excluded", Tag.TAG_COMPOUND)) exclude(((CompoundTag) entry).getString("Name"));
-        // Preserve well-formed IDs from absent mods when moving a blueprint between servers.
-        for (var entry : tag.getList("ExcludedMobs", Tag.TAG_STRING)) {
-            if (excludedMobs.size() >= LIMIT) break;
-            var id = mobId(entry.getAsString());
-            if (id != null) excludedMobs.add(id);
-        }
+        excludedMobs.load(tag.getList("ExcludedMobs", Tag.TAG_STRING));
+        priorityMobs.load(tag.getList("PriorityMobs", Tag.TAG_STRING));
     }
     public static boolean allies(HeartBlockEntity a,HeartBlockEntity b){return a!=null&&b!=null&&a.getLevel() instanceof ServerLevel level&&FactionRegistry.get(level.getServer()).allied(a.relations().faction,b.relations().faction);}
     public static boolean targetAllowed(ServerLevel level, UUID owner, LivingEntity target) {

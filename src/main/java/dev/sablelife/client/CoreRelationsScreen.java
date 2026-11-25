@@ -13,13 +13,15 @@ import net.minecraft.nbt.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
 
-/** Server-owned whitelist and faction editor; membership never changes optimistically. */
+/** Server-owned creature relations editor. */
 public final class CoreRelationsScreen extends Screen {
+    private static final List<String> TABS=List.of("players","mobs","priority_targets","factions");
     private final Screen parent;
     private final HeartSettingsMenu menu;
-    private boolean factions,mobs;
+    private boolean factions,mobs,priority;
     private int page,x,y,w,h,capacity,noteHeight;
     private String draft="",playerDraft="",signature="";
     private long deleteUntil;
@@ -35,9 +37,15 @@ public final class CoreRelationsScreen extends Screen {
     private final List<Button> selectedButtons=new ArrayList<>();
     public CoreRelationsScreen(Screen parent,HeartSettingsMenu menu){super(tr("title"));this.parent=parent;this.menu=menu;factions=hasBlueprintFaction();}
     private static Component tr(String key,Object... args){return Component.translatable("relations.sablelife."+key,args);}
+    private String statusForTab(String status){
+        if(status.equals("priority_added"))return priority?status:"";
+        if(priority)return switch(status){case "updated","invalid_mob","denied"->status;default->"";};
+        return status;
+    }
     private Component footer(String status){
-        var note=tr(!status.isEmpty()?status:mobs?"mob_note":factions?"faction_note":"player_note",menu.snapshot().getInt("FactionCreationLimit"));
-        return mobs?note.copy().append(" ").append(tr("mob_damage_note").copy().withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD)):note;
+        status=statusForTab(status);
+        var note=tr(!status.isEmpty()?status:priority?"priority_note":mobs?"mob_note":factions?"faction_note":"player_note",menu.snapshot().getInt("FactionCreationLimit"));
+        return mobs&&!priority?note.copy().append(" ").append(tr("mob_damage_note").copy().withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD)):note;
     }
     private void send(String key,String text){PacketDistributor.sendToServer(new ModuleNetworking.Action(menu.containerId,0,new UUID(0,0),"core","relation:"+key,0,text));}
     private Button button(Component label,int px,int py,int width,int height,Runnable action){return addRenderableWidget(LifeUiStyle.button(label,px,py,width,height,action));}
@@ -52,7 +60,12 @@ public final class CoreRelationsScreen extends Screen {
     private boolean hasBlueprintFaction(){return !menu.snapshot().getCompound("BlueprintFactionView").isEmpty();}
     private String signature(){var snapshot=menu.snapshot();return snapshot.getCompound("Relations").toString()+snapshot.getList("Factions",10)+snapshot.getString("RelationStatus")+snapshot.getBoolean("LiveControls");}
     private void openBlueprintFaction(UUID selected){minecraft.setScreen(new BlueprintFactionScreen(this,menu,selected));}
-    private void tab(int value){factions=value==2;mobs=value==1;page=0;deleteUntil=0;deleteTarget=null;rebuildWidgets();}
+    private void tab(int value){
+        boolean nextPriority=value==2;
+        if(nextPriority!=priority){leftMob="";rightMob="";leftMobPage=0;rightMobPage=0;}
+        factions=value==3;priority=nextPriority;mobs=value==1||priority;
+        page=0;deleteUntil=0;deleteTarget=null;rebuildWidgets();
+    }
     private void deleteSelected(UUID id){
         if(id==null)return;
         if(id.equals(deleteTarget)&&deleteUntil>net.minecraft.Util.getMillis()){send("delete",id.toString());deleteUntil=0;deleteTarget=null;}
@@ -67,8 +80,13 @@ public final class CoreRelationsScreen extends Screen {
         int rowHeight=Math.max(12,Math.round(18*LifeUiStyle.scale())),stride=rowHeight+2,gridRows=Math.max(1,(h-noteHeight-119)/stride),columns=factions?1:5;
         capacity=gridRows*columns;var rows=rows();page=Math.clamp(page,0,Math.max(0,(rows.size()-1)/capacity));
         button(Component.translatable("dashboard.sablelife.back"),x+w-70,y+8,60,18,this::onClose);
-        int tabWidth=(w-32)/3;
-        for(int i=0;i<3;i++){int index=i;var b=button(tr(List.of("players","mobs","factions").get(i)),x+10+i*(tabWidth+6),y+34,tabWidth,18,()->tab(index));if(i==(factions?2:mobs?1:0))selectedButtons.add(b);}
+        int tabWidth=(w-20-(TABS.size()-1)*6)/TABS.size();
+        int selectedTab=factions?3:priority?2:mobs?1:0;
+        for(int i=0;i<TABS.size();i++){
+            int index=i;
+            var b=button(tr(TABS.get(i)),x+10+i*(tabWidth+6),y+34,tabWidth,18,()->tab(index));
+            if(i==selectedTab)selectedButtons.add(b);
+        }
         if(mobs){initMobs(rowHeight);signature=signature();return;}
         var own=membership();
         var snapshot = menu.snapshot();
@@ -127,20 +145,35 @@ public final class CoreRelationsScreen extends Screen {
         if(!factions&&rows.isEmpty()){var empty=button(tr("empty_players"),x+10,y+87,w-20,rowHeight,()->{});empty.active=false;}
         signature=signature();
     }
+    private static boolean namespaceEntry(String id){return id.endsWith(":*");}
+
+    private static String modName(String id){
+        String namespace=id.substring(0,id.length()-2);
+        return ModList.get().getModContainerById(namespace).map(mod->mod.getModInfo().getDisplayName())
+                .filter(name->!name.isBlank()).orElse(namespace.equals("minecraft")?"Minecraft":namespace);
+    }
+
     private Component mobName(String id){
+        if(namespaceEntry(id))return tr("mob_namespace",modName(id));
         var location=ResourceLocation.tryParse(id);
         var group=CoreRelations.mobGroup(location);
         if(group!=null)return tr(group.key());
         return location!=null&&BuiltInRegistries.ENTITY_TYPE.containsKey(location)?BuiltInRegistries.ENTITY_TYPE.get(location).getDescription():Component.literal(id);
+    }
+
+    private void editMob(boolean add,String id){
+        send(add?(priority?"prioritizeMob":"excludeMob"):(priority?"removePriorityMob":"removeMob"),id);
     }
     private void initMobs(int rowHeight){
         availableButtons.clear();excludedButtons.clear();paneWidth=(w-52)/2;mobRows=Math.max(1,(h-noteHeight-119)/(rowHeight+2));
         if(mobCatalog.isEmpty()){
             var catalog=new ArrayList<String>();
             CoreRelations.MOB_GROUPS.forEach(group->catalog.add(group.id().toString()));
+            CoreRelations.mobNamespaces().forEach(namespace->catalog.add(namespace+":*"));
             CoreRelations.mobTypes().stream().map(Object::toString)
                 .sorted(Comparator.<String,String>comparing(id->mobName(id).getString().toLowerCase(Locale.ROOT)).thenComparing(id->id))
                 .forEach(catalog::add);
+            catalog.removeIf(id->id.length()>CoreRelations.MOB_RULE_TEXT_LIMIT);
             mobCatalog=List.copyOf(catalog);
         }
         mobSearch=addRenderableWidget(new EditBox(font,x+10,y+60,paneWidth,18,tr("mob_search")));mobSearch.setMaxLength(128);mobSearch.setHint(tr("mob_search"));mobSearch.setValue(mobQuery);
@@ -152,8 +185,10 @@ public final class CoreRelationsScreen extends Screen {
             excludedButtons.add(button(Component.empty(),right,py,paneWidth,rowHeight,()->{int at=rightMobPage*mobRows+index;if(at<excludedMobs.size())rightMob=excludedMobs.get(at);syncMobs();}));
         }
         int middle=x+14+paneWidth,center=y+87+Math.max(0,(mobRows*(rowHeight+2)-40)/2);
-        addMob=button(Component.literal(">>"),middle,center,24,18,()->send("excludeMob",leftMob));addMob.setTooltip(Tooltip.create(tr("mob_add_help")));
-        removeMob=button(Component.literal("<<"),middle,center+22,24,18,()->send("removeMob",rightMob));removeMob.setTooltip(Tooltip.create(tr("mob_remove_help")));
+        addMob=button(Component.literal(">>"),middle,center,24,18,()->editMob(true,leftMob));
+        addMob.setTooltip(Tooltip.create(tr(priority?"priority_add_help":"mob_add_help")));
+        removeMob=button(Component.literal("<<"),middle,center+22,24,18,()->editMob(false,rightMob));
+        removeMob.setTooltip(Tooltip.create(tr(priority?"priority_remove_help":"mob_remove_help")));
         int bottom=y+h-noteHeight-24;
         leftMobPrev=button(Component.literal("<"),x+10,bottom,26,18,()->{leftMobPage--;syncMobs();});
         leftMobNext=button(Component.literal(">"),x+10+paneWidth-26,bottom,26,18,()->{leftMobPage++;syncMobs();});
@@ -163,9 +198,14 @@ public final class CoreRelationsScreen extends Screen {
     }
     private void syncMobs(){
         if(!mobs||addMob==null)return;
-        excludedMobs=menu.snapshot().getCompound("Relations").getList("ExcludedMobs",8).stream().map(Tag::getAsString).distinct().toList();
+        var snapshot=menu.snapshot();
+        excludedMobs=snapshot.getCompound("Relations").getList(priority?"PriorityMobs":"ExcludedMobs",Tag.TAG_STRING)
+                .stream().map(Tag::getAsString).distinct().toList();
         var excluded=new HashSet<>(excludedMobs);String query=mobQuery.strip().toLowerCase(Locale.ROOT);
-        availableMobs=mobCatalog.stream().filter(id->!excluded.contains(id)&&(id.toLowerCase(Locale.ROOT).contains(query)||mobName(id).getString().toLowerCase(Locale.ROOT).contains(query))).toList();
+        availableMobs=mobCatalog.stream().filter(id->!excluded.contains(id))
+                .filter(id->!priority||CoreRelations.mobGroup(ResourceLocation.tryParse(id))==null)
+                .filter(id->id.toLowerCase(Locale.ROOT).contains(query)||mobName(id).getString().toLowerCase(Locale.ROOT).contains(query))
+                .toList();
         leftMobPage=Math.clamp(leftMobPage,0,Math.max(0,(availableMobs.size()-1)/mobRows));rightMobPage=Math.clamp(rightMobPage,0,Math.max(0,(excludedMobs.size()-1)/mobRows));
         selectedButtons.removeAll(availableButtons);selectedButtons.removeAll(excludedButtons);
         for(int side=0;side<2;side++){
@@ -174,19 +214,24 @@ public final class CoreRelationsScreen extends Screen {
                 var b=buttons.get(i);int at=page*mobRows+i;b.visible=at<ids.size();if(!b.visible)continue;
                 String id=ids.get(at);var name=mobName(id);b.setMessage(Component.literal(font.plainSubstrByWidth(name.getString(),paneWidth-10)));
                 var group=CoreRelations.mobGroup(ResourceLocation.tryParse(id));
-                var description=group==null?Component.literal(id):tr(group.key()+"_help").copy();
-                b.setTooltip(Tooltip.create(name.copy().append("\n").append(description.withStyle(ChatFormatting.GRAY)).append("\n").append(tr(side==0?"mob_add_help":"mob_remove_help"))));
+                var description=namespaceEntry(id)?tr("mob_namespace_help",modName(id)).copy().append("\n").append(id)
+                        :group==null?Component.literal(id):tr(group.key()+"_help");
+                String help=side==0?(priority?"priority_add_help":"mob_add_help"):(priority?"priority_remove_help":"mob_remove_help");
+                b.setTooltip(Tooltip.create(name.copy().append("\n").append(description.copy().withStyle(ChatFormatting.GRAY)).append("\n").append(tr(help))));
                 if(id.equals(side==0?leftMob:rightMob))selectedButtons.add(b);
             }
         }
-        boolean editable=menu.snapshot().getBoolean("LiveControls");addMob.active=editable&&excludedMobs.size()<CoreRelations.LIMIT&&availableMobs.contains(leftMob);removeMob.active=editable&&excludedMobs.contains(rightMob);
+        boolean editable=snapshot.getBoolean("LiveControls");addMob.active=editable&&excludedMobs.size()<CoreRelations.LIMIT&&availableMobs.contains(leftMob);removeMob.active=editable&&excludedMobs.contains(rightMob);
         leftMobPrev.active=leftMobPage>0;leftMobNext.active=(leftMobPage+1)*mobRows<availableMobs.size();rightMobPrev.active=rightMobPage>0;rightMobNext.active=(rightMobPage+1)*mobRows<excludedMobs.size();
     }
     @Override public boolean mouseClicked(double mx,double my,int button){
         if(mobs&&button==1&&menu.snapshot().getBoolean("LiveControls")){
             for(int i=0;i<mobRows;i++){
-                if(availableButtons.get(i).visible&&availableButtons.get(i).isMouseOver(mx,my)){send("excludeMob",availableMobs.get(leftMobPage*mobRows+i));return true;}
-                if(excludedButtons.get(i).visible&&excludedButtons.get(i).isMouseOver(mx,my)){send("removeMob",excludedMobs.get(rightMobPage*mobRows+i));return true;}
+                if(availableButtons.get(i).visible&&availableButtons.get(i).isMouseOver(mx,my)){
+                    if(excludedMobs.size()<CoreRelations.LIMIT)editMob(true,availableMobs.get(leftMobPage*mobRows+i));
+                    return true;
+                }
+                if(excludedButtons.get(i).visible&&excludedButtons.get(i).isMouseOver(mx,my)){editMob(false,excludedMobs.get(rightMobPage*mobRows+i));return true;}
             }
         }
         return super.mouseClicked(mx,my,button);
@@ -198,7 +243,7 @@ public final class CoreRelationsScreen extends Screen {
     }
     @Override public boolean keyPressed(int key,int scan,int modifiers){
         if(mobs&&mobSearch!=null&&mobSearch.isFocused()){
-            if(key==org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER||key==org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER){if(addMob.active)send("excludeMob",leftMob);return true;}
+            if(key==org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER||key==org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER){if(addMob.active)editMob(true,leftMob);return true;}
             return key==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE?super.keyPressed(key,scan,modifiers):mobSearch.keyPressed(key,scan,modifiers)||minecraft.options.keyInventory.matches(key,scan);
         }
         if(factions&&factionInput!=null&&factionInput.isFocused()&&(key==org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER||key==org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER)){
@@ -218,13 +263,19 @@ public final class CoreRelationsScreen extends Screen {
         if(mobs){
             int bottom=y+h-noteHeight-27,right=x+42+paneWidth;
             for(int px:new int[]{x+8,right-2}){int color=0xFF675C79;g.fill(px,y+57,px+paneWidth+4,y+58,color);g.fill(px,bottom,px+paneWidth+4,bottom+1,color);g.fill(px,y+57,px+1,bottom,color);g.fill(px+paneWidth+3,y+57,px+paneWidth+4,bottom,color);}
-            g.drawString(font,tr("excluded_mobs"),right,y+65,0xD9C4ED,false);
+            var paneTitle=tr(priority?"priority_mobs":"excluded_mobs").copy().append(" · "+excludedMobs.size()+" / "+CoreRelations.LIMIT);
+            float titleScale=Math.min(1,(paneWidth-4f)/Math.max(1,font.width(paneTitle)));
+            g.pose().pushPose();
+            g.pose().translate(right,y+65,0);
+            g.pose().scale(titleScale,titleScale,1);
+            g.drawString(font,paneTitle,0,0,0xD9C4ED,false);
+            g.pose().popPose();
             int py=y+h-noteHeight-19;g.drawCenteredString(font,(leftMobPage+1)+" / "+Math.max(1,(availableMobs.size()+mobRows-1)/mobRows),x+10+paneWidth/2,py,0xD9C4ED);g.drawCenteredString(font,(rightMobPage+1)+" / "+Math.max(1,(excludedMobs.size()+mobRows-1)/mobRows),right+paneWidth/2,py,0xD9C4ED);
             if(availableMobs.isEmpty())g.drawWordWrap(font,tr("no_mobs"),x+14,y+91,paneWidth-8,0xAEB8C7);
-            if(excludedMobs.isEmpty())g.drawWordWrap(font,tr("empty_mobs"),right+4,y+91,paneWidth-8,0xAEB8C7);
+            if(excludedMobs.isEmpty())g.drawWordWrap(font,tr(priority?"empty_priority_mobs":"empty_mobs"),right+4,y+91,paneWidth-8,0xAEB8C7);
         }else g.drawCenteredString(font,(page+1)+" / "+Math.max(1,(rows().size()+capacity-1)/capacity),x+w/2,y+h-noteHeight-19,0xD9C4ED);
-        String status=menu.snapshot().getString("RelationStatus");
-        int noteColor=status.startsWith("faction_")||status.equals("denied")||status.equals("invalid_name")||status.equals("invalid_mob")?0xEF8D8D:status.equals("updated")||status.equals("player_added")||status.equals("mob_added")?0x89DFA8:0xAEB8C7;
+        String status=statusForTab(menu.snapshot().getString("RelationStatus"));
+        int noteColor=status.startsWith("faction_")||status.equals("denied")||status.equals("invalid_name")||status.equals("invalid_mob")?0xEF8D8D:status.equals("updated")||status.equals("player_added")||status.equals("mob_added")||status.equals("priority_added")?0x89DFA8:0xAEB8C7;
         g.drawWordWrap(font,footer(status),x+10,y+h-noteHeight,w-20,noteColor);
         for(var widget:renderables)widget.render(g,mx,my,partial);
         for(var b:selectedButtons){int bx=b.getX(),by=b.getY(),bw=b.getWidth(),bh=b.getHeight(),color=0xFFD9C4ED;g.fill(bx,by,bx+bw,by+1,color);g.fill(bx,by+bh-1,bx+bw,by+bh,color);g.fill(bx,by,bx+1,by+bh,color);g.fill(bx+bw-1,by,bx+bw,by+bh,color);}

@@ -17,6 +17,12 @@
 
 - Set each X, Y, and Z side of the interaction box independently from 1 to 30 blocks in steps of 1. Each defaults to 1. An existing single side length is copied to all three axes. World and Structure modes each simulate one empty-hand right-click on the nearest supported block to the reference point. Supported targets are vanilla wooden doors and trapdoors, fence gates, buttons, and levers. Manual revision 266.
 
+### Priority Targets
+
+- Open Priority Targets under the core’s Target Whitelist & Factions screen. Both the priority list and the mob whitelist accept individual mob types or all mobs from a mod. Each list holds up to 256 entries. The passive and neutral groups remain available in the mob whitelist.
+- Automatic targeting applies eligibility, whitelist, and faction rules first. Eligible priority mobs come first when acquiring a new target. When none qualify, ordinary selection continues. Adding priority entries leaves an existing valid lock in place.
+- Lock only listed targets defaults to Off in Target Sensor and Target Alignment. Turn it on to select eligible mobs from the priority list only. Choose a target mode that can select mobs. An empty list yields no target. Target Alignment still accepts explicit Command Wand targets. Entry 138.
+
 ## 0.1.458
 
 - **Blueprint factions on first placement**. The pending entry shows the source faction's name. When there is no usable local faction, the setup opens on the Create tab with the source settings filled in. Players can confirm creation and binding or skip the faction. Manual revision 264.

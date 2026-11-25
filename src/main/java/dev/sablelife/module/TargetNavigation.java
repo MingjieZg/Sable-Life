@@ -48,10 +48,6 @@ public final class TargetNavigation {
     public static Vec3 worldFront(HeartBlockEntity heart, VirtualModule module) {
         return ContactBox.rotate(new Quaterniond(module.anchors().getFirst().body(heart).logicalPose().orientation()), Vec3.atLowerCornerOf(front(module).getNormal()));
     }
-    private boolean eligible(VirtualModule module, LivingEntity entity) {
-        return entity != null && !entity.isRemoved() && ModuleTargets.matches(entity, module);
-    }
-
     private boolean sees(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center,
                          Quaterniond orientation, LivingEntity target) {
         return !SightMemory.enabled(module) || ModuleTargets.sensed(level, heart, center, orientation, target, Set.of());
@@ -86,7 +82,8 @@ public final class TargetNavigation {
             var source = heart.modules().events().sensorAim(heart, module.facingSensorId());
             var sensor = heart.modules().find(module.facingSensorId());
             var target = source == null || sensor == null ? null : ModuleTargets.resolveForModule(level, source.id(), heart, sensor);
-            if (target == null || !eligible(sensor, target)) {
+            if (sensor == null || !ModuleTargets.matchesTrackingTarget(heart, sensor, target)
+                    || !ModuleTargets.passesPriorityFilter(heart, module, target)) {
                 state.sourceLink.clear();
                 return null;
             }
@@ -100,7 +97,7 @@ public final class TargetNavigation {
             state.memory.clear();
             var inherited = heart.modules().moveAim(module.id());
             var target = inherited == null ? null : ModuleTargets.resolveForModule(level, inherited.id(), heart, module);
-            if (!eligible(module, target)) {
+            if (!ModuleTargets.matchesTrackingTarget(heart, module, target)) {
                 state.sourceLink.clear();
                 return null;
             }
@@ -122,7 +119,7 @@ public final class TargetNavigation {
         var last = state.memory.aimAt(now);
         var target = ModuleTargets.resolveForModule(level, state.target, heart, module);
         Vec3 targetPoint = null;
-        if (eligible(module, target) && !(state.memory.obscured() && last == null)) {
+        if (ModuleTargets.matchesTrackingTarget(heart, module, target) && !(state.memory.obscured() && last == null)) {
             var point = SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter());
             boolean withinCurrent = withinRange(point.distanceToSqr(center), innerSquared, rangeSquared);
             boolean withinLast = last != null && withinRange(last.point().distanceToSqr(center), innerSquared, rangeSquared);
@@ -160,11 +157,12 @@ public final class TargetNavigation {
 
     private Candidate select(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center,
                              Quaterniond orientation, double range, double innerSquared, double rangeSquared) {
+        if (module.value("priorityOnly") == 1 && !heart.relations().hasPriorityMobs()) return null;
         var bounds = new AABB(center, center).inflate(range + 2);
         Candidate best = null;
         int bestRank = Integer.MAX_VALUE;
         double bestDistance = Double.POSITIVE_INFINITY;
-        for (var entity : ModuleTargets.queryForModule(level, heart, module, bounds, e -> eligible(module, e))) {
+        for (var entity : ModuleTargets.queryForModule(level, heart, module, bounds, e -> ModuleTargets.matchesTrackingTarget(heart, module, e))) {
             var point = SableBodyProbe.toWorld(level, entity.getBoundingBox().getCenter());
             double distance = point.distanceToSqr(center);
             if (!withinRange(distance, innerSquared, rangeSquared)) continue;

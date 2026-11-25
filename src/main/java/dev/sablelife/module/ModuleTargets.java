@@ -55,7 +55,29 @@ public final class ModuleTargets {
         var target=new LifeTarget(level,heart,owner);return CoreRelations.targetAllowed(level,owner,target)?target:null;
     }
     private static boolean ownerPlayer(ServerLevel level,UUID id,LivingEntity e){var core=dev.sablelife.ownership.LoadedCoreIndex.find(level,id);return core!=null&&core.relations().isOwner(e);}
-    public static int rank(HeartBlockEntity owner,LivingEntity target){if(owner==null)return 0;return switch(owner.relations().priority()){case 1->target instanceof Player?0:1;case 2->target instanceof LifeTarget?0:1;case 3->!(target instanceof Player)&&!(target instanceof LifeTarget)?0:1;default->0;};}
+    private static boolean priorityMob(HeartBlockEntity owner, LivingEntity target) {
+        return target != null && !(target instanceof Player) && !(target instanceof LifeTarget)
+                && owner.relations().prioritizesMob(target.getType());
+    }
+
+    static boolean passesPriorityFilter(HeartBlockEntity owner, VirtualModule module, LivingEntity target) {
+        return module.value("priorityOnly") != 1 || priorityMob(owner, target);
+    }
+
+    static boolean matchesTrackingTarget(HeartBlockEntity owner, VirtualModule module, LivingEntity target) {
+        return target != null && !target.isRemoved() && passesPriorityFilter(owner, module, target) && matches(target, module);
+    }
+
+    public static int rank(HeartBlockEntity owner, LivingEntity target) {
+        if (owner == null) return 0;
+        if (priorityMob(owner, target)) return -1;
+        return switch (owner.relations().priority()) {
+            case 1 -> target instanceof Player ? 0 : 1;
+            case 2 -> target instanceof LifeTarget ? 0 : 1;
+            case 3 -> !(target instanceof Player) && !(target instanceof LifeTarget) ? 0 : 1;
+            default -> 0;
+        };
+    }
     public static Comparator<LivingEntity> comparator(HeartBlockEntity owner,java.util.function.ToDoubleFunction<LivingEntity> distance){return Comparator.<LivingEntity>comparingInt(e->rank(owner,e)).thenComparingDouble(distance);}
     public static void refresh(LivingEntity target) { if(target instanceof LifeTarget life) life.refresh(); }
     public static boolean visible(ServerLevel level,UUID owner,Vec3 start,LivingEntity target) {
