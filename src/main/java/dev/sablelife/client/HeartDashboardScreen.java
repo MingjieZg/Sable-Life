@@ -823,8 +823,9 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 vanillaFolders.get(i).visible = false; vanillaFolders.get(i).active = true;
                 boolean announcement = exists && ModuleFields.arenaText(field.key());
                 box.setWidth(announcement ? applyX - inputX - 4 : exists && field.key().equals("phaseChannel") ? 40 : applyX - inputX - 32);
-                boolean checkbox = exists && (ContactSensorQuery.checkbox(field.key()) || List.of("ignoreConditions",
-                        "hitboxProvokeMobs", "hitboxRetaliateAgainstWhitelisted", "targetMultiple", "armorWholeBody", "shockReverse",
+                boolean checkbox = exists && (ContactSensorQuery.checkbox(field.key())
+                        || field.key().equals("targetMultiple") && !m.type().equals("homing") || List.of("ignoreConditions",
+                        "hitboxProvokeMobs", "hitboxRetaliateAgainstWhitelisted", "armorWholeBody", "shockReverse",
                         "fieldBurn", "slashIgnite", "slashBlockable", "arrowFaceCamera", ModuleFields.MELEE_DISABLE_SHIELD,
                         ModuleFields.MELEE_VANILLA_KNOCKBACK).contains(field.key()));
                 choices.get(i).setWidth(exists && field.key().equals("redstoneFrequency") ? frequencyButtonWidth() : checkbox ? 18 : exists && List.of("lineOfSight", "arenaDeath", "arenaForceReturn", "trail").contains(field.key()) ? 36 : (imageWidth - inputX - 11) - (hasNone ? 20 : 0));
@@ -1230,10 +1231,14 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
         if(m.type().equals("gyroscope")) { var data=snapshot.getList("Modules",10).getCompound(modules.indexOf(m)); String state=!data.getBoolean("GyroCalibrated")?"uncalibrated":!running?"idle":data.getString("GyroState"); runtimeLabel=tr("gyro_state_"+(state.isBlank()?"idle":state)); if(data.contains("GyroTilt"))runtimeLabel=Component.translatable("dashboard.sablelife.gyro_angle",String.format(Locale.ROOT,"%.1f",data.getDouble("GyroTilt"))).append(" | ").append(runtimeLabel); }
         if(m.type().equals("signal_turn")){String turnState=snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getString("TurnState");runtimeLabel=tr("turn_state_"+(turnState.isBlank()?"idle":turnState));}
         if(m.type().equals("auto_facing")){runtimeLabel=tr("facing_state_"+snapshot.getList("Modules",10).getCompound(modules.indexOf(m)).getString("FacingState"));}
-        if (m.type().equals("arena") && m.arenaCenter() != null) {
+        if (m.type().equals("arena")) {
             var data = snapshot.getList("Modules", 10).getCompound(modules.indexOf(m));
-            runtimeLabel = Component.translatable("dashboard.sablelife.arena_distance", String.format(Locale.ROOT, "%.1f", data.getDouble("ArenaDistance")),
-                    String.format(Locale.ROOT, "%.1f", m.value("arenaRadius"))).append(" | ").append(runtimeLabel);
+            if (data.contains("ArenaDistance")) {
+                String distance = ModuleArena.square(m) ? "arena_square_distance" : "arena_distance";
+                runtimeLabel = Component.translatable("dashboard.sablelife." + distance,
+                        String.format(Locale.ROOT, "%.1f", data.getDouble("ArenaDistance")),
+                        String.format(Locale.ROOT, "%.1f", m.value("arenaRadius"))).append(" | ").append(runtimeLabel);
+            }
         }
         if (running && m.type().equals("navigation")) {
             var data = snapshot.getList("Modules", 10).getCompound(modules.indexOf(m));

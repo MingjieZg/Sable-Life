@@ -1,5 +1,6 @@
 package dev.sablelife.client;
 
+import dev.sablelife.module.ModuleArena;
 import dev.sablelife.module.ModuleFields;
 import dev.sablelife.module.ModuleRedstone;
 import dev.sablelife.module.SurfaceFieldSettings;
@@ -53,6 +54,8 @@ final class ModulePropertyHelp {
                 .append("\n").append(detail);
     }
     private static String presentationKey(VirtualModule module, String key) {
+        if (key.equals("targetMultiple") && module.type().equals("homing")) return "homingTargetAssignment";
+        if (key.equals("arenaRadius") && ModuleArena.square(module)) return "arenaHalfSide";
         if (key.equals("visualTime") && SurfaceFieldSettings.isDeployableShield(module)) return "visualShieldPreviewTime";
         return module.type().equals("melee") && key.equals("knockback") ? "meleeExtraKnockback" : key;
     }

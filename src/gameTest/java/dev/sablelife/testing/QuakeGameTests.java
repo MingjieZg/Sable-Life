@@ -1,6 +1,7 @@
 package dev.sablelife.testing;
 
 import dev.sablelife.SableLife;
+import dev.sablelife.attack.ModuleShot;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.module.*;
 import dev.sablelife.compat.sable.SableBodyProbe;
@@ -8,6 +9,7 @@ import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import net.minecraft.core.*;
 import net.minecraft.gametest.framework.*;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
@@ -15,12 +17,14 @@ import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.*;
 import net.neoforged.neoforge.gametest.*;
 import java.util.List;
+import java.util.UUID;
 
 @GameTestHolder("sablelife_quake_tests")
 @PrefixGameTestTemplate(false)
@@ -405,6 +409,204 @@ public final class QuakeGameTests {
         h.assertTrue(shots.stream().allMatch(e -> e.getDeltaMovement().length()>0 && e.getDeltaMovement().length()<=m.value("speed")+.0001),"Homing speed ignored configured bound");
         m.edit("enabled",0,""); engine.tick(heart); h.assertTrue(shots.stream().allMatch(e -> e.isRemoved()),"Disabled module retained projectiles"); h.succeed();
     }
+    @GameTest(template = "combat", batch = "homing_hover_reacquire", timeoutTicks = 20)
+    public static void AutonomousHomingUsesItsHoverPositionThroughChargeAndReload(GameTestHelper h) {
+        var heart = fixture(h);
+        var module = homing(heart);
+        module.edit("homingOffset", 5, "");
+        module.edit("homingHeight", 0, "");
+        module.edit("targetRange", 8, "");
+        module.edit("targetMultiple", 0, "");
+        module.edit("lineOfSight", 1, "");
+        module.edit("sightMemory", 20, "");
+        var level = h.getLevel();
+        var mark = ModuleCombat.origin(heart, module, true);
+        var hover = ModuleHoming.formation(heart, module).getFirst();
+        var forward = hover.subtract(mark).normalize();
+        var nearMark = pig(h, mark.add(forward.scale(2)).add(0, -.45, 0), true);
+        var sight = heart.modules().weaponSight();
+        var markBounds = new AABB(mark, mark).inflate(12);
+        var markOrder = ModuleTargets.comparator(heart, target -> target.getBoundingBox().getCenter().distanceToSqr(mark));
+        var cached = sight.targets(level, heart, module, markBounds, target -> target == nearMark, markOrder,
+                target -> ModuleTargets.visible(level, heart.creatureId(), mark, target), 1, null);
+        h.assertTrue(cached.equals(List.of(nearMark)) && nearMark.getUUID().equals(sight.target(heart, module)),
+                "The fixture did not establish the old mark-based weapon cache");
+
+        heart.modules().tick(heart);
+        var shots = homingShots(h, heart, module, markBounds);
+        h.assertTrue(shots.size() == 1, "The autonomous Homing module failed to deploy");
+        var original = shots.getFirst();
+        for (int i = 0; i < 3; i++) original.tick();
+        h.assertTrue(original.hovering() && original.position().distanceToSqr(hover) < 1e-6,
+                "The projectile did not reach the expected frozen hover point");
+        var saved = original.saveWithoutId(new CompoundTag());
+        var restored = new ModuleShot(SableLife.MODULE_SHOT.get(), level);
+        restored.load(saved);
+
+        var nearHover = pig(h, hover.add(forward.scale(2)).add(0, -.45, 0), true);
+        try {
+            h.assertTrue(nearMark.getBoundingBox().getCenter().distanceToSqr(mark)
+                            < nearHover.getBoundingBox().getCenter().distanceToSqr(mark)
+                    && nearHover.getBoundingBox().getCenter().distanceToSqr(hover)
+                            < nearMark.getBoundingBox().getCenter().distanceToSqr(hover),
+                    "The fixture did not distinguish the nearest targets at the mark and hover positions");
+            var hoverBounds = new AABB(hover, hover).inflate(module.value("targetRange"));
+            h.assertTrue(ModuleTargets.query(level, heart.creatureId(), hoverBounds).contains(nearHover),
+                    "The closer hover target is missing from the level's searchable entity sections");
+            h.assertTrue(ModuleTargets.visible(level, heart.creatureId(), hover, nearHover),
+                    "The closer hover target is occluded in the test fixture");
+            for (int i = 0; i < 4; i++) {
+                original.tick();
+                restored.tick();
+            }
+            assertHomingTarget(h, original, nearHover, "Live Homing did not select the nearest target from hover");
+            assertHomingTarget(h, restored, nearHover, "A saved pending projectile changed the hover selection");
+
+            // Move above the initial target position so both checks stay in the same loaded entity column.
+            nearHover.setPos(nearHover.position().add(0, 5, 0));
+            h.assertTrue(ModuleHoming.targetInRange(level, module, hover, nearHover)
+                            && !ModuleHoming.targetInRange(level, module, mark, nearHover),
+                    "The fixture did not distinguish hover range from mark range in flight");
+            var launched = original.saveWithoutId(new CompoundTag());
+            h.assertTrue(launched.getBoolean("HomingRangeAtHover"), "Launched Homing did not save its hover range origin");
+            var reloadedFlight = new ModuleShot(SableLife.MODULE_SHOT.get(), level);
+            reloadedFlight.load(launched);
+            var oldData = launched.copy();
+            oldData.remove("HomingRangeAtHover");
+            var legacyFlight = new ModuleShot(SableLife.MODULE_SHOT.get(), level);
+            legacyFlight.load(oldData);
+            try {
+                reloadedFlight.tick();
+                legacyFlight.tick();
+                h.assertTrue(!reloadedFlight.isRemoved() && nearHover.getUUID().equals(reloadedFlight.homingTarget()),
+                        "Reloaded flight dropped an eligible target in hover range");
+                h.assertTrue(legacyFlight.isRemoved(), "An old flight with no range marker stopped using its saved mark range");
+            } finally {
+                reloadedFlight.discard();
+                legacyFlight.discard();
+            }
+        } finally {
+            original.discard();
+            restored.discard();
+            nearMark.discard();
+            nearHover.discard();
+            module.edit("enabled", 0, "");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "combat", batch = "homing_hover_separate_range", timeoutTicks = 20)
+    public static void AutonomousHomingDeploysForTargetsInEachHoverRange(GameTestHelper h) {
+        var heart = fixture(h);
+        var module = homing(heart);
+        module.edit("homingCount", 2, "");
+        module.edit("homingPlane", 1, "");
+        module.edit("homingHeight", 0, "");
+        module.edit("homingOffset", 5, "");
+        module.edit("targetRange", 3, "");
+        module.edit("targetMultiple", 0, "");
+        var mark = ModuleCombat.origin(heart, module, true);
+        var forward = ModuleCombat.direction(heart, module);
+        var points = ModuleHoming.formation(heart, module);
+        var targets = points.stream().map(point -> pig(h, point.add(forward.scale(2)).add(0, -.45, 0), true)).toList();
+        h.assertTrue(targets.stream().noneMatch(target -> ModuleHoming.targetInRange(h.getLevel(), module, mark, target)),
+                "A target was inside the old mark range");
+        double diameter = 2 * module.value("targetRange");
+        h.assertTrue(points.getFirst().distanceToSqr(points.getLast()) > diameter * diameter,
+                "Hover ranges overlapped in the test fixture");
+
+        heart.modules().tick(heart);
+        var shots = homingShots(h, heart, module, new AABB(mark, mark).inflate(20));
+        try {
+            h.assertTrue(shots.size() == 2, "Targets near the hover points but outside the mark's range did not start the salvo");
+            for (var shot : shots) {
+                var ownTarget = targets.stream().min(java.util.Comparator.comparingDouble(
+                        target -> target.getBoundingBox().getCenter().distanceToSqr(shot.position()))).orElseThrow();
+                var localBounds = new AABB(shot.position(), shot.position()).inflate(module.value("targetRange"));
+                h.assertTrue(ModuleTargets.query(h.getLevel(), heart.creatureId(), localBounds).contains(ownTarget),
+                        "A second target is missing from the level's searchable entity sections");
+                for (int i = 0; i < 7; i++) shot.tick();
+                assertHomingTarget(h, shot, ownTarget, "A shot did not lock its nearest target with Multiple Targets Off");
+                // This position is in the mark's range but outside either frozen hover range.
+                ownTarget.setPos(mark.add(forward.scale(2)).add(0, -.45, 0));
+                shot.tick();
+                h.assertTrue(shot.isRemoved(), "The active projectile kept a target outside its hover range");
+            }
+        } finally {
+            shots.forEach(ModuleShot::discard);
+            targets.forEach(LivingEntity::discard);
+            module.edit("enabled", 0, "");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "combat", batch = "homing_hover_multi_target", timeoutTicks = 20)
+    public static void AutonomousHomingSpreadsOverlappingShotsOnlyWhenMultipleTargetsIsOn(GameTestHelper h) {
+        var heart = fixture(h);
+        var module = homing(heart);
+        module.edit("homingCount", 3, "");
+        module.edit("homingFan", 0, "");
+        module.edit("homingHeight", 0, "");
+        module.edit("targetRange", 5, "");
+        var mark = ModuleCombat.origin(heart, module, true);
+        var points = ModuleHoming.formation(heart, module);
+        var hover = points.getFirst();
+        h.assertTrue(points.size() == 3 && points.stream().allMatch(point -> point.distanceToSqr(hover) < 1e-6),
+                "The test salvo's search ranges did not overlap");
+        var forward = ModuleCombat.direction(heart, module);
+        var nearest = pig(h, hover.add(forward.scale(2)).add(0, -.45, 0), true);
+        var alternative = pig(h, hover.add(forward.scale(3.5)).add(0, -.45, 0), true);
+        var bounds = new AABB(mark, mark).inflate(12);
+        try {
+            module.edit("targetMultiple", 0, "");
+            var single = homingVolleyTargets(h, heart, module, bounds);
+            h.assertTrue(single.stream().allMatch(nearest.getUUID()::equals),
+                    "Multiple Targets Off did not give every shot its local best target");
+
+            module.edit("targetMultiple", 1, "");
+            var multiple = homingVolleyTargets(h, heart, module, bounds);
+            h.assertTrue(multiple.stream().filter(nearest.getUUID()::equals).count() == 2
+                            && multiple.stream().filter(alternative.getUUID()::equals).count() == 1,
+                    "Multiple Targets On did not claim both targets and then fall back to the local best");
+
+            alternative.discard();
+            var onlyOne = homingVolleyTargets(h, heart, module, bounds);
+            h.assertTrue(onlyOne.stream().allMatch(nearest.getUUID()::equals),
+                    "Multiple Targets On failed to launch every shot when only one target was available");
+        } finally {
+            nearest.discard();
+            alternative.discard();
+            module.edit("enabled", 0, "");
+        }
+        h.succeed();
+    }
+
+    private static List<UUID> homingVolleyTargets(GameTestHelper h, HeartBlockEntity heart, VirtualModule module, AABB bounds) {
+        // Start independent salvos without waiting out repeat time or carrying forward claims.
+        new ModuleHoming().tick(heart);
+        var shots = homingShots(h, heart, module, bounds);
+        try {
+            h.assertTrue(shots.size() == 3, "The overlap fixture did not deploy three projectiles");
+            for (int i = 0; i < 7; i++) shots.forEach(ModuleShot::tick);
+            h.assertTrue(shots.stream().noneMatch(shot -> shot.hovering() || shot.isRemoved()),
+                    "A shot in the overlapping salvo never launched");
+            return shots.stream().map(ModuleShot::homingTarget).toList();
+        } finally {
+            shots.forEach(ModuleShot::discard);
+        }
+    }
+
+    private static void assertHomingTarget(GameTestHelper h, ModuleShot shot, LivingEntity target, String message) {
+        h.assertTrue(!shot.hovering() && !shot.isRemoved() && target.getUUID().equals(shot.homingTarget()),
+                message + "; hovering=" + shot.hovering() + ", removed=" + shot.isRemoved()
+                        + ", selected=" + shot.homingTarget() + ", expected=" + target.getUUID());
+    }
+
+    private static List<ModuleShot> homingShots(GameTestHelper h, HeartBlockEntity heart, VirtualModule module, AABB bounds) {
+        return h.getLevel().getEntitiesOfClass(ModuleShot.class, bounds,
+                shot -> heart.creatureId().equals(shot.attackOwner()) && module.id().equals(shot.homingModule()));
+    }
+
     @GameTest(template="combat",batch="homing_move_target",timeoutTicks=20)
     public static void MoveTargetSurvivesHomingChargeAndReload(GameTestHelper h) {
         var core = fixture(h);
@@ -414,6 +616,11 @@ public final class QuakeGameTests {
         var center = ModuleCombat.origin(core, module, true);
         var moveTarget = pig(h, center.add(-2, 1, -8), true);
         var other = pig(h, center.add(2, 1, -3), true);
+        var hover = ModuleHoming.formation(core, module).getFirst();
+        h.assertTrue(other.getBoundingBox().getCenter().distanceToSqr(hover)
+                        < moveTarget.getBoundingBox().getCenter().distanceToSqr(hover)
+                && ModuleHoming.targetInRange(h.getLevel(), module, hover, moveTarget),
+                "The Move Set fixture must keep an eligible explicit target farther from hover than the alternative");
         var moves = core.modules().add("move_set").moveSet();
         moves.edit("add", 0, "", core.modules());
         moves.edit("action_add", 0, "0|" + module.id(), core.modules());

@@ -137,7 +137,7 @@ public final class ArenaRespawns extends SavedData {
  }
  private static void setBoundary(Entry entry, VirtualModule arena) {
   var boundary = new VirtualModule("arena");
-  for (String key : List.of("arenaRadius","warningRange","countdown","arenaDeath","arenaPlayerDeathCountdown","arenaForceReturn","arenaReturn"))
+  for (String key : List.of(ModuleFields.ARENA_SHAPE,"arenaRadius","warningRange","countdown","arenaDeath","arenaPlayerDeathCountdown","arenaForceReturn","arenaReturn"))
    boundary.edit(key, arena.value(key), "");
   boundary.arenaCenter(arena.arenaCenter(), entry.dimension.toString());
   entry.boundary = boundary;
@@ -161,7 +161,7 @@ public final class ArenaRespawns extends SavedData {
    setBoundary(entry,heart.modules().find(entry.module));
   }
   if (entry.boundary==null || !entry.dimension.equals(point.dimension())
-          || ModuleArena.horizontalDistance(entry.boundary.arenaCenter(),point.position())>entry.boundary.value("arenaRadius"))return null;
+          || !ModuleArena.withinBoundary(entry.boundary,point.position()))return null;
   if (role==NEXT_STAGE) {
    entry.stageJob=spawn.id();
    entry.stageDeadline=level.getGameTime()+heart.health().remainingDeathTicks()+(long)spawn.value("spawnDelay")+ABANDONED_TICKS;
@@ -377,7 +377,7 @@ public final class ArenaRespawns extends SavedData {
     quietRemoval(level,id,entry.center);
    }else if(heart.health().state()==HeartState.ALIVE
             && level.hasChunkAt(BlockPos.containing(entry.boundary.arenaCenter()))
-            && ModuleArena.horizontalDistance(ModuleArena.corePosition(heart),entry.boundary.arenaCenter())>entry.boundary.value("arenaRadius")){
+            && !ModuleArena.withinBoundary(entry.boundary,ModuleArena.corePosition(heart))){
     ModuleArena.returnToCenter(heart,entry.boundary.arenaCenter());
    }
   }

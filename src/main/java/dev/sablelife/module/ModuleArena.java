@@ -30,6 +30,18 @@ public final class ModuleArena {
         return (long) module.value(module.value("arenaDeath") == 1 ? "arenaPlayerDeathCountdown" : "countdown");
     }
     public static double horizontalDistance(Vec3 a, Vec3 b) { return Math.hypot(a.x - b.x, a.z - b.z); }
+    public static boolean square(VirtualModule module) { return module.value(ModuleFields.ARENA_SHAPE) == 1; }
+
+    public static double boundaryDistance(VirtualModule module, Vec3 point, Vec3 center) {
+        return square(module) ? Math.max(Math.abs(point.x - center.x), Math.abs(point.z - center.z))
+                : horizontalDistance(point, center);
+    }
+
+    public static boolean withinBoundary(VirtualModule module, Vec3 point) {
+        var center = module.arenaCenter();
+        return center != null && boundaryDistance(module, point, center) <= module.value("arenaRadius");
+    }
+
     public static Vec3 corePosition(HeartBlockEntity heart) {
         var body = dev.ryanhcode.sable.Sable.HELPER.getContaining(heart.getLevel(), heart.getBlockPos());
         return body == null ? heart.getBlockPos().getCenter() : body.logicalPose().transformPosition(heart.getBlockPos().getCenter());
@@ -67,7 +79,7 @@ public final class ModuleArena {
         for (var module : arenaModules) {
             if (!module.type().equals("arena") || inherited == null && !HeartModules.triggered(module, heart)) continue;
             var boss = corePosition(heart);
-            if (horizontalDistance(boss, module.arenaCenter()) <= module.value("arenaRadius")) { cancel(module.id()); continue; }
+            if (withinBoundary(module, boss)) { cancel(module.id()); continue; }
             // Immediate reset takes precedence over player punishment, including an expired warning.
             if (module.value("arenaForceReturn") == 1) {
                 if (returnToCenter(heart, module.arenaCenter())) heart.restoreFullHealth();
@@ -78,7 +90,8 @@ public final class ModuleArena {
             boolean deathEnabled = module.value("arenaDeath") == 1;
             boolean returnEnabled = module.value("arenaReturn") == 1;
             long countdownTicks = warningTicks(module);
-            String signature = module.arenaDimension() + ":" + module.arenaCenter() + ":" + module.value("arenaRadius") + ":" + module.value("warningRange") + ":" + countdownTicks + ":" + returnEnabled + ":" + deathEnabled;
+            String signature = module.arenaDimension() + ":" + module.arenaCenter() + ":" + module.value("arenaRadius")
+                    + ":" + square(module) + ":" + module.value("warningRange") + ":" + countdownTicks + ":" + returnEnabled + ":" + deathEnabled;
             if (!signature.equals(settings.get(module.id()))) { cancel(module.id()); settings.put(module.id(), signature); }
             var pending = warnings.computeIfAbsent(module.id(), ignored -> new HashMap<>());
             var nearby = new HashSet<UUID>(); long now = level.getGameTime();

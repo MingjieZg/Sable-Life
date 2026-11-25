@@ -270,8 +270,10 @@ public final class HeartModules {
             if (module.type().equals("laser")) list.getCompound(i).putString("LaserPhase", laser.phase(module.id()));
             if (module.type().equals("sequence")) list.getCompound(i).put("SequenceRuntime", sequence.snapshot(module.id()));
             if (module.type().equals("arena")) {
-                list.getCompound(i).putBoolean("ArenaWarning", arena.warning(module.id()));
-                list.getCompound(i).putDouble("ArenaDistance", module.arenaCenter() == null ? 0 : ModuleArena.horizontalDistance(ModuleArena.corePosition(heart), module.arenaCenter()));
+                row.putBoolean("ArenaWarning", arena.warning(module.id()));
+                if (module.arenaCenter() != null && heart.getLevel().dimension().location().toString().equals(module.arenaDimension())) {
+                    row.putDouble("ArenaDistance", ModuleArena.boundaryDistance(module, ModuleArena.corePosition(heart), module.arenaCenter()));
+                }
             }
             if (module.type().equals("pulse")) list.getCompound(i).putBoolean("PulseTargetPresent", combat.pulseTarget(module.id()));
             if (module.type().equals("navigation")) {

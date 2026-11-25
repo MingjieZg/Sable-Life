@@ -582,6 +582,89 @@ public final class BlueprintSpawnGameTests {
 
     private static HeartBlockEntity core(GameTestHelper h){return template(h,1,0).core;}
     private static VirtualModule module(GameTestHelper h,HeartBlockEntity c,CompoundTag template){var m=c.modules().add("blueprint_spawn");m.edit("spawnAnchor",1,"");m.arenaCenter(h.absoluteVec(new Vec3(4,25,12)),h.getLevel().dimension().location().toString());m.edit("spawnDelay",0,"");m.edit("spawnCooldown",1,"");BlueprintSpawns.install(c,m,"test",SpawnTemplateBridge.inspect(template));return m;}
+
+    @GameTest(template="combat", batch="arena_square_stage_and_summon", timeoutTicks=240)
+    public static void SquareBoundaryControlsNativeStageAndSummonPlacementAndReturn(GameTestHelper h) {
+        var level = h.getLevel();
+        var boss = core(h);
+        boss.configure(100, 0);
+        var player = admin(h);
+        var center = ModuleArena.corePosition(boss);
+        var dimension = level.dimension().location().toString();
+        var summonPoint = center.add(-13, 5, 13);
+        var stagePoint = center.add(13, 5, 13);
+        var outside = center.add(20, 5, 0);
+        for (var point : List.of(summonPoint, stagePoint, outside)) {
+            var chunk = new ChunkPos(BlockPos.containing(point));
+            level.setChunkForced(chunk.x, chunk.z, true);
+            level.getChunkAt(BlockPos.containing(point));
+        }
+
+        var arena = boss.modules().add("arena");
+        arena.arenaCenter(center, dimension);
+        arena.edit("arenaShape", 1, "");
+        arena.edit("arenaRadius", 16, "");
+        arena.edit("arenaForceReturn", 1, "");
+        arena.edit("arenaRespawnEnabled", 1, "");
+        arena.edit("arenaRespawnDelay", 100, "");
+
+        var minionSource = template(h, 1, 8);
+        var nextSource = template(h, 1, 12);
+        String minionName = minionSource.core.creatureName();
+        String stageName = nextSource.core.creatureName();
+        var summon = module(h, boss, minionSource.tag);
+        summon.arenaCenter(summonPoint, dimension);
+        summon.edit("spawnArenaRole", 2, "");
+        summon.edit("spawnActivate", 1, "");
+        var rejected = module(h, boss, minionSource.tag);
+        rejected.arenaCenter(outside, dimension);
+        rejected.edit("spawnArenaRole", 2, "");
+        rejected.edit("spawnActivate", 1, "");
+        var next = module(h, boss, nextSource.tag);
+        next.arenaCenter(stagePoint, dimension);
+        next.edit("spawnArenaRole", 1, "");
+        next.edit("spawnEvent", 1, "");
+        next.edit("spawnActivate", 1, "");
+
+        player.setPos(center);
+        h.assertTrue(ArenaRespawns.record(player, boss, arena), "Square arena capture failed");
+        boss.tryActivate(player);
+        h.startSequence().thenWaitUntil(() -> {
+            h.assertTrue(aliveNamed(level, minionName).size() == 1, "Expected one in-square summon");
+            h.assertTrue(BlueprintSpawns.snapshot(boss, rejected).getString("Error").equals("arena"),
+                    "The arena did not reject a summon beyond the square edge");
+        }).thenIdle(23).thenExecute(() -> {
+            var minion = aliveNamed(level, minionName).getFirst();
+            h.assertTrue(ModuleArena.horizontalDistance(ModuleArena.corePosition(minion), center) > 16,
+                    "The square-valid summon was returned using the circle");
+            h.assertTrue(ModuleArena.returnToCenter(minion, outside), "Could not move the summon outside the square");
+        }).thenIdle(25).thenExecute(() -> {
+            var minion = aliveNamed(level, minionName).getFirst();
+            h.assertTrue(ModuleArena.horizontalDistance(ModuleArena.corePosition(minion), center) < 2,
+                    "The square boundary did not return an out-of-bounds summon");
+            h.assertTrue(boss.forceDeath(), "Could not start the next stage");
+        }).thenWaitUntil(() -> {
+            h.assertTrue(aliveNamed(level, stageName).size() == 1, "The square corner did not admit the next stage");
+        }).thenIdle(5).thenExecute(() -> {
+            var stage = aliveNamed(level, stageName).getFirst();
+            h.assertTrue(ModuleArena.horizontalDistance(ModuleArena.corePosition(stage), center) > 16,
+                    "The next stage was returned from a square-valid corner");
+            var server = level.getServer();
+            var data = ArenaRespawns.get(server).save(new CompoundTag(), level.registryAccess());
+            server.overworld().getDataStorage().set("sablelife_arena_respawns", ArenaRespawns.load(data, level.registryAccess()));
+            var inherited = ArenaRespawns.inheritedBoundary(stage);
+            h.assertTrue(inherited != null && inherited.value("arenaShape") == 1 && inherited.value("arenaRadius") == 16,
+                    "Saved stage boundary did not preserve the inherited square");
+            h.assertTrue(stage.damage(20) && ModuleArena.returnToCenter(stage, outside),
+                    "Could not set up a damaged stage beyond the square edge");
+        }).thenIdle(8).thenExecute(() -> {
+            var stage = aliveNamed(level, stageName).getFirst();
+            h.assertTrue(ModuleArena.horizontalDistance(ModuleArena.corePosition(stage), center) < 2
+                            && stage.health().current() == stage.health().maximum(),
+                    "Inherited square force-return did not recenter and heal the next stage");
+        }).thenSucceed();
+    }
+
     @GameTest(template="combat",batch="arena_blueprint_stage",timeoutTicks=380)
     public static void ArenaWaitsForNextStageAndAnnouncesFinalDefeat(GameTestHelper h)throws Exception {
         testArenaStages(h,false,0);

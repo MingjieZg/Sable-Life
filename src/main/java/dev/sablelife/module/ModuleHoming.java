@@ -1,16 +1,32 @@
 package dev.sablelife.module;
 
 import dev.sablelife.attack.ModuleShot;
+import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.heart.HeartState;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.*;
 import java.util.*;
+import java.util.stream.Stream;
 
 /** A frozen fan of hover positions, followed by individually homing projectiles. */
 public final class ModuleHoming {
     private static final class State { long due; final List<ModuleShot> shots = new ArrayList<>(); }
+
+    /** Shared only by shots from the same deployment attempt. */
+    public static final class Salvo {
+        private final Set<UUID> claimedTargets = new HashSet<>();
+        private boolean launched;
+
+        public boolean recordLaunch(UUID claimedTarget) {
+            if (claimedTarget != null) claimedTargets.add(claimedTarget);
+            if (launched) return false;
+            launched = true;
+            return true;
+        }
+    }
+
     private final Map<UUID,State> states = new HashMap<>();
     private ServerLevel currentLevel;
     private void stop(UUID id,State state) {
@@ -27,32 +43,66 @@ public final class ModuleHoming {
         return DeploymentFormation.points(center,forward,new org.joml.Quaterniond(m.anchors().getFirst().body(heart).logicalPose().orientation()),(int)m.value("homingPlane"),(int)m.value("homingCount"),m.value("homingOffset"),m.value("homingFan"),Double.NaN,m.value("homingRotation"),m.value("homingVerticalRotation"));
     }
     public static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule m, Vec3 center) {
-        return targets(level, heart, m, center, center, null, false);
+        return launchTargets(level, heart, m, center, center, null);
     }
 
     public static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule module, Vec3 center, UUID inherited) {
         var current = ModuleTargets.attackAim(heart, module);
         var preferred = current != null && current.id().equals(inherited) ? current : ModuleTargets.AttackAim.fixed(inherited);
-        return targets(level, heart, module, center, center, preferred, false);
+        return launchTargets(level, heart, module, center, center, preferred);
     }
 
     public static List<LivingEntity> launchTargets(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
                                                     Vec3 center, Vec3 shooter, ModuleTargets.AttackAim aim) {
-        return targets(level, heart, module, center, shooter, aim, false);
+        boolean multiple = module.value("targetMultiple") == 1;
+        return launchTargets(level, heart, module, center, shooter, aim, multiple).limit(multiple ? 64 : 1).toList();
     }
 
-    private static List<LivingEntity> targets(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
-                                              Vec3 center, Vec3 shooter, ModuleTargets.AttackAim aim, boolean remember) {
+    public static LivingEntity automaticLaunchTarget(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
+                                                       Vec3 hover, Vec3 shooter, Salvo salvo) {
+        var targets = launchTargets(level, heart, module, hover, shooter, null, false).iterator();
+        if (!targets.hasNext()) return null;
+        var best = targets.next();
+        if (salvo == null || !salvo.claimedTargets.contains(best.getUUID())) return best;
+        while (targets.hasNext()) {
+            var target = targets.next();
+            if (!salvo.claimedTargets.contains(target.getUUID())) return target;
+        }
+        return best;
+    }
+
+    private static Stream<LivingEntity> launchTargets(ServerLevel level, HeartBlockEntity heart, VirtualModule module,
+                                                       Vec3 center, Vec3 shooter, ModuleTargets.AttackAim aim, boolean multiple) {
         double range = module.value("targetRange");
         var bounds = new AABB(center, center).inflate(range);
         java.util.function.ToDoubleFunction<LivingEntity> distance = target ->
                 ModuleTargets.attackPoint(level, heart, module, target, aim).distanceToSqr(center);
         java.util.function.Predicate<LivingEntity> eligible = target -> eligible(target, module) && distance.applyAsDouble(target) <= range * range;
         var order = ModuleTargets.comparator(heart, distance);
-        boolean multiple = module.value("targetMultiple") == 1;
         return ModuleTargets.attackResults(level, heart, module, bounds, eligible, order,
                 target -> ModuleTargets.attackVisible(level, heart, module, shooter, target, aim) ? target : null,
-                aim, multiple, remember).limit(multiple ? 64 : 1).toList();
+                aim, multiple, false);
+    }
+
+    private static boolean hasHoverTarget(ServerLevel level, HeartBlockEntity heart, VirtualModule module, List<Vec3> points) {
+        double range = module.value("targetRange");
+        double squaredRange = range * range;
+        boolean requireSight = SightMemory.enabled(module);
+        var owner = heart.creatureId();
+        var bounds = new AABB(points.getFirst(), points.getFirst());
+        for (int i = 1; i < points.size(); i++) {
+            var point = points.get(i);
+            bounds = bounds.minmax(new AABB(point, point));
+        }
+        // Only gate deployment here. Each shot makes its own selection after it has finished charging.
+        for (var target : ModuleTargets.query(level, owner, bounds.inflate(range), candidate -> eligible(candidate, module))) {
+            var targetPoint = SableBodyProbe.toWorld(level, target.getBoundingBox().getCenter());
+            for (var point : points) {
+                if (targetPoint.distanceToSqr(point) <= squaredRange
+                        && (!requireSight || ModuleTargets.visible(level, owner, point, target))) return true;
+            }
+        }
+        return false;
     }
 
     public static boolean targetInRange(ServerLevel level, VirtualModule module, Vec3 center, LivingEntity target) {
@@ -72,17 +122,26 @@ public final class ModuleHoming {
             active.add(m.id()); var s=states.computeIfAbsent(m.id(),ignored -> {
                 var restored=new State();
                 for(var entity:level.getAllEntities()) if(entity instanceof ModuleShot shot && m.id().equals(shot.homingModule()) && heart.creatureId().equals(shot.attackOwner())) restored.shots.add(shot);
+                if (!restored.shots.isEmpty()) {
+                    var salvo = new Salvo();
+                    restored.shots.forEach(shot -> shot.joinHomingSalvo(salvo));
+                }
                 return restored;
             }); s.shots.removeIf(ModuleShot::isRemoved);
             if(s.shots.isEmpty()) heart.modules().hurtTriggers.completed(m);
             if(!s.shots.isEmpty() || now<s.due || !HeartModules.triggered(m,heart)) continue;
             var center=ModuleCombat.origin(heart,m,true);
             var inherited = ModuleTargets.attackAim(heart, m);
-            if(targets(level, heart, m, center, center, inherited, true).isEmpty()) { s.due=now+10; continue; }
+            var points = formation(heart, m);
+            boolean hasTarget = inherited == null ? hasHoverTarget(level, heart, m, points)
+                    : launchTargets(level, heart, m, center, center, inherited, false).findFirst().isPresent();
+            if(!hasTarget) { s.due=now+10; continue; }
             if(!heart.modules().hurtTriggers.start(m)||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,1)) continue;
+            var salvo = new Salvo();
             int index=0;
-            for(var point:formation(heart,m)) {
+            for(var point:points) {
                 var shot=ModuleShot.homingWithAim(level, point, center, m, heart, index++, inherited);
+                shot.joinHomingSalvo(salvo);
                 if(level.addFreshEntity(shot)) s.shots.add(shot);
             }
             ModuleAudio.play(level,m,"chargeSound",center);

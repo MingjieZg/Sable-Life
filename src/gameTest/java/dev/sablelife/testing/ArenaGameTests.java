@@ -73,6 +73,76 @@ public final class ArenaGameTests {
                 "Modern saves must keep both countdowns independent");
         h.succeed();
     }
+
+    @GameTest(template="combat", batch="arena_shape_settings_and_warnings")
+    public static void SquareIncludesCornersAndKeepsCircularPlayerWarnings(GameTestHelper h) {
+        var heart = fixture(h);
+        var module = arena(heart);
+        var level = h.getLevel();
+        var center = ModuleArena.corePosition(heart);
+        var dimension = level.dimension().location().toString();
+        var author = TestActors.creative(level);
+        author.setPos(center);
+
+        var player = FakePlayerFactory.get(level, new com.mojang.authlib.GameProfile(UUID.randomUUID(), "ArenaShapeTester"));
+        player.setGameMode(GameType.SURVIVAL);
+        player.setPos(center);
+        level.players().add(player);
+        module.edit("warningRange", 4, "");
+        module.edit("arenaDeath", 0, "");
+        module.arenaCenter(center.add(4, 0, 4), dimension);
+
+        var runtime = new ModuleArena();
+        var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), level.registryAccess());
+        try {
+            h.assertTrue(module.value("arenaShape") == 0, "The arena no longer defaults to a circle");
+            var menu = new HeartDashboardMenu(1, author.getInventory(), heart);
+            var packet = new ModuleNetworking.Action(1, heart.modules().revision(), module.id(), "edit", "arenaShape", 1, "");
+            ModuleNetworking.Action.CODEC.encode(buffer, packet);
+            var decoded = ModuleNetworking.Action.CODEC.decode(buffer);
+            h.assertTrue(menu.action(author, decoded.revision(), decoded.module(), decoded.operation(),
+                            decoded.key(), decoded.value(), decoded.text()) && module.value("arenaShape") == 1,
+                    "Arena shape edit did not reach the server menu");
+
+            module.edit("arenaShape", 0, "");
+            heart.tryActivate(author);
+            runtime.tick(heart);
+            h.assertTrue(runtime.warning(module.id()), "The default circle did not warn at the square corner");
+
+            module.edit("arenaShape", 1, "");
+            runtime.tick(heart);
+            h.assertTrue(!runtime.warning(module.id()), "The square excluded its exact corner");
+            module.arenaCenter(center.add(4.25, 0, 0), dimension);
+            runtime.tick(heart);
+            h.assertTrue(runtime.warning(module.id()), "The square accepted a point beyond its X edge");
+
+            player.setPos(center.add(4, 0, 4));
+            runtime.tick(heart);
+            h.assertTrue(!runtime.warning(module.id()), "The player warning radius became square");
+            player.setPos(center);
+            module.arenaCenter(center.add(0, 30, -4), dimension);
+            runtime.tick(heart);
+            h.assertTrue(!runtime.warning(module.id()), "The horizontal square rejected its exact Z edge");
+
+            var saved = module.save();
+            var restored = VirtualModule.load(saved);
+            h.assertTrue(restored.value("arenaShape") == 1 && restored.value("arenaRadius") == 4
+                            && restored.arenaCenter().equals(module.arenaCenter())
+                            && ModulePreset.create(saved).value("arenaShape") == 1,
+                    "The square shape or arena settings were lost on save or in a preset");
+            saved.getCompound("Settings").remove("arenaShape");
+            var legacy = VirtualModule.load(saved);
+            h.assertTrue(legacy.value("arenaShape") == 0 && legacy.value("arenaRadius") == 4
+                            && legacy.value("arenaDeath") == 0 && legacy.value("warningRange") == 4,
+                    "Old arena settings did not preserve their circle or other options");
+        } finally {
+            buffer.release();
+            runtime.clear();
+            level.players().remove(player);
+        }
+        h.succeed();
+    }
+
     @GameTest(template="combat",timeoutTicks=40)
     public static void ForcedReturnRestoresHealthAndOverridesPlayerWarning(GameTestHelper h) {
         var heart=fixture(h);

@@ -17,7 +17,7 @@
 
 ## 已登记的功能点
 
-推进与运动阻尼登记为第 117、118 项，推进世界方向为第 119 项，观察工具的生存合成为第 120 项。0.1.452 包含第 128、129 项。0.1.456 合入第 130–133 项。0.1.457 登记蜂巢护盾为第 134 项。0.1.458 登记无线红石断电渐降为第 135 项。生存生命核心的液体燃料、目标对准的侦测内半径和优先目标分别登记为第 136、137、138 项，待发布。 / Version 0.1.452 adds entries 128 and 129. Version 0.1.456 includes entries 130–133. Honeycomb Shield is entry 134 in 0.1.457. Wireless Redstone release ramp is entry 135 in 0.1.458. Survival Heart Core liquid fuel, the Target Alignment detection inner radius, and Priority Targets are unreleased as entries 136, 137, and 138.
+推进与运动阻尼登记为第 117、118 项，推进世界方向为第 119 项，观察工具的生存合成为第 120 项。0.1.452 包含第 128、129 项。0.1.456 合入第 130–133 项。0.1.457 登记蜂巢护盾为第 134 项。0.1.458 登记无线红石断电渐降为第 135 项。生存生命核心的液体燃料、目标对准的侦测内半径、优先目标和方形场地边界分别登记为第 136–139 项，待发布。 / Version 0.1.452 adds entries 128 and 129. Version 0.1.456 includes entries 130–133. Honeycomb Shield is entry 134 in 0.1.457. Wireless Redstone release ramp is entry 135 in 0.1.458. Survival Heart Core liquid fuel, the Target Alignment detection inner radius, Priority Targets, and the square arena boundary are unreleased as entries 136–139.
 
 1. 核心玩家名字白名单，支持离线名字、忽略大小写及 All 目标。
 2. 每核心目标优先级排序。
@@ -246,3 +246,5 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 137. 待发布。目标对准可按距标记方块的侦测内半径排除过近的目标，适用于自行索敌、关联的目标感应和自定义动作抽选提供的目标。默认 0，预览显示两个生效的半径，指挥棒明确指定的目标或目的地仍可跳过距离限制。手册修订 265。 / Target Alignment gains a detection inner radius measured from the marked block. It applies to its own search, a linked Target Sensor, and Move Set targets. It defaults to zero, preview shows the active radii, and explicit Command Wand targets and destinations still bypass the distance limits. Unreleased, manual revision 265.
 
 138. 待发布。核心可按生物类型或整个模组设置优先目标。通过白名单和阵营规则等筛选后，自动索敌优先选取符合条件的名单目标，已有的有效锁定会保留。目标感应和目标对准可选择仅锁定名单内的目标。 / The core’s Priority Targets list accepts individual mob types or all mobs from a mod. Eligible listed mobs come first during automatic acquisition after whitelist and faction checks. Existing valid locks stay in place. Target Sensor and Target Alignment can filter to the list. Unreleased.
+
+139. 待发布。场地边界可设为方形，以标记点为中心并沿世界 X、Z 轴对齐。越界判定、阶段继承、召唤和预览按选定形状运行。原有场地沿用圆形，玩家警告范围独立设置。 / Arena boundary can use a square aligned with the world's X and Z axes around the marked center. Boundary checks, inherited stages, summons, and preview use the selected shape. Existing arenas retain Circle and the player warning range remains separate. Unreleased.

@@ -39,9 +39,12 @@ final class InspectionGeometry {
                 }
             }
         } else if (type.equals("arena")) {
-            if (here(heart, module))
-                out.add(make(RING, null, null, true, module.arenaCenter().add(0, .2, 0),
-                        uniformly(module.value("arenaRadius")), aim(UP)));
+            if (here(heart, module)) {
+                double radius = module.value("arenaRadius");
+                boolean square = ModuleArena.square(module);
+                var size = square ? new Vec3(radius, radius, 0) : uniformly(radius);
+                out.add(make(square ? FACE : RING, null, null, true, module.arenaCenter().add(0, .2, 0), size, aim(UP)));
+            }
             coreShape(out, heart, RING, new Vec3(0, .2, 0), uniformly(module.value("warningRange")), aim(UP));
         } else if (type.equals("bgm")) {
             coreShape(out, heart, SPHERE, Vec3.ZERO, uniformly(module.value("bgmRadius")), IDENTITY);

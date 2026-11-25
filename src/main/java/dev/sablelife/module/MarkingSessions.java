@@ -529,13 +529,28 @@ public final class MarkingSessions {
             var yellow = new net.minecraft.core.particles.DustParticleOptions(new org.joml.Vector3f(1, 1, .1F), 1.4F);
             var playerCenter = ModuleArena.corePosition(heart);
             boolean arenaHere = module.arenaCenter() != null && level.dimension().location().toString().equals(module.arenaDimension());
-            for (int i = 0; i < 128; i++) {
-                double angle = Math.PI * 2 * i / 128., x = Math.cos(angle), z = Math.sin(angle);
+            boolean square = ModuleArena.square(module);
+            double radius = module.value("arenaRadius"), warningRange = module.value("warningRange");
+            int samples = 128, sideSamples = samples / 4;
+            for (int i = 0; i < samples; i++) {
+                double angle = Math.PI * 2 * i / samples, x = Math.cos(angle), z = Math.sin(angle);
                 if (arenaHere) {
-                    var p = module.arenaCenter().add(x * module.value("arenaRadius"), .2, z * module.value("arenaRadius"));
+                    Vec3 offset;
+                    if (square) {
+                        double along = radius * (2.0 * (i % sideSamples) / sideSamples - 1);
+                        offset = switch (i / sideSamples) {
+                            case 0 -> new Vec3(-radius, .2, along);
+                            case 1 -> new Vec3(along, .2, radius);
+                            case 2 -> new Vec3(radius, .2, -along);
+                            default -> new Vec3(-along, .2, -radius);
+                        };
+                    } else {
+                        offset = new Vec3(x * radius, .2, z * radius);
+                    }
+                    var p = module.arenaCenter().add(offset);
                     level.sendParticles(player, red, true, p.x, p.y, p.z, 1, 0, 0, 0, 0);
                 }
-                var p = playerCenter.add(x * module.value("warningRange"), .2, z * module.value("warningRange"));
+                var p = playerCenter.add(x * warningRange, .2, z * warningRange);
                 level.sendParticles(player, yellow, true, p.x, p.y, p.z, 1, 0, 0, 0, 0);
             }
             player.displayClientMessage(Component.translatable("dashboard.sablelife.arena_preview_help"), true); return;

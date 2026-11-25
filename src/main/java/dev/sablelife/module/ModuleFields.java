@@ -8,6 +8,7 @@ public final class ModuleFields {
     public static final String MELEE_SHIELD_BREAK_SOUND = "meleeShieldBreakSound";
     public static final String MELEE_VANILLA_KNOCKBACK = "meleeVanillaKnockback";
     public static final String REDSTONE_RAMP_RELEASE_TIME = "redstoneRampReleaseTime";
+    public static final String ARENA_SHAPE = "arenaShape";
     public static final int ARENA_ANNOUNCEMENT_LENGTH = 256;
     public static final int ARENA_BATTLE_MIN_TICKS = 100;
     public static final int ARENA_BATTLE_MAX_TICKS = 72000;
@@ -99,7 +100,7 @@ public final class ModuleFields {
             case "health_phase" -> List.of("healthPhaseRules");
             case "wireless_redstone" -> List.of("redstoneStrengthMode", "redstonePower", "redstoneRampStart", "redstoneRampEnd", "redstoneRampTime", REDSTONE_RAMP_RELEASE_TIME, "redstoneMode", "redstonePulse", "redstoneBufferTime", "redstoneInvert", "redstoneFaces", "redstoneChannel", "redstoneFrequency");
         case "sequence" -> List.of("sequenceSteps", "sequenceRepeat", "stopOnLow", "resetChannel", "resetSource");
-            case "arena" -> List.of("arenaRadius", "warningRange", "countdown", "arenaDeath", "arenaPlayerDeathCountdown", "arenaForceReturn", "arenaReturn", "arenaBuffEnabled", "arenaBuffGroups", "arenaRespawnEnabled", "arenaRespawnDelay", "arenaRespawnRecord", "arenaRespawnClear", "arenaRespawnBattleTimer", "arenaRespawnBattleLimit", "arenaDefeatAnnouncement", "arenaRespawnAnnouncement",
+            case "arena" -> List.of(ARENA_SHAPE, "arenaRadius", "warningRange", "countdown", "arenaDeath", "arenaPlayerDeathCountdown", "arenaForceReturn", "arenaReturn", "arenaBuffEnabled", "arenaBuffGroups", "arenaRespawnEnabled", "arenaRespawnDelay", "arenaRespawnRecord", "arenaRespawnClear", "arenaRespawnBattleTimer", "arenaRespawnBattleLimit", "arenaDefeatAnnouncement", "arenaRespawnAnnouncement",
                     ArenaBattleTitle.ENABLED_KEY, ArenaBattleTitle.DISPLAY_KEY, "arenaRespawnBattleTitleStart", "arenaRespawnBattleTitle10m",
                     "arenaRespawnBattleTitle5m", "arenaRespawnBattleTitle1m", "arenaRespawnBattleTitle10s");
             case "blueprint_spawn" -> List.of("blueprintEditor", "spawnActivate", "spawnArenaRole",
@@ -188,7 +189,8 @@ public final class ModuleFields {
             fields.add(n("targetRange",1,256,64));
             if(!type.equals("slash"))fields.add(target(2));
         }
-        if (List.of("mortar", "ground_strike", "laser", "quake", "homing", "arrow", "gun", "slash", "sphere_blast", "pull", "freeze", "pulse").contains(type)) fields.add(c("targetMultiple", "off", "on"));
+        if (type.equals("homing")) fields.add(c("targetMultiple", "homing_each_shot", "homing_spread_targets"));
+        else if (List.of("mortar", "ground_strike", "laser", "quake", "arrow", "gun", "slash", "sphere_blast", "pull", "freeze", "pulse").contains(type)) fields.add(c("targetMultiple", "off", "on"));
         if (ModuleEffects.TYPES.contains(type)) fields.add(c("effects", "effects"));
         var arranged = fields.stream().sorted(java.util.Comparator.comparingInt(f -> { int i = presentationOrder.indexOf(f.key()); return i < 0 ? Integer.MAX_VALUE : i; })).toList();
         var result = new java.util.ArrayList<Field>();
@@ -257,7 +259,7 @@ public final class ModuleFields {
                 c("moveDepartureParticles","particles"),c("moveDepartureSound","library"),n("moveDepartureSoundVolume",0,4,1),n("moveDepartureSoundRadius",1,256,32),
                 c("moveArrivalParticles","particles"),c("moveArrivalSound","library"),n("moveArrivalSoundVolume",0,4,1),n("moveArrivalSoundRadius",1,256,32));
         case "sequence" -> List.of(c("sequenceSteps", "sequence_editor"), c("sequenceRepeat", "sequence_once", "sequence_repeat"), c("stopOnLow", "off", "on"), n("resetChannel", 0, 65535, 0), c("resetSource", "sequence_external", "sequence_internal"));
-        case "arena" -> arenaWithTitles(List.of(n("arenaRadius", 4, 256, 48), n("warningRange", 4, 256, 64), t("countdown", 20, 1200, 100), new Field("arenaDeath", 0, 1, 1, 1, List.of("off", "on")), t("arenaPlayerDeathCountdown", 20, 1200, 100), c("arenaForceReturn", "off", "on"), c("arenaReturn", "off", "on"),c("arenaBuffEnabled","off","on"),c("arenaBuffGroups","arena_buff_editor"),c("arenaRespawnEnabled","off","on"),t("arenaRespawnDelay",100,72000,1200),c("arenaRespawnRecord","arena_respawn_record"),c("arenaRespawnClear","arena_respawn_clear"),c("arenaRespawnBattleTimer","off","on"),t("arenaRespawnBattleLimit",ARENA_BATTLE_MIN_TICKS,ARENA_BATTLE_MAX_TICKS,6000),n("arenaRespawnAnnouncement",0,ARENA_ANNOUNCEMENT_LENGTH,0),n("arenaDefeatAnnouncement",0,ARENA_ANNOUNCEMENT_LENGTH,0)));
+        case "arena" -> arenaWithTitles(List.of(c(ARENA_SHAPE, "arena_circle", "arena_square"), n("arenaRadius", 4, 256, 48), n("warningRange", 4, 256, 64), t("countdown", 20, 1200, 100), new Field("arenaDeath", 0, 1, 1, 1, List.of("off", "on")), t("arenaPlayerDeathCountdown", 20, 1200, 100), c("arenaForceReturn", "off", "on"), c("arenaReturn", "off", "on"),c("arenaBuffEnabled","off","on"),c("arenaBuffGroups","arena_buff_editor"),c("arenaRespawnEnabled","off","on"),t("arenaRespawnDelay",100,72000,1200),c("arenaRespawnRecord","arena_respawn_record"),c("arenaRespawnClear","arena_respawn_clear"),c("arenaRespawnBattleTimer","off","on"),t("arenaRespawnBattleLimit",ARENA_BATTLE_MIN_TICKS,ARENA_BATTLE_MAX_TICKS,6000),n("arenaRespawnAnnouncement",0,ARENA_ANNOUNCEMENT_LENGTH,0),n("arenaDefeatAnnouncement",0,ARENA_ANNOUNCEMENT_LENGTH,0)));
         case "quake" -> List.of(c("quakeMode", "quake_line", "quake_ring", "quake_area"), c("quakeOrigin", "marked", "quake_target_feet"),
                 target(0), n("quakeDetectRange", 1, 128, 32), n("quakeRange", 1, 64, 16), n("quakeWidth", .5, 16, 3), n("quakeSpeed", .1, 4, .6),
                 t("warningTime", 1, 1200, 30), n("damage", 0, 1000, 6), n("quakeLaunch", 0, 20, 3), n("quakePush", 0, 3, .5), n("quakeRise", 0, 4, .8),

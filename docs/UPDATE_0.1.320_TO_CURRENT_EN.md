@@ -23,6 +23,14 @@
 - Automatic targeting applies eligibility, whitelist, and faction rules first. Eligible priority mobs come first when acquiring a new target. When none qualify, ordinary selection continues. Adding priority entries leaves an existing valid lock in place.
 - Lock only listed targets defaults to Off in Target Sensor and Target Alignment. Turn it on to select eligible mobs from the priority list only. Choose a target mode that can select mobs. An empty list yields no target. Target Alignment still accepts explicit Command Wand targets. Entry 138.
 
+### Hovering homing projectiles
+
+- After reaching its hover point and completing its charge, each projectile acquires automatic targets from that point. Tracking range continues to use the same fixed point. Spread targets prefers different eligible targets within a salvo. Explicit targets from Command Wand and Move Set follow their existing rules. Manual revision 267.
+
+### Square arena boundary
+
+- Set Arena shape to Circle or Square. A square aligns with the world's X and Z axes. Arena half-side measures from the marked center to an edge. Preview, boss boundary checks, inherited stages, summon placement, and summon returns use the selected shape. The player warning range remains a separate circle. Existing arenas retain Circle. Record the first-stage arena again after changing its shape if future respawns should use the new shape. Entry 139, manual revision 267.
+
 ## 0.1.458
 
 - **Blueprint factions on first placement**. The pending entry shows the source faction's name. When there is no usable local faction, the setup opens on the Create tab with the source settings filled in. Players can confirm creation and binding or skip the faction. Manual revision 264.
