@@ -43,7 +43,7 @@ public final class NumericWheelSteps {
             if(key.equals("arenaPlayerDeathCountdown")||key.equals("arenaRespawnBattleLimit"))return 5;
             if(key.equals("arenaRespawnDelay"))return 1;
         }
-        if(key.equals("interactionSize"))return 1;
+        if(key.startsWith("interactionSize"))return 1;
         if(type.equals("blueprint_spawn")&&Set.of("spawnDelay","spawnCooldown","spawnLimit").contains(key))return 1;
         if(type.equals("surface_field")&&Set.of("fieldRadius","fieldLength","fieldWidth","fieldDuration").contains(key))return 1;
         if(type.equals("surface_field")&&key.equals("fieldBlastDelay"))return .25;

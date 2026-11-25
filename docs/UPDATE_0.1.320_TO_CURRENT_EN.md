@@ -13,6 +13,10 @@
 
 - Set Detection inner radius from 0 to 31 blocks, below Radius. It defaults to 0, so there is no minimum distance. Target Alignment measures from the marked block and excludes targets closer than the inner radius from its own search, a linked Target Sensor, and Move Set. Preview shows the outer sphere and adds an inner sphere when the setting is above 0. Explicit Command Wand targets and destinations still bypass the distance limits and follow the module's trigger and line-of-sight settings. Entry 137, manual revision 265.
 
+### Block Interaction range
+
+- Set each X, Y, and Z side of the interaction box independently from 1 to 30 blocks in steps of 1. Each defaults to 1. An existing single side length is copied to all three axes. World and Structure modes each simulate one empty-hand right-click on the nearest supported block to the reference point. Supported targets are vanilla wooden doors and trapdoors, fence gates, buttons, and levers. Manual revision 266.
+
 ## 0.1.458
 
 - **Blueprint factions on first placement**. The pending entry shows the source faction's name. When there is no usable local faction, the setup opens on the Create tab with the source settings filled in. Players can confirm creation and binding or skip the faction. Manual revision 264.

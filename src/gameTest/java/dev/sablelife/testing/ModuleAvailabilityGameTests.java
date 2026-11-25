@@ -62,6 +62,152 @@ public final class ModuleAvailabilityGameTests {
             h.succeed();
         });
     }
+    @GameTest(template = "combat", batch = "block_interaction_large_settings")
+    public static void InteractionSizeKeepsLegacyDefaultAndSupportsThirty(GameTestHelper h) {
+        var module = new VirtualModule("block_interaction");
+        var axes = List.of("interactionSizeX", "interactionSizeY", "interactionSizeZ");
+        var legacy = module.save();
+        legacy.getCompound("Settings").remove("interactionSize");
+        axes.forEach(legacy.getCompound("Settings")::remove);
+        var oldDefault = VirtualModule.load(legacy);
+        h.assertTrue(axes.stream().allMatch(axis -> module.value(axis) == 1 && oldDefault.value(axis) == 1),
+                "New or legacy Block Interaction changed its one-block defaults");
+        legacy.getCompound("Settings").putDouble("interactionSize", 3);
+        var authored = VirtualModule.load(legacy);
+        h.assertTrue(axes.stream().allMatch(axis -> authored.value(axis) == 3),
+                "A saved scalar size did not migrate to three equal sides");
+        h.assertTrue(authored.edit("interactionSize", 73, "") && axes.stream().allMatch(axis -> authored.value(axis) == 30),
+                "The legacy edit alias did not clamp and update all three sides");
+        h.assertTrue(authored.edit("interactionSizeY", 0, "") && authored.edit("interactionSizeZ", 2.6, ""),
+                "The separate Y and Z side edits were rejected");
+        var saved = VirtualModule.load(authored.save());
+        h.assertTrue(saved.value("interactionSizeX") == 30 && saved.value("interactionSizeY") == 1
+                        && saved.value("interactionSizeZ") == 3,
+                "Independent sides did not clamp, round to whole blocks, or survive a save/load");
+        var properties = ModuleFields.forType("block_interaction").stream().map(ModuleFields.Field::key).toList();
+        h.assertTrue(properties.containsAll(axes)
+                        && axes.stream().allMatch(axis -> dev.sablelife.client.NumericWheelSteps.module("block_interaction", axis, 1, 1) == 1),
+                "The three independently editable sides did not use a one-block wheel step");
+        h.succeed();
+    }
+
+    @GameTest(template = "combat", batch = "block_interaction_large_world")
+    public static void WorldInteractionFindsDistantNearestAndPreservesTiesAndAllowlist(GameTestHelper h) {
+        var core = core(h, true, 3);
+        var level = h.getLevel();
+        var anchor = ModuleAnchor.create(core, core.getBlockPos().east(), Direction.UP);
+        var center = BlockPos.containing(anchor.world(core, false)).above(24);
+        var left = center.west(12);
+        var right = center.east(12);
+        var edge = center.south(15);
+        var outside = center.south(16);
+        var crankPos = center.north();
+        var crankSupport = crankPos.below();
+        var crank = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getOptional(
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("create", "hand_crank"));
+        var changed = List.of(center, crankSupport, crankPos, left, right, edge, outside);
+        var oldStates = changed.stream().map(level::getBlockState).toList();
+        var open = net.minecraft.world.level.block.TrapDoorBlock.OPEN;
+        var module = core.modules().add("block_interaction");
+        try {
+            level.setBlockAndUpdate(center, Blocks.CHEST.defaultBlockState());
+            crank.ifPresent(block -> {
+                level.setBlockAndUpdate(crankSupport, Blocks.STONE.defaultBlockState());
+                var state = block.defaultBlockState();
+                var facing = net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING;
+                if (state.hasProperty(facing)) state = state.setValue(facing, Direction.UP);
+                level.setBlockAndUpdate(crankPos, state);
+            });
+            for (var target : List.of(left, right, edge, outside))
+                level.setBlockAndUpdate(target, Blocks.OAK_TRAPDOOR.defaultBlockState());
+            h.assertTrue(crank.isEmpty() || level.getBlockState(crankPos).is(crank.orElseThrow()),
+                    "Create hand crank fixture was unavailable after placement");
+            module.anchors(List.of(anchor));
+            module.edit("interactionSize", 30, "");
+            module.edit("interactionOffsetY", 24, "");
+            core.modules().tick(core);
+            h.assertTrue(level.getBlockState(left).getValue(open) && !level.getBlockState(right).getValue(open)
+                            && !level.getBlockState(edge).getValue(open) && !level.getBlockState(outside).getValue(open),
+                    "World search did not skip the chest/crank and choose only the original cross-chunk tie winner");
+            level.setBlockAndUpdate(left, Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(right, Blocks.AIR.defaultBlockState());
+            core.modules().clearRuntime();
+            core.modules().tick(core);
+            h.assertTrue(level.getBlockState(edge).getValue(open) && !level.getBlockState(outside).getValue(open),
+                    "World search did not include the last cell of the 30-block box");
+            level.setBlockAndUpdate(edge, Blocks.AIR.defaultBlockState());
+            core.modules().clearRuntime();
+            core.modules().tick(core);
+            h.assertTrue(!level.getBlockState(outside).getValue(open), "World search exceeded its 30-block box");
+            h.succeed();
+        } finally {
+            module.edit("enabled", 0, "");
+            core.modules().clearRuntime();
+            for (int i = 0; i < changed.size(); i++) level.setBlockAndUpdate(changed.get(i), oldStates.get(i));
+        }
+    }
+
+    @GameTest(template = "combat", batch = "block_interaction_large_structure")
+    public static void RectangularStructureInteractionSkipsCloserBlocksOutsideItsHeightAndDepth(GameTestHelper h) {
+        var level = h.getLevel();
+        var origin = h.absolutePos(new BlockPos(3, 36, 3));
+        List<BlockPos> blocks = new ArrayList<>();
+        for (int x = 0; x <= 17; x++) {
+            var pos = origin.east(x);
+            var block = switch (x) {
+                case 0 -> SableLife.REDSTONE_CORE.get();
+                case 13, 16, 17 -> Blocks.OAK_TRAPDOOR;
+                default -> Blocks.IRON_BLOCK;
+            };
+            level.setBlockAndUpdate(pos, block.defaultBlockState());
+            blocks.add(pos);
+        }
+        var raised = origin.east(2).above();
+        var offset = origin.east(2).south(2);
+        var support = offset.north();
+        level.setBlockAndUpdate(support, Blocks.IRON_BLOCK.defaultBlockState());
+        level.setBlockAndUpdate(raised, Blocks.OAK_TRAPDOOR.defaultBlockState());
+        level.setBlockAndUpdate(offset, Blocks.OAK_TRAPDOOR.defaultBlockState());
+        blocks.addAll(List.of(support, raised, offset));
+        var body = SubLevelAssemblyHelper.assembleBlocks(level, origin, blocks,
+                new BoundingBox3i(origin.getX(), origin.getY(), origin.getZ(), origin.getX() + 17, origin.getY() + 1, origin.getZ() + 2));
+        var heart = (HeartBlockEntity) level.getBlockEntity(body.getPlot().getCenterBlock());
+        var marker = heart.getBlockPos().east();
+        var anchor = ModuleAnchor.create(heart, marker, Direction.UP);
+        var nearest = marker.east(12);
+        var edge = marker.east(15);
+        var outside = marker.east(16);
+        var above = marker.east().above();
+        var beyondDepth = marker.east().south(2);
+        var world = BlockPos.containing(anchor.world(heart, false));
+        var previous = level.getBlockState(world);
+        var open = net.minecraft.world.level.block.TrapDoorBlock.OPEN;
+        var module = heart.modules().add("block_interaction");
+        try {
+            level.setBlockAndUpdate(world, Blocks.OAK_TRAPDOOR.defaultBlockState());
+            module.anchors(List.of(anchor));
+            module.edit("interactionSpace", 1, "");
+            module.edit("interactionSizeX", 30, "");
+            module.edit("interactionSizeY", 1, "");
+            module.edit("interactionSizeZ", 3, "");
+            heart.modules().tick(heart);
+            h.assertTrue(level.getBlockState(nearest).getValue(open) && !level.getBlockState(edge).getValue(open)
+                            && !level.getBlockState(above).getValue(open) && !level.getBlockState(beyondDepth).getValue(open)
+                            && !level.getBlockState(world).getValue(open),
+                    "Rectangular structure search selected a nearer block outside its height, depth, or plot");
+            level.setBlockAndUpdate(nearest, Blocks.IRON_BLOCK.defaultBlockState());
+            heart.modules().clearRuntime();
+            heart.modules().tick(heart);
+            h.assertTrue(level.getBlockState(edge).getValue(open) && !level.getBlockState(outside).getValue(open),
+                    "Structure search missed its last cell or exceeded side 30");
+            h.succeed();
+        } finally {
+            module.edit("enabled", 0, "");
+            heart.modules().clearRuntime();
+            level.setBlockAndUpdate(world, previous);
+        }
+    }
+
     @GameTest(template="combat",batch="block_interaction_offset")
     public static void InteractionOffsetsMoveTheSearchAndSelectOnlyTheNearestBlock(GameTestHelper h){
         var core=core(h,true,3);

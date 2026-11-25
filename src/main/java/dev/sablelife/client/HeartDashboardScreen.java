@@ -664,6 +664,8 @@ public final class HeartDashboardScreen extends AbstractContainerScreen<HeartDas
                 && !(List.of("sound","trigger_sound").contains(m.type())&&List.of("volume","pitch").contains(f.key()))&&!f.key().equals("bgmVolume")).toList();}
         if (m != null && m.type().equals("melee") && m.value(ModuleFields.MELEE_DISABLE_SHIELD) != 1)
             nextFields = nextFields.stream().filter(field -> !field.key().equals(ModuleFields.MELEE_SHIELD_BREAK_SOUND)).toList();
+        if (m != null && m.type().equals("block_interaction"))
+            nextFields = nextFields.stream().filter(field -> !field.key().equals("interactionSize")).toList();
         if(m!=null&&m.type().equals("propulsion"))nextFields=nextFields.stream().filter(f->ModulePropulsion.visible(m,f.key())).toList();
         if(m!=null&&m.type().equals("motion_damping"))nextFields=nextFields.stream().filter(f->!PhysicsModuleFields.directionField(f.key())&&(!f.key().equals("dampDuration")||m.value("dampMode")==1)).toList();
         if (m != null && m.type().equals("particles")) nextFields = nextFields.stream().filter(f -> dev.sablelife.module.ParticlePattern.visibleField(m, f.key())).toList();

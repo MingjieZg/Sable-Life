@@ -9,11 +9,16 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -58,10 +63,11 @@ final class ModuleBlockInteraction {
         boolean structure=module.value("interactionSpace")==1;
         var point=structure?local:pose.transformPosition(local);
         var forward=pose.transformPosition(local.add(normal)).subtract(point);
-        int size=(int)module.value("interactionSize");
-        double shift=(size-1)*.5;
-        var min=BlockPos.containing(point.subtract(shift,shift,shift));
-        return new Area(point,min,min.offset(size-1,size-1,size-1),
+        int spanX = (int) module.value("interactionSizeX") - 1;
+        int spanY = (int) module.value("interactionSizeY") - 1;
+        int spanZ = (int) module.value("interactionSizeZ") - 1;
+        var min = BlockPos.containing(point.subtract(spanX * .5, spanY * .5, spanZ * .5));
+        return new Area(point, min, min.offset(spanX, spanY, spanZ),
                 structure?anchor.face():Direction.getNearest(forward.x,forward.y,forward.z),structure?body:null);
     }
 
@@ -79,21 +85,91 @@ final class ModuleBlockInteraction {
         }
     }
 
-    private static BlockPos target(ServerLevel level,Area area){
-        BlockPos nearest=null;
-        double best=Double.POSITIVE_INFINITY;
-        for(var pos:BlockPos.betweenClosed(area.min(),area.max())){
-            if(!level.hasChunkAt(pos)||area.body()==null&&!level.getWorldBorder().isWithinBounds(pos)
-                    ||Sable.HELPER.getContaining(level,pos)!=area.body())continue;
-            var block=level.getBlockState(pos).getBlock();
-            if(!BuiltInRegistries.BLOCK.getKey(block).getNamespace().equals("minecraft"))continue;
-            if(block==Blocks.IRON_DOOR||block==Blocks.IRON_TRAPDOOR)continue;
-            if(!(block instanceof DoorBlock||block instanceof TrapDoorBlock||block instanceof FenceGateBlock
-                    ||block instanceof ButtonBlock||block instanceof LeverBlock))continue;
-            double distance=pos.getCenter().distanceToSqr(area.point());
-            if(distance<best){nearest=pos.immutable();best=distance;}
+    private static boolean supported(BlockState state) {
+        var block = state.getBlock();
+        return block != Blocks.IRON_DOOR && block != Blocks.IRON_TRAPDOOR
+                && (block instanceof DoorBlock || block instanceof TrapDoorBlock || block instanceof FenceGateBlock
+                    || block instanceof ButtonBlock || block instanceof LeverBlock)
+                && BuiltInRegistries.BLOCK.getKey(block).getNamespace().equals("minecraft");
+    }
+
+    private static BlockPos target(ServerLevel level, Area area) {
+        if (area.max().getX() - area.min().getX() < 3 && area.max().getY() - area.min().getY() < 3
+                && area.max().getZ() - area.min().getZ() < 3) return smallTarget(level, area);
+
+        BlockPos nearest = null;
+        double best = Double.POSITIVE_INFINITY;
+        for (var part : candidateSections(level, area)) {
+            if (part.minimumDistance() > best) break;
+            for (var pos : BlockPos.betweenClosed(part.min(), part.max())) {
+                if (!supported(part.section().getBlockState(pos.getX() & 15, pos.getY() & 15, pos.getZ() & 15))
+                        || area.body() == null && !level.getWorldBorder().isWithinBounds(pos)) continue;
+                double distance = area.point().distanceToSqr(pos.getX() + .5, pos.getY() + .5, pos.getZ() + .5);
+                // Grouping positions by chunk changes visitation order. Preserve the original x-fast tie break.
+                if (distance < best || distance == best && nearest != null && precedes(pos, nearest)) {
+                    nearest = pos.immutable();
+                    best = distance;
+                }
+            }
         }
         return nearest;
+    }
+
+    private static BlockPos smallTarget(ServerLevel level, Area area) {
+        BlockPos nearest = null;
+        double best = Double.POSITIVE_INFINITY;
+        for (var pos : BlockPos.betweenClosed(area.min(), area.max())) {
+            if (!level.hasChunkAt(pos) || area.body() == null && !level.getWorldBorder().isWithinBounds(pos)
+                    || Sable.HELPER.getContaining(level, pos) != area.body() || !supported(level.getBlockState(pos))) continue;
+            double distance = pos.getCenter().distanceToSqr(area.point());
+            if (distance < best) {
+                nearest = pos.immutable();
+                best = distance;
+            }
+        }
+        return nearest;
+    }
+
+    private record CandidateSection(LevelChunkSection section, BlockPos min, BlockPos max, double minimumDistance) {}
+
+    private static List<CandidateSection> candidateSections(ServerLevel level, Area area) {
+        int minY = Math.max(area.min().getY(), level.getMinBuildHeight());
+        int maxY = Math.min(area.max().getY(), level.getMaxBuildHeight() - 1);
+        if (minY > maxY) return List.of();
+
+        var sections = new ArrayList<CandidateSection>();
+        var chunks = level.getChunkSource();
+        for (int z = area.min().getZ() >> 4; z <= (area.max().getZ() >> 4); z++) {
+            for (int x = area.min().getX() >> 4; x <= (area.max().getX() >> 4); x++) {
+                if (Sable.HELPER.getContaining(level, x, z) != area.body() || !chunks.hasChunk(x, z)) continue;
+                // Sable routes this loaded-only lookup to the same plot storage as normal block reads.
+                var chunk = chunks.getChunkNow(x, z);
+                if (chunk == null) continue;
+                int left = x << 4, front = z << 4;
+                for (int index = chunk.getSectionIndex(minY); index <= chunk.getSectionIndex(maxY); index++) {
+                    var section = chunk.getSection(index);
+                    if (section.hasOnlyAir() || !section.maybeHas(ModuleBlockInteraction::supported)) continue;
+                    int bottom = chunk.getSectionYFromSectionIndex(index) << 4;
+                    var min = new BlockPos(Math.max(area.min().getX(), left), Math.max(minY, bottom),
+                            Math.max(area.min().getZ(), front));
+                    var max = new BlockPos(Math.min(area.max().getX(), left + 15), Math.min(maxY, bottom + 15),
+                            Math.min(area.max().getZ(), front + 15));
+                    var point = area.point();
+                    double distance = point.distanceToSqr(Math.clamp(point.x, min.getX() + .5, max.getX() + .5),
+                            Math.clamp(point.y, min.getY() + .5, max.getY() + .5),
+                            Math.clamp(point.z, min.getZ() + .5, max.getZ() + .5));
+                    sections.add(new CandidateSection(section, min, max, distance));
+                }
+            }
+        }
+        sections.sort(Comparator.comparingDouble(CandidateSection::minimumDistance));
+        return sections;
+    }
+
+    private static boolean precedes(BlockPos candidate, BlockPos current) {
+        if (candidate.getZ() != current.getZ()) return candidate.getZ() < current.getZ();
+        if (candidate.getY() != current.getY()) return candidate.getY() < current.getY();
+        return candidate.getX() < current.getX();
     }
 
     private static void interact(ServerLevel level,HeartBlockEntity core,VirtualModule module){

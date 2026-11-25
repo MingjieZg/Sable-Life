@@ -496,9 +496,16 @@ public final class VirtualModule {
                     if(color!=null&&(key.endsWith("Red")||key.endsWith("Green")||key.endsWith("Blue")))settings.putDouble(color+"RgbSet",1);
                     double next = Math.clamp(value, field.min(), field.max());
                     if(color!=null)next=Math.round(next);
-                    if (field.scale() == 20 || field.choice() || (type.equals("signal_turn")||type.equals("navigation"))&&key.endsWith("Channel") || List.of("slashCount","slashRed","slashGreen","slashBlue","arrows", "burn", "rolls", "radius", "innerRadius", "direction", "effectLevel", "density", "strikeRays", "strikeRandomCount", "beamHits", "sensorChannel", "sensorPower", "accumChannel", "accumPower", "phaseChannel", "phasePower", "resetChannel", "redstoneChannel", "redstonePower", "quakeWaves", "homingCount", "summonCount", "interactionSize", "meleeHitLimit","hitThreshold","hitSource","hitChannel","hitPower").contains(key)) next = Math.round(next);
+                    if (field.scale() == 20 || field.choice() || key.startsWith("interactionSize")
+                            || (type.equals("signal_turn")||type.equals("navigation"))&&key.endsWith("Channel") || List.of("slashCount","slashRed","slashGreen","slashBlue","arrows", "burn", "rolls", "radius", "innerRadius", "direction", "effectLevel", "density", "strikeRays", "strikeRandomCount", "beamHits", "sensorChannel", "sensorPower", "accumChannel", "accumPower", "phaseChannel", "phasePower", "resetChannel", "redstoneChannel", "redstonePower", "quakeWaves", "homingCount", "summonCount", "meleeHitLimit","hitThreshold","hitSource","hitChannel","hitPower").contains(key)) next = Math.round(next);
                     if (key.equals("innerRadius")) next = Math.min(next, value("radius") - 1);
                     settings.putDouble(key, next);
+                    if (key.equals("interactionSize")) {
+                        // The legacy cube size is loaded before any saved per-axis dimensions.
+                        settings.putDouble("interactionSizeX", next);
+                        settings.putDouble("interactionSizeY", next);
+                        settings.putDouble("interactionSizeZ", next);
+                    }
                     if (key.equals("particlePattern")) { invalidated = false; detached = false; }
                     if (key.equals("radius") && (type.equals("sensor") || type.equals("navigation")))
                         settings.putDouble("innerRadius", Math.min(value("innerRadius"), next - 1));

@@ -284,8 +284,10 @@ final class InspectionGeometry {
 
     private static void interaction(List<InspectionSnapshot.Piece> out, HeartBlockEntity heart, VirtualModule module, ModuleAnchor mark) {
         var area = ModuleBlockInteraction.area(heart, module);
-        var half = uniformly(module.value("interactionSize") / 2 + .002);
-        var center = area.min().getCenter().add(half).subtract(.502, .502, .502);
+        var min = Vec3.atLowerCornerOf(area.min());
+        var max = Vec3.atLowerCornerOf(area.max()).add(1, 1, 1);
+        var half = max.subtract(min).scale(.5).add(.002, .002, .002);
+        var center = min.add(max).scale(.5);
         if (area.body() == null) out.add(atWorld(heart, mark, BOX, center, half, IDENTITY, true));
         else box(out, mark, center.subtract(mark.position(area.body()).getCenter()), half, IDENTITY);
     }
