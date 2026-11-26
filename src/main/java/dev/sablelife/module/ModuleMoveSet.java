@@ -1,5 +1,6 @@
 package dev.sablelife.module;
 
+import dev.sablelife.diagnostics.CoreProfiler;
 import dev.sablelife.heart.*;
 import net.minecraft.nbt.*;
 import java.util.*;
@@ -43,7 +44,8 @@ public final class ModuleMoveSet {
     public void tick(HeartBlockEntity heart) {
         activations.clear();
         if (!heart.operational() || !heart.wireless().master()) { clear(); return; }
-        long now = heart.getLevel().getGameTime(); var keep = new HashSet<UUID>();
+        var level = heart.getLevel();
+        long now = level.getGameTime(); var keep = new HashSet<UUID>();
         int revision = heart.modules().revision();
         if (order == null || orderRevision != revision) {
             order = MoveSetOrder.compile(heart);
@@ -69,6 +71,7 @@ public final class ModuleMoveSet {
                 state.current = null; state.restUntil = now + (running == null ? 1 : (int)running.config().value("dispatchRest")); running = null;
             }
             if (state.current == null && now >= state.restUntil) {
+                long selecting = moves.isEmpty() ? 0 : CoreProfiler.begin(level.getServer());
                 var eligible = new ArrayList<MoveSet.Move>();
                 var selectedTargets = new HashMap<UUID, SightMemory.Target>();
                 for (var move : moves) {
@@ -83,8 +86,10 @@ public final class ModuleMoveSet {
                     }
                     eligible.add(move);
                 }
-                var selected = choose(eligible, state.previous, heart.getLevel().random.nextDouble());
+                var selected = choose(eligible, state.previous, level.random.nextDouble());
+                if (selecting != 0) CoreProfiler.endWork(heart, CoreProfiler.Work.MOVE_SELECT, selecting, 1);
                 if (selected != null) {
+                    long starting = CoreProfiler.begin(level.getServer());
                     running = eligible.stream().filter(m -> m.config().id().equals(selected)).findFirst().orElseThrow();
                     state.current = state.previous = selected; state.started = now; state.revision = revision;
                     var rules = running.config();
@@ -97,6 +102,7 @@ public final class ModuleMoveSet {
                     }
                     state.target = rules.value("inheritMoveTarget") == 1 && selectedTarget != null ? selectedTarget.id() : null;
                     state.cooldown.put(selected, now + (int)running.config().value("dispatchCooldown"));
+                    if (starting != 0) CoreProfiler.endWork(heart, CoreProfiler.Work.MOVE_START, starting, 1);
                 }
             }
             if(running==null && ModuleHurt.once(table)) heart.modules().hurtTriggers.finish(table.id());

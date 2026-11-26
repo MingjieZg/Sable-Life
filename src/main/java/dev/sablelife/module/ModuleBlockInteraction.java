@@ -2,6 +2,8 @@ package dev.sablelife.module;
 
 import com.mojang.authlib.GameProfile;
 import dev.ryanhcode.sable.Sable;
+import dev.sablelife.diagnostics.CoreProfiler;
+import dev.sablelife.diagnostics.CoreProfiler.Work;
 import dev.sablelife.heart.HeartBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -283,7 +285,13 @@ final class ModuleBlockInteraction {
 
     private static void interact(ServerLevel level,HeartBlockEntity core,VirtualModule module){
         var area=area(core,module);
-        var pos=target(level,area);
+        long scan = CoreProfiler.begin(level.getServer());
+        BlockPos pos;
+        try {
+            pos = target(level, area);
+        } finally {
+            if (scan != 0) CoreProfiler.endWork(core, Work.BLOCK_SCAN, scan, 1);
+        }
         if(pos==null)return;
         var actor=FakePlayerFactory.get(level,ACTOR);
         if(!level.mayInteract(actor,pos))return;
@@ -295,9 +303,19 @@ final class ModuleBlockInteraction {
         var event=new net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.RightClickBlock(
                 actor,net.minecraft.world.InteractionHand.MAIN_HAND,pos,result);
         Runnable use=()->{
-            net.neoforged.neoforge.common.NeoForge.EVENT_BUS.post(event);
-            if(!event.isCanceled()&&event.getUseBlock()!=net.neoforged.neoforge.common.util.TriState.FALSE)
-                level.getBlockState(pos).useWithoutItem(level,actor,result);
+            long attempted = CoreProfiler.begin(level.getServer());
+            boolean applied = false;
+            try {
+                net.neoforged.neoforge.common.NeoForge.EVENT_BUS.post(event);
+                if (!event.isCanceled() && event.getUseBlock() != net.neoforged.neoforge.common.util.TriState.FALSE) {
+                    var state = level.getBlockState(pos);
+                    var outcome = state.useWithoutItem(level, actor, result);
+                    // A powered button consumes the click without producing another press.
+                    applied = attempted != 0 && outcome.consumesAction() && !state.equals(level.getBlockState(pos));
+                }
+            } finally {
+                if (attempted != 0) CoreProfiler.endWork(core, Work.BLOCK_USE, attempted, applied ? 1 : 0);
+            }
         };
         if(area.body()!=null)dev.sablelife.ownership.BodyInteraction.useOwnModule(core,actor,pos,use);
         else use.run();

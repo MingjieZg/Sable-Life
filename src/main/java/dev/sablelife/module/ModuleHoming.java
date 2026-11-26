@@ -2,6 +2,8 @@ package dev.sablelife.module;
 
 import dev.sablelife.attack.ModuleShot;
 import dev.sablelife.compat.sable.SableBodyProbe;
+import dev.sablelife.diagnostics.CoreProfiler;
+import dev.sablelife.diagnostics.CoreProfiler.Work;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.heart.HeartState;
 import net.minecraft.server.level.ServerLevel;
@@ -131,22 +133,36 @@ public final class ModuleHoming {
             }); s.shots.removeIf(ModuleShot::isRemoved);
             if(s.shots.isEmpty()) heart.modules().hurtTriggers.completed(m);
             if(!s.shots.isEmpty() || now<s.due || !HeartModules.triggered(m,heart)) continue;
-            var center=ModuleCombat.origin(heart,m,true);
-            var inherited = ModuleTargets.attackAim(heart, m);
-            var points = formation(heart, m);
-            boolean hasTarget = inherited == null ? hasHoverTarget(level, heart, m, points)
-                    : launchTargets(level, heart, m, center, center, inherited, false).findFirst().isPresent();
+            long preflight = CoreProfiler.begin(level.getServer());
+            Vec3 center;
+            ModuleTargets.AttackAim inherited;
+            List<Vec3> points;
+            boolean hasTarget;
+            try {
+                center = ModuleCombat.origin(heart, m, true);
+                inherited = ModuleTargets.attackAim(heart, m);
+                points = formation(heart, m);
+                hasTarget = inherited == null ? hasHoverTarget(level, heart, m, points)
+                        : launchTargets(level, heart, m, center, center, inherited, false).findFirst().isPresent();
+            } finally {
+                if (preflight != 0) CoreProfiler.endWork(heart, Work.HOMING_PREFLIGHT, preflight, 1);
+            }
             if(!hasTarget) { s.due=now+10; continue; }
             if(!heart.modules().hurtTriggers.start(m)||!dev.sablelife.heart.SurvivalTokens.chargeCast(heart,m,1)) continue;
-            var salvo = new Salvo();
-            int index=0;
-            for(var point:points) {
-                var shot=ModuleShot.homingWithAim(level, point, center, m, heart, index++, inherited);
-                shot.joinHomingSalvo(salvo);
-                if(level.addFreshEntity(shot)) s.shots.add(shot);
+            long deployment = CoreProfiler.begin(level.getServer());
+            try {
+                var salvo = new Salvo();
+                int index=0;
+                for(var point:points) {
+                    var shot=ModuleShot.homingWithAim(level, point, center, m, heart, index++, inherited);
+                    shot.joinHomingSalvo(salvo);
+                    if(level.addFreshEntity(shot)) s.shots.add(shot);
+                }
+                ModuleAudio.play(level,m,"chargeSound",center);
+                s.due=now+(long)m.value("homingDeploy")+(long)m.value("chargeTime")+(long)m.value("interval");
+            } finally {
+                if (deployment != 0) CoreProfiler.endWork(heart, Work.HOMING_DEPLOY, deployment, s.shots.isEmpty() ? 0 : 1);
             }
-            ModuleAudio.play(level,m,"chargeSound",center);
-            s.due=now+(long)m.value("homingDeploy")+(long)m.value("chargeTime")+(long)m.value("interval");
         }
         for(var id:List.copyOf(states.keySet())) if(!active.contains(id)) stop(id,states.remove(id));
     }

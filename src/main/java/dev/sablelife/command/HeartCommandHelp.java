@@ -16,6 +16,7 @@ public final class HeartCommandHelp {
         line(source, "/sablelife cleanup apply radius <blocks>", "cleanup_radius");
         line(source, "/sablelife_respawn cancel", "respawn");
         if (source.hasPermission(2)) {
+            CoreProfileCommands.help(source);
             line(source, "/sablelife clipboard status [owner UUID|legacy]", "clipboard_status");
             line(source, "/sablelife clipboard archive <owner UUID|legacy> <digest>", "clipboard_archive");
             line(source, "/sablelife clipboard restore <owner UUID|legacy> <digest>", "clipboard_restore");

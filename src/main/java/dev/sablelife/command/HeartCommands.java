@@ -21,6 +21,7 @@ public final class HeartCommands {
     public static void register(RegisterCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("sablelife").executes(context -> HeartCommandHelp.show(context.getSource()))
                 .then(Commands.literal("help").executes(context -> HeartCommandHelp.show(context.getSource())))
+                .then(CoreProfileCommands.branch())
                 .then(BlueprintCommands.branch())
                 .then(DataCopierCommands.branch())
                 .then(Commands.literal("inspect").requires(source -> source.hasPermission(2)).then(Commands.argument("pos", BlockPosArgument.blockPos()).executes(context -> {

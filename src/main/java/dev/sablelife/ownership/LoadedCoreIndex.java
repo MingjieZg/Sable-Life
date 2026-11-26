@@ -64,10 +64,20 @@ public final class LoadedCoreIndex {
         });
         return List.copyOf(result);
     }
+    private static HeartBlockEntity indexed(State state, UUID id) {
+        if (state == null) return null;
+        var pos = state.identities.get(id);
+        var ref = pos == null ? null : state.cores.get(pos);
+        return ref == null ? null : ref.get();
+    }
     public static HeartBlockEntity find(ServerLevel level, UUID id) {
-        var s = state(level); var pos = s.identities.get(id); var ref = pos == null ? null : s.cores.get(pos);
-        var core = ref == null ? null : ref.get();
+        var core = indexed(state(level), id);
         return valid(level, core) && id.equals(core.creatureId()) ? core : null;
+    }
+    /** Looks up an existing block entity without loading a chunk or creating a missing entity. */
+    public static HeartBlockEntity findLoaded(ServerLevel level, UUID id) {
+        var core = indexed(levels.get(level), id);
+        return core != null && id.equals(core.creatureId()) && isLoadedCore(level, core) ? core : null;
     }
     public static void observeRemote(HeartBlockEntity core) {
         if (core.remoteId() == null || !(core.getLevel() instanceof ServerLevel level) || core.isRemoved()) return;

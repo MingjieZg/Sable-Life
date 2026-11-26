@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Core performance diagnostics
+
+- Operators and the server console can run `/sablelife profile start [seconds]` to sample briefly, for 15 seconds by default or any duration from 1 to 60 seconds. Use `/sablelife profile report cost` for core tick times or `/sablelife profile report activity` for recorded operation rates. `/sablelife profile stop` ends the sample early.
+- Timing measures server-side core ticks. Activity tracks Target Sensor scans, Block Interaction searches and successful interactions, homing checks and deployments, and Move Set selection passes and starts.
+- Reports show core names, dimensions, world coordinates, and peak tick locations. `/sablelife profile locate <core UUID>` resolves a loaded core's current position and displays the last recorded position for unloaded cores. The chat teleport button fills in a command to go two blocks above that position for the operator to review and run. The report stays in memory for the current server session. Entry 140.
+
 ### Survival Heart Core liquid fuel
 
 - Refuel has a narrow 40,000 mB tank aligned with the container slots on the right. It holds one registered fluid at a time. The gauge has a mark every 5,000 mB and a longer mark every 10,000 mB. Put a filled container in the input slot marked with a lava bucket and collect the resulting container from the output slot, or right-click the tank with a filled container to add fluid directly. Left-click the tank with an empty bucket to withdraw 1,000 mB when it holds enough of a fluid that can be bucketed. The tank tooltip shows the right-click and left-click instructions on separate lines. Click the small dump icon below the tank to show a check mark. Click again to empty the tank if its contents still match the first click.

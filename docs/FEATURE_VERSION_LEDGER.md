@@ -248,3 +248,5 @@ Java 附属和 Datapack 模块支持按核心类型停用，已有全局禁用�
 138. 待发布。核心可按生物类型或整个模组设置优先目标，红石核心可在主面板打开独立的编辑器。通过白名单和阵营规则等筛选后，自动索敌优先选取符合条件的名单目标，已有的有效锁定会保留。目标感应和目标对准可选择仅锁定名单内的目标。 / The core’s Priority Targets list accepts individual mob types or all mobs from a mod. Redstone Cores open a dedicated editor from the dashboard. Eligible listed mobs come first during automatic acquisition after whitelist and faction checks. Existing valid locks stay in place. Target Sensor and Target Alignment can filter to the list. Unreleased.
 
 139. 待发布。场地边界可设为方形，以标记点为中心并沿世界 X、Z 轴对齐。越界判定、阶段继承、召唤和预览按选定形状运行。原有场地沿用圆形，玩家警告范围独立设置。 / Arena boundary can use a square aligned with the world's X and Z axes around the marked center. Boundary checks, inherited stages, summons, and preview use the selected shape. Existing arenas retain Circle and the player warning range remains separate. Unreleased.
+
+140. 待发布。管理员可短时采样核心的服务端耗时和模块执行频率，按排行找出热点，并查询真实世界中的峰值位置、现位或卸载前的最后记录。 / Operators can briefly profile core tick times and module activity, rank cores, and look up peak, current, and last recorded world positions. Unreleased.

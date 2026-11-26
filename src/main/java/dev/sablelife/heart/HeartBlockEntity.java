@@ -991,6 +991,19 @@ public final class HeartBlockEntity extends com.simibubi.create.content.decorati
     }
 
     public static void serverTick(Level level, BlockPos position, BlockState state, HeartBlockEntity heart) {
+        long started = dev.sablelife.diagnostics.CoreProfiler.begin(level.getServer());
+        if (started == 0) {
+            tickCore(level, heart);
+            return;
+        }
+        try {
+            tickCore(level, heart);
+        } finally {
+            dev.sablelife.diagnostics.CoreProfiler.endCoreTick(heart, started);
+        }
+    }
+
+    private static void tickCore(Level level, HeartBlockEntity heart) {
         dev.sablelife.ownership.LoadedCoreIndex.observe(heart);
         if (!heart.isControlCore() && LifeLifecycle.get(level.getServer()).naturalRemovalPending(heart.creatureId)) return;
         if (!heart.blueprintWaypoints.isEmpty() || heart.blueprintActivationDeadline != Long.MIN_VALUE) {

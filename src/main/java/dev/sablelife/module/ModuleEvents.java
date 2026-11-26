@@ -1,6 +1,7 @@
 package dev.sablelife.module;
 
 import dev.sablelife.compat.sable.SableBodyProbe;
+import dev.sablelife.diagnostics.CoreProfiler;
 import dev.sablelife.heart.HeartBlockEntity;
 import dev.sablelife.heart.HeartState;
 import net.minecraft.server.level.ServerLevel;
@@ -365,6 +366,7 @@ public final class ModuleEvents {
                                                         Vec3 center, SensorShape shape, Predicate<LivingEntity> sees,
                                                         boolean chooseBest) {
         if (sensor.value("priorityOnly") == 1 && !heart.relations().hasPriorityMobs()) return null;
+        long started = CoreProfiler.begin(level.getServer());
         var bounds = shape.bounds(center);
         SightMemory.Target best = null;
         int bestRank = Integer.MAX_VALUE;
@@ -380,10 +382,11 @@ public final class ModuleEvents {
                     && (distance > bestDistance || distance == bestDistance && id.compareTo(best.id()) >= 0))) continue;
             if (!sees.test(entity)) continue;
             best = new SightMemory.Target(id, point, true);
-            if (!chooseBest) return best;
+            if (!chooseBest) break;
             bestRank = rank;
             bestDistance = distance;
         }
+        if (started != 0) CoreProfiler.endWork(heart, CoreProfiler.Work.SENSOR_SCAN, started, 1);
         return best;
     }
 }
