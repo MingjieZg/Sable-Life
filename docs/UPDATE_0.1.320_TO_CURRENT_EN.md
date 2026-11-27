@@ -39,6 +39,7 @@
 
 ### Stability fixes
 
+- Fixed deactivation for multipart creatures with Force Chunk Loading enabled. Both the core screen and the Creative Release Tool now clear the creature's loading tickets while preserving tickets owned by other creatures.
 - The Survival Heart Core tank can be emptied once the confirmation check mark is visible. A change to the tank contents requires a fresh confirmation.
 - Circular and square arenas check the configured blueprint spawn point, including offsets. Rotated blueprints still align to that point when using Bottom Center.
 - A blueprint awaiting faction binding can retain its placed, dormant core during an automated spawn or respawn. Binding or skipping lets the same core finish activation, including after a restart.

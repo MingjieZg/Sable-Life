@@ -5,8 +5,11 @@ import dev.sablelife.heart.*;
 import dev.sablelife.ownership.*;
 import dev.sablelife.compat.sable.SableBodyProbe;
 import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
+import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
+import dev.ryanhcode.sable.sublevel.ServerSubLevel;
+import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.*;
 import net.minecraft.world.level.block.Blocks;
@@ -68,6 +71,92 @@ public final class CoreChunkLoadingGameTests {
         CoreChunkLoading.stopped(new net.neoforged.neoforge.event.server.ServerStoppedEvent(level.getServer()));CoreChunkLoading.refresh(level.getServer());h.assertTrue(ticket(core)&&CoreChunkLoading.count(core)>0,"Lost runtime cache did not restore from persisted body tickets");
         core.resetForCreative(author);h.assertTrue(!ticket(core)&&core.forceChunkLoading(),"Release kept tickets or erased author setting");h.succeed();
     }
+    @GameTest(template = "combat", batch = "chunk_loading_shared_ticket_release")
+    public static void ReleaseRemovesManyPartTicketsAndKeepsOtherOwners(GameTestHelper h) {
+        var level = h.getLevel();
+        var container = SubLevelContainer.getContainer(level);
+        var core = fixture(h);
+        var author = TestActors.creative(level);
+        var owner = core.creatureId();
+        var otherOwner = UUID.randomUUID();
+        var root = (ServerSubLevel) dev.ryanhcode.sable.Sable.HELPER.getContaining(level, core.getBlockPos());
+        var unrelated = singlePart(h, new BlockPos(7, 9, 7));
+        var parts = new ArrayList<ServerSubLevel>();
+        parts.add(root);
+        try {
+            h.assertTrue(core.editCore(author, "forceChunkLoading", 1, ""), "Could not enable chunk loading");
+            core.tryActivate(author);
+            CoreChunkLoading.observe(core);
+            CoreChunkLoading.refresh(level.getServer());
+            h.assertTrue(hasBodyTicket(container, root, owner)
+                            && !CoreChunkLoading.chunks(level.getServer(), level, owner).isEmpty(),
+                    "Active core had no native body or world ticket");
+
+            // Enough native map entries to exercise a backing-table resize as singleton tickets are removed.
+            for (int i = 0; i < 37; i++) {
+                var part = singlePart(h, new BlockPos(7, 11 + i * 2, 7));
+                parts.add(part);
+                container.addForceLoadTicket(part, CoreChunkLoading.BODY_TICKET, owner);
+            }
+            container.addForceLoadTicket(root, CoreChunkLoading.BODY_TICKET, otherOwner);
+            container.addForceLoadTicket(unrelated, CoreChunkLoading.BODY_TICKET, otherOwner);
+            h.assertTrue(parts.stream().allMatch(part -> hasBodyTicket(container, part, owner))
+                            && hasBodyTicket(container, root, otherOwner) && hasBodyTicket(container, unrelated, otherOwner),
+                    "Fixture did not install all native tickets");
+
+            // Keep setup, release, and checks in one tick so background refresh cannot remove test tickets.
+            h.assertTrue(core.resetForCreative(author) && core.health().state() == HeartState.DORMANT
+                            && core.forceChunkLoading() && !core.creatureId().equals(owner),
+                    "Normal release did not reset the creature and retain the chunk loading setting");
+            assertReleaseTickets(h, container, parts, unrelated, owner, otherOwner);
+            h.assertTrue(CoreChunkLoading.chunks(level.getServer(), level, owner).isEmpty(),
+                    "Release retained the old creature's world loading");
+
+            CoreChunkLoading.release(level.getServer(), owner);
+            assertReleaseTickets(h, container, parts, unrelated, owner, otherOwner);
+            h.assertTrue(CoreChunkLoading.chunks(level.getServer(), level, owner).isEmpty(),
+                    "Repeated release left world loading");
+        } finally {
+            for (var part : parts) container.removeForceLoadTicket(part, CoreChunkLoading.BODY_TICKET, owner);
+            container.removeForceLoadTicket(root, CoreChunkLoading.BODY_TICKET, otherOwner);
+            container.removeForceLoadTicket(unrelated, CoreChunkLoading.BODY_TICKET, otherOwner);
+            for (var part : parts) if (part != root) container.removeSubLevel(part, SubLevelRemovalReason.REMOVED);
+            container.removeSubLevel(unrelated, SubLevelRemovalReason.REMOVED);
+            if (core.creatureId().equals(owner)) core.resetForCreative(author);
+        }
+        h.succeed();
+    }
+
+    private static void assertReleaseTickets(GameTestHelper h, ServerSubLevelContainer container,
+            List<ServerSubLevel> parts, ServerSubLevel unrelated, UUID owner, UUID otherOwner) {
+        h.assertTrue(parts.stream().noneMatch(part -> hasBodyTicket(container, part, owner)
+                        || hasSavedBodyTicket(container, part, owner)),
+                "Release retained an active or persisted ticket from the old creature");
+        var shared = parts.getFirst();
+        h.assertTrue(hasBodyTicket(container, shared, otherOwner) && hasSavedBodyTicket(container, shared, otherOwner)
+                        && hasBodyTicket(container, unrelated, otherOwner) && hasSavedBodyTicket(container, unrelated, otherOwner),
+                "Release affected a different creature's ticket");
+    }
+
+    private static boolean hasBodyTicket(ServerSubLevelContainer container, ServerSubLevel part, UUID owner) {
+        return container.collectForceLoadTickets().getOrDefault(part, Set.of()).stream()
+                .anyMatch(ticket -> CoreChunkLoading.BODY_TICKET.equals(ticket.type()) && owner.equals(ticket.key()));
+    }
+
+    private static boolean hasSavedBodyTicket(ServerSubLevelContainer container, ServerSubLevel part, UUID owner) {
+        var saved = container.getAllTickets().get(part.getUniqueId());
+        return saved != null && saved.tickets().stream()
+                .anyMatch(ticket -> CoreChunkLoading.BODY_TICKET.equals(ticket.type()) && owner.equals(ticket.key()));
+    }
+
+    private static ServerSubLevel singlePart(GameTestHelper h, BlockPos relative) {
+        var pos = h.absolutePos(relative);
+        var level = h.getLevel();
+        level.setBlockAndUpdate(pos, Blocks.IRON_BLOCK.defaultBlockState());
+        return SubLevelAssemblyHelper.assembleBlocks(
+                level, pos, List.of(pos), new BoundingBox3i(pos.getX(), pos.getY(), pos.getZ(), pos.getX(), pos.getY(), pos.getZ()));
+    }
+
     @GameTest(template="combat",batch="death_delay_sixty")
     public static void DeathDelayCapsAtSixtyAndLegacyDyingStateDoesNotRevive(GameTestHelper h){
         var core=fixture(h);var author=TestActors.creative(h.getLevel());h.assertTrue(core.editCore(author,"delay",60,"")&&!core.editCore(author,"delay",60.1,""),"60-second validation failed");

@@ -73,8 +73,16 @@ public final class CoreChunkLoading {
         var s=state(server);s.cores.remove(id);s.counts.remove(id);s.status.remove(id);s.missing.keySet().removeIf(o->o.id.equals(id));
         for(var level:server.getAllLevels()){
             var container=SubLevelContainer.getContainer(level);if(container==null)continue;
-            for(var entry:List.copyOf(container.collectForceLoadTickets().entrySet()))
-                if(entry.getValue().stream().anyMatch(t->t.type().equals(BODY_TICKET)&&id.equals(t.key())))container.removeForceLoadTicket(entry.getKey(),BODY_TICKET,id);
+            // Removing a ticket can invalidate entries in Sable's live map.
+            var bodies = new ArrayList<ServerSubLevel>();
+            for (var entry : container.collectForceLoadTickets().entrySet()) {
+                if (entry.getValue().stream().anyMatch(ticket -> ticket.type().equals(BODY_TICKET) && id.equals(ticket.key()))) {
+                    bodies.add(entry.getKey());
+                }
+            }
+            for (var body : bodies) {
+                container.removeForceLoadTicket(body, BODY_TICKET, id);
+            }
         }
         for(var owner:List.copyOf(s.world.keySet()))if(owner.id.equals(id)){
             for(var chunk:s.world.remove(owner))owner.level.getChunkSource().removeRegionTicket(WORLD_TICKET,chunk,2,id,true);
